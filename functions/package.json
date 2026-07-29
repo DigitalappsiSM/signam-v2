@@ -1,0 +1,24 @@
+{
+  "name": "signam-v2-functions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud Functions de SIGNAM V2: importaciones, consolidación, exportaciones y auditoría.",
+  "main": "lib/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src --ext .ts",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
