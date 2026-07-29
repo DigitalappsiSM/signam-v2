@@ -4,6 +4,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  writeBatch,
   orderBy,
   query,
 } from 'firebase/firestore';
@@ -15,6 +16,7 @@ import {
   sanitizeOriginal,
   type Actor,
 } from '@/modules/admira-catalog/screenFactory';
+import type { MasterRow } from '@/modules/admira-catalog/masterImport';
 
 /**
  * Acceso a la colección `screens` (catálogo Admira) en Cloud Firestore.
@@ -79,6 +81,49 @@ export async function deactivateScreen(
       deactivationReason: reason.trim(),
     }),
   });
+}
+
+const BATCH_LIMIT = 400;
+
+/**
+ * Importa en lote las pantallas detectadas en un maestro, conservando la
+ * procedencia (archivo, hoja y fila de origen). Devuelve cuántas se crearon.
+ */
+export async function importMasterScreens(
+  rows: readonly MasterRow[],
+  source: { fileName: string; sheet: string },
+  actor: Actor,
+): Promise<number> {
+  const database = db();
+  const now = Date.now();
+  let created = 0;
+
+  for (let i = 0; i < rows.length; i += BATCH_LIMIT) {
+    const chunk = rows.slice(i, i + BATCH_LIMIT);
+    const batch = writeBatch(database);
+    for (const row of chunk) {
+      const ref = doc(collection(database, COLLECTION));
+      batch.set(ref, {
+        original: sanitizeOriginal(row.original),
+        metadata: {
+          ...newScreenMetadata(actor, now),
+          source: source.fileName,
+          sourceSheet: source.sheet,
+          sourceRow: row.sourceRow,
+        },
+      });
+      created += 1;
+    }
+    await batch.commit();
+  }
+
+  return created;
+}
+
+/** Cuenta las pantallas actualmente en el catálogo. */
+export async function countScreens(): Promise<number> {
+  const snapshot = await getDocs(collection(db(), COLLECTION));
+  return snapshot.size;
 }
 
 /** Reactiva una pantalla previamente inactivada. */
