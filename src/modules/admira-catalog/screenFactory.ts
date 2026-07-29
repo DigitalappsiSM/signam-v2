@@ -40,6 +40,7 @@ export function newScreenMetadata(actor: Actor, now: number): SignamMetadata {
     sourceRow: 0,
     deactivationReason: null,
     version: 1,
+    calendarSupport: '',
   };
 }
 

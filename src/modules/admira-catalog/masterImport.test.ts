@@ -89,6 +89,24 @@ describe('analyzeMaster — incidencias', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('captura la columna de mapeo SOPORTE LIVERPOOL sin marcarla como adicional', () => {
+    const headers = [...OFFICIAL, 'SOPORTE LIVERPOOL'];
+    const rows = [[...sampleRow, 'VIDEO WALL CRIUS']];
+    const result = analyzeMaster([
+      { name: 'Consolidado', rows: [headers, ...rows] },
+    ]);
+    expect(result.mappingColumn).toBe('SOPORTE LIVERPOOL');
+    expect(result.extra).not.toContain('SOPORTE LIVERPOOL');
+    expect(result.rows[0]?.calendarSupport).toBe('VIDEO WALL CRIUS');
+    expect(result.ok).toBe(true);
+  });
+
+  it('deja calendarSupport vacío si no hay columna de mapeo', () => {
+    const result = analyzeMaster([consolidado([sampleRow])]);
+    expect(result.mappingColumn).toBeNull();
+    expect(result.rows[0]?.calendarSupport).toBe('');
+  });
+
   it('reporta columnas adicionales como advertencia (no bloquean)', () => {
     const headers = [...OFFICIAL, 'COLUMNA EXTRA'];
     const rows = [[...sampleRow, 'valor extra']];

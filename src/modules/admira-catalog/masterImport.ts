@@ -29,7 +29,19 @@ export interface MasterRow {
   original: AdmiraScreenOriginal;
   /** Número de fila en el archivo (1-based). */
   sourceRow: number;
+  /** Valor de la columna de mapeo al soporte del calendario (si existe). */
+  calendarSupport: string;
 }
+
+/**
+ * Encabezados aceptados para la columna opcional que mapea cada pantalla al
+ * soporte del Calendario de Liverpool (no es uno de los 12 oficiales).
+ */
+const MAPPING_ALIASES = new Set([
+  'soporte liverpool',
+  'soporte calendario',
+  'soporte ism',
+]);
 
 export interface MasterAnalysis {
   detectedSheet: string | null;
@@ -39,6 +51,8 @@ export interface MasterAnalysis {
   missing: AdmiraCatalogHeader[];
   extra: string[];
   legacyPases: boolean;
+  /** Encabezado de la columna de mapeo detectada, o null si no viene. */
+  mappingColumn: string | null;
   rows: MasterRow[];
   issues: ValidationIssue[];
   /** true si no hay incidencias bloqueantes y hay al menos una fila. */
@@ -125,6 +139,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       missing: [...ADMIRA_CATALOG_HEADERS],
       extra: [],
       legacyPases: false,
+      mappingColumn: null,
       rows: [],
       issues,
       ok: false,
@@ -135,14 +150,23 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
   const headerCells = sheet.rows[header.index] ?? [];
 
   // 2) Mapear columnas oficiales presentes y detectar faltantes/adicionales.
+  //    La columna opcional de mapeo al calendario se captura aparte (no es
+  //    "adicional" ni oficial).
   const columnByHeader = new Map<AdmiraCatalogHeader, number>();
   const extra: string[] = [];
+  let mappingCol = -1;
+  let mappingColumn: string | null = null;
   headerCells.forEach((cell, col) => {
     const text = cell?.trim() ?? '';
     if (text === '') return;
     const official = OFFICIAL_BY_NORM.get(normalizeHeader(text));
     if (official) {
       if (!columnByHeader.has(official)) columnByHeader.set(official, col);
+    } else if (MAPPING_ALIASES.has(normalizeHeader(text))) {
+      if (mappingCol === -1) {
+        mappingCol = col;
+        mappingColumn = text;
+      }
     } else {
       extra.push(text);
     }
@@ -183,7 +207,9 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       original[h] = (cells[col] ?? '').trim();
     }
     if (isRowEmpty(original)) continue;
-    rows.push({ original, sourceRow: r + 1 });
+    const calendarSupport =
+      mappingCol >= 0 ? (cells[mappingCol] ?? '').trim() : '';
+    rows.push({ original, sourceRow: r + 1, calendarSupport });
   }
 
   if (rows.length === 0) {
@@ -204,6 +230,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     missing,
     extra,
     legacyPases,
+    mappingColumn,
     rows,
     issues,
     ok,

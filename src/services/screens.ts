@@ -48,25 +48,37 @@ export async function listScreens(): Promise<AdmiraScreen[]> {
 export async function createScreen(
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
+  calendarSupport = '',
 ): Promise<string> {
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
   await setDoc(ref, {
     original: sanitizeOriginal(original),
-    metadata: newScreenMetadata(actor, now),
+    metadata: {
+      ...newScreenMetadata(actor, now),
+      calendarSupport: calendarSupport.trim(),
+    },
   });
   return ref.id;
 }
 
-/** Actualiza los campos originales de una pantalla existente. */
+/** Actualiza los campos originales (y el mapeo) de una pantalla existente. */
 export async function updateScreen(
   screen: AdmiraScreen,
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
+  calendarSupport?: string,
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
-    metadata: bumpMetadata(screen.metadata, actor, Date.now()),
+    metadata: bumpMetadata(
+      screen.metadata,
+      actor,
+      Date.now(),
+      calendarSupport === undefined
+        ? {}
+        : { calendarSupport: calendarSupport.trim() },
+    ),
   });
 }
 
@@ -120,6 +132,7 @@ export async function importMasterScreens(
           source: source.fileName,
           sourceSheet: source.sheet,
           sourceRow: row.sourceRow,
+          calendarSupport: row.calendarSupport.trim(),
         },
       });
       created += 1;
