@@ -6,28 +6,34 @@ import './CatalogPage.css';
 
 /**
  * Formulario modal para crear o editar una pantalla del catálogo. Muestra los
- * 12 campos oficiales del maestro en su orden autoritativo.
+ * 12 campos oficiales del maestro en su orden autoritativo, más el mapeo
+ * SIGNAM al soporte del Calendario de Liverpool (metadato, no oficial).
  */
 export function ScreenForm({
   title,
   initial,
+  initialCalendarSupport = '',
   submitting,
   onSubmit,
   onCancel,
 }: {
   title: string;
   initial?: AdmiraScreenOriginal;
+  initialCalendarSupport?: string;
   submitting: boolean;
-  onSubmit: (original: AdmiraScreenOriginal) => void;
+  onSubmit: (original: AdmiraScreenOriginal, calendarSupport: string) => void;
   onCancel: () => void;
 }) {
   const [values, setValues] = useState<AdmiraScreenOriginal>(
     initial ?? emptyOriginal(),
   );
+  const [calendarSupport, setCalendarSupport] = useState(
+    initialCalendarSupport,
+  );
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    onSubmit(values);
+    onSubmit(values, calendarSupport);
   }
 
   return (
@@ -50,6 +56,22 @@ export function ScreenForm({
             </label>
           ))}
         </div>
+
+        <label
+          className="screen-form__field"
+          style={{ marginTop: '0.75rem', display: 'block' }}
+        >
+          <span>SOPORTE LIVERPOOL (mapeo al calendario)</span>
+          <input
+            type="text"
+            value={calendarSupport}
+            disabled={submitting}
+            placeholder="Ej. VIDEO WALL CRIUS"
+            onChange={(e) => setCalendarSupport(e.target.value)}
+            style={{ width: '100%' }}
+          />
+        </label>
+
         <div className="modal__actions">
           <button
             type="button"

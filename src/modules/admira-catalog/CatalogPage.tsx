@@ -73,13 +73,16 @@ export function CatalogPage() {
     [screens],
   );
 
-  async function handleSubmit(original: AdmiraScreenOriginal) {
+  async function handleSubmit(
+    original: AdmiraScreenOriginal,
+    calendarSupport: string,
+  ) {
     setSaving(true);
     try {
       if (form.mode === 'create') {
-        await createScreen(original, actor);
+        await createScreen(original, actor, calendarSupport);
       } else if (form.mode === 'edit') {
-        await updateScreen(form.screen, original, actor);
+        await updateScreen(form.screen, original, actor, calendarSupport);
       }
       setForm({ mode: 'closed' });
       await reload();
@@ -244,7 +247,7 @@ export function CatalogPage() {
                 <th>Nombre de tienda</th>
                 <th>Modelo</th>
                 <th>Resolución</th>
-                <th>Circuito</th>
+                <th>Soporte Liverpool</th>
                 <th>Estado</th>
                 <th aria-label="Acciones" />
               </tr>
@@ -259,7 +262,11 @@ export function CatalogPage() {
                   <td>{screen.original['Nombre de tienda']}</td>
                   <td>{screen.original.Modelo}</td>
                   <td>{screen.original.RESOLUCION}</td>
-                  <td>{screen.original.CIRCUITO}</td>
+                  <td>
+                    {screen.metadata.calendarSupport || (
+                      <span className="text-muted">— sin mapear —</span>
+                    )}
+                  </td>
                   <td>
                     {screen.metadata.active ? (
                       <span className="badge badge-info">Activa</span>
@@ -309,6 +316,9 @@ export function CatalogPage() {
             form.mode === 'create' ? 'Agregar pantalla' : 'Editar pantalla'
           }
           initial={form.mode === 'edit' ? form.screen.original : undefined}
+          initialCalendarSupport={
+            form.mode === 'edit' ? form.screen.metadata.calendarSupport : ''
+          }
           submitting={saving}
           onSubmit={handleSubmit}
           onCancel={() => setForm({ mode: 'closed' })}

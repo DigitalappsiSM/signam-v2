@@ -46,6 +46,13 @@ export interface SignamMetadata {
   deactivationReason: string | null;
   /** Versión monotónica del registro (se incrementa en cada edición). */
   version: number;
+  /**
+   * Mapeo al soporte del Calendario de Liverpool (p. ej. `VIDEO WALL CRIUS`).
+   * Es el campo por el que se cruza el calendario contra el catálogo, junto con
+   * `Numero de Tienda`. Metadato SIGNAM: no forma parte de los 12 campos
+   * oficiales del maestro. Vacío si aún no se ha mapeado.
+   */
+  calendarSupport: string;
 }
 
 /** Pantalla del catálogo Admira: campos originales + metadatos SIGNAM. */
