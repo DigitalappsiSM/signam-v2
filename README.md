@@ -38,40 +38,43 @@ cp .env.example .env   # completa las variables VITE_FIREBASE_*
 npm run dev            # http://localhost:5173
 ```
 
+> Guía detallada de configuración de Firebase (crear `signam-v2-dev`, servicios,
+> `.env`, reglas, emuladores y roles): [`docs/SETUP.md`](./docs/SETUP.md).
+
 Sin configuración de Firebase la app arranca en **modo degradado**: la interfaz
 funciona y el panel indica que faltan las variables `VITE_FIREBASE_*`. No se
 usan credenciales inventadas.
 
 ## Scripts
 
-| Script                   | Descripción                                   |
-| ------------------------ | --------------------------------------------- |
-| `npm run dev`            | Servidor de desarrollo (Vite).                |
-| `npm run build`          | Typecheck + build de producción.              |
-| `npm run preview`        | Sirve el build de producción.                 |
-| `npm run typecheck`      | Comprobación de tipos (`tsc --noEmit`).       |
-| `npm run lint`           | ESLint (0 warnings permitidos).               |
-| `npm run format`         | Formatea con Prettier.                        |
-| `npm run format:check`   | Verifica formato sin escribir.                |
-| `npm run test`           | Ejecuta las pruebas (Vitest).                 |
-| `npm run test:coverage`  | Pruebas con reporte de cobertura.             |
-| `npm run emulators`      | Inicia la Firebase Emulator Suite.            |
+| Script                  | Descripción                             |
+| ----------------------- | --------------------------------------- |
+| `npm run dev`           | Servidor de desarrollo (Vite).          |
+| `npm run build`         | Typecheck + build de producción.        |
+| `npm run preview`       | Sirve el build de producción.           |
+| `npm run typecheck`     | Comprobación de tipos (`tsc --noEmit`). |
+| `npm run lint`          | ESLint (0 warnings permitidos).         |
+| `npm run format`        | Formatea con Prettier.                  |
+| `npm run format:check`  | Verifica formato sin escribir.          |
+| `npm run test`          | Ejecuta las pruebas (Vitest).           |
+| `npm run test:coverage` | Pruebas con reporte de cobertura.       |
+| `npm run emulators`     | Inicia la Firebase Emulator Suite.      |
 
 ## Variables de entorno
 
 Documentadas en [`.env.example`](./.env.example). Nunca se confirman `.env`,
 cuentas de servicio, llaves privadas ni tokens.
 
-| Variable                            | Descripción                                  |
-| ----------------------------------- | -------------------------------------------- |
-| `VITE_FIREBASE_API_KEY`             | API key del proyecto Firebase.               |
-| `VITE_FIREBASE_AUTH_DOMAIN`         | Dominio de autenticación.                    |
-| `VITE_FIREBASE_PROJECT_ID`          | ID del proyecto (`signam-v2-dev`).           |
+| Variable                            | Descripción                                   |
+| ----------------------------------- | --------------------------------------------- |
+| `VITE_FIREBASE_API_KEY`             | API key del proyecto Firebase.                |
+| `VITE_FIREBASE_AUTH_DOMAIN`         | Dominio de autenticación.                     |
+| `VITE_FIREBASE_PROJECT_ID`          | ID del proyecto (`signam-v2-dev`).            |
 | `VITE_FIREBASE_STORAGE_BUCKET`      | Bucket de Cloud Storage.                      |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Sender ID.                                    |
 | `VITE_FIREBASE_APP_ID`              | App ID web.                                   |
-| `VITE_USE_FIREBASE_EMULATORS`       | `true` para usar la Emulator Suite.          |
-| `VITE_FIREBASE_EMULATOR_HOST`       | Host de emuladores (por defecto `127.0.0.1`).|
+| `VITE_USE_FIREBASE_EMULATORS`       | `true` para usar la Emulator Suite.           |
+| `VITE_FIREBASE_EMULATOR_HOST`       | Host de emuladores (por defecto `127.0.0.1`). |
 
 ## Estructura
 
@@ -105,7 +108,7 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
   detectan pero se excluyen de la consolidación en esta etapa.
 - **Nombre de campaña Admira** (`campaignName.ts`): formato
   `<Campaña Liverpool>_ <ARTICULOS>`; múltiples artículos distintos se
-  concatenan con ` + `, deduplicando y conservando el orden de aparición.
+  concatenan con `+`, deduplicando y conservando el orden de aparición.
 - **Llave de consolidación** (`consolidationKey.ts`): `Campaña + RESOLUCION`.
   No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
 - **Serialización CSV de Admira** (`csv.ts`): layout confirmado
@@ -134,13 +137,13 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 **reglas de Firestore y Storage** son la fuente de verdad del control de acceso
 (ocultar botones no es suficiente).
 
-| Acción                       | admin | operator | viewer |
-| ---------------------------- | :---: | :------: | :----: |
-| Leer catálogo                |   ✓   |    ✓     |   ✓    |
-| Editar / inactivar catálogo  |   ✓   |          |        |
-| Importar calendarios         |   ✓   |    ✓     |        |
-| Exportar CSV                 |   ✓   |    ✓     |        |
-| Administrar usuarios         |   ✓   |          |        |
+| Acción                      | admin | operator | viewer |
+| --------------------------- | :---: | :------: | :----: |
+| Leer catálogo               |   ✓   |    ✓     |   ✓    |
+| Editar / inactivar catálogo |   ✓   |          |        |
+| Importar calendarios        |   ✓   |    ✓     |        |
+| Exportar CSV                |   ✓   |    ✓     |        |
+| Administrar usuarios        |   ✓   |          |        |
 
 ### Emuladores
 
