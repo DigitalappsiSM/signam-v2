@@ -35,6 +35,17 @@
   font-size: 0.85rem;
 }
 
+.topbar__logout {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 560px) {
+  .topbar__user {
+    display: none;
+  }
+}
+
 .topbar__toggle {
   display: none;
   background: none;
