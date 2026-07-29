@@ -1,16 +1,18 @@
 import { useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { analyzeCalendar, type CalendarAnalysis } from './calendarImport';
+import { parseCampaigns, type CampaignParseResult } from './campaignParse';
 import { readCalendarWorkbook } from './readCalendarWorkbook';
 import './ImportPage.css';
 
 type Phase = 'idle' | 'analyzing' | 'done';
 
-/** Importación del Calendario de Liverpool — paso 1: inspección/vista previa. */
+/** Importación del Calendario de Liverpool — inspección + campañas. */
 export function ImportPage() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [fileName, setFileName] = useState('');
   const [analysis, setAnalysis] = useState<CalendarAnalysis | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -22,6 +24,7 @@ export function ImportPage() {
     try {
       const data = await readCalendarWorkbook(file);
       setAnalysis(analyzeCalendar(data));
+      setCampaigns(parseCampaigns(data));
       setPhase('done');
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
@@ -35,10 +38,8 @@ export function ImportPage() {
   function downloadDiagnosis() {
     if (!analysis) return;
     const blob = new Blob(
-      [JSON.stringify({ fileName, ...analysis }, null, 2)],
-      {
-        type: 'application/json',
-      },
+      [JSON.stringify({ fileName, analysis, campaigns }, null, 2)],
+      { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -82,10 +83,85 @@ export function ImportPage() {
         <p className="text-muted">Analizando archivo…</p>
       )}
 
+      {phase === 'done' && campaigns && <CampaignsView result={campaigns} />}
+
       {phase === 'done' && analysis && (
         <Diagnosis analysis={analysis} onDownload={downloadDiagnosis} />
       )}
     </>
+  );
+}
+
+function CampaignsView({ result }: { result: CampaignParseResult }) {
+  const liverpoolStores = (c: CampaignParseResult['campaigns'][number]) =>
+    c.supports
+      .filter((s) => s.owner === 'liverpool')
+      .reduce((n, s) => n + s.stores.length, 0);
+
+  return (
+    <div className="diagnosis" style={{ marginBottom: '1.5rem' }}>
+      <h2 style={{ fontSize: '1.2rem' }}>Campañas detectadas</h2>
+
+      <dl className="import__summary">
+        <div>
+          <dt>Campañas</dt>
+          <dd>
+            <strong>{result.totalCampaigns}</strong>
+          </dd>
+        </div>
+        <div>
+          <dt>Soportes Liverpool</dt>
+          <dd>{result.liverpoolSupports.length}</dd>
+        </div>
+        <div>
+          <dt>Soportes InStore (excluidos)</dt>
+          <dd>{result.instoreSupports.length}</dd>
+        </div>
+      </dl>
+
+      <div className="import__note">
+        <strong>Soportes Liverpool:</strong>{' '}
+        {result.liverpoolSupports.join(' · ') || '—'}
+        <br />
+        <strong>InStore Media (Muppi’s / Pendón, excluidos):</strong>{' '}
+        {result.instoreSupports.join(' · ') || '—'}
+      </div>
+
+      <div className="diagnosis__table-wrap">
+        <table className="catalog__table">
+          <thead>
+            <tr>
+              <th>Campaña</th>
+              <th>Inicio</th>
+              <th>Fin</th>
+              <th>Soportes Liverpool</th>
+              <th>Tiendas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.campaigns.slice(0, 100).map((c) => (
+              <tr key={c.row}>
+                <td>{c.name}</td>
+                <td>{c.fechaInicio}</td>
+                <td>{c.fechaFin}</td>
+                <td>
+                  {c.supports
+                    .filter((s) => s.owner === 'liverpool')
+                    .map((s) => s.support)
+                    .join(', ') || '—'}
+                </td>
+                <td>{liverpoolStores(c)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {result.campaigns.length > 100 && (
+        <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+          Mostrando las primeras 100 de {result.campaigns.length} campañas.
+        </p>
+      )}
+    </div>
   );
 }
 

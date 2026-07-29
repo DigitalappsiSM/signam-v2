@@ -11,13 +11,16 @@ import { INSTORE_MEDIA_SUPPORTS } from './constants';
  * Así `Muppi's`, `MUPPI’S` y `MUPPIS` se consideran el mismo soporte.
  */
 export function normalizeSupport(value: string): string {
-  return value
-    .trim()
-    .replace(/\s+/g, ' ')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/['\u2019]/g, '')
-    .toUpperCase();
+  return (
+    value
+      .trim()
+      .replace(/\s+/g, ' ')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Ap\u00f3strofes y acentos usados como ap\u00f3strofe: ' \u2019 \u00b4 ` \u02bc
+      .replace(/['\u2019\u00b4`\u02bc]/g, '')
+      .toUpperCase()
+  );
 }
 
 const INSTORE_MEDIA_NORMALIZED = new Set(
