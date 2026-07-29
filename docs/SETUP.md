@@ -153,7 +153,33 @@ console.log(`Rol '${role}' asignado a ${uid}`);
 La asignación de roles desde la interfaz de administración forma parte de una
 iteración posterior.
 
-## Despliegue del frontend (Hosting) — más adelante
+## Despliegue automático (GitHub Actions → Firebase Hosting)
+
+El repositorio incluye `.github/workflows/deploy.yml`, que en cada push a `main`
+compila la app y la publica en **Firebase Hosting** (`signam-v2-prod`), además de
+desplegar las reglas e índices de Firestore. Así no se necesita usar la terminal:
+basta con abrir la URL publicada.
+
+**Configuración única (una sola vez):**
+
+1. **Cuenta de servicio (Firebase):** consola de Firebase → ⚙️ _Configuración
+   del proyecto_ → pestaña **Cuentas de servicio** → **Generar nueva clave
+   privada** → se descarga un archivo `.json`.
+2. **Secreto en GitHub:** repositorio en GitHub → **Settings** → **Secrets and
+   variables** → **Actions** → **New repository secret**:
+   - Name: `FIREBASE_SERVICE_ACCOUNT`
+   - Value: pega **todo el contenido** del `.json` descargado.
+   - **Add secret**.
+3. Borra el archivo `.json` de tu computadora (ya vive, cifrado, en GitHub).
+
+> ⚠️ El `.json` de la cuenta de servicio **es una llave privada**: nunca se sube
+> a Git ni se comparte por chat. Solo se pega en **GitHub → Secrets** (cifrado).
+
+Con el secreto configurado, cada cambio en `main` se publica solo. También se
+puede lanzar manualmente desde la pestaña **Actions** del repositorio
+(_Deploy a Firebase Hosting_ → _Run workflow_).
+
+### Despliegue manual (alternativa, requiere terminal)
 
 ```bash
 npm run build
