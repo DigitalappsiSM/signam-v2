@@ -247,7 +247,7 @@ export function CatalogPage() {
                 <th>Nombre de tienda</th>
                 <th>Modelo</th>
                 <th>Resolución</th>
-                <th>Soporte Liverpool</th>
+                <th>Normalización Liverpool</th>
                 <th>Estado</th>
                 <th aria-label="Acciones" />
               </tr>

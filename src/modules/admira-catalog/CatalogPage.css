@@ -105,6 +105,31 @@
   font-weight: 600;
 }
 
+.import__mode {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.import__mode legend {
+  font-size: 0.85rem;
+  padding: 0 0.4rem;
+  color: var(--color-text-muted);
+}
+
+.import__mode label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+}
+
+.import__mode input {
+  margin-top: 0.2rem;
+}
+
 .catalog__table-wrap {
   overflow-x: auto;
   background: var(--color-surface);

@@ -113,8 +113,7 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
   No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
 - **Serialización CSV de Admira** (`csv.ts`): layout confirmado
   `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape
-  RFC 4180 y UTF-8 con BOM opcional. La regla de `RETAILERS` **no está definida**
-  y no se inventa.
+  RFC 4180 y UTF-8 con BOM opcional. `RETAILERS` es constante = `LIVERPOOL`.
 - **Encabezados del catálogo** (`constants.ts`): orden autoritativo del maestro.
   El encabezado definitivo es `TIPO DE PASES`; la estructura antigua `Pases` se
   reporta como faltante en lugar de corregirse en silencio.
@@ -172,7 +171,6 @@ Functions.
 - Importación y comparación de versiones del maestro Admira.
 - Motor de consolidación (excepción de Guadalajara Galerías incluida).
 - Generación completa de CSV/ZIP con snapshot inmutable por exportación.
-- Regla de construcción de `RETAILERS` (**requiere decisión de negocio**).
 - Bitácora de auditoría poblada desde Cloud Functions.
 
 ## Datos empresariales

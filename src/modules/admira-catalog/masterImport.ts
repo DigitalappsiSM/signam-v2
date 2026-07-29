@@ -1,5 +1,6 @@
 import {
   ADMIRA_CATALOG_HEADERS,
+  CALENDAR_MAPPING_HEADERS,
   LEGACY_PASES_HEADER,
   REQUIRED_PASES_HEADER,
   type AdmiraCatalogHeader,
@@ -37,11 +38,9 @@ export interface MasterRow {
  * Encabezados aceptados para la columna opcional que mapea cada pantalla al
  * soporte del Calendario de Liverpool (no es uno de los 12 oficiales).
  */
-const MAPPING_ALIASES = new Set([
-  'soporte liverpool',
-  'soporte calendario',
-  'soporte ism',
-]);
+const MAPPING_ALIASES = new Set(
+  CALENDAR_MAPPING_HEADERS.map((h) => normalizeHeader(h)),
+);
 
 export interface MasterAnalysis {
   detectedSheet: string | null;

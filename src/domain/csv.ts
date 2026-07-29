@@ -8,8 +8,9 @@ import type { AdmiraCsvRow } from './models';
  * `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`.
  *
  * Reglas: escapar correctamente comas, comillas y saltos de línea; opción de
- * UTF-8 con BOM si Admira lo requiere. `RETAILERS` aún requiere una regla
- * posterior — este módulo NO inventa su valor; solo serializa lo que reciba.
+ * UTF-8 con BOM si Admira lo requiere. `RETAILERS` es constante (`LIVERPOOL`,
+ * ver `RETAILERS_VALUE`) y lo fija la consolidación; este módulo solo serializa
+ * las filas que recibe.
  */
 
 const DELIMITER = ',';

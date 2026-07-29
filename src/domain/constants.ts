@@ -39,8 +39,6 @@ export const LEGACY_PASES_HEADER = 'Pases' as const;
 
 /**
  * Layout confirmado del CSV de Admira. El orden de columnas es autoritativo.
- * `RETAILERS` requiere una regla posterior aún no definida: su valor no debe
- * inventarse.
  */
 export const ADMIRA_CSV_COLUMNS = [
   'ARTICULOS',
@@ -53,6 +51,24 @@ export const ADMIRA_CSV_COLUMNS = [
 ] as const;
 
 export type AdmiraCsvColumn = (typeof ADMIRA_CSV_COLUMNS)[number];
+
+/**
+ * Valor constante de la columna `RETAILERS` en el CSV de Admira.
+ * Decisión de negocio confirmada: siempre `LIVERPOOL`.
+ */
+export const RETAILERS_VALUE = 'LIVERPOOL' as const;
+
+/**
+ * Encabezados aceptados para la columna (opcional) del maestro que mapea cada
+ * pantalla al soporte del Calendario de Liverpool. El oficial es
+ * `NORMALIZACION LIVERPOOL`; se aceptan variantes por compatibilidad.
+ */
+export const CALENDAR_MAPPING_HEADERS = [
+  'NORMALIZACION LIVERPOOL',
+  'SOPORTE LIVERPOOL',
+  'SOPORTE CALENDARIO',
+  'SOPORTE ISM',
+] as const;
 
 /**
  * Soportes gestionados por InStore Media. En esta etapa se detectan y muestran
