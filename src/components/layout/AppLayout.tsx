@@ -2,12 +2,20 @@ import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { NAV_ROUTES } from '@/app/routes';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { signOutCurrentUser } from '@/services/auth';
+import type { UserRole } from '@/domain';
 import './AppLayout.css';
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Administrador',
+  operator: 'Operador',
+  viewer: 'Consulta',
+};
 
 /** Marco principal de la aplicación: barra lateral de navegación + contenido. */
 export function AppLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { user, configured } = useAuth();
+  const { user } = useAuth();
 
   return (
     <div className="layout">
@@ -24,11 +32,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
           SIGNAM <strong>V2</strong>
         </span>
         <span className="topbar__spacer" />
-        <span className="topbar__user text-muted">
-          {configured
-            ? (user?.email ?? 'Sin sesión')
-            : 'Firebase no configurado'}
-        </span>
+        {user && (
+          <>
+            <span className="topbar__user text-muted">{user.email}</span>
+            <span className="badge badge-info">{ROLE_LABELS[user.role]}</span>
+            <button
+              className="btn btn-secondary topbar__logout"
+              onClick={() => void signOutCurrentUser()}
+            >
+              Cerrar sesión
+            </button>
+          </>
+        )}
       </header>
 
       <div className="layout__body">
