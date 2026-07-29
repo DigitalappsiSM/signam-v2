@@ -47,7 +47,12 @@ npm install
 2. Nombre: **`signam-v2-prod`** (es el proyecto `default` en `.firebaserc`).
 3. Google Analytics es opcional; puedes desactivarlo.
 
-## Fase 2 — Activar los servicios
+## Fase 2 — Activar los servicios (plan Spark, gratis)
+
+Se trabaja en el **plan Spark (gratuito, sin tarjeta)**. En esta etapa **no se
+habilita Cloud Storage**: Storage (y Cloud Functions) requieren el plan Blaze, y
+la app todavía no usa Storage. Se activarán cuando se implemente la carga de los
+archivos Excel originales.
 
 Dentro del proyecto:
 
@@ -55,7 +60,7 @@ Dentro del proyecto:
    **Correo electrónico/contraseña**.
 2. **Firestore Database** → _Crear base de datos_ → modo **producción** →
    elige región (p. ej. `nam5` / `us-central1`).
-3. **Storage** → _Comenzar_ → modo **producción** → misma región.
+3. **Storage** → _omitir por ahora_ (requiere Blaze; no es necesario aún).
 
 ## Fase 3 — Registrar la app web y obtener `firebaseConfig`
 
@@ -98,10 +103,14 @@ debe desaparecer cuando las variables son válidas.
 ```bash
 firebase login
 firebase use prod    # apunta a signam-v2-prod (también es el default)
-firebase deploy --only firestore:rules,firestore:indexes,storage
+firebase deploy --only firestore:rules,firestore:indexes
 ```
 
-Esto publica `firestore.rules`, `firestore.indexes.json` y `storage.rules`.
+Esto publica `firestore.rules` y `firestore.indexes.json`.
+
+> En el plan Spark **no se despliega `storage`** (Storage no está habilitado).
+> Cuando se pase a Blaze y se active Storage, añade `,storage` al comando para
+> publicar también `storage.rules`.
 
 ## Fase 7 (opcional) — Emulator Suite (desarrollo sin datos reales)
 
