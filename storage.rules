@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// Reglas de seguridad de Cloud Storage para SIGNAM V2.
+//
+// Se conservan los archivos originales importados (calendarios Liverpool y
+// maestros Admira) y los CSV/ZIP exportados. El rol se lee de los custom claims
+// del token (`request.auth.token.role`).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return isSignedIn() ? request.auth.token.role : '';
+    }
+
+    function canRead() {
+      return isSignedIn() && role() in ['admin', 'operator', 'viewer'];
+    }
+
+    function canWriteImports() {
+      return isSignedIn() && role() in ['admin', 'operator'];
+    }
+
+    // Archivos originales de importación (se conservan tal cual).
+    // Solo creación: no se permite sobrescribir ni eliminar un archivo
+    // original ya subido (posiblemente por otro operador), para no destruir
+    // la fuente conservada que se necesita para auditoría o reprocesamiento.
+    match /imports/{importId}/{fileName} {
+      allow read: if canRead();
+      allow create: if canWriteImports();
+      allow update, delete: if false;
+    }
+
+    // Exportaciones (CSV y ZIP). Escritas por Cloud Functions.
+    match /exports/{exportId}/{fileName} {
+      allow read: if canRead();
+      allow write: if false;
+    }
+
+    // Cerrado por defecto.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

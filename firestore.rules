@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// Reglas de seguridad de Cloud Firestore para SIGNAM V2.
+//
+// Los roles (admin, operator, viewer) se leen desde custom claims del token de
+// autenticación (`request.auth.token.role`). Ocultar botones en el cliente no
+// es suficiente: estas reglas son la fuente de verdad del control de acceso.
+//
+// Operaciones sensibles o reproducibles (importaciones, consolidación,
+// exportaciones, auditoría) se escriben desde Cloud Functions con credenciales
+// de administrador y, por tanto, el acceso de escritura del cliente está
+// restringido o cerrado en esas colecciones.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return isSignedIn() ? request.auth.token.role : '';
+    }
+
+    function isAdmin() {
+      return role() == 'admin';
+    }
+
+    function isOperator() {
+      return role() == 'operator';
+    }
+
+    function canRead() {
+      // admin, operator y viewer pueden leer.
+      return isSignedIn() && role() in ['admin', 'operator', 'viewer'];
+    }
+
+    // Perfiles de usuario: cada quien lee el suyo; solo admin administra.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Catálogo Admira: lectura para roles autorizados; escritura solo admin.
+    // No se permite la eliminación física: las pantallas se inactivan
+    // (metadata.active=false) conservando su historial, de modo que una campaña
+    // que solicite una pantalla inactiva pueda producir la incidencia explícita.
+    match /screens/{screenId} {
+      allow read: if canRead();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Campañas importadas del calendario Liverpool.
+    // Lectura para roles autorizados; creación por operator/admin (importación).
+    match /campaigns/{campaignId} {
+      allow read: if canRead();
+      allow create: if isAdmin() || isOperator();
+      allow update, delete: if isAdmin();
+    }
+
+    // Validaciones de importación: creadas por quien importa; inmutables luego.
+    match /importValidations/{importId} {
+      allow read: if canRead();
+      allow create: if isAdmin() || isOperator();
+      allow update, delete: if false;
+    }
+
+    // Consolidaciones: escritas por Cloud Functions; solo lectura desde cliente.
+    match /consolidations/{consolidationId} {
+      allow read: if canRead();
+      allow write: if false;
+    }
+
+    // Exportaciones CSV: snapshot inmutable; escritas por Cloud Functions.
+    match /csvExports/{exportId} {
+      allow read: if canRead();
+      allow write: if false;
+    }
+
+    // Auditoría: solo lectura para admin; escritura exclusiva de Cloud Functions.
+    match /auditEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Cerrado por defecto para cualquier otra ruta.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
