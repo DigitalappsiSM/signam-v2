@@ -16,6 +16,7 @@ import {
   type ScreenFilters,
 } from './screenFilter';
 import { ScreenForm } from './ScreenForm';
+import { MasterImportModal } from './MasterImportModal';
 import type { Actor } from './screenFactory';
 import './CatalogPage.css';
 
@@ -35,6 +36,8 @@ export function CatalogPage() {
   const [filters, setFilters] = useState<ScreenFilters>(EMPTY_FILTERS);
   const [form, setForm] = useState<FormState>({ mode: 'closed' });
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -114,14 +117,28 @@ export function CatalogPage() {
         title="Catálogo Admira"
         description="Consulta, busca y administra las pantallas del catálogo Admira CSM. Los campos originales del maestro se conservan intactos."
         actions={
-          <button
-            className="btn btn-primary"
-            onClick={() => setForm({ mode: 'create' })}
-          >
-            + Agregar pantalla
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setImporting(true)}
+            >
+              Importar maestro
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => setForm({ mode: 'create' })}
+            >
+              + Agregar pantalla
+            </button>
+          </div>
         }
       />
+
+      {notice && (
+        <div className="catalog__notice" role="status">
+          {notice}
+        </div>
+      )}
 
       {error && (
         <div className="catalog__error" role="alert">
@@ -270,6 +287,19 @@ export function CatalogPage() {
           submitting={saving}
           onSubmit={handleSubmit}
           onCancel={() => setForm({ mode: 'closed' })}
+        />
+      )}
+
+      {importing && (
+        <MasterImportModal
+          actor={actor}
+          existingCount={screens.length}
+          onClose={() => setImporting(false)}
+          onImported={(created) => {
+            setImporting(false);
+            setNotice(`Se importaron ${created} pantallas del maestro.`);
+            void reload();
+          }}
         />
       )}
     </>
