@@ -1,7 +1,16 @@
 # Guía de configuración de SIGNAM V2
 
 Esta guía explica cómo poner en marcha SIGNAM V2 en local y cómo conectar el
-proyecto Firebase de desarrollo (`signam-v2-dev`).
+proyecto Firebase de trabajo.
+
+> **Entorno de trabajo actual: producción (`signam-v2-prod`).** En esta etapa se
+> trabaja directamente contra el proyecto de producción como entorno único. Los
+> datos no son definitivos todavía: si algo sale mal, se vacía la base de datos
+> y se reinicia. **No se libera al equipo hasta tener el flujo 100% probado.**
+> Como no hay un proyecto de desarrollo separado, cualquier borrado afecta la
+> única base existente: procede con esa consciencia. (El alias `dev` /
+> `signam-v2-dev` sigue disponible en `.firebaserc` por si más adelante se
+> quiere un entorno separado.)
 
 > **Nota:** en la primera entrega **aún no existe pantalla de inicio de sesión**
 > (el módulo de autenticación llega en una iteración posterior). Configurar
@@ -32,10 +41,10 @@ git checkout main && git pull
 npm install
 ```
 
-## Fase 1 — Crear el proyecto de desarrollo
+## Fase 1 — Crear el proyecto de producción
 
 1. Entra a <https://console.firebase.google.com/> → **Agregar proyecto**.
-2. Nombre: **`signam-v2-dev`** (coincide con el alias `dev` de `.firebaserc`).
+2. Nombre: **`signam-v2-prod`** (es el proyecto `default` en `.firebaserc`).
 3. Google Analytics es opcional; puedes desactivarlo.
 
 ## Fase 2 — Activar los servicios
@@ -64,9 +73,9 @@ Completa `.env` con los valores de `firebaseConfig`:
 
 ```dotenv
 VITE_FIREBASE_API_KEY=AIza...
-VITE_FIREBASE_AUTH_DOMAIN=signam-v2-dev.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=signam-v2-dev
-VITE_FIREBASE_STORAGE_BUCKET=signam-v2-dev.appspot.com
+VITE_FIREBASE_AUTH_DOMAIN=signam-v2-prod.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=signam-v2-prod
+VITE_FIREBASE_STORAGE_BUCKET=signam-v2-prod.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
 VITE_FIREBASE_APP_ID=1:123456789:web:abc...
 VITE_USE_FIREBASE_EMULATORS=false
@@ -88,7 +97,7 @@ debe desaparecer cuando las variables son válidas.
 
 ```bash
 firebase login
-firebase use dev     # usa el alias definido en .firebaserc
+firebase use prod    # apunta a signam-v2-prod (también es el default)
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
