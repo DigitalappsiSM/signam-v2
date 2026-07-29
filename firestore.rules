@@ -34,13 +34,13 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Catálogo Admira. Sin eliminación física: las pantallas se inactivan
-    // (metadata.active=false) conservando su historial, de modo que una campaña
-    // que solicite una pantalla inactiva pueda producir la incidencia explícita.
+    // Catálogo Admira. La acción normal es INACTIVAR (metadata.active=false),
+    // que conserva el historial. La eliminación física se permite para limpiar
+    // registros de prueba o cargados por error; no debe usarse con pantallas ya
+    // referenciadas por exportaciones. Antes de liberar, se restringirá a admin.
     match /screens/{screenId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if false;
+      allow create, update, delete: if isSignedIn();
     }
 
     // Campañas importadas del calendario Liverpool.

@@ -5,6 +5,7 @@ import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
   createScreen,
   deactivateScreen,
+  deleteScreen,
   listScreens,
   reactivateScreen,
   updateScreen,
@@ -108,6 +109,24 @@ export function CatalogPage() {
       await reload();
     } catch {
       setError('No se pudo reactivar la pantalla.');
+    }
+  }
+
+  async function handleDelete(screen: AdmiraScreen) {
+    const name =
+      screen.original['Nombre de tienda'] ||
+      screen.original['Numero de Tienda'] ||
+      'esta pantalla';
+    const confirmed = window.confirm(
+      `¿Eliminar permanentemente ${name}? Esta acción no se puede deshacer y no conserva historial. Si solo quieres sacarla de operación, usa “Inactivar”.`,
+    );
+    if (!confirmed) return;
+    try {
+      await deleteScreen(screen.id);
+      setNotice('Pantalla eliminada.');
+      await reload();
+    } catch {
+      setError('No se pudo eliminar la pantalla.');
     }
   }
 
@@ -270,6 +289,12 @@ export function CatalogPage() {
                         Reactivar
                       </button>
                     )}
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => void handleDelete(screen)}
+                    >
+                      Eliminar
+                    </button>
                   </td>
                 </tr>
               ))}

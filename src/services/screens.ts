@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   setDoc,
@@ -81,6 +82,15 @@ export async function deactivateScreen(
       deactivationReason: reason.trim(),
     }),
   });
+}
+
+/**
+ * Elimina físicamente una pantalla. Es permanente y NO conserva historial: la
+ * acción preferida es inactivar. Úsese solo para limpiar registros de prueba o
+ * cargados por error, nunca con pantallas ya referenciadas por exportaciones.
+ */
+export async function deleteScreen(id: string): Promise<void> {
+  await deleteDoc(doc(db(), COLLECTION, id));
 }
 
 const BATCH_LIMIT = 400;
