@@ -1,0 +1,40 @@
+.import-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.import-file__name {
+  font-size: 0.9rem;
+}
+
+.diagnosis__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.diagnosis__head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.diagnosis__section {
+  margin-top: 1.5rem;
+}
+
+.diagnosis__section h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.diagnosis__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
