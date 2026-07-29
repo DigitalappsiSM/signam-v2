@@ -23,8 +23,11 @@ export function ImportPage() {
       const data = await readCalendarWorkbook(file);
       setAnalysis(analyzeCalendar(data));
       setPhase('done');
-    } catch {
-      setError('No se pudo leer el archivo. ¿Es un Excel (.xlsx) válido?');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setError(
+        `No se pudo leer el archivo. Detalle: ${detail}. Si el problema persiste, intenta abrirlo en Excel y "Guardar como" → Libro de Excel (.xlsx).`,
+      );
       setPhase('idle');
     }
   }
@@ -55,11 +58,11 @@ export function ImportPage() {
       <div className="card" style={{ marginBottom: '1.25rem' }}>
         <label className="import-file">
           <span className="btn btn-primary">
-            Seleccionar calendario (.xlsx)
+            Seleccionar calendario (.xlsx / .xls)
           </span>
           <input
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             onChange={(e) => void handleFile(e)}
             hidden
           />
