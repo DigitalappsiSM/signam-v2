@@ -149,6 +149,22 @@ export async function countScreens(): Promise<number> {
   return snapshot.size;
 }
 
+/**
+ * Elimina TODAS las pantallas del catálogo (borrado permanente). Se usa para la
+ * opción "Reemplazar todo" al reimportar el maestro. Devuelve cuántas borró.
+ */
+export async function deleteAllScreens(): Promise<number> {
+  const database = db();
+  const snapshot = await getDocs(collection(database, COLLECTION));
+  const docs = snapshot.docs;
+  for (let i = 0; i < docs.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(database);
+    for (const d of docs.slice(i, i + BATCH_LIMIT)) batch.delete(d.ref);
+    await batch.commit();
+  }
+  return docs.length;
+}
+
 /** Reactiva una pantalla previamente inactivada. */
 export async function reactivateScreen(
   screen: AdmiraScreen,

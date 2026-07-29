@@ -1,11 +1,12 @@
 import { useState, type ChangeEvent } from 'react';
-import { importMasterScreens } from '@/services/screens';
+import { deleteAllScreens, importMasterScreens } from '@/services/screens';
 import { analyzeMaster, type MasterAnalysis } from './masterImport';
 import { readWorkbook } from './readWorkbook';
 import type { Actor } from './screenFactory';
 import './CatalogPage.css';
 
 type Phase = 'select' | 'analyzing' | 'preview' | 'importing';
+type ImportMode = 'append' | 'replace';
 
 /**
  * Flujo de importación del maestro (.xlsx): seleccionar archivo → analizar y
@@ -26,6 +27,7 @@ export function MasterImportModal({
   const [fileName, setFileName] = useState('');
   const [analysis, setAnalysis] = useState<MasterAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ImportMode>('append');
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -45,9 +47,18 @@ export function MasterImportModal({
 
   async function handleConfirm() {
     if (!analysis || !analysis.detectedSheet) return;
+    if (mode === 'replace' && existingCount > 0) {
+      const ok = window.confirm(
+        `Vas a BORRAR las ${existingCount} pantallas actuales y reemplazarlas por ${analysis.rows.length}. Esta acción no se puede deshacer. ¿Continuar?`,
+      );
+      if (!ok) return;
+    }
     setPhase('importing');
     setError(null);
     try {
+      if (mode === 'replace') {
+        await deleteAllScreens();
+      }
       const created = await importMasterScreens(
         analysis.rows,
         { fileName, sheet: analysis.detectedSheet },
@@ -122,14 +133,43 @@ export function MasterImportModal({
                   <strong>{analysis.rows.length}</strong>
                 </dd>
               </div>
+              <div>
+                <dt>Columna de normalización</dt>
+                <dd>{analysis.mappingColumn ?? '— no incluida —'}</dd>
+              </div>
             </dl>
 
             {existingCount > 0 && (
-              <div className="import__note">
-                El catálogo ya tiene <strong>{existingCount}</strong> pantallas.
-                La importación <strong>agrega</strong> las nuevas (no reemplaza
-                ni elimina las existentes).
-              </div>
+              <fieldset className="import__mode">
+                <legend>
+                  El catálogo ya tiene <strong>{existingCount}</strong>{' '}
+                  pantallas. ¿Qué hacer?
+                </legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={mode === 'append'}
+                    onChange={() => setMode('append')}
+                  />
+                  <span>
+                    <strong>Agregar</strong> — conserva las existentes y añade
+                    las nuevas.
+                  </span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={mode === 'replace'}
+                    onChange={() => setMode('replace')}
+                  />
+                  <span>
+                    <strong>Reemplazar todo</strong> — borra las {existingCount}{' '}
+                    actuales e importa solo las nuevas.
+                  </span>
+                </label>
+              </fieldset>
             )}
 
             {blocking.length > 0 && (
@@ -178,10 +218,14 @@ export function MasterImportModal({
           {phase === 'preview' && analysis?.ok && (
             <button
               type="button"
-              className="btn btn-primary"
+              className={
+                mode === 'replace' ? 'btn btn-danger' : 'btn btn-primary'
+              }
               onClick={() => void handleConfirm()}
             >
-              Confirmar importación
+              {mode === 'replace'
+                ? 'Reemplazar todo e importar'
+                : 'Confirmar importación'}
             </button>
           )}
         </div>

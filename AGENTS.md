@@ -32,8 +32,11 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
   de la consolidación en esta etapa.
 - **CSV de Admira**: layout `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,`
-  `RETAILERS,TIPO DE PASES`. La regla de `RETAILERS` **no está definida**: no la
-  inventes.
+  `RETAILERS,TIPO DE PASES`. `RETAILERS` es constante = `LIVERPOOL`
+  (`RETAILERS_VALUE`).
+- **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
+  (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
+  `calendarSupport`.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan

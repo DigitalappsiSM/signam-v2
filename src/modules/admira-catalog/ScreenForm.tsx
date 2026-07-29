@@ -61,7 +61,7 @@ export function ScreenForm({
           className="screen-form__field"
           style={{ marginTop: '0.75rem', display: 'block' }}
         >
-          <span>SOPORTE LIVERPOOL (mapeo al calendario)</span>
+          <span>NORMALIZACIÓN LIVERPOOL (mapeo al calendario)</span>
           <input
             type="text"
             value={calendarSupport}
