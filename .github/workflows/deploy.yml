@@ -43,10 +43,14 @@ jobs:
           VITE_FIREBASE_APP_ID: '1:1015989960129:web:1e65613fa5725a3ffd8340'
           VITE_USE_FIREBASE_EMULATORS: 'false'
 
-      - name: Deploy (hosting + reglas e índices de Firestore)
+      # Por ahora se despliega solo Hosting. El despliegue de reglas/índices de
+      # Firestore se añadirá cuando la cuenta de servicio tenga permiso para
+      # verificar las APIs (rol "Service Usage Consumer"/"Editor"); ver
+      # docs/SETUP.md. La app aún no lee/escribe en Firestore.
+      - name: Deploy a Firebase Hosting
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only hosting,firestore:rules,firestore:indexes
+          args: deploy --only hosting
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: signam-v2-prod
