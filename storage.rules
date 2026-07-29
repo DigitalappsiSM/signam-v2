@@ -26,9 +26,13 @@ service firebase.storage {
     }
 
     // Archivos originales de importación (se conservan tal cual).
+    // Solo creación: no se permite sobrescribir ni eliminar un archivo
+    // original ya subido (posiblemente por otro operador), para no destruir
+    // la fuente conservada que se necesita para auditoría o reprocesamiento.
     match /imports/{importId}/{fileName} {
       allow read: if canRead();
-      allow write: if canWriteImports();
+      allow create: if canWriteImports();
+      allow update, delete: if false;
     }
 
     // Exportaciones (CSV y ZIP). Escritas por Cloud Functions.

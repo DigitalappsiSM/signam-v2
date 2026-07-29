@@ -54,15 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      const token = await fbUser.getIdTokenResult();
-      const role = (token.claims.role as UserRole | undefined) ?? 'viewer';
-      setUser({
-        uid: fbUser.uid,
-        email: fbUser.email,
-        displayName: fbUser.displayName,
-        role,
-      });
-      setLoading(false);
+      try {
+        const token = await fbUser.getIdTokenResult();
+        const role = (token.claims.role as UserRole | undefined) ?? 'viewer';
+        if (!active) return;
+        setUser({
+          uid: fbUser.uid,
+          email: fbUser.email,
+          displayName: fbUser.displayName,
+          role,
+        });
+      } catch (error) {
+        // Falla transitoria al leer el token (red/autenticación): en lugar de
+        // dejar la app colgada en "cargando" o presentar al usuario como sin
+        // sesión, se degrada al rol mínimo (viewer) y se libera el estado.
+        console.error('No se pudo leer el token de autenticación:', error);
+        if (!active) return;
+        setUser({
+          uid: fbUser.uid,
+          email: fbUser.email,
+          displayName: fbUser.displayName,
+          role: 'viewer',
+        });
+      } finally {
+        if (active) setLoading(false);
+      }
     });
 
     return () => {

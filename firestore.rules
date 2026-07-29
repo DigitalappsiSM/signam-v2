@@ -42,9 +42,13 @@ service cloud.firestore {
     }
 
     // Catálogo Admira: lectura para roles autorizados; escritura solo admin.
+    // No se permite la eliminación física: las pantallas se inactivan
+    // (metadata.active=false) conservando su historial, de modo que una campaña
+    // que solicite una pantalla inactiva pueda producir la incidencia explícita.
     match /screens/{screenId} {
       allow read: if canRead();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     // Campañas importadas del calendario Liverpool.
