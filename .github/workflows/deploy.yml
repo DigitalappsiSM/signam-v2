@@ -1,0 +1,52 @@
+name: Deploy a Firebase Hosting
+
+# Publica la app en Firebase Hosting (proyecto signam-v2-prod) y despliega las
+# reglas e índices de Firestore.
+#
+# Se ejecuta en cada push a `main` y también manualmente (workflow_dispatch).
+#
+# Requisito único: un secreto de repositorio llamado FIREBASE_SERVICE_ACCOUNT
+# con el JSON de una cuenta de servicio del proyecto (ver docs/SETUP.md).
+# Los valores VITE_FIREBASE_* son configuración PÚBLICA de cliente de Firebase
+# (no son secretos) y por eso pueden vivir aquí.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build y deploy a producción
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: AIzaSyDkVhsTvQLVchjzQz5YkopfvEzh6RAs1iM
+          VITE_FIREBASE_AUTH_DOMAIN: signam-v2-prod.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: signam-v2-prod
+          VITE_FIREBASE_STORAGE_BUCKET: signam-v2-prod.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '1015989960129'
+          VITE_FIREBASE_APP_ID: '1:1015989960129:web:1e65613fa5725a3ffd8340'
+          VITE_USE_FIREBASE_EMULATORS: 'false'
+
+      - name: Deploy (hosting + reglas e índices de Firestore)
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only hosting,firestore:rules,firestore:indexes
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: signam-v2-prod
