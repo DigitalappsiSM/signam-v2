@@ -15,6 +15,11 @@ describe('normalizeSupport', () => {
   it('trata el apóstrofe tipográfico igual que el recto', () => {
     expect(normalizeSupport('MUPPI’S')).toBe('MUPPIS');
   });
+
+  it('reconoce el acento agudo usado como apóstrofe (MUPPI´S del calendario)', () => {
+    expect(normalizeSupport('MUPPI´S')).toBe('MUPPIS');
+    expect(isInStoreMediaSupport('MUPPI´S')).toBe(true);
+  });
 });
 
 describe('isInStoreMediaSupport', () => {
