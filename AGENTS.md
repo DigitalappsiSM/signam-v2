@@ -38,6 +38,10 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
   filas de CSV; una campaña que las solicite produce una incidencia explícita.
+- Eliminación física de pantallas: existe en el catálogo (`deleteScreen`) para
+  limpiar registros de prueba o cargados por error. **Inactivar es la acción
+  preferida** (conserva historial); no se deben eliminar pantallas ya
+  referenciadas por exportaciones. Antes de liberar se restringirá a admin.
 
 ## Comandos
 

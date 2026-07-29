@@ -89,6 +89,17 @@ button {
   border-color: var(--color-text-muted);
 }
 
+.btn-danger {
+  background: var(--color-surface);
+  border-color: #f0b9b3;
+  color: var(--color-danger);
+}
+
+.btn-danger:hover {
+  background: #fdecea;
+  border-color: var(--color-danger);
+}
+
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
