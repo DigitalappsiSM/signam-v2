@@ -2,14 +2,15 @@ rules_version = '2';
 
 // Reglas de seguridad de Cloud Firestore para SIGNAM V2.
 //
-// Los roles (admin, operator, viewer) se leen desde custom claims del token de
-// autenticación (`request.auth.token.role`). Ocultar botones en el cliente no
-// es suficiente: estas reglas son la fuente de verdad del control de acceso.
+// FASE ACTUAL (pre-lanzamiento, en pruebas): cualquier usuario autenticado
+// (creado por el administrador en Firebase Authentication) puede leer y escribir
+// las colecciones de trabajo. La app es privada y de acceso por invitación.
 //
-// Operaciones sensibles o reproducibles (importaciones, consolidación,
-// exportaciones, auditoría) se escriben desde Cloud Functions con credenciales
-// de administrador y, por tanto, el acceso de escritura del cliente está
-// restringido o cerrado en esas colecciones.
+// OBJETIVO antes de liberar al equipo: control por ROL (admin/operator/viewer).
+// Cuando exista el modelo de roles (documento `users/{uid}` con `role`, o custom
+// claims), se sustituirá `isSignedIn()` por las funciones de rol de abajo, que
+// ya quedan preparadas. La eliminación física de pantallas se prohíbe incluso
+// en pruebas (se inactivan conservando su historial).
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -18,70 +19,61 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function role() {
-      return isSignedIn() ? request.auth.token.role : '';
+    // --- Preparado para el control por rol (aún no aplicado en esta fase) ---
+    function userRole() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : '';
     }
 
-    function isAdmin() {
-      return role() == 'admin';
-    }
-
-    function isOperator() {
-      return role() == 'operator';
-    }
-
-    function canRead() {
-      // admin, operator y viewer pueden leer.
-      return isSignedIn() && role() in ['admin', 'operator', 'viewer'];
-    }
-
-    // Perfiles de usuario: cada quien lee el suyo; solo admin administra.
+    // Perfiles de usuario: cada quien lee el suyo; en esta fase, cualquier
+    // usuario autenticado puede administrarlos (se restringirá a admin).
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
-    // Catálogo Admira: lectura para roles autorizados; escritura solo admin.
-    // No se permite la eliminación física: las pantallas se inactivan
+    // Catálogo Admira. Sin eliminación física: las pantallas se inactivan
     // (metadata.active=false) conservando su historial, de modo que una campaña
     // que solicite una pantalla inactiva pueda producir la incidencia explícita.
     match /screens/{screenId} {
-      allow read: if canRead();
-      allow create, update: if isAdmin();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
       allow delete: if false;
     }
 
     // Campañas importadas del calendario Liverpool.
-    // Lectura para roles autorizados; creación por operator/admin (importación).
     match /campaigns/{campaignId} {
-      allow read: if canRead();
-      allow create: if isAdmin() || isOperator();
-      allow update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
     }
 
     // Validaciones de importación: creadas por quien importa; inmutables luego.
     match /importValidations/{importId} {
-      allow read: if canRead();
-      allow create: if isAdmin() || isOperator();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
-    // Consolidaciones: escritas por Cloud Functions; solo lectura desde cliente.
+    // Consolidaciones.
     match /consolidations/{consolidationId} {
-      allow read: if canRead();
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
-    // Exportaciones CSV: snapshot inmutable; escritas por Cloud Functions.
+    // Exportaciones CSV: snapshot inmutable una vez creado.
     match /csvExports/{exportId} {
-      allow read: if canRead();
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    // Auditoría: solo lectura para admin; escritura exclusiva de Cloud Functions.
+    // Auditoría: inmutable (solo se agrega, nunca se edita ni se borra).
     match /auditEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     // Cerrado por defecto para cualquier otra ruta.
