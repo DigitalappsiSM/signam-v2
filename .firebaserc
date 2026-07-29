@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "signam-v2-dev",
-    "dev": "signam-v2-dev",
-    "prod": "signam-v2-prod"
+    "default": "signam-v2-prod",
+    "prod": "signam-v2-prod",
+    "dev": "signam-v2-dev"
   }
 }

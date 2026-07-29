@@ -123,8 +123,12 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
 
 Se usa un proyecto **nuevo**, sin reutilizar `signam-produccion`:
 
-- Desarrollo: `signam-v2-dev`
-- Producción (futura): `signam-v2-prod`
+- Producción (entorno de trabajo actual y `default` en `.firebaserc`): `signam-v2-prod`
+- Desarrollo (alias `dev`, opcional para más adelante): `signam-v2-dev`
+
+> En esta etapa se trabaja directamente contra producción como entorno único;
+> los datos no son definitivos y pueden reiniciarse hasta validar el flujo por
+> completo. Ver [`docs/SETUP.md`](./docs/SETUP.md).
 
 Archivos versionados: `firebase.json`, `firestore.rules`,
 `firestore.indexes.json`, `storage.rules`, `.firebaserc`.
