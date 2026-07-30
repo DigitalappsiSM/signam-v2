@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { listCampaigns } from '@/services/campaigns';
@@ -17,13 +26,19 @@ import {
   type ConsolidationIssue,
   type ConsolidationResult,
 } from '@/modules/consolidation/consolidate';
-import { consolidationCsv, csvFileName } from '@/modules/exports/csvExport';
+import {
+  buildZip,
+  consolidationCsv,
+  csvFileName,
+  zipFileName,
+} from '@/modules/exports/csvExport';
 import { buildIssuesPdf, ISSUE_LABELS } from '@/modules/exports/pdfReport';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import type { StoredCampaign } from './campaignDiff';
 import { parseEkonNumber } from './ekon';
+import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
 import {
   campaignIntersectsPeriod,
   hasPeriodFilter,
@@ -73,6 +88,10 @@ export function CampaignsPage() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [detail, setDetail] = useState<StoredCampaign | null>(null);
+  // Menú de descargas: solo uno abierto a la vez (por id de campaña).
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [zipBusyName, setZipBusyName] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -173,10 +192,39 @@ export function CampaignsPage() {
   const filtersActive =
     search.trim() !== '' || hasPeriodFilter(desde, hasta) || perError !== null;
 
+  // CSV e incidencias visibles: solo de las campañas incluidas en `filtered`.
+  const visibleStats = useMemo(() => {
+    let csv = 0;
+    let issues = 0;
+    for (const c of filtered) {
+      csv += consByCampaign.get(c.name)?.length ?? 0;
+      issues += (issuesByCampaign.get(c.name) ?? []).length;
+    }
+    return { csv, issues };
+  }, [filtered, consByCampaign, issuesByCampaign]);
+
   function clearFilters() {
     setSearch('');
     setDesde('');
     setHasta('');
+  }
+
+  async function downloadZipFor(c: StoredCampaign, cons: Consolidation[]) {
+    if (zipBusyName || cons.length === 0) return;
+    setCsvError(null);
+    setZipBusyName(c.name);
+    try {
+      const blob = await buildZip(cons);
+      download(blob, zipFileName(c.name));
+      setOpenMenuId(null);
+    } catch {
+      setCsvError(
+        `No se pudo generar el ZIP de "${c.name}". Inténtalo de nuevo.`,
+      );
+      setOpenMenuId(null);
+    } finally {
+      setZipBusyName(null);
+    }
   }
 
   async function downloadPdf(c: StoredCampaign) {
@@ -248,14 +296,21 @@ export function CampaignsPage() {
           </button>
         )}
         <span className="text-muted" style={{ alignSelf: 'center' }}>
-          {campaigns.length} campañas · {result.consolidations.length} CSV ·{' '}
-          {result.issues.length} incidencias
+          {filtersActive
+            ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
+            : `${campaigns.length} campañas · ${result.consolidations.length} CSV · ${result.issues.length} incidencias`}
         </span>
       </div>
 
       {perError && (
         <div className="catalog__error" role="alert">
           {perError}
+        </div>
+      )}
+
+      {csvError && (
+        <div className="catalog__error" role="alert">
+          {csvError}
         </div>
       )}
 
@@ -342,26 +397,18 @@ export function CampaignsPage() {
                         >
                           👁️
                         </button>
-                        <details className="csv-menu">
-                          <summary className="icon-btn" title="Descargar CSV">
-                            ⬇️
-                          </summary>
-                          <div className="csv-menu__panel">
-                            {cons.length === 0 ? (
-                              <span className="text-muted">Sin CSV</span>
-                            ) : (
-                              cons.map((cn, i) => (
-                                <button
-                                  key={i}
-                                  className="csv-menu__item"
-                                  onClick={() => downloadCsvFor(cn)}
-                                >
-                                  {cn.resolution} — {cn.rows.length} filas
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </details>
+                        <CsvMenu
+                          campaign={c}
+                          cons={cons}
+                          open={openMenuId === c.id}
+                          zipBusy={zipBusyName === c.name}
+                          onOpenChange={(o) => setOpenMenuId(o ? c.id : null)}
+                          onDownloadCsv={(cn) => {
+                            downloadCsvFor(cn);
+                            setOpenMenuId(null);
+                          }}
+                          onDownloadZip={() => downloadZipFor(c, cons)}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -648,5 +695,155 @@ function EkonEditor({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Menú de descargas CSV de una campaña. Es un menú controlado por React que se
+ * renderiza mediante `createPortal` hacia `document.body`, para no quedar
+ * recortado por el overflow del contenedor desplazable de la tabla. Se coloca
+ * junto al botón con `computeMenuPlacement` (abre hacia abajo o hacia arriba) y
+ * se cierra al pulsar fuera, con Escape o al hacer scroll/resize.
+ */
+function CsvMenu({
+  campaign,
+  cons,
+  open,
+  zipBusy,
+  onOpenChange,
+  onDownloadCsv,
+  onDownloadZip,
+}: {
+  campaign: StoredCampaign;
+  cons: Consolidation[];
+  open: boolean;
+  zipBusy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDownloadCsv: (cn: Consolidation) => void;
+  onDownloadZip: () => void;
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<MenuPlacement | null>(null);
+  const panelId = `csv-menu-${campaign.id}`;
+
+  const reposition = useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPlacement(
+      computeMenuPlacement({
+        anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        menuWidth: 240,
+        estimatedHeight: Math.min(320, 64 + (cons.length + 1) * 38),
+      }),
+    );
+  }, [cons.length]);
+
+  useLayoutEffect(() => {
+    if (open) reposition();
+    else setPlacement(null);
+  }, [open, reposition]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => onOpenChange(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onOpenChange(false);
+        btnRef.current?.focus();
+      }
+    };
+    const onPointerDown = (e: Event) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      onOpenChange(false);
+    };
+    // Cerrar (en vez de recolocar) al desplazar o redimensionar: es preferible
+    // cerrar de forma segura a dejar el panel desalineado.
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [open, onOpenChange]);
+
+  const style: CSSProperties = placement
+    ? {
+        left: placement.left,
+        ...(placement.top !== undefined ? { top: placement.top } : {}),
+        ...(placement.bottom !== undefined ? { bottom: placement.bottom } : {}),
+        ...(placement.maxHeight ? { maxHeight: placement.maxHeight } : {}),
+      }
+    : { visibility: 'hidden' };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="icon-btn"
+        aria-label={`Descargar CSV de ${campaign.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => onOpenChange(!open)}
+      >
+        ⬇️
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="menu"
+            aria-label={`Descargas de ${campaign.name}`}
+            className="csv-menu__panel"
+            style={style}
+          >
+            {cons.length === 0 ? (
+              <span
+                className="csv-menu__empty text-muted"
+                role="menuitem"
+                aria-disabled="true"
+              >
+                Sin CSV
+              </span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="csv-menu__item csv-menu__item--zip"
+                  disabled={zipBusy}
+                  aria-busy={zipBusy}
+                  onClick={() => onDownloadZip()}
+                >
+                  {zipBusy ? 'Generando ZIP…' : 'Descargar todos en ZIP'}
+                </button>
+                <div className="csv-menu__sep" role="separator" />
+                {cons.map((cn, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    role="menuitem"
+                    className="csv-menu__item"
+                    onClick={() => onDownloadCsv(cn)}
+                  >
+                    {cn.resolution} — {cn.rows.length} filas
+                  </button>
+                ))}
+              </>
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

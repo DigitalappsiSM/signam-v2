@@ -15,6 +15,20 @@ export function csvFileName(c: Consolidation): string {
   return `${base || 'campana'}.csv`;
 }
 
+/**
+ * Nombre del ZIP que agrupa TODAS las resoluciones de una campaña. Usa la misma
+ * sanitización de caracteres inválidos que `csvFileName`, pero sin `ARTICULOS`
+ * ni resolución: solo el nombre de la campaña Liverpool.
+ * Ej.: `COLCHONIZA 2026 E2` → `COLCHONIZA 2026 E2_ Todas las resoluciones.zip`.
+ */
+export function zipFileName(campaignName: string): string {
+  const base = campaignName
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${base || 'campana'}_ Todas las resoluciones.zip`;
+}
+
 /** Contenido CSV de una consolidación (UTF-8 con BOM). */
 export function consolidationCsv(c: Consolidation): string {
   return serializeAdmiraCsv(c.rows);
