@@ -19,6 +19,7 @@ function camp(
     fechaInicio: '2/1/26',
     fechaFin: '2/16/26',
     mes: 'FEBRERO',
+    link: '',
     supports: [
       {
         support: 'VIDEO WALL CRIUS',

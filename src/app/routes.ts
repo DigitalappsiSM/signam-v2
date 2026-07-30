@@ -30,13 +30,8 @@ export const NAV_ROUTES: RouteMeta[] = [
     path: '/campanas',
     label: 'Campañas',
     icon: '📣',
-    description: 'Cruza campañas Liverpool contra pantallas activas.',
-  },
-  {
-    path: '/exportar',
-    label: 'Exportación CSV',
-    icon: '📤',
-    description: 'Genera los CSV de programación de Admira.',
+    description:
+      'Campañas guardadas, detalle, CSV de Admira y reporte de errores.',
   },
   {
     path: '/historial',

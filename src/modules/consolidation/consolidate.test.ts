@@ -36,6 +36,7 @@ function campaign(
     fechaInicio: '',
     fechaFin: '',
     mes: '',
+    link: '',
     supports,
   };
 }

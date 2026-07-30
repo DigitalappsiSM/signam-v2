@@ -33,6 +33,8 @@ export interface ParsedCampaign {
   fechaInicio: string;
   fechaFin: string;
   mes: string;
+  /** Enlace al contenido (columna LINK del calendario); vacío si no hay. */
+  link: string;
   supports: CampaignSupport[];
 }
 
@@ -224,6 +226,7 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
       fechaInicio: cellText(row, meta.fechaInicio),
       fechaFin: cellText(row, meta.fechaFin),
       mes: cellText(row, meta.mes),
+      link: cellText(row, meta.link),
       supports,
     });
   }
