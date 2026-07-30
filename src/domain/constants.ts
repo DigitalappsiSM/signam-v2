@@ -76,9 +76,10 @@ export const ADMIRA_CSV_HEADER_LABELS = [
 export const RETAILERS_VALUE = 'LIVERPOOL' as const;
 
 /**
- * Título del CSV de Admira: primera fila del archivo, con este texto en la
- * celda `A1` (el encabezado de columnas queda en la fila 2). Decisión de
- * negocio confirmada.
+ * Encabezado de la primera columna del CSV de Admira. Admira ignora la columna
+ * A, por lo que se usa como columna "guarda": vacía en las filas de datos y con
+ * este texto (`LIVERPOOL`) en la celda `A1`. Las columnas reales empiezan en B.
+ * Decisión de negocio confirmada.
  */
 export const ADMIRA_CSV_TITLE = 'LIVERPOOL' as const;
 

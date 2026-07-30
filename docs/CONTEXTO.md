@@ -103,11 +103,13 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
   `+`, deduplicados y en orden de aparición.
 - **Consolidación**: llave `Campaña + RESOLUCION` (no separa por circuito,
   soporte, `ARTICULOS` ni `TIPO DE PASES`).
-- **CSV**: la **fila 1** lleva el título `LIVERPOOL` en la celda `A1`; el
-  encabezado de columnas va en la **fila 2**. Orden `ARTICULOS,BRANDS,CENTROS,
-CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape RFC 4180, UTF-8 con BOM. El
-  encabezado **escrito** rotula la última columna como `Tipo de Pases`; la llave
-  interna de las filas y el encabezado del maestro permanecen `TIPO DE PASES`.
+- **CSV**: Admira ignora la **columna A**, que se usa como columna "guarda":
+  vacía en los datos y con `LIVERPOOL` en `A1`. Las columnas reales empiezan en
+  **B**, así que la fila 1 es `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,
+RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
+  vacía. Escape RFC 4180, UTF-8 con BOM. El encabezado **escrito** rotula la
+  última columna como `Tipo de Pases`; la llave interna de las filas y el
+  encabezado del maestro permanecen `TIPO DE PASES`.
 - **Asociación campaña ↔ Ekon** (1–1): cada campaña puede tener a lo sumo un
   número de campaña Ekon y cada número pertenece a una sola campaña. Se guarda
   en colecciones separadas (`campaignEkonLinks`, `ekonCampaignNumbers`) que

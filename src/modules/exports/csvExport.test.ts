@@ -39,16 +39,17 @@ describe('csvFileName', () => {
 });
 
 describe('consolidationCsv', () => {
-  it('incluye título LIVERPOOL en A1, encabezado exacto (Tipo de Pases), RETAILERS=LIVERPOOL y BOM', () => {
+  it('pone LIVERPOOL en A1 con columna A vacía, encabezado exacto (Tipo de Pases), RETAILERS=LIVERPOOL y BOM', () => {
     const csv = consolidationCsv(consolidation());
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    // Fila 1 = título en A1; fila 2 = encabezado.
-    expect(csv.slice(1).startsWith('LIVERPOOL\r\n')).toBe(true);
+    // Fila 1: A1 = "LIVERPOOL", encabezado real desde la columna B.
+    expect(csv.slice(1).startsWith('LIVERPOOL,ARTICULOS')).toBe(true);
     expect(csv).toContain(
-      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases',
+      'LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases',
     );
+    // Cada fila de datos empieza con la columna A vacía.
     expect(csv).toContain(
-      'VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,LIVERPOOL,PASES FULL',
+      ',VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,LIVERPOOL,PASES FULL',
     );
   });
 });
