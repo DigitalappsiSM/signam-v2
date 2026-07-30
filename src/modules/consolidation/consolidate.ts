@@ -161,16 +161,23 @@ export function consolidate(
 
         if (activeMatches.length === 0) {
           const inactiveMatches = index.inactive.get(k) ?? [];
+          const storeExists = (index.activeByStore.get(num) ?? []).length > 0;
+          let code: string;
+          let message: string;
+          if (inactiveMatches.length > 0) {
+            code = 'screen-inactive';
+            message = `Pantalla inactiva excluida: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`;
+          } else if (storeExists) {
+            code = 'store-support-mismatch';
+            message = `La tienda ${num} existe en el catálogo pero no con el soporte "${support.support}" (posible error de Liverpool o falta de mapeo): se excluye. Campaña "${campaign.name}".`;
+          } else {
+            code = 'store-not-in-catalog';
+            message = `La tienda ${num} no existe en el catálogo (el maestro es la verdad absoluta): se excluye. Campaña "${campaign.name}", soporte "${support.support}".`;
+          }
           issues.push({
             severity: 'warning',
-            code:
-              inactiveMatches.length > 0
-                ? 'screen-inactive'
-                : 'screen-not-found',
-            message:
-              inactiveMatches.length > 0
-                ? `Pantalla inactiva excluida: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`
-                : `Sin pantalla activa en el catálogo: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`,
+            code,
+            message,
             location: { column: support.support },
           });
         }
