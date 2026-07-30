@@ -134,7 +134,12 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
 
 - Lista las campañas guardadas (nombre, **tipo de campaña**, vigencias,
   **Contenido**: botón _Descargar contenido_ con el `LINK`, o _Link pendiente_,
-  soportes Liverpool, nº de tiendas).
+  y **nº de tiendas** realmente incluidas tras la consolidación). El detalle de
+  soportes/tiendas se consulta con el icono 👁️ (columna "Soportes Liverpool"
+  eliminada de la tabla para no ocultar las acciones).
+- La columna **Tiendas** cuenta las **tiendas distintas realmente incluidas**
+  (derivadas de las pantallas consolidadas), por lo que refleja correctamente el
+  caso "Asignada sin comentario" (tiendas tomadas del catálogo).
 - Consolida contra las pantallas activas del catálogo (`Campaña + RESOLUCION`).
 - Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
   **detalle** (soportes + tiendas + estado OK/incidencia), ⬇️ **descargar cada
