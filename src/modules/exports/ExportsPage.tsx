@@ -6,6 +6,7 @@ import { readCalendarWorkbook } from '@/modules/liverpool-import/readCalendarWor
 import { parseCampaigns } from '@/modules/liverpool-import/campaignParse';
 import {
   consolidate,
+  summarizeIssues,
   type ConsolidationResult,
 } from '@/modules/consolidation/consolidate';
 import { buildZip, consolidationCsv, csvFileName } from './csvExport';
@@ -72,9 +73,10 @@ export function ExportsPage() {
         [
           JSON.stringify(
             {
-              issues: result.issues,
+              summary: summarizeIssues(result.issues),
               excludedInstore: result.excludedInstore,
               ismExcludedCount: result.ismExcludedCount,
+              issues: result.issues,
             },
             null,
             2,
@@ -150,6 +152,10 @@ function ResultView({
   onDownloadZip: () => void;
   onDownloadIncidences: () => void;
 }) {
+  const summary = summarizeIssues(result.issues);
+  const topSupports = Object.entries(summary.bySupport).sort(
+    (a, b) => b[1] - a[1],
+  );
   return (
     <div className="diagnosis">
       <div className="diagnosis__head">
@@ -198,6 +204,21 @@ function ResultView({
           <dd>{result.ismExcludedCount}</dd>
         </div>
       </dl>
+
+      {topSupports.length > 0 && (
+        <div className="import__note">
+          <strong>Incidencias por soporte</strong> (revisa el mapeo{' '}
+          <code>NORMALIZACION LIVERPOOL</code> de estos soportes en el
+          catálogo):
+          <ul style={{ margin: '0.4rem 0 0' }}>
+            {topSupports.slice(0, 8).map(([support, n]) => (
+              <li key={support}>
+                {support}: <strong>{n}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {result.consolidations.length === 0 ? (
         <div className="import__note">
