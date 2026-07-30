@@ -99,12 +99,31 @@ export function CampaignsPage() {
     return campaigns.filter((c) => normalize(c.name).includes(q));
   }, [campaigns, search]);
 
-  function liverpoolSupports(c: StoredCampaign) {
-    return c.supports.filter((s) => !isInStoreMediaSupport(s.support));
-  }
-  function storeCount(c: StoredCampaign) {
-    return liverpoolSupports(c).reduce((n, s) => n + s.stores.length, 0);
-  }
+  // Mapa pantalla → número de tienda normalizado, para contar tiendas reales.
+  const screenStore = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of screens) {
+      m.set(s.id, normalizeStore(s.original['Numero de Tienda']));
+    }
+    return m;
+  }, [screens]);
+
+  // Tiendas distintas realmente incluidas tras la consolidación (cubre el caso
+  // "Asignada sin comentario", donde las tiendas provienen del catálogo).
+  const storeCountByCampaign = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [name, cons] of consByCampaign) {
+      const stores = new Set<string>();
+      for (const cn of cons) {
+        for (const id of cn.screenIds) {
+          const store = screenStore.get(id);
+          if (store) stores.add(store);
+        }
+      }
+      m.set(name, stores.size);
+    }
+    return m;
+  }, [consByCampaign, screenStore]);
 
   async function downloadPdf(c: StoredCampaign) {
     const res: ConsolidationResult = {
@@ -181,7 +200,6 @@ export function CampaignsPage() {
                 <th>Inicio</th>
                 <th>Fin</th>
                 <th>Contenido</th>
-                <th>Soportes Liverpool</th>
                 <th>Tiendas</th>
                 <th aria-label="Acciones" />
               </tr>
@@ -214,12 +232,7 @@ export function CampaignsPage() {
                         <span className="text-muted">Link pendiente</span>
                       )}
                     </td>
-                    <td>
-                      {liverpoolSupports(c)
-                        .map((s) => s.support)
-                        .join(', ') || '—'}
-                    </td>
-                    <td>{storeCount(c)}</td>
+                    <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
                     <td>
                       <div className="campaign-actions">
                         <button
