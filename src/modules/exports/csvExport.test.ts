@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { csvFileName, consolidationCsv } from './csvExport';
+import { csvFileName, consolidationCsv, zipFileName } from './csvExport';
 import type { Consolidation } from '@/modules/consolidation/consolidate';
 
 function consolidation(over: Partial<Consolidation> = {}): Consolidation {
@@ -35,6 +35,20 @@ describe('csvFileName', () => {
       consolidation({ admiraCampaignName: 'A/B:C*?"<>|D' }),
     );
     expect(name).toBe('A_B_C______D.csv');
+  });
+});
+
+describe('zipFileName', () => {
+  it('usa el nombre de campaña + " Todas las resoluciones.zip"', () => {
+    expect(zipFileName('COLCHONIZA 2026 E2')).toBe(
+      'COLCHONIZA 2026 E2_ Todas las resoluciones.zip',
+    );
+  });
+
+  it('sanea caracteres inválidos y no añade artículos ni resolución', () => {
+    expect(zipFileName('A/B:C*?"<>|D')).toBe(
+      'A_B_C______D_ Todas las resoluciones.zip',
+    );
   });
 });
 

@@ -160,7 +160,20 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   antes de reemplazar una asociación existente.
 - Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
   **detalle** (soportes + tiendas + estado OK/incidencia + edición de Ekon), ⬇️
-  **descargar cada CSV**.
+  **menú de descargas CSV**.
+- **Menú de descargas CSV**: se renderiza como **capa flotante** (portal a
+  `document.body`, `position: fixed`) para no quedar recortado por el overflow de
+  la tabla; se coloca junto al botón (abre hacia abajo o hacia arriba) y se
+  cierra al pulsar fuera, con Escape o al hacer scroll/resize. Su primera opción,
+  **Descargar todos en ZIP**, empaqueta todas las resoluciones de la campaña en
+  un ZIP (reutiliza `buildZip`, mismos nombres y contenido que las descargas
+  individuales); el archivo se nombra **`<Campaña>_ Todas las resoluciones.zip`**.
+  Después, un separador y las descargas individuales por resolución. Si la
+  campaña no tiene consolidaciones, muestra **“Sin CSV”** y no ofrece ZIP.
+- **Contadores**: reflejan los resultados filtrados. Sin filtros muestran los
+  totales globales; con búsqueda o periodo activo muestran
+  `N de total campañas · CSV visibles · incidencias visibles` (calculados solo a
+  partir de las campañas visibles).
 - Incidencias tipadas: `store-not-in-catalog`, `store-support-mismatch`,
   `screen-inactive`, `support-not-in-catalog`.
 - El antiguo módulo separado "Exportación CSV" se **eliminó**: todo vive aquí.
