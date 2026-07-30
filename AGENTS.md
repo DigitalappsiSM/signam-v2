@@ -31,11 +31,13 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   ni forma parte del nombre.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
   de la consolidación en esta etapa.
-- **CSV de Admira**: la **fila 1** es un título con **`LIVERPOOL`** en la celda
-  `A1` (`ADMIRA_CSV_TITLE`); el **encabezado de columnas** va en la **fila 2** y
-  los datos a partir de la fila 3. Orden de columnas `ARTICULOS,BRANDS,CENTROS,`
-  `CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`. El **encabezado escrito** rotula
-  la última columna como **`Tipo de Pases`** (`ADMIRA_CSV_HEADER_LABELS`),
+- **CSV de Admira**: Admira **ignora la primera columna**, así que la **columna
+  A** se usa como columna "guarda": va **vacía** en las filas de datos y su
+  encabezado en `A1` es **`LIVERPOOL`** (`ADMIRA_CSV_TITLE`). Las columnas reales
+  empiezan en **B**. La fila 1 es
+  `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`
+  y cada fila de datos comienza con una celda vacía. El **encabezado escrito**
+  rotula la última columna como **`Tipo de Pases`** (`ADMIRA_CSV_HEADER_LABELS`),
   mientras la **llave interna** de las filas (`AdmiraCsvRow`) y el **encabezado
   del maestro** permanecen `TIPO DE PASES`. `RETAILERS` es constante =
   `LIVERPOOL` (`RETAILERS_VALUE`).

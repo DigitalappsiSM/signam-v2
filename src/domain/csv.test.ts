@@ -3,8 +3,9 @@ import { escapeCsvField, serializeAdmiraCsv, serializeCsvLine } from './csv';
 import { ADMIRA_CSV_HEADER_LABELS } from './constants';
 import type { AdmiraCsvRow } from './models';
 
+// Fila 1 completa: columna A = "LIVERPOOL", columnas B–H = encabezado real.
 const EXACT_HEADER =
-  'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases';
+  'LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases';
 
 describe('escapeCsvField', () => {
   it('deja intactos los valores simples', () => {
@@ -44,43 +45,42 @@ function makeRow(overrides: Partial<AdmiraCsvRow> = {}): AdmiraCsvRow {
 }
 
 describe('serializeAdmiraCsv', () => {
-  it('pone LIVERPOOL en A1 y el encabezado exacto en la fila 2', () => {
+  it('pone LIVERPOOL en A1 y el encabezado real desde la columna B', () => {
     const csv = serializeAdmiraCsv([], { withBom: false });
-    const [title, header] = csv.split('\r\n');
-    expect(title).toBe('LIVERPOOL');
+    const [header] = csv.split('\r\n');
     expect(header).toBe(EXACT_HEADER);
-    expect(header).toBe(ADMIRA_CSV_HEADER_LABELS.join(','));
+    expect(header).toBe('LIVERPOOL,' + ADMIRA_CSV_HEADER_LABELS.join(','));
     // El encabezado escrito rotula la última columna como "Tipo de Pases",
     // no en mayúsculas.
     expect(csv.endsWith('Tipo de Pases')).toBe(true);
     expect(csv).not.toContain('TIPO DE PASES');
   });
 
-  it('mantiene la llave interna TIPO DE PASES al construir las filas', () => {
+  it('deja la columna A vacía en las filas de datos (empieza en B)', () => {
     // La fila se indexa por la llave interna en mayúsculas; el valor aparece
-    // en la 7.ª columna aunque el encabezado se rotule "Tipo de Pases".
+    // en la columna B en adelante, tras la celda vacía de la columna A.
     const csv = serializeAdmiraCsv(
       [makeRow({ 'TIPO DE PASES': 'PASES FULL' })],
       {
         withBom: false,
       },
     );
-    const [, , row] = csv.split('\r\n');
-    expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
+    const [, row] = csv.split('\r\n');
+    // La columna A va vacía: la fila empieza con una coma.
+    expect(row).toBe(',VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });
 
-  it('antepone el BOM UTF-8 por defecto, seguido del título', () => {
+  it('antepone el BOM UTF-8 por defecto, seguido de LIVERPOOL en A1', () => {
     const csv = serializeAdmiraCsv([]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    expect(csv.slice(1).startsWith('LIVERPOOL\r\n')).toBe(true);
+    expect(csv.slice(1).startsWith('LIVERPOOL,ARTICULOS')).toBe(true);
   });
 
-  it('serializa título, encabezado y filas con CRLF en orden', () => {
+  it('serializa encabezado y filas con CRLF en orden', () => {
     const csv = serializeAdmiraCsv([makeRow()], { withBom: false });
-    const [title, header, row] = csv.split('\r\n');
-    expect(title).toBe('LIVERPOOL');
+    const [header, row] = csv.split('\r\n');
     expect(header).toBe(EXACT_HEADER);
-    expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
+    expect(row).toBe(',VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });
 
   it('escapa valores conflictivos en las filas', () => {
