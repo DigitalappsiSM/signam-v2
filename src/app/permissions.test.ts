@@ -20,4 +20,13 @@ describe('permisos por rol', () => {
     expect(can('viewer', 'export.csv')).toBe(false);
     expect(can('viewer', 'calendar.import')).toBe(false);
   });
+
+  it('seguimiento operativo: admin/operator escriben, viewer solo lee', () => {
+    expect(can('admin', 'tracking.write')).toBe(true);
+    expect(can('operator', 'tracking.write')).toBe(true);
+    expect(can('viewer', 'tracking.write')).toBe(false);
+    expect(can('admin', 'tracking.read')).toBe(true);
+    expect(can('operator', 'tracking.read')).toBe(true);
+    expect(can('viewer', 'tracking.read')).toBe(true);
+  });
 });

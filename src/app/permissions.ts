@@ -11,6 +11,8 @@ export type Permission =
   | 'catalog.deactivate'
   | 'calendar.import'
   | 'export.csv'
+  | 'tracking.read'
+  | 'tracking.write'
   | 'users.manage';
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -20,10 +22,18 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.deactivate',
     'calendar.import',
     'export.csv',
+    'tracking.read',
+    'tracking.write',
     'users.manage',
   ],
-  operator: ['catalog.read', 'calendar.import', 'export.csv'],
-  viewer: ['catalog.read'],
+  operator: [
+    'catalog.read',
+    'calendar.import',
+    'export.csv',
+    'tracking.read',
+    'tracking.write',
+  ],
+  viewer: ['catalog.read', 'tracking.read'],
 };
 
 /** Indica si un rol tiene un permiso dado. */

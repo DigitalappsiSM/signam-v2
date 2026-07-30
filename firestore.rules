@@ -63,6 +63,35 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
 
+    // Rol efectivo desde los custom claims del token (misma fuente que el
+    // cliente, ver AuthProvider). Escritura restringida a admin/operator.
+    function claimRole() {
+      return isSignedIn() ? request.auth.token.get('role', '') : '';
+    }
+    function canWriteTracking() {
+      return claimRole() == 'admin' || claimRole() == 'operator';
+    }
+
+    // Seguimiento operativo de campañas: colección INDEPENDIENTE de `campaigns`.
+    // Lectura: cualquier autenticado. Escritura: solo admin/operator (claims).
+    // No se permite eliminación física desde el cliente. `campaignNameKey`,
+    // `createdAt` y `createdBy*` son inmutables tras la creación.
+    match /campaignOperationalTracking/{campaignKeyId} {
+      allow read: if isSignedIn();
+      allow create: if canWriteTracking()
+        && request.resource.data.campaignNameKey is string
+        && request.resource.data.classification in ['institutional', 'provider']
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int;
+      allow update: if canWriteTracking()
+        && request.resource.data.classification in ['institutional', 'provider']
+        && request.resource.data.campaignNameKey == resource.data.campaignNameKey
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.createdByEmail == resource.data.createdByEmail;
+      allow delete: if false;
+    }
+
     // Validaciones de importación: creadas por quien importa; inmutables luego.
     match /importValidations/{importId} {
       allow read: if isSignedIn();
