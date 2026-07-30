@@ -47,6 +47,12 @@ describe('parseStoreComment', () => {
       { numero: '2', nombre: 'L INSURGENTES' },
     ]);
   });
+
+  it('ignora líneas sin número de tienda (no confunde la "L" con número)', () => {
+    expect(
+      parseStoreComment('Tiendas asignadas:\nL SANTA FE\n7\tL SANTA FE'),
+    ).toEqual([{ numero: '7', nombre: 'L SANTA FE' }]);
+  });
 });
 
 describe('parseCampaigns', () => {

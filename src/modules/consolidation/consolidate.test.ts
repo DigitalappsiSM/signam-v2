@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consolidate } from './consolidate';
+import { consolidate, summarizeIssues } from './consolidate';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
   emptyOriginal,
@@ -269,6 +269,68 @@ describe('consolidate', () => {
       'Nike Verano_ VW 900x900',
       'Nike Verano_ VW 914x908',
     ]);
+  });
+
+  it('soporte "Asignada" sin comentario incluye todas las pantallas del soporte', () => {
+    const screens = [
+      screen(
+        'a',
+        { 'Numero de Tienda': '1', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'LED',
+      ),
+      screen(
+        'b',
+        { 'Numero de Tienda': '2', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'LED',
+      ),
+      // Otro soporte: no debe incluirse.
+      screen(
+        'c',
+        { 'Numero de Tienda': '3', RESOLUCION: 'R', ARTICULOS: 'X' },
+        'OTRO',
+      ),
+    ];
+    const campaigns = [
+      // Sin tiendas (celda "Asignada" sin comentario).
+      campaign('REGRESO A CLASES', [
+        { support: 'LED', owner: 'liverpool', stores: [] },
+      ]),
+    ];
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(1);
+    expect(result.consolidations[0]!.screenIds.sort()).toEqual(['a', 'b']);
+  });
+
+  it('reporta soporte asignado sin comentario que no existe en el catálogo', () => {
+    const campaigns = [
+      campaign('Camp', [
+        { support: 'INEXISTENTE', owner: 'liverpool', stores: [] },
+      ]),
+    ];
+    const result = consolidate(campaigns, []);
+    expect(result.issues.some((i) => i.code === 'support-not-in-catalog')).toBe(
+      true,
+    );
+  });
+
+  it('summarizeIssues agrupa por código y por soporte', () => {
+    const campaigns = [
+      campaign('Camp', [
+        {
+          support: 'VIDEO WALL CRIUS',
+          owner: 'liverpool',
+          stores: [
+            { numero: '1', nombre: '' },
+            { numero: '2', nombre: '' },
+          ],
+        },
+      ]),
+    ];
+    const result = consolidate(campaigns, []);
+    const summary = summarizeIssues(result.issues);
+    expect(summary.total).toBe(2);
+    expect(summary.byCode['screen-not-found']).toBe(2);
+    expect(summary.bySupport['VIDEO WALL CRIUS']).toBe(2);
   });
 
   it('ignora pantallas sin normalización (sin mapear)', () => {

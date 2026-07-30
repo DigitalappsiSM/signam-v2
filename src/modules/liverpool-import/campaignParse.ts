@@ -112,19 +112,22 @@ function pickOperative(sheets: readonly SheetData[]): SheetData | null {
 
 /**
  * Parsea el texto de un comentario de tiendas: cada línea es `número<sep>nombre`
- * (separador tabulador o espacios). Devuelve las tiendas encontradas.
+ * (separador tabulador o espacios). Solo se consideran líneas cuyo primer token
+ * es numérico (el número de tienda); las demás (títulos, notas) se ignoran, para
+ * no confundir, p. ej., la "L" del nombre con un número de tienda.
  */
 export function parseStoreComment(text: string): StoreRef[] {
   const stores: StoreRef[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line === '') continue;
-    const match = line.match(/^(\S+)[\t ]+(.*)$/);
+    const match = line.match(/^(\d+)[\t ]+(.*)$/);
     if (match) {
-      stores.push({ numero: match[1]!.trim(), nombre: match[2]!.trim() });
-    } else {
+      stores.push({ numero: match[1]!, nombre: match[2]!.trim() });
+    } else if (/^\d+$/.test(line)) {
       stores.push({ numero: line, nombre: '' });
     }
+    // Líneas sin número de tienda al inicio se ignoran.
   }
   return stores;
 }

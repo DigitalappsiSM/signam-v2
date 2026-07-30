@@ -58,28 +58,56 @@ interface ScreenIndex {
   inactive: Map<string, AdmiraScreen[]>;
   /** Pantallas activas por tienda (para la excepción de Guadalajara). */
   activeByStore: Map<string, AdmiraScreen[]>;
+  /** Pantallas activas por soporte (para "Asignada sin comentario"). */
+  activeBySupport: Map<string, AdmiraScreen[]>;
+}
+
+function push(map: Map<string, AdmiraScreen[]>, k: string, s: AdmiraScreen) {
+  const list = map.get(k);
+  if (list) list.push(s);
+  else map.set(k, [s]);
+}
+
+/**
+ * Excepción de Guadalajara Galerías para el modo "todas las tiendas": si la
+ * tienda 78 participa de `VIDEO WALL CRIUS`, incluye además su configuración
+ * `CUADRADA` (900 x 900).
+ */
+function applyGuadalajara(
+  supportName: string,
+  index: ScreenIndex,
+  matched: Map<string, AdmiraScreen>,
+): void {
+  const g = GUADALAJARA_GALERIAS_EXCEPTION;
+  if (norm(supportName) !== norm(g.requestedSupport)) return;
+  const store78 = index.activeByStore.get(g.storeNumber) ?? [];
+  const participates = store78.some(
+    (s) => norm(s.metadata.calendarSupport) === norm(g.requestedSupport),
+  );
+  if (!participates) return;
+  for (const s of store78) {
+    if (norm(s.original.Modelo) === 'CUADRADA') matched.set(s.id, s);
+  }
 }
 
 function buildIndex(screens: readonly AdmiraScreen[]): ScreenIndex {
   const active = new Map<string, AdmiraScreen[]>();
   const inactive = new Map<string, AdmiraScreen[]>();
   const activeByStore = new Map<string, AdmiraScreen[]>();
+  const activeBySupport = new Map<string, AdmiraScreen[]>();
 
   for (const screen of screens) {
     const support = screen.metadata.calendarSupport;
     if (!support) continue; // sin mapear: no participa
     const k = key(support, screen.original['Numero de Tienda']);
-    const target = screen.metadata.active ? active : inactive;
-    (target.get(k) ?? target.set(k, []).get(k)!).push(screen);
+    push(screen.metadata.active ? active : inactive, k, screen);
 
     if (screen.metadata.active) {
-      const store = screen.original['Numero de Tienda'].trim();
-      (
-        activeByStore.get(store) ?? activeByStore.set(store, []).get(store)!
-      ).push(screen);
+      push(activeByStore, screen.original['Numero de Tienda'].trim(), screen);
+      push(activeBySupport, norm(support), screen);
     }
   }
-  return { active, inactive, activeByStore };
+  return { active, inactive, activeByStore, activeBySupport };
 }
 
 /** Consolida las campañas contra el catálogo. Función pura. */
@@ -108,6 +136,24 @@ export function consolidate(
         continue;
       }
 
+      // Regla: "Asignada" sin comentario (sin tiendas) => todas las pantallas
+      // activas de ese soporte (todas las tiendas disponibles).
+      if (support.stores.length === 0) {
+        const all = index.activeBySupport.get(norm(support.support)) ?? [];
+        if (all.length === 0) {
+          issues.push({
+            severity: 'warning',
+            code: 'support-not-in-catalog',
+            message: `Soporte "${support.support}" asignado sin comentario en "${campaign.name}", pero no hay pantallas mapeadas a ese soporte en el catálogo.`,
+            location: { column: support.support },
+          });
+        }
+        for (const s of all) matched.set(s.id, s);
+        // Excepción Guadalajara también aplica en modo "todas las tiendas".
+        applyGuadalajara(support.support, index, matched);
+        continue;
+      }
+
       for (const store of support.stores) {
         const num = store.numero.trim();
         const k = key(support.support, num);
@@ -125,6 +171,7 @@ export function consolidate(
               inactiveMatches.length > 0
                 ? `Pantalla inactiva excluida: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`
                 : `Sin pantalla activa en el catálogo: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`,
+            location: { column: support.support },
           });
         }
         for (const s of activeMatches) matched.set(s.id, s);
@@ -186,6 +233,26 @@ export function consolidate(
   }
 
   return { consolidations, issues, excludedInstore, ismExcludedCount };
+}
+
+export interface IssueSummary {
+  total: number;
+  byCode: Record<string, number>;
+  bySupport: Record<string, number>;
+}
+
+/** Resume las incidencias por código y por soporte, para un reporte accionable. */
+export function summarizeIssues(
+  issues: readonly ValidationIssue[],
+): IssueSummary {
+  const byCode: Record<string, number> = {};
+  const bySupport: Record<string, number> = {};
+  for (const i of issues) {
+    byCode[i.code] = (byCode[i.code] ?? 0) + 1;
+    const support = i.location?.column;
+    if (support) bySupport[support] = (bySupport[support] ?? 0) + 1;
+  }
+  return { total: issues.length, byCode, bySupport };
 }
 
 function dedupeRows(rows: AdmiraCsvRow[]): AdmiraCsvRow[] {
