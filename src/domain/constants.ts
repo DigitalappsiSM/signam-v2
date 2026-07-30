@@ -76,6 +76,13 @@ export const ADMIRA_CSV_HEADER_LABELS = [
 export const RETAILERS_VALUE = 'LIVERPOOL' as const;
 
 /**
+ * Título del CSV de Admira: primera fila del archivo, con este texto en la
+ * celda `A1` (el encabezado de columnas queda en la fila 2). Decisión de
+ * negocio confirmada.
+ */
+export const ADMIRA_CSV_TITLE = 'LIVERPOOL' as const;
+
+/**
  * Encabezados aceptados para la columna (opcional) del maestro que mapea cada
  * pantalla al soporte del Calendario de Liverpool. El oficial es
  * `NORMALIZACION LIVERPOOL`; se aceptan variantes por compatibilidad.

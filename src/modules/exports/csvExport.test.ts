@@ -39,9 +39,11 @@ describe('csvFileName', () => {
 });
 
 describe('consolidationCsv', () => {
-  it('incluye el encabezado exacto (Tipo de Pases), RETAILERS=LIVERPOOL y BOM', () => {
+  it('incluye título LIVERPOOL en A1, encabezado exacto (Tipo de Pases), RETAILERS=LIVERPOOL y BOM', () => {
     const csv = consolidationCsv(consolidation());
     expect(csv.charCodeAt(0)).toBe(0xfeff);
+    // Fila 1 = título en A1; fila 2 = encabezado.
+    expect(csv.slice(1).startsWith('LIVERPOOL\r\n')).toBe(true);
     expect(csv).toContain(
       'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases',
     );
