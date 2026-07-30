@@ -39,11 +39,11 @@ describe('csvFileName', () => {
 });
 
 describe('consolidationCsv', () => {
-  it('incluye encabezado, RETAILERS=LIVERPOOL y BOM', () => {
+  it('incluye el encabezado exacto (Tipo de Pases), RETAILERS=LIVERPOOL y BOM', () => {
     const csv = consolidationCsv(consolidation());
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain(
-      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES',
+      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases',
     );
     expect(csv).toContain(
       'VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,LIVERPOOL,PASES FULL',

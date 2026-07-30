@@ -204,6 +204,49 @@
   font-size: 0.85rem;
 }
 
+/* --- Filtro por periodo (Desde / Hasta) --- */
+.campaign-date {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.campaign-date input[type='date'] {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* --- Editor de número de campaña Ekon (modal) --- */
+.ekon-editor {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+  background: var(--color-bg);
+}
+
+.ekon-editor__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.ekon-editor__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ekon-editor__row input {
+  flex: 1 1 180px;
+}
+
 .import__mode {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

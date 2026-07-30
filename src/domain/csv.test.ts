@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { escapeCsvField, serializeAdmiraCsv, serializeCsvLine } from './csv';
-import { ADMIRA_CSV_COLUMNS } from './constants';
+import { ADMIRA_CSV_HEADER_LABELS } from './constants';
 import type { AdmiraCsvRow } from './models';
+
+const EXACT_HEADER =
+  'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases';
 
 describe('escapeCsvField', () => {
   it('deja intactos los valores simples', () => {
@@ -41,9 +44,27 @@ function makeRow(overrides: Partial<AdmiraCsvRow> = {}): AdmiraCsvRow {
 }
 
 describe('serializeAdmiraCsv', () => {
-  it('emite el encabezado en el orden autoritativo', () => {
+  it('emite el encabezado exacto con la etiqueta "Tipo de Pases"', () => {
     const csv = serializeAdmiraCsv([], { withBom: false });
-    expect(csv).toBe(ADMIRA_CSV_COLUMNS.join(','));
+    expect(csv).toBe(EXACT_HEADER);
+    expect(csv).toBe(ADMIRA_CSV_HEADER_LABELS.join(','));
+    // El encabezado escrito rotula la última columna como "Tipo de Pases",
+    // no en mayúsculas.
+    expect(csv.endsWith('Tipo de Pases')).toBe(true);
+    expect(csv).not.toContain('TIPO DE PASES');
+  });
+
+  it('mantiene la llave interna TIPO DE PASES al construir las filas', () => {
+    // La fila se indexa por la llave interna en mayúsculas; el valor aparece
+    // en la 7.ª columna aunque el encabezado se rotule "Tipo de Pases".
+    const csv = serializeAdmiraCsv(
+      [makeRow({ 'TIPO DE PASES': 'PASES FULL' })],
+      {
+        withBom: false,
+      },
+    );
+    const [, row] = csv.split('\r\n');
+    expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });
 
   it('antepone el BOM UTF-8 por defecto', () => {
@@ -54,9 +75,7 @@ describe('serializeAdmiraCsv', () => {
   it('serializa filas respetando el orden de columnas y CRLF', () => {
     const csv = serializeAdmiraCsv([makeRow()], { withBom: false });
     const [header, row] = csv.split('\r\n');
-    expect(header).toBe(
-      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES',
-    );
+    expect(header).toBe(EXACT_HEADER);
     expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });
 

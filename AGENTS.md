@@ -31,9 +31,18 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   ni forma parte del nombre.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
   de la consolidación en esta etapa.
-- **CSV de Admira**: layout `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,`
-  `RETAILERS,TIPO DE PASES`. `RETAILERS` es constante = `LIVERPOOL`
-  (`RETAILERS_VALUE`).
+- **CSV de Admira**: orden de columnas `ARTICULOS,BRANDS,CENTROS,CIRCUITO,`
+  `RESOLUCION,RETAILERS,TIPO DE PASES`. El **encabezado escrito** en el archivo
+  rotula la última columna como **`Tipo de Pases`** (`ADMIRA_CSV_HEADER_LABELS`),
+  mientras la **llave interna** de las filas (`AdmiraCsvRow`) y el **encabezado
+  del maestro** permanecen `TIPO DE PASES`. `RETAILERS` es constante =
+  `LIVERPOOL` (`RETAILERS_VALUE`).
+- **Asociación campaña ↔ Ekon**: relación estrictamente 1–1, persistida en
+  colecciones separadas (`campaignEkonLinks/{campaignKeyId}`,
+  `ekonCampaignNumbers/{ekonNumber}`). La importación del calendario nunca toca
+  esas colecciones y estas nunca modifican la campaña importada. El
+  `campaignKeyId` se deriva determinísticamente del `nameKey` (no del ID
+  aleatorio de `campaigns`).
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

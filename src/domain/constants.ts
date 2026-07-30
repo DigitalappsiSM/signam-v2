@@ -53,6 +53,23 @@ export const ADMIRA_CSV_COLUMNS = [
 export type AdmiraCsvColumn = (typeof ADMIRA_CSV_COLUMNS)[number];
 
 /**
+ * Etiquetas EXACTAS del encabezado del CSV de Admira, en el mismo orden que
+ * `ADMIRA_CSV_COLUMNS`. Coinciden con las llaves internas salvo la última:
+ * el archivo entregado a Admira debe rotular la columna como `Tipo de Pases`,
+ * mientras la llave interna y el encabezado del maestro permanecen
+ * `TIPO DE PASES`. No cambiar sin decisión documentada.
+ */
+export const ADMIRA_CSV_HEADER_LABELS = [
+  'ARTICULOS',
+  'BRANDS',
+  'CENTROS',
+  'CIRCUITO',
+  'RESOLUCION',
+  'RETAILERS',
+  'Tipo de Pases',
+] as const;
+
+/**
  * Valor constante de la columna `RETAILERS` en el CSV de Admira.
  * Decisión de negocio confirmada: siempre `LIVERPOOL`.
  */
