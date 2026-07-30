@@ -32,7 +32,9 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
   de la consolidación en esta etapa.
 - **CSV de Admira**: layout `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,`
-  `RETAILERS,TIPO DE PASES`. `RETAILERS` es constante = `LIVERPOOL`
+  `RETAILERS,Tipo de Pases`. El título final distingue mayúsculas y debe salir
+  exactamente como `Tipo de Pases`; la llave interna y el encabezado del maestro
+  permanecen como `TIPO DE PASES`. `RETAILERS` es constante = `LIVERPOOL`
   (`RETAILERS_VALUE`).
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +

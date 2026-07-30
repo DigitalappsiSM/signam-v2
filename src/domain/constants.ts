@@ -38,7 +38,8 @@ export const REQUIRED_PASES_HEADER = 'TIPO DE PASES' as const;
 export const LEGACY_PASES_HEADER = 'Pases' as const;
 
 /**
- * Layout confirmado del CSV de Admira. El orden de columnas es autoritativo.
+ * Campos internos del CSV de Admira. Conservan las llaves del maestro para
+ * obtener los valores; el texto visible del encabezado se define por separado.
  */
 export const ADMIRA_CSV_COLUMNS = [
   'ARTICULOS',
@@ -51,6 +52,21 @@ export const ADMIRA_CSV_COLUMNS = [
 ] as const;
 
 export type AdmiraCsvColumn = (typeof ADMIRA_CSV_COLUMNS)[number];
+
+/**
+ * Encabezados literales que Admira espera en el archivo exportado. Su orden
+ * corresponde uno a uno con `ADMIRA_CSV_COLUMNS`. Admira distingue mayúsculas:
+ * el último título debe ser exactamente `Tipo de Pases`.
+ */
+export const ADMIRA_CSV_HEADERS = [
+  'ARTICULOS',
+  'BRANDS',
+  'CENTROS',
+  'CIRCUITO',
+  'RESOLUCION',
+  'RETAILERS',
+  'Tipo de Pases',
+] as const;
 
 /**
  * Valor constante de la columna `RETAILERS` en el CSV de Admira.

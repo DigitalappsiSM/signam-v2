@@ -1,11 +1,11 @@
-import { ADMIRA_CSV_COLUMNS } from './constants';
+import { ADMIRA_CSV_COLUMNS, ADMIRA_CSV_HEADERS } from './constants';
 import type { AdmiraCsvRow } from './models';
 
 /**
  * Serialización del CSV de Admira.
  *
  * Layout confirmado (orden autoritativo):
- * `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`.
+ * `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`.
  *
  * Reglas: escapar correctamente comas, comillas y saltos de línea; opción de
  * UTF-8 con BOM si Admira lo requiere. `RETAILERS` es constante (`LIVERPOOL`,
@@ -47,7 +47,7 @@ export function serializeAdmiraCsv(
   options: CsvSerializeOptions = {},
 ): string {
   const { withBom = true } = options;
-  const header = serializeCsvLine(ADMIRA_CSV_COLUMNS);
+  const header = serializeCsvLine(ADMIRA_CSV_HEADERS);
   const body = rows.map((row) =>
     serializeCsvLine(ADMIRA_CSV_COLUMNS.map((column) => row[column] ?? '')),
   );
