@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consolidate, summarizeIssues } from './consolidate';
+import { consolidate, normalizeStore, summarizeIssues } from './consolidate';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
   emptyOriginal,
@@ -40,7 +40,42 @@ function campaign(
   };
 }
 
+describe('normalizeStore', () => {
+  it('elimina ceros a la izquierda en números de tienda', () => {
+    expect(normalizeStore('0078')).toBe('78');
+    expect(normalizeStore('002')).toBe('2');
+    expect(normalizeStore(' 103 ')).toBe('103');
+    expect(normalizeStore('0')).toBe('0');
+  });
+
+  it('conserva códigos no numéricos', () => {
+    expect(normalizeStore('A12')).toBe('A12');
+  });
+});
+
 describe('consolidate', () => {
+  it('empata tiendas con ceros a la izquierda del calendario (0078 = 78)', () => {
+    const screens = [
+      screen(
+        's1',
+        { 'Numero de Tienda': '78', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'VIDEO WALL CRIUS',
+      ),
+    ];
+    const campaigns = [
+      campaign('Camp', [
+        {
+          support: 'VIDEO WALL CRIUS',
+          owner: 'liverpool',
+          stores: [{ numero: '0078', nombre: 'L GUADALAJARA' }],
+        },
+      ]),
+    ];
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(1);
+    expect(result.issues).toHaveLength(0);
+  });
+
   it('cruza por tienda + normalización y agrupa por resolución', () => {
     const screens = [
       screen(

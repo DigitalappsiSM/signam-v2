@@ -48,9 +48,19 @@ const norm = (v: string) => normalizeSupport(v);
 const isISM = (screen: AdmiraScreen) =>
   norm(screen.original['TIPO DE pantallas']).includes('ISM');
 
+/**
+ * Normaliza un número de tienda: recorta y, si es numérico, elimina ceros a la
+ * izquierda (así `0078` y `78` se consideran la misma tienda). Los códigos no
+ * numéricos se conservan tal cual.
+ */
+export function normalizeStore(value: string): string {
+  const t = value.trim();
+  return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, '') : t;
+}
+
 /** Clave de índice `soporte|tienda`. */
 function key(support: string, store: string): string {
-  return `${norm(support)}|${store.trim()}`;
+  return `${norm(support)}|${normalizeStore(store)}`;
 }
 
 interface ScreenIndex {
@@ -103,7 +113,11 @@ function buildIndex(screens: readonly AdmiraScreen[]): ScreenIndex {
     push(screen.metadata.active ? active : inactive, k, screen);
 
     if (screen.metadata.active) {
-      push(activeByStore, screen.original['Numero de Tienda'].trim(), screen);
+      push(
+        activeByStore,
+        normalizeStore(screen.original['Numero de Tienda']),
+        screen,
+      );
       push(activeBySupport, norm(support), screen);
     }
   }
@@ -155,7 +169,7 @@ export function consolidate(
       }
 
       for (const store of support.stores) {
-        const num = store.numero.trim();
+        const num = normalizeStore(store.numero);
         const k = key(support.support, num);
         const activeMatches = index.active.get(k) ?? [];
 
