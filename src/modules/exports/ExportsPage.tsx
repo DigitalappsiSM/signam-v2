@@ -1,46 +1,243 @@
+import { useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { Placeholder } from '@/components/Placeholder';
 import { ADMIRA_CSV_COLUMNS } from '@/domain';
+import { listScreens } from '@/services/screens';
+import { readCalendarWorkbook } from '@/modules/liverpool-import/readCalendarWorkbook';
+import { parseCampaigns } from '@/modules/liverpool-import/campaignParse';
+import {
+  consolidate,
+  type ConsolidationResult,
+} from '@/modules/consolidation/consolidate';
+import { buildZip, consolidationCsv, csvFileName } from './csvExport';
+import type { Consolidation } from '@/modules/consolidation/consolidate';
+import '@/modules/liverpool-import/ImportPage.css';
+import '@/modules/admira-catalog/CatalogPage.css';
 
-/** Módulo de exportación: generación de los CSV de programación de Admira. */
+type Phase = 'idle' | 'working' | 'done';
+
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Exportación CSV: cruza el calendario contra el catálogo y genera los CSV. */
 export function ExportsPage() {
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [result, setResult] = useState<ConsolidationResult | null>(null);
+  const [screensCount, setScreensCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setPhase('working');
+    try {
+      const [data, screens] = await Promise.all([
+        readCalendarWorkbook(file),
+        listScreens(),
+      ]);
+      setScreensCount(screens.length);
+      const parsed = parseCampaigns(data);
+      setResult(consolidate(parsed.campaigns, screens));
+      setPhase('done');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setError(`No se pudo procesar. Detalle: ${detail}`);
+      setPhase('idle');
+    }
+  }
+
+  function downloadOne(c: Consolidation) {
+    download(
+      new Blob([consolidationCsv(c)], { type: 'text/csv;charset=utf-8' }),
+      csvFileName(c),
+    );
+  }
+
+  async function downloadZip() {
+    if (!result) return;
+    const blob = await buildZip(result.consolidations);
+    download(blob, 'csv-admira.zip');
+  }
+
+  function downloadIncidences() {
+    if (!result) return;
+    download(
+      new Blob(
+        [
+          JSON.stringify(
+            {
+              issues: result.issues,
+              excludedInstore: result.excludedInstore,
+              ismExcludedCount: result.ismExcludedCount,
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: 'application/json' },
+      ),
+      'incidencias.json',
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="Exportación CSV"
-        description="Genera un CSV por cada Campaña + RESOLUCION, con el layout confirmado de Admira."
+        description="Sube el Calendario de Liverpool: se cruza contra las pantallas activas del catálogo y se generan los CSV de Admira (uno por Campaña + Resolución)."
       />
 
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.05rem' }}>Layout confirmado</h2>
-        <pre
-          style={{
-            background: 'var(--color-bg)',
-            padding: '0.75rem 1rem',
-            borderRadius: 'var(--radius-sm)',
-            overflowX: 'auto',
-            margin: 0,
-          }}
+      <div className="card" style={{ marginBottom: '1.25rem' }}>
+        <label className="import-file">
+          <span className="btn btn-primary">
+            Seleccionar calendario (.xlsx / .xls)
+          </span>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            onChange={(e) => void handleFile(e)}
+            hidden
+          />
+        </label>
+        <p
+          className="text-muted"
+          style={{ fontSize: '0.85rem', marginBottom: 0 }}
         >
-          <code>{ADMIRA_CSV_COLUMNS.join(',')}</code>
-        </pre>
-        <p className="text-muted" style={{ marginBottom: 0 }}>
-          La construcción de <code>RETAILERS</code> requiere una regla posterior
-          aún no definida y no debe inventarse.
+          Layout del CSV: <code>{ADMIRA_CSV_COLUMNS.join(',')}</code> ·
+          RETAILERS = LIVERPOOL.
         </p>
       </div>
 
-      <Placeholder
-        title="Generación y respaldo de CSV"
-        items={[
-          'Vista previa, incidencias, CSV individual y ZIP.',
-          'UTF-8 con BOM y escape correcto de comas, comillas y saltos.',
-          'Snapshot inmutable de cada exportación (no cambia si luego se edita el catálogo).',
-        ]}
-      >
-        El serializador CSV (encabezado, escape RFC 4180 y BOM) ya está
-        implementado y probado en <code>src/domain/csv.ts</code>.
-      </Placeholder>
+      {error && (
+        <div className="catalog__error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {phase === 'working' && (
+        <p className="text-muted">Cruzando calendario contra el catálogo…</p>
+      )}
+
+      {phase === 'done' && result && (
+        <ResultView
+          result={result}
+          screensCount={screensCount}
+          onDownloadOne={downloadOne}
+          onDownloadZip={() => void downloadZip()}
+          onDownloadIncidences={downloadIncidences}
+        />
+      )}
     </>
+  );
+}
+
+function ResultView({
+  result,
+  screensCount,
+  onDownloadOne,
+  onDownloadZip,
+  onDownloadIncidences,
+}: {
+  result: ConsolidationResult;
+  screensCount: number;
+  onDownloadOne: (c: Consolidation) => void;
+  onDownloadZip: () => void;
+  onDownloadIncidences: () => void;
+}) {
+  return (
+    <div className="diagnosis">
+      <div className="diagnosis__head">
+        <h2>Resultado</h2>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={onDownloadIncidences}
+            disabled={
+              result.issues.length === 0 && result.excludedInstore.length === 0
+            }
+          >
+            Descargar incidencias
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={onDownloadZip}
+            disabled={result.consolidations.length === 0}
+          >
+            Descargar todo (ZIP)
+          </button>
+        </div>
+      </div>
+
+      <dl className="import__summary">
+        <div>
+          <dt>CSV a generar</dt>
+          <dd>
+            <strong>{result.consolidations.length}</strong>
+          </dd>
+        </div>
+        <div>
+          <dt>Pantallas en catálogo</dt>
+          <dd>{screensCount}</dd>
+        </div>
+        <div>
+          <dt>Incidencias</dt>
+          <dd>{result.issues.length}</dd>
+        </div>
+        <div>
+          <dt>InStore excluidos</dt>
+          <dd>{result.excludedInstore.length}</dd>
+        </div>
+        <div>
+          <dt>Pantallas ISM excluidas</dt>
+          <dd>{result.ismExcludedCount}</dd>
+        </div>
+      </dl>
+
+      {result.consolidations.length === 0 ? (
+        <div className="import__note">
+          No se generó ningún CSV. Revisa que el catálogo tenga la columna{' '}
+          <strong>NORMALIZACION LIVERPOOL</strong> mapeada y las pantallas
+          activas. Descarga las incidencias para ver el detalle.
+        </div>
+      ) : (
+        <div className="diagnosis__table-wrap">
+          <table className="catalog__table">
+            <thead>
+              <tr>
+                <th>Campaña</th>
+                <th>Resolución</th>
+                <th>Nombre Admira</th>
+                <th>Filas</th>
+                <th aria-label="Descargar" />
+              </tr>
+            </thead>
+            <tbody>
+              {result.consolidations.slice(0, 300).map((c, i) => (
+                <tr key={`${c.campaignName}-${c.resolution}-${i}`}>
+                  <td>{c.campaignName}</td>
+                  <td>{c.resolution}</td>
+                  <td>{c.admiraCampaignName}</td>
+                  <td>{c.rows.length}</td>
+                  <td>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => onDownloadOne(c)}
+                    >
+                      CSV
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
