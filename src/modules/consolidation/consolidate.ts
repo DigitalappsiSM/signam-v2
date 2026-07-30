@@ -7,7 +7,6 @@ import {
   GUADALAJARA_GALERIAS_EXCEPTION,
   type AdmiraCsvRow,
   type AdmiraScreen,
-  type ValidationIssue,
 } from '@/domain';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
 
@@ -35,9 +34,25 @@ export interface Consolidation {
   storeCount: number;
 }
 
+/** Código de incidencia de consolidación. */
+export type IssueCode =
+  | 'store-not-in-catalog'
+  | 'store-support-mismatch'
+  | 'screen-inactive'
+  | 'support-not-in-catalog';
+
+/** Incidencia estructurada (para agrupar por campaña/soporte y para el PDF). */
+export interface ConsolidationIssue {
+  code: IssueCode;
+  campaign: string;
+  support: string;
+  store?: string;
+  message: string;
+}
+
 export interface ConsolidationResult {
   consolidations: Consolidation[];
-  issues: ValidationIssue[];
+  issues: ConsolidationIssue[];
   /** Soportes InStore Media detectados y excluidos (campaña + soporte). */
   excludedInstore: { campaign: string; support: string }[];
   /** Pantallas ISM excluidas (deferidas). */
@@ -130,7 +145,7 @@ export function consolidate(
   screens: readonly AdmiraScreen[],
 ): ConsolidationResult {
   const index = buildIndex(screens);
-  const issues: ValidationIssue[] = [];
+  const issues: ConsolidationIssue[] = [];
   const excludedInstore: { campaign: string; support: string }[] = [];
   const consolidations: Consolidation[] = [];
   let ismExcludedCount = 0;
@@ -156,10 +171,10 @@ export function consolidate(
         const all = index.activeBySupport.get(norm(support.support)) ?? [];
         if (all.length === 0) {
           issues.push({
-            severity: 'warning',
             code: 'support-not-in-catalog',
+            campaign: campaign.name,
+            support: support.support,
             message: `Soporte "${support.support}" asignado sin comentario en "${campaign.name}", pero no hay pantallas mapeadas a ese soporte en el catálogo.`,
-            location: { column: support.support },
           });
         }
         for (const s of all) matched.set(s.id, s);
@@ -176,7 +191,7 @@ export function consolidate(
         if (activeMatches.length === 0) {
           const inactiveMatches = index.inactive.get(k) ?? [];
           const storeExists = (index.activeByStore.get(num) ?? []).length > 0;
-          let code: string;
+          let code: IssueCode;
           let message: string;
           if (inactiveMatches.length > 0) {
             code = 'screen-inactive';
@@ -189,10 +204,11 @@ export function consolidate(
             message = `La tienda ${num} no existe en el catálogo (el maestro es la verdad absoluta): se excluye. Campaña "${campaign.name}", soporte "${support.support}".`;
           }
           issues.push({
-            severity: 'warning',
             code,
+            campaign: campaign.name,
+            support: support.support,
+            store: num,
             message,
-            location: { column: support.support },
           });
         }
         for (const s of activeMatches) matched.set(s.id, s);
@@ -260,20 +276,22 @@ export interface IssueSummary {
   total: number;
   byCode: Record<string, number>;
   bySupport: Record<string, number>;
+  byCampaign: Record<string, number>;
 }
 
-/** Resume las incidencias por código y por soporte, para un reporte accionable. */
+/** Resume las incidencias por código, soporte y campaña, para reportes. */
 export function summarizeIssues(
-  issues: readonly ValidationIssue[],
+  issues: readonly ConsolidationIssue[],
 ): IssueSummary {
   const byCode: Record<string, number> = {};
   const bySupport: Record<string, number> = {};
+  const byCampaign: Record<string, number> = {};
   for (const i of issues) {
     byCode[i.code] = (byCode[i.code] ?? 0) + 1;
-    const support = i.location?.column;
-    if (support) bySupport[support] = (bySupport[support] ?? 0) + 1;
+    bySupport[i.support] = (bySupport[i.support] ?? 0) + 1;
+    byCampaign[i.campaign] = (byCampaign[i.campaign] ?? 0) + 1;
   }
-  return { total: issues.length, byCode, bySupport };
+  return { total: issues.length, byCode, bySupport, byCampaign };
 }
 
 function dedupeRows(rows: AdmiraCsvRow[]): AdmiraCsvRow[] {

@@ -10,6 +10,7 @@ import {
   type ConsolidationResult,
 } from '@/modules/consolidation/consolidate';
 import { buildZip, consolidationCsv, csvFileName } from './csvExport';
+import { buildIssuesPdf, ISSUE_LABELS } from './pdfReport';
 import type { Consolidation } from '@/modules/consolidation/consolidate';
 import '@/modules/liverpool-import/ImportPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
@@ -30,11 +31,13 @@ export function ExportsPage() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<ConsolidationResult | null>(null);
   const [screensCount, setScreensCount] = useState(0);
+  const [fileName, setFileName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setFileName(file.name);
     setError(null);
     setPhase('working');
     try {
@@ -64,6 +67,12 @@ export function ExportsPage() {
     if (!result) return;
     const blob = await buildZip(result.consolidations);
     download(blob, 'csv-admira.zip');
+  }
+
+  async function downloadPdf() {
+    if (!result) return;
+    const blob = await buildIssuesPdf(result, { calendarName: fileName });
+    download(blob, 'reporte-incidencias-liverpool.pdf');
   }
 
   function downloadIncidences() {
@@ -133,6 +142,7 @@ export function ExportsPage() {
           onDownloadOne={downloadOne}
           onDownloadZip={() => void downloadZip()}
           onDownloadIncidences={downloadIncidences}
+          onDownloadPdf={() => void downloadPdf()}
         />
       )}
     </>
@@ -145,15 +155,20 @@ function ResultView({
   onDownloadOne,
   onDownloadZip,
   onDownloadIncidences,
+  onDownloadPdf,
 }: {
   result: ConsolidationResult;
   screensCount: number;
   onDownloadOne: (c: Consolidation) => void;
   onDownloadZip: () => void;
   onDownloadIncidences: () => void;
+  onDownloadPdf: () => void;
 }) {
   const summary = summarizeIssues(result.issues);
   const topSupports = Object.entries(summary.bySupport).sort(
+    (a, b) => b[1] - a[1],
+  );
+  const topCampaigns = Object.entries(summary.byCampaign).sort(
     (a, b) => b[1] - a[1],
   );
   return (
@@ -168,7 +183,14 @@ function ResultView({
               result.issues.length === 0 && result.excludedInstore.length === 0
             }
           >
-            Descargar incidencias
+            Incidencias (JSON)
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={onDownloadPdf}
+            disabled={result.issues.length === 0}
+          >
+            Reporte PDF (Liverpool)
           </button>
           <button
             className="btn btn-primary"
@@ -218,6 +240,74 @@ function ResultView({
             ))}
           </ul>
         </div>
+      )}
+
+      {topCampaigns.length > 0 && (
+        <details className="diagnosis__section">
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+            Detalle por campaña ({topCampaigns.length} con incidencias)
+          </summary>
+          <div
+            className="diagnosis__table-wrap"
+            style={{ marginTop: '0.5rem' }}
+          >
+            <table className="catalog__table">
+              <thead>
+                <tr>
+                  <th>Campaña</th>
+                  <th>Incidencias</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topCampaigns.map(([campaign, n]) => (
+                  <tr key={campaign}>
+                    <td>{campaign}</td>
+                    <td>{n}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
+      {result.issues.length > 0 && (
+        <details className="diagnosis__section">
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+            Detalle de incidencias ({result.issues.length})
+          </summary>
+          <div
+            className="diagnosis__table-wrap"
+            style={{ marginTop: '0.5rem' }}
+          >
+            <table className="catalog__table">
+              <thead>
+                <tr>
+                  <th>Campaña</th>
+                  <th>Soporte</th>
+                  <th>Tienda</th>
+                  <th>Tipo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.issues.slice(0, 500).map((i, idx) => (
+                  <tr key={idx}>
+                    <td>{i.campaign}</td>
+                    <td>{i.support}</td>
+                    <td>{i.store ?? '—'}</td>
+                    <td>{ISSUE_LABELS[i.code]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {result.issues.length > 500 && (
+            <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+              Mostrando las primeras 500 de {result.issues.length}. El PDF
+              incluye todas.
+            </p>
+          )}
+        </details>
       )}
 
       {result.consolidations.length === 0 ? (
