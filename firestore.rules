@@ -63,27 +63,31 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
 
-    // Rol efectivo desde los custom claims del token (misma fuente que el
-    // cliente, ver AuthProvider). Escritura restringida a admin/operator.
-    function claimRole() {
-      return isSignedIn() ? request.auth.token.get('role', '') : '';
-    }
-    function canWriteTracking() {
-      return claimRole() == 'admin' || claimRole() == 'operator';
-    }
-
     // Seguimiento operativo de campañas: colección INDEPENDIENTE de `campaigns`.
-    // Lectura: cualquier autenticado. Escritura: solo admin/operator (claims).
-    // No se permite eliminación física desde el cliente. `campaignNameKey`,
-    // `createdAt` y `createdBy*` son inmutables tras la creación.
+    //
+    // FASE ACTUAL (pre-lanzamiento): igual que el resto de colecciones, cualquier
+    // usuario autenticado puede escribir. El control por ROL (write solo
+    // admin/operator, ver `tracking.write` en permissions.ts) se aplicará antes
+    // de liberar, cuando los custom claims de rol estén provisionados —
+    // sustituyendo `isSignedIn()` por la comprobación de rol de abajo.
+    //
+    // Se conservan ya las validaciones estructurales: sin eliminación física
+    // desde el cliente y `campaignNameKey`/`createdAt`/`createdBy*` inmutables
+    // tras la creación.
+    //
+    // function canWriteTracking() {
+    //   return isSignedIn() &&
+    //     (request.auth.token.get('role', '') == 'admin'
+    //      || request.auth.token.get('role', '') == 'operator');
+    // }
     match /campaignOperationalTracking/{campaignKeyId} {
       allow read: if isSignedIn();
-      allow create: if canWriteTracking()
+      allow create: if isSignedIn()
         && request.resource.data.campaignNameKey is string
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int;
-      allow update: if canWriteTracking()
+      allow update: if isSignedIn()
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.campaignNameKey == resource.data.campaignNameKey
         && request.resource.data.createdAt == resource.data.createdAt

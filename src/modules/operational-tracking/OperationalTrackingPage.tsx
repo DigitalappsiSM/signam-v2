@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { can } from '@/app/permissions';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain';
@@ -19,16 +18,31 @@ import type {
   CheckKey,
   Classification,
 } from './types';
-import { todayCivil } from './businessDays';
+import { todayCivil, formatDdMmYyyy, formatCivilString } from './businessDays';
 import { type WitnessStatus } from './operationalStatus';
 import { STATUS_META, LINK_META } from './statusMeta';
 import {
   buildTrackingRows,
+  effectiveChecks,
   type TrackingRow,
   type Timeframe,
 } from './trackingModel';
 import './OperationalTrackingPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
+
+/** Icono ✅/➖ para un check en la vista general. */
+function CheckCell({ done, label }: { done: boolean; label: string }) {
+  return (
+    <td
+      title={`${label}: ${done ? 'sí' : 'pendiente'}`}
+      className="ot-check-cell"
+    >
+      <span aria-label={`${label}: ${done ? 'completado' : 'pendiente'}`}>
+        {done ? '✅' : '➖'}
+      </span>
+    </td>
+  );
+}
 
 function normalize(v: string): string {
   return v
@@ -40,8 +54,11 @@ function normalize(v: string): string {
 
 export function OperationalTrackingPage() {
   const { user } = useAuth();
-  const role = user?.role ?? 'viewer';
-  const canWrite = can(role, 'tracking.write');
+  // Fase pre-lanzamiento: cualquier usuario autenticado puede editar el
+  // seguimiento (igual que el resto de colecciones). El control por rol
+  // (viewer solo lectura) se activará antes de liberar, cuando los custom
+  // claims de rol estén provisionados; ver `permissions.ts` / `firestore.rules`.
+  const canWrite = user != null;
   const actor = { uid: user?.uid ?? '', email: user?.email ?? '' };
 
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
@@ -231,61 +248,80 @@ export function OperationalTrackingPage() {
                 <th>Fin</th>
                 <th>Tiendas</th>
                 <th>Objetivo 10%</th>
-                <th>Link</th>
+                <th title="Link de descarga">Link</th>
+                <th title="Validación Liverpool">Validación</th>
+                <th title="Programación CSM">CSM</th>
+                <th title="T Arranque">T Arr.</th>
+                <th title="T Completos">T Comp.</th>
                 <th>Estado general</th>
                 <th>Próx. vencimiento</th>
                 <th aria-label="Detalle" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr key={r.campaign.id}>
-                  <td>{r.campaign.name}</td>
-                  <td>
-                    {r.classification === 'unknown' ? (
-                      <span className="badge badge-warning">
-                        Clasificación pendiente
-                      </span>
-                    ) : r.classification === 'institutional' ? (
-                      'Institucional'
-                    ) : (
-                      'Proveedor'
-                    )}
-                  </td>
-                  <td>{r.campaign.fechaInicio || '—'}</td>
-                  <td>{r.campaign.fechaFin || '—'}</td>
-                  <td>{r.distinctStores}</td>
-                  <td>
-                    {r.target} de {r.distinctStores}
-                  </td>
-                  <td>
-                    <span title={LINK_META[r.linkStatus].label}>
-                      {LINK_META[r.linkStatus].icon}{' '}
-                      <span className="ot-hide-sm">
-                        {LINK_META[r.linkStatus].label}
-                      </span>
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`ot-badge ${STATUS_META[r.overall].cls}`}>
-                      {STATUS_META[r.overall].icon}{' '}
-                      {STATUS_META[r.overall].label}
-                    </span>
-                  </td>
-                  <td>{r.nextDeadline ? isoDay(r.nextDeadline) : '—'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title={`Ver detalle de ${r.campaign.name}`}
-                      aria-label={`Ver detalle de ${r.campaign.name}`}
-                      onClick={() => openDetail(r.campaign.nameKey)}
+              {filtered.map((r) => {
+                const checks = effectiveChecks(r);
+                return (
+                  <tr key={r.campaign.id}>
+                    <td>{r.campaign.name}</td>
+                    <td>
+                      {r.classification === 'unknown' ? (
+                        <span className="badge badge-warning">
+                          Clasificación pendiente
+                        </span>
+                      ) : r.classification === 'institutional' ? (
+                        'Institucional'
+                      ) : (
+                        'Proveedor'
+                      )}
+                    </td>
+                    <td>{formatCivilString(r.campaign.fechaInicio)}</td>
+                    <td>{formatCivilString(r.campaign.fechaFin)}</td>
+                    <td>{r.distinctStores}</td>
+                    <td>
+                      {r.target} de {r.distinctStores}
+                    </td>
+                    <td
+                      className="ot-check-cell"
+                      title={LINK_META[r.linkStatus].label}
                     >
-                      👁️
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {LINK_META[r.linkStatus].icon}
+                    </td>
+                    <CheckCell
+                      done={checks.liverpool}
+                      label="Validación Liverpool"
+                    />
+                    <CheckCell done={checks.csm} label="Programación CSM" />
+                    <CheckCell done={checks.witnessStart} label="T Arranque" />
+                    <CheckCell
+                      done={checks.witnessComplete}
+                      label="T Completos"
+                    />
+                    <td>
+                      <span
+                        className={`ot-badge ${STATUS_META[r.overall].cls}`}
+                      >
+                        {STATUS_META[r.overall].icon}{' '}
+                        {STATUS_META[r.overall].label}
+                      </span>
+                    </td>
+                    <td>
+                      {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title={`Ver detalle de ${r.campaign.name}`}
+                        aria-label={`Ver detalle de ${r.campaign.name}`}
+                        onClick={() => openDetail(r.campaign.nameKey)}
+                      >
+                        👁️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -302,10 +338,6 @@ export function OperationalTrackingPage() {
       )}
     </>
   );
-}
-
-function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 function TrackingDetail({
@@ -392,9 +424,9 @@ function TrackingDetail({
       <div className="modal__card" style={{ maxWidth: 720 }}>
         <h2 className="modal__title">{campaign.name}</h2>
         <p className="text-muted" style={{ marginTop: 0 }}>
-          {campaign.fechaInicio || '—'} – {campaign.fechaFin || '—'} ·{' '}
-          {row.distinctStores} tiendas · Objetivo de arranque: {row.target} de{' '}
-          {row.distinctStores} tiendas
+          {formatCivilString(campaign.fechaInicio)} –{' '}
+          {formatCivilString(campaign.fechaFin)} · {row.distinctStores} tiendas
+          · Objetivo de arranque: {row.target} de {row.distinctStores} tiendas
         </p>
 
         {err && (

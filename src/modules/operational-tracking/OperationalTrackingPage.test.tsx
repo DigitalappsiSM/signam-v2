@@ -120,7 +120,10 @@ describe('OperationalTrackingPage', () => {
       within(rowInst).getByRole('button', { name: /Ver detalle/i }),
     );
 
-    const csm = await screen.findByLabelText(/Programación CSM/i);
+    const dialog = await screen.findByRole('dialog');
+    const csm = within(dialog).getByRole('checkbox', {
+      name: /Programación CSM/i,
+    });
     await userEvent.click(csm);
     await waitFor(() => expect(updateCheck).toHaveBeenCalledTimes(1));
     expect(updateCheck).toHaveBeenCalledWith(
@@ -133,17 +136,25 @@ describe('OperationalTrackingPage', () => {
     );
   });
 
-  it('viewer ve los controles deshabilitados', async () => {
-    authState.role = 'viewer';
+  it('muestra los cinco indicadores en la vista general', async () => {
+    renderPage();
+    await screen.findByText('BUEN FIN');
+    for (const h of ['Validación', 'CSM', 'T Arr.', 'T Comp.', 'Link']) {
+      expect(screen.getByRole('columnheader', { name: h })).toBeInTheDocument();
+    }
+    // Institucional sin seguimiento → Validación Liverpool marcada por defecto.
+    const rowInst = screen.getByText('BUEN FIN').closest('tr')!;
+    expect(
+      within(rowInst).getByLabelText('Validación Liverpool: completado'),
+    ).toBeInTheDocument();
+  });
+
+  it('muestra las fechas en formato dd/mm/aaaa', async () => {
     renderPage();
     await screen.findByText('BUEN FIN');
     const rowInst = screen.getByText('BUEN FIN').closest('tr')!;
-    await userEvent.click(
-      within(rowInst).getByRole('button', { name: /Ver detalle/i }),
-    );
-    const csm = await screen.findByLabelText(/Programación CSM/i);
-    expect(csm).toBeDisabled();
-    expect(screen.getByText(/Solo lectura/i)).toBeInTheDocument();
+    expect(within(rowInst).getByText('10/05/2026')).toBeInTheDocument();
+    expect(within(rowInst).getByText('20/05/2026')).toBeInTheDocument();
   });
 
   it('muestra un mensaje de error de carga', async () => {
