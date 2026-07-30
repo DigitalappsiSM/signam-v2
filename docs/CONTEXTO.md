@@ -103,8 +103,14 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
   `+`, deduplicados y en orden de aparición.
 - **Consolidación**: llave `Campaña + RESOLUCION` (no separa por circuito,
   soporte, `ARTICULOS` ni `TIPO DE PASES`).
-- **CSV**: `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`,
-  escape RFC 4180, UTF-8 con BOM.
+- **CSV**: orden `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE
+PASES`, escape RFC 4180, UTF-8 con BOM. El encabezado **escrito** rotula la
+  última columna como `Tipo de Pases`; la llave interna de las filas y el
+  encabezado del maestro permanecen `TIPO DE PASES`.
+- **Asociación campaña ↔ Ekon** (1–1): cada campaña puede tener a lo sumo un
+  número de campaña Ekon y cada número pertenece a una sola campaña. Se guarda
+  en colecciones separadas (`campaignEkonLinks`, `ekonCampaignNumbers`) que
+  sobreviven a reimportaciones; la importación nunca las toca.
 
 ## 6. Flujos de la aplicación
 
@@ -141,9 +147,17 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
   (derivadas de las pantallas consolidadas), por lo que refleja correctamente el
   caso "Asignada sin comentario" (tiendas tomadas del catálogo).
 - Consolida contra las pantallas activas del catálogo (`Campaña + RESOLUCION`).
+- **Filtros**: búsqueda por nombre y periodo **Desde/Hasta** (`input date`),
+  combinables, con botón **Limpiar filtros**. Una campaña aparece si su vigencia
+  **intersecta** el periodo (límites inclusivos); un rango invertido
+  (`Desde > Hasta`) muestra validación y no presenta resultados.
+- Columna **`# campaña Ekon`**: muestra el número asociado o `—`. La edición se
+  hace **solo dentro del modal de detalle** (input + **Guardar** +
+  **Desvincular**), acepta enteros positivos seguros y pide **confirmación**
+  antes de reemplazar una asociación existente.
 - Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
-  **detalle** (soportes + tiendas + estado OK/incidencia), ⬇️ **descargar cada
-  CSV**.
+  **detalle** (soportes + tiendas + estado OK/incidencia + edición de Ekon), ⬇️
+  **descargar cada CSV**.
 - Incidencias tipadas: `store-not-in-catalog`, `store-support-mismatch`,
   `screen-inactive`, `support-not-in-catalog`.
 - El antiguo módulo separado "Exportación CSV" se **eliminó**: todo vive aquí.
