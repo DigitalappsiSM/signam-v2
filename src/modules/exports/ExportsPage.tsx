@@ -1,9 +1,8 @@
-import { useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { ADMIRA_CSV_COLUMNS } from '@/domain';
 import { listScreens } from '@/services/screens';
-import { readCalendarWorkbook } from '@/modules/liverpool-import/readCalendarWorkbook';
-import { parseCampaigns } from '@/modules/liverpool-import/campaignParse';
+import { listCampaigns } from '@/services/campaigns';
 import {
   consolidate,
   summarizeIssues,
@@ -15,7 +14,7 @@ import type { Consolidation } from '@/modules/consolidation/consolidate';
 import '@/modules/liverpool-import/ImportPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
 
-type Phase = 'idle' | 'working' | 'done';
+type Phase = 'loading' | 'done' | 'error';
 
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -26,35 +25,39 @@ function download(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-/** Exportación CSV: cruza el calendario contra el catálogo y genera los CSV. */
+/**
+ * Exportación CSV: consolida las campañas guardadas en la base de datos contra
+ * las pantallas activas del catálogo y genera los CSV de Admira.
+ */
 export function ExportsPage() {
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>('loading');
   const [result, setResult] = useState<ConsolidationResult | null>(null);
   const [screensCount, setScreensCount] = useState(0);
-  const [fileName, setFileName] = useState('');
+  const [campaignsCount, setCampaignsCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
+  const load = useCallback(async () => {
+    setPhase('loading');
     setError(null);
-    setPhase('working');
     try {
-      const [data, screens] = await Promise.all([
-        readCalendarWorkbook(file),
+      const [campaigns, screens] = await Promise.all([
+        listCampaigns(),
         listScreens(),
       ]);
+      setCampaignsCount(campaigns.length);
       setScreensCount(screens.length);
-      const parsed = parseCampaigns(data);
-      setResult(consolidate(parsed.campaigns, screens));
+      setResult(consolidate(campaigns, screens));
       setPhase('done');
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setError(`No se pudo procesar. Detalle: ${detail}`);
-      setPhase('idle');
+      setPhase('error');
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function downloadOne(c: Consolidation) {
     download(
@@ -65,14 +68,12 @@ export function ExportsPage() {
 
   async function downloadZip() {
     if (!result) return;
-    const blob = await buildZip(result.consolidations);
-    download(blob, 'csv-admira.zip');
+    download(await buildZip(result.consolidations), 'csv-admira.zip');
   }
 
   async function downloadPdf() {
     if (!result) return;
-    const blob = await buildIssuesPdf(result, { calendarName: fileName });
-    download(blob, 'reporte-incidencias-liverpool.pdf');
+    download(await buildIssuesPdf(result), 'reporte-incidencias-liverpool.pdf');
   }
 
   function downloadIncidences() {
@@ -101,27 +102,19 @@ export function ExportsPage() {
     <>
       <PageHeader
         title="Exportación CSV"
-        description="Sube el Calendario de Liverpool: se cruza contra las pantallas activas del catálogo y se generan los CSV de Admira (uno por Campaña + Resolución)."
+        description="Consolida las campañas guardadas (base de datos) contra las pantallas activas del catálogo y genera los CSV de Admira (uno por Campaña + Resolución)."
+        actions={
+          <button className="btn btn-secondary" onClick={() => void load()}>
+            Actualizar
+          </button>
+        }
       />
 
       <div className="card" style={{ marginBottom: '1.25rem' }}>
-        <label className="import-file">
-          <span className="btn btn-primary">
-            Seleccionar calendario (.xlsx / .xls)
-          </span>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            onChange={(e) => void handleFile(e)}
-            hidden
-          />
-        </label>
-        <p
-          className="text-muted"
-          style={{ fontSize: '0.85rem', marginBottom: 0 }}
-        >
+        <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>
           Layout del CSV: <code>{ADMIRA_CSV_COLUMNS.join(',')}</code> ·
-          RETAILERS = LIVERPOOL.
+          RETAILERS = LIVERPOOL. Las campañas provienen de la base de datos
+          (impórtalas en <strong>Importar Calendario</strong>).
         </p>
       </div>
 
@@ -131,14 +124,22 @@ export function ExportsPage() {
         </div>
       )}
 
-      {phase === 'working' && (
-        <p className="text-muted">Cruzando calendario contra el catálogo…</p>
+      {phase === 'loading' && (
+        <p className="text-muted">Consolidando campañas contra el catálogo…</p>
+      )}
+
+      {phase === 'done' && result && campaignsCount === 0 && (
+        <div className="import__note">
+          No hay campañas guardadas. Ve a <strong>Importar Calendario</strong>,
+          sube el archivo y guarda los cambios.
+        </div>
       )}
 
       {phase === 'done' && result && (
         <ResultView
           result={result}
           screensCount={screensCount}
+          campaignsCount={campaignsCount}
           onDownloadOne={downloadOne}
           onDownloadZip={() => void downloadZip()}
           onDownloadIncidences={downloadIncidences}
@@ -152,6 +153,7 @@ export function ExportsPage() {
 function ResultView({
   result,
   screensCount,
+  campaignsCount,
   onDownloadOne,
   onDownloadZip,
   onDownloadIncidences,
@@ -159,6 +161,7 @@ function ResultView({
 }: {
   result: ConsolidationResult;
   screensCount: number;
+  campaignsCount: number;
   onDownloadOne: (c: Consolidation) => void;
   onDownloadZip: () => void;
   onDownloadIncidences: () => void;
@@ -203,6 +206,10 @@ function ResultView({
       </div>
 
       <dl className="import__summary">
+        <div>
+          <dt>Campañas (BD)</dt>
+          <dd>{campaignsCount}</dd>
+        </div>
         <div>
           <dt>CSV a generar</dt>
           <dd>
@@ -312,9 +319,9 @@ function ResultView({
 
       {result.consolidations.length === 0 ? (
         <div className="import__note">
-          No se generó ningún CSV. Revisa que el catálogo tenga la columna{' '}
-          <strong>NORMALIZACION LIVERPOOL</strong> mapeada y las pantallas
-          activas. Descarga las incidencias para ver el detalle.
+          No se generó ningún CSV. Verifica que haya campañas guardadas y que el
+          catálogo tenga la columna <strong>NORMALIZACION LIVERPOOL</strong>{' '}
+          mapeada en pantallas activas.
         </div>
       ) : (
         <div className="diagnosis__table-wrap">
