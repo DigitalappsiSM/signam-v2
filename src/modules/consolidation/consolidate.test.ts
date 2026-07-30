@@ -189,7 +189,7 @@ describe('consolidate', () => {
     expect(result.issues.some((i) => i.code === 'screen-inactive')).toBe(true);
   });
 
-  it('reporta cuando no hay pantalla en el catálogo', () => {
+  it('reporta tienda inexistente en el catálogo (verdad absoluta) sin forzarla', () => {
     const campaigns = [
       campaign('Camp', [
         {
@@ -200,7 +200,34 @@ describe('consolidate', () => {
       ]),
     ];
     const result = consolidate(campaigns, []);
-    expect(result.issues.some((i) => i.code === 'screen-not-found')).toBe(true);
+    expect(result.consolidations).toHaveLength(0);
+    expect(result.issues.some((i) => i.code === 'store-not-in-catalog')).toBe(
+      true,
+    );
+  });
+
+  it('distingue tienda existente pero sin ese soporte (posible error de Liverpool)', () => {
+    const screens = [
+      screen(
+        'a',
+        { 'Numero de Tienda': '5', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'OTRO',
+      ),
+    ];
+    const campaigns = [
+      campaign('Camp', [
+        {
+          support: 'LED',
+          owner: 'liverpool',
+          stores: [{ numero: '5', nombre: '' }],
+        },
+      ]),
+    ];
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(0);
+    expect(result.issues.some((i) => i.code === 'store-support-mismatch')).toBe(
+      true,
+    );
   });
 
   it('excluye pantallas cuyo TIPO DE pantallas es ISM', () => {
@@ -329,7 +356,7 @@ describe('consolidate', () => {
     const result = consolidate(campaigns, []);
     const summary = summarizeIssues(result.issues);
     expect(summary.total).toBe(2);
-    expect(summary.byCode['screen-not-found']).toBe(2);
+    expect(summary.byCode['store-not-in-catalog']).toBe(2);
     expect(summary.bySupport['VIDEO WALL CRIUS']).toBe(2);
   });
 
@@ -352,6 +379,8 @@ describe('consolidate', () => {
     ];
     const result = consolidate(campaigns, screens);
     expect(result.consolidations).toHaveLength(0);
-    expect(result.issues.some((i) => i.code === 'screen-not-found')).toBe(true);
+    expect(result.issues.some((i) => i.code === 'store-not-in-catalog')).toBe(
+      true,
+    );
   });
 });
