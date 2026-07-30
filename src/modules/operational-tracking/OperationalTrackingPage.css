@@ -1,0 +1,192 @@
+/* Seguimiento operativo. Los estados se transmiten con icono + texto (no solo
+   color) para accesibilidad; el color es un refuerzo. */
+
+.ot-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.ot-filter select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.ot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.ot-overdue {
+  background: #fde8e8;
+  color: #9b1c1c;
+  border-color: #f8b4b4;
+}
+.ot-due-today {
+  background: #fdf0e6;
+  color: #9c4221;
+  border-color: #f6c199;
+}
+.ot-due-soon {
+  background: #fef9e7;
+  color: #8a6d1b;
+  border-color: #f5e199;
+}
+.ot-invalid {
+  background: #eef1f5;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+.ot-on-track {
+  background: #e8f5ec;
+  color: #216e39;
+  border-color: #a7d8b8;
+}
+.ot-done {
+  background: #e8f2fb;
+  color: #1e4e79;
+  border-color: #a9cdec;
+}
+.ot-late {
+  background: #f3ecfb;
+  color: #5b3a86;
+  border-color: #cdb4e8;
+}
+.ot-upcoming {
+  background: #eef1f5;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ot-badge {
+    filter: saturate(0.85) brightness(0.95);
+  }
+}
+
+.ot-table td {
+  vertical-align: middle;
+}
+
+.ot-detail-block {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.ot-detail-block h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.4rem;
+}
+
+.ot-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.ot-alert {
+  margin: 0 0 0.4rem;
+}
+
+.ot-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ot-checks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.ot-check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.ot-who {
+  font-size: 0.8rem;
+}
+
+@media (max-width: 720px) {
+  .ot-hide-sm {
+    display: none;
+  }
+}
+
+/* --- Panel operativo (Dashboard) --- */
+.dash-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.dash-tile {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 0.75rem 0.85rem;
+}
+
+.dash-tile--warn {
+  border-color: #f5e199;
+}
+.dash-tile--danger {
+  border-color: #f8b4b4;
+}
+
+.dash-tile__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dash-tile__label {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.dash-list__title {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.dash-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}

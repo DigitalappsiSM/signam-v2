@@ -9,7 +9,10 @@ Aplicación web para operar el flujo de programación de pantallas entre
 4. Cruzar campañas Liverpool contra las pantallas activas del catálogo.
 5. **Consolidar por resolución** (`Campaña + RESOLUCION`).
 6. Generar los **CSV de programación** de Admira.
-7. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+7. **Seguimiento operativo** por campaña (clasificación Institucional/Proveedor,
+   link, validación, programación CSM y testigos con fechas límite y alertas),
+   más un **Dashboard** con el resumen y las alertas críticas.
+8. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
 
 > Esta es la primera entrega: establece **arquitectura, modelos, seguridad y
 > pruebas**. La lógica de negocio (parser de Excel, motor de consolidación,

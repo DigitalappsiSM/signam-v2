@@ -47,6 +47,24 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   esas colecciones y estas nunca modifican la campaña importada. El
   `campaignKeyId` se deriva determinísticamente del `nameKey` (no del ID
   aleatorio de `campaigns`).
+- **Seguimiento operativo**: colección independiente
+  `campaignOperationalTracking/{campaignKeyId}` (mismo `campaignKeyId` que Ekon,
+  derivado del `nameKey`). Contiene solo datos operativos; nunca se mezcla con
+  `campaigns` y la importación no borra ni sobrescribe checks manuales. Cinco
+  indicadores: **Link de descarga** (automático, derivado de `campaign.link`, no
+  se persiste como check mutable), **Validación Liverpool** (manual; inicia
+  marcada en Institucional y pendiente en Proveedor), **Programación CSM**,
+  **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar T
+  Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
+  T Completos siga marcado. Clasificación **Institucional/Proveedor** obligatoria
+  (se elige en la importación cuando el `tipo` no es inequívoco; nunca se asume
+  Proveedor). Fechas civiles (sin desfase por zona horaria): T Arranque vence al
+  **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;
+  aún sin festivos); T Completos vence en `fechaFin`. Objetivo de arranque =
+  `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
+  evidencias ni se seleccionan tiendas individuales. Escritura restringida a
+  admin/operator por custom claims (misma fuente que el cliente); `read`
+  requiere autenticación; sin borrado físico desde el cliente.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

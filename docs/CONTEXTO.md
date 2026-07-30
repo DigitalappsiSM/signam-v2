@@ -45,7 +45,8 @@ src/
 │   ├── admira-catalog/   # catálogo: tabla, formulario, import maestro, filtros
 │   ├── liverpool-import/ # inspector del calendario + parseo de campañas + guardado
 │   ├── consolidation/    # motor de consolidación (cruce → CSV)
-│   ├── campaigns/        # diff de campañas (cambios vs BD)
+│   ├── campaigns/        # diff de campañas (cambios vs BD) + Ekon
+│   ├── operational-tracking/ # seguimiento operativo (estados, testigos, alertas)
 │   ├── exports/          # CSV/ZIP + reporte PDF
 │   ├── dashboard/ audit/ # panel e historial (placeholder)
 └── services/             # firebase, auth, screens, campaigns, env
@@ -179,13 +180,65 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - El antiguo módulo separado "Exportación CSV" se **eliminó**: todo vive aquí.
   Los helpers de CSV/ZIP/PDF permanecen en `src/modules/exports/`.
 
+### 6.4 Seguimiento operativo (`/seguimiento`)
+
+- Sección independiente (no columnas nuevas en Campañas) con el estado operativo
+  de cada campaña. Persistencia **separada** en
+  `campaignOperationalTracking/{campaignKeyId}`: la importación **nunca** borra
+  ni sobrescribe checks manuales, y el seguimiento **nunca** modifica la campaña
+  importada. El `campaignKeyId` se deriva del `nameKey` (mismo criterio que
+  Ekon); si el nombre normalizado cambia, es una campaña nueva y **empieza un
+  seguimiento nuevo** (no se traslada el anterior).
+- **Cinco indicadores**: **Link de descarga** (automático, derivado de
+  `campaign.link` — válido / faltante / inválido; nunca se persiste como check
+  mutable, así no se desincroniza), **Validación Liverpool**, **Programación
+  CSM**, **T Arranque** y **T Completos** (manuales; guardan quién y cuándo).
+- **Clasificación Institucional/Proveedor**: automática si el `tipo` contiene
+  `INSTITUCIONAL`/`PROVEEDOR` (ignorando mayúsculas/acentos); si es ambigua o
+  vacía queda **pendiente**. Se define en la **importación** (selector con
+  preselección; no se puede confirmar con clasificaciones pendientes) y puede
+  corregirse luego en Seguimiento (admin/operator). Una reimportación no cambia
+  una clasificación ya existente de forma silenciosa.
+- **Validación Liverpool** inicia **marcada** en campañas institucionales y
+  **pendiente** en proveedor (con `source: automatic`); al modificarla queda
+  `source: manual` con quién/cuándo.
+- **Testigos** (confirmaciones manuales, sin evidencias ni tiendas individuales
+  en esta fase): T Arranque confirma ≥ **10%** de las tiendas realmente
+  consolidadas y vence al **5.º día hábil inclusivo** desde el inicio (solo se
+  excluyen sábado/domingo; aún sin festivos). T Completos confirma el 100% y
+  vence en `fechaFin`. Marcar T Completos marca también T Arranque; no se puede
+  desmarcar T Arranque mientras T Completos siga marcado.
+- **Objetivo del 10%** = `Math.ceil(tiendasDistintas * 0.10)` (tiendas
+  **distintas** de las pantallas que realmente consolidaron; 0 tiendas → 0).
+- **Fechas civiles**: todo el cálculo usa fechas civiles a medianoche UTC (sin
+  desfases por zona horaria/DST). Si `fechaInicio`/`fechaFin` no se interpreta,
+  se muestra estado `Fecha inválida` (no una alerta de vencimiento) y el check
+  sigue editable.
+- **Estados y alertas** con icono + texto (no solo color): `upcoming`,
+  `on-track`, `due-soon` (2 días hábiles T Arranque / 5 naturales T Completos),
+  `due-today`, `overdue`, `completed-on-time`, `completed-late`, `invalid-date`.
+- El **Dashboard** deriva (no persiste) el resumen operativo: activas,
+  seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
+  críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
+  con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`.
+- **Permisos**: `tracking.read` (todos los roles) y `tracking.write`
+  (admin/operator). Las reglas de Firestore exigen el rol por **custom claims**
+  (misma fuente que el cliente) y prohíben el borrado físico.
+- **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
+  vive **dentro** del documento de seguimiento. No existe todavía una bitácora
+  global operativa; queda preparada la información para poblarla más adelante.
+
 ## 7. Pendientes / próximos pasos
 
 - **Muppi's / ISM**: definir e implementar su lógica (hoy se excluyen).
 - **Confirmar duplicado de encabezados** en el calendario: `Led Antea` vs
   `PANTALLAS LED ANTEA` (posible duplicación de Liverpool).
 - **Roles reales** (admin/operator/viewer) en reglas de Firestore antes de
-  liberar.
+  liberar. Ya aplicado por **custom claims** en la colección de **seguimiento
+  operativo**; el resto de colecciones sigue en modo autenticado (pre-lanzamiento).
+- **Seguimiento operativo**: pendientes de fases siguientes — calendario de
+  **festivos** para los días hábiles, **evidencias** de testigos y selección de
+  **tiendas individuales**, y **bitácora global** de auditoría.
 - **Historial/auditoría** e **snapshot inmutable de exportaciones** en Firestore
   (y Storage para archivos originales cuando se habilite Blaze).
 - **Storage/Functions** (requieren plan Blaze).
@@ -199,4 +252,5 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 | Calendario (inspector, campañas, tiendas)                     | ✅     |
 | Persistencia de campañas con confirmación de cambios          | ✅     |
 | Consolidación + CSV + ZIP + incidencias + PDF                 | ✅     |
-| Muppi's / ISM · Roles · Historial                             | ⏳     |
+| Seguimiento operativo (estados, testigos, alertas) + Dashboard | ✅     |
+| Muppi's / ISM · Festivos/evidencias · Historial global        | ⏳     |

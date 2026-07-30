@@ -34,6 +34,13 @@ export const NAV_ROUTES: RouteMeta[] = [
       'Campañas guardadas, detalle, CSV de Admira y reporte de errores.',
   },
   {
+    path: '/seguimiento',
+    label: 'Seguimiento operativo',
+    icon: '✅',
+    description:
+      'Estados, testigos, fechas límite y alertas operativas por campaña.',
+  },
+  {
     path: '/historial',
     label: 'Historial',
     icon: '🕑',

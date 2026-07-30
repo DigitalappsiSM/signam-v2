@@ -73,6 +73,9 @@ describe('App — con sesión activa', () => {
     expect(
       nav.getByRole('link', { name: /Importar Calendario/i }),
     ).toBeInTheDocument();
+    expect(
+      nav.getByRole('link', { name: /Seguimiento operativo/i }),
+    ).toBeInTheDocument();
     expect(nav.getByRole('link', { name: /Historial/i })).toBeInTheDocument();
     expect(screen.getByText('Administrador')).toBeInTheDocument();
     expect(
