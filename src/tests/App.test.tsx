@@ -80,14 +80,16 @@ describe('App — con sesión activa', () => {
     ).toBeInTheDocument();
   });
 
-  it('renderiza la exportación con el layout CSV confirmado', () => {
+  it('ya no muestra el módulo "Exportación CSV" en la navegación', () => {
     signIn();
-    renderAt('/exportar');
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
     expect(
-      screen.getByText(
-        'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES',
-      ),
-    ).toBeInTheDocument();
+      nav.queryByRole('link', { name: /Exportación CSV/i }),
+    ).not.toBeInTheDocument();
+    expect(nav.getByRole('link', { name: /Campañas/i })).toBeInTheDocument();
   });
 
   it('muestra 404 en rutas desconocidas', () => {

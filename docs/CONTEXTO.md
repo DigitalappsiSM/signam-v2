@@ -119,25 +119,30 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
   captura `NORMALIZACION LIVERPOOL`, vista previa e incidencias, y opción
   **Agregar** o **Reemplazar todo**.
 
-### 6.2 Importar Calendario + Campañas
+### 6.2 Importar Calendario
 
 - Sube el calendario; **inspector** muestra hojas, encabezados, comentarios y
   soportes InStore.
 - **Parseo de campañas** (matriz: fila = campaña, columnas = soportes,
-  comentarios = tiendas `número⇥nombre`).
+  comentarios = tiendas `número⇥nombre`; se captura también `LINK`).
 - **Persistencia con confirmación**: se comparan las campañas contra la base de
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
-  / sin cambios) con el detalle (vigencias, tiendas por soporte, etc.). **Solo
-  se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
+  / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
+  **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
 
-### 6.3 Exportación CSV
+### 6.3 Campañas (vista consolidada)
 
-- Sube el calendario → cruza contra pantallas activas → consolida por
-  `Campaña + RESOLUCION`.
-- Resultados: resumen, tabla de CSV, **descarga individual**, **ZIP**,
-  **incidencias JSON**, **reporte PDF** (para Liverpool) y detalle por campaña.
+- Lista las campañas guardadas (nombre, **tipo de campaña**, vigencias,
+  **Contenido**: botón _Descargar contenido_ con el `LINK`, o _Link pendiente_,
+  soportes Liverpool, nº de tiendas).
+- Consolida contra las pantallas activas del catálogo (`Campaña + RESOLUCION`).
+- Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
+  **detalle** (soportes + tiendas + estado OK/incidencia), ⬇️ **descargar cada
+  CSV**.
 - Incidencias tipadas: `store-not-in-catalog`, `store-support-mismatch`,
   `screen-inactive`, `support-not-in-catalog`.
+- El antiguo módulo separado "Exportación CSV" se **eliminó**: todo vive aquí.
+  Los helpers de CSV/ZIP/PDF permanecen en `src/modules/exports/`.
 
 ## 7. Pendientes / próximos pasos
 

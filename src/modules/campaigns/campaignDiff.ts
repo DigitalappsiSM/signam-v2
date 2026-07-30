@@ -50,6 +50,7 @@ export function campaignSignature(c: ParsedCampaign): string {
     inicio: c.fechaInicio.trim(),
     fin: c.fechaFin.trim(),
     mes: c.mes.trim(),
+    link: (c.link ?? '').trim(),
     supports: supportSignatures(c),
   });
 }
@@ -68,6 +69,7 @@ export function describeChanges(
   field('Mes', stored.mes, incoming.mes);
   field('Tipo', stored.tipo, incoming.tipo);
   field('Vendido por', stored.vendidoPor, incoming.vendidoPor);
+  field('Link', stored.link ?? '', incoming.link ?? '');
 
   const oldSup = new Map(supportSignatures(stored).map((s) => [s.support, s]));
   const newSup = new Map(
