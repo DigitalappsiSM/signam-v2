@@ -44,10 +44,12 @@ function makeRow(overrides: Partial<AdmiraCsvRow> = {}): AdmiraCsvRow {
 }
 
 describe('serializeAdmiraCsv', () => {
-  it('emite el encabezado exacto con la etiqueta "Tipo de Pases"', () => {
+  it('pone LIVERPOOL en A1 y el encabezado exacto en la fila 2', () => {
     const csv = serializeAdmiraCsv([], { withBom: false });
-    expect(csv).toBe(EXACT_HEADER);
-    expect(csv).toBe(ADMIRA_CSV_HEADER_LABELS.join(','));
+    const [title, header] = csv.split('\r\n');
+    expect(title).toBe('LIVERPOOL');
+    expect(header).toBe(EXACT_HEADER);
+    expect(header).toBe(ADMIRA_CSV_HEADER_LABELS.join(','));
     // El encabezado escrito rotula la última columna como "Tipo de Pases",
     // no en mayúsculas.
     expect(csv.endsWith('Tipo de Pases')).toBe(true);
@@ -63,18 +65,20 @@ describe('serializeAdmiraCsv', () => {
         withBom: false,
       },
     );
-    const [, row] = csv.split('\r\n');
+    const [, , row] = csv.split('\r\n');
     expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });
 
-  it('antepone el BOM UTF-8 por defecto', () => {
+  it('antepone el BOM UTF-8 por defecto, seguido del título', () => {
     const csv = serializeAdmiraCsv([]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv.slice(1).startsWith('LIVERPOOL\r\n')).toBe(true);
   });
 
-  it('serializa filas respetando el orden de columnas y CRLF', () => {
+  it('serializa título, encabezado y filas con CRLF en orden', () => {
     const csv = serializeAdmiraCsv([makeRow()], { withBom: false });
-    const [header, row] = csv.split('\r\n');
+    const [title, header, row] = csv.split('\r\n');
+    expect(title).toBe('LIVERPOOL');
     expect(header).toBe(EXACT_HEADER);
     expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });

@@ -1,8 +1,17 @@
-import { ADMIRA_CSV_COLUMNS, ADMIRA_CSV_HEADER_LABELS } from './constants';
+import {
+  ADMIRA_CSV_COLUMNS,
+  ADMIRA_CSV_HEADER_LABELS,
+  ADMIRA_CSV_TITLE,
+} from './constants';
 import type { AdmiraCsvRow } from './models';
 
 /**
  * Serialización del CSV de Admira.
+ *
+ * Estructura del archivo:
+ * - Fila 1: título con `LIVERPOOL` en la celda `A1` (ver `ADMIRA_CSV_TITLE`).
+ * - Fila 2: encabezado de columnas.
+ * - Filas siguientes: datos.
  *
  * Orden de columnas (autoritativo):
  * `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`.
@@ -52,10 +61,11 @@ export function serializeAdmiraCsv(
   options: CsvSerializeOptions = {},
 ): string {
   const { withBom = true } = options;
+  const title = serializeCsvLine([ADMIRA_CSV_TITLE]);
   const header = serializeCsvLine(ADMIRA_CSV_HEADER_LABELS);
   const body = rows.map((row) =>
     serializeCsvLine(ADMIRA_CSV_COLUMNS.map((column) => row[column] ?? '')),
   );
-  const content = [header, ...body].join(RECORD_SEPARATOR);
+  const content = [title, header, ...body].join(RECORD_SEPARATOR);
   return withBom ? BOM + content : content;
 }

@@ -111,7 +111,9 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
   concatenan con `+`, deduplicando y conservando el orden de aparición.
 - **Llave de consolidación** (`consolidationKey.ts`): `Campaña + RESOLUCION`.
   No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
-- **Serialización CSV de Admira** (`csv.ts`): orden de columnas confirmado
+- **Serialización CSV de Admira** (`csv.ts`): la fila 1 lleva el título
+  `LIVERPOOL` en `A1` y el encabezado de columnas va en la fila 2. Orden de
+  columnas confirmado
   `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape
   RFC 4180 y UTF-8 con BOM opcional. `RETAILERS` es constante = `LIVERPOOL`. El
   encabezado escrito en el archivo rotula la última columna como
