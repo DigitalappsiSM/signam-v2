@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { escapeCsvField, serializeAdmiraCsv, serializeCsvLine } from './csv';
-import { ADMIRA_CSV_COLUMNS } from './constants';
+import { ADMIRA_CSV_HEADERS } from './constants';
 import type { AdmiraCsvRow } from './models';
 
 describe('escapeCsvField', () => {
@@ -43,7 +43,7 @@ function makeRow(overrides: Partial<AdmiraCsvRow> = {}): AdmiraCsvRow {
 describe('serializeAdmiraCsv', () => {
   it('emite el encabezado en el orden autoritativo', () => {
     const csv = serializeAdmiraCsv([], { withBom: false });
-    expect(csv).toBe(ADMIRA_CSV_COLUMNS.join(','));
+    expect(csv).toBe(ADMIRA_CSV_HEADERS.join(','));
   });
 
   it('antepone el BOM UTF-8 por defecto', () => {
@@ -55,7 +55,7 @@ describe('serializeAdmiraCsv', () => {
     const csv = serializeAdmiraCsv([makeRow()], { withBom: false });
     const [header, row] = csv.split('\r\n');
     expect(header).toBe(
-      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES',
+      'ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases',
     );
     expect(row).toBe('VW 914x908,Nike,GDL,VIDEOWALL,914 x 908,,PASES FULL');
   });

@@ -103,7 +103,7 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
   `+`, deduplicados y en orden de aparición.
 - **Consolidación**: llave `Campaña + RESOLUCION` (no separa por circuito,
   soporte, `ARTICULOS` ni `TIPO DE PASES`).
-- **CSV**: `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`,
+- **CSV**: `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`,
   escape RFC 4180, UTF-8 con BOM.
 
 ## 6. Flujos de la aplicación

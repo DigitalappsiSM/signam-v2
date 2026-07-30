@@ -112,8 +112,9 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
 - **Llave de consolidación** (`consolidationKey.ts`): `Campaña + RESOLUCION`.
   No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
 - **Serialización CSV de Admira** (`csv.ts`): layout confirmado
-  `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape
-  RFC 4180 y UTF-8 con BOM opcional. `RETAILERS` es constante = `LIVERPOOL`.
+  `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`, escape
+  RFC 4180 y UTF-8 con BOM opcional. El título final respeta las mayúsculas que
+  exige Admira; `RETAILERS` es constante = `LIVERPOOL`.
 - **Encabezados del catálogo** (`constants.ts`): orden autoritativo del maestro.
   El encabezado definitivo es `TIPO DE PASES`; la estructura antigua `Pases` se
   reporta como faltante en lugar de corregirse en silencio.
