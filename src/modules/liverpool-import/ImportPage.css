@@ -38,3 +38,163 @@
   border-radius: var(--radius);
   background: var(--color-surface);
 }
+
+/* --- Titular fijo de importación (resumen + acción) --- */
+.imp-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.imp-banner__stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.imp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 72px;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.imp-stat__value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.imp-stat__label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Tonos: solo se resaltan cuando el valor es relevante (>0). */
+.imp-stat--success {
+  border-color: #a7d8b8;
+}
+.imp-stat--success .imp-stat__value {
+  color: #216e39;
+}
+.imp-stat--info {
+  border-color: #a9cdec;
+}
+.imp-stat--info .imp-stat__value {
+  color: #1e4e79;
+}
+.imp-stat--warning {
+  border-color: #f5e199;
+}
+.imp-stat--warning .imp-stat__value {
+  color: #8a6d1b;
+}
+.imp-stat--danger {
+  border-color: #f8b4b4;
+}
+.imp-stat--danger .imp-stat__value {
+  color: #9b1c1c;
+}
+
+/* --- Acordeón resumen → detalle --- */
+.imp-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.imp-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.imp-section__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  user-select: none;
+}
+
+.imp-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.imp-section__summary:hover {
+  background: var(--color-bg);
+}
+
+.imp-section__caret {
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.imp-section[open] > .imp-section__summary .imp-section__caret {
+  transform: rotate(90deg);
+}
+
+.imp-section__title {
+  flex: 1;
+}
+
+.imp-section__body {
+  padding: 0 1rem 1rem;
+}
+
+.imp-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.imp-chip--success {
+  background: #e8f5ec;
+  color: #216e39;
+  border-color: #a7d8b8;
+}
+.imp-chip--info {
+  background: #e8f2fb;
+  color: #1e4e79;
+  border-color: #a9cdec;
+}
+.imp-chip--warning {
+  background: #fef9e7;
+  color: #8a6d1b;
+  border-color: #f5e199;
+}
+.imp-chip--danger {
+  background: #fde8e8;
+  color: #9b1c1c;
+  border-color: #f8b4b4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .imp-chip {
+    filter: saturate(0.85) brightness(0.95);
+  }
+}

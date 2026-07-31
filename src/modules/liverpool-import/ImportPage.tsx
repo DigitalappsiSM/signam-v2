@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type ReactNode } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { analyzeCalendar, type CalendarAnalysis } from './calendarImport';
@@ -23,11 +23,14 @@ import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassif
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import type { Classification } from '@/modules/operational-tracking/types';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
+import { importSummary, type ImportSummary } from './importSummary';
 import './ImportPage.css';
 
 type ClassChoice = Classification | '';
 
 type Phase = 'idle' | 'analyzing' | 'done';
+
+type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 /** Importación del Calendario de Liverpool — inspección + campañas + guardado. */
 export function ImportPage() {
@@ -108,6 +111,7 @@ export function ImportPage() {
   ).length;
   const canSave =
     (Boolean(diff?.hasChanges) || needClass.length > 0) && pendingCount === 0;
+  const summary = importSummary(diff, analysis, needClass.length, pendingCount);
 
   function setSelection(nameKey: string, value: ClassChoice) {
     setSelections((prev) => new Map(prev).set(nameKey, value));
@@ -169,11 +173,16 @@ export function ImportPage() {
     URL.revokeObjectURL(url);
   }
 
+  const blocking =
+    analysis?.issues.filter((i) => i.severity === 'blocking') ?? [];
+  const warnings =
+    analysis?.issues.filter((i) => i.severity === 'warning') ?? [];
+
   return (
     <>
       <PageHeader
         title="Importar Calendario"
-        description="Paso 1 — Inspección: sube el Calendario de Liverpool y revisa la estructura detectada (hojas, columnas, comentarios y soportes) antes de definir la validación y el mapeo a campañas."
+        description="Sube el Calendario de Liverpool. Verás un resumen de todo lo detectado; abre cada sección solo para el detalle que te interese. Lo crítico (errores, pendientes y campañas eliminadas/modificadas) aparece abierto."
       />
 
       <div className="card" style={{ marginBottom: '1.25rem' }}>
@@ -203,143 +212,70 @@ export function ImportPage() {
         <p className="text-muted">Analizando archivo…</p>
       )}
 
+      {phase === 'done' && (
+        <ImportSummaryBanner
+          summary={summary}
+          saving={saving}
+          canSave={canSave}
+          onSave={() => void saveChanges()}
+        />
+      )}
+
       {saveNotice && (
         <div className="catalog__notice" role="status">
           {saveNotice}
         </div>
       )}
 
-      {phase === 'done' && needClass.length > 0 && (
-        <ClassificationPanel
-          items={needClass}
-          selections={selections}
-          onChange={setSelection}
-          pendingCount={pendingCount}
-        />
-      )}
-
-      {phase === 'done' && diff && (
-        <CampaignChangesPanel
-          diff={diff}
-          saving={saving}
-          canSave={canSave}
-          showSave={diff.hasChanges || needClass.length > 0}
-          pendingCount={pendingCount}
-          onSave={() => void saveChanges()}
-        />
-      )}
-
-      {phase === 'done' && campaigns && <CampaignsView result={campaigns} />}
-
-      {phase === 'done' && analysis && (
-        <Diagnosis analysis={analysis} onDownload={downloadDiagnosis} />
-      )}
-    </>
-  );
-}
-
-function CampaignChangesPanel({
-  diff,
-  saving,
-  canSave,
-  showSave,
-  pendingCount,
-  onSave,
-}: {
-  diff: CampaignDiff;
-  saving: boolean;
-  canSave: boolean;
-  showSave: boolean;
-  pendingCount: number;
-  onSave: () => void;
-}) {
-  return (
-    <div className="diagnosis" style={{ marginBottom: '1.5rem' }}>
-      <div className="diagnosis__head">
-        <h2>Cambios en campañas (base de datos)</h2>
-        {showSave ? (
-          <button
-            className="btn btn-primary"
-            onClick={onSave}
-            disabled={saving || !canSave}
-            title={
-              pendingCount > 0
-                ? `Faltan ${pendingCount} clasificaciones por definir`
-                : undefined
-            }
-          >
-            {saving ? 'Guardando…' : 'Aceptar y guardar cambios'}
-          </button>
-        ) : (
-          <span className="badge badge-info">Sin cambios</span>
-        )}
-      </div>
-
-      {pendingCount > 0 && (
-        <p className="catalog__error" role="alert">
-          No puedes confirmar la importación mientras haya {pendingCount}{' '}
-          campañas sin clasificar (Institucional / Proveedor).
-        </p>
-      )}
-
-      {!diff.hasChanges ? (
-        <p className="text-muted">
-          Las campañas del calendario coinciden con la base de datos. No se
-          reescribe nada.
-        </p>
-      ) : (
-        <>
-          <dl className="import__summary">
-            <div>
-              <dt>Nuevas</dt>
-              <dd>
-                <strong>{diff.added.length}</strong>
-              </dd>
-            </div>
-            <div>
-              <dt>Modificadas</dt>
-              <dd>
-                <strong>{diff.modified.length}</strong>
-              </dd>
-            </div>
-            <div>
-              <dt>Eliminadas</dt>
-              <dd>{diff.removed.length}</dd>
-            </div>
-            <div>
-              <dt>Sin cambios</dt>
-              <dd>{diff.unchanged}</dd>
-            </div>
-          </dl>
-
-          <p className="import__note" style={{ marginTop: 0 }}>
-            Revisa los cambios y pulsa{' '}
-            <strong>“Aceptar y guardar cambios”</strong> para escribirlos en la
-            base de datos.
-          </p>
-
-          {diff.added.length > 0 && (
-            <details className="diagnosis__section">
-              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-                Nuevas ({diff.added.length})
-              </summary>
-              <ul className="text-muted">
-                {diff.added.slice(0, 100).map((c) => (
-                  <li key={c.name}>{c.name}</li>
-                ))}
-              </ul>
-            </details>
+      {phase === 'done' && (
+        <div className="imp-accordion">
+          {(blocking.length > 0 || warnings.length > 0) && (
+            <Section
+              title="Errores y advertencias"
+              chip={issuesChip(blocking.length, warnings.length)}
+              tone={blocking.length > 0 ? 'danger' : 'warning'}
+              defaultOpen
+            >
+              {blocking.length > 0 && (
+                <div className="import__issues import__issues--blocking">
+                  <h3>Errores</h3>
+                  <ul>
+                    {blocking.map((i, idx) => (
+                      <li key={idx}>{i.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {warnings.length > 0 && (
+                <div className="import__issues import__issues--warning">
+                  <h3>Advertencias</h3>
+                  <ul>
+                    {warnings.map((i, idx) => (
+                      <li key={idx}>{i.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Section>
           )}
 
-          {diff.modified.length > 0 && (
-            <details className="diagnosis__section" open>
-              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-                Modificadas ({diff.modified.length})
-              </summary>
-              <div
-                className="diagnosis__table-wrap"
-                style={{ marginTop: '0.5rem' }}
-              >
+          {needClass.length > 0 && (
+            <ClassificationPanel
+              items={needClass}
+              selections={selections}
+              onChange={setSelection}
+              pendingCount={pendingCount}
+            />
+          )}
+
+          {diff && diff.modified.length > 0 && (
+            <Section
+              title="Campañas modificadas"
+              chip={diff.modified.length}
+              tone="info"
+              defaultOpen
+            >
+              <div className="diagnosis__table-wrap">
                 <table className="catalog__table">
                   <thead>
                     <tr>
@@ -357,37 +293,195 @@ function CampaignChangesPanel({
                   </tbody>
                 </table>
               </div>
-            </details>
+            </Section>
           )}
 
-          {diff.removed.length > 0 && (
-            <details className="diagnosis__section">
-              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-                Eliminadas ({diff.removed.length})
-              </summary>
+          {diff && diff.removed.length > 0 && (
+            <Section
+              title="Campañas eliminadas"
+              chip={diff.removed.length}
+              tone="danger"
+              defaultOpen
+            >
+              <p className="import__note" style={{ marginTop: 0 }}>
+                Estas campañas se eliminarán de la base de datos al guardar.
+              </p>
               <ul className="text-muted">
                 {diff.removed.slice(0, 100).map((c) => (
                   <li key={c.id}>{c.name}</li>
                 ))}
               </ul>
-            </details>
+            </Section>
           )}
-        </>
+
+          {diff && diff.added.length > 0 && (
+            <Section
+              title="Campañas nuevas"
+              chip={diff.added.length}
+              tone="success"
+            >
+              <ul className="text-muted">
+                {diff.added.slice(0, 100).map((c) => (
+                  <li key={c.name}>{c.name}</li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {diff && !diff.hasChanges && (
+            <p className="import__note">
+              Las campañas del calendario coinciden con la base de datos. No se
+              reescribe nada.
+            </p>
+          )}
+
+          {campaigns && <CampaignsSection result={campaigns} />}
+
+          {analysis && (
+            <FileDiagnosisSection
+              analysis={analysis}
+              onDownload={downloadDiagnosis}
+            />
+          )}
+        </div>
       )}
+    </>
+  );
+}
+
+/** Franja-titular fija con las cifras clave y el botón de guardado. */
+function ImportSummaryBanner({
+  summary,
+  saving,
+  canSave,
+  onSave,
+}: {
+  summary: ImportSummary;
+  saving: boolean;
+  canSave: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div className="imp-banner">
+      <div className="imp-banner__stats">
+        <Stat
+          value={summary.added}
+          label="Nuevas"
+          tone={summary.added > 0 ? 'success' : 'neutral'}
+        />
+        <Stat
+          value={summary.modified}
+          label="Modificadas"
+          tone={summary.modified > 0 ? 'info' : 'neutral'}
+        />
+        <Stat
+          value={summary.removed}
+          label="Eliminadas"
+          tone={summary.removed > 0 ? 'danger' : 'neutral'}
+        />
+        <Stat
+          value={summary.pending}
+          label="Pendientes"
+          tone={summary.pending > 0 ? 'warning' : 'neutral'}
+        />
+        <Stat
+          value={summary.errors}
+          label="Errores"
+          tone={summary.errors > 0 ? 'danger' : 'neutral'}
+        />
+      </div>
+      <div className="imp-banner__action">
+        {summary.hasWork ? (
+          <button
+            className="btn btn-primary"
+            onClick={onSave}
+            disabled={saving || !canSave}
+            title={
+              summary.pending > 0
+                ? `Faltan ${summary.pending} clasificaciones por definir`
+                : undefined
+            }
+          >
+            {saving ? 'Guardando…' : 'Aceptar y guardar cambios'}
+          </button>
+        ) : (
+          <span className="badge badge-info">Sin cambios</span>
+        )}
+      </div>
     </div>
   );
 }
 
-function CampaignsView({ result }: { result: CampaignParseResult }) {
+function Stat({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone: Tone;
+}) {
+  return (
+    <div className={`imp-stat imp-stat--${tone}`}>
+      <span className="imp-stat__value">{value}</span>
+      <span className="imp-stat__label">{label}</span>
+    </div>
+  );
+}
+
+/** Sección colapsable (resumen → detalle) del acordeón de importación. */
+function Section({
+  title,
+  chip,
+  tone = 'neutral',
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  chip?: ReactNode;
+  tone?: Tone;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details className="imp-section" open={defaultOpen}>
+      <summary className="imp-section__summary">
+        <span className="imp-section__caret" aria-hidden="true">
+          ▸
+        </span>
+        <span className="imp-section__title">{title}</span>
+        {chip != null && chip !== '' && (
+          <span className={`imp-chip imp-chip--${tone}`}>{chip}</span>
+        )}
+      </summary>
+      <div className="imp-section__body">{children}</div>
+    </details>
+  );
+}
+
+function issuesChip(errors: number, warnings: number): string {
+  return [
+    errors > 0 ? `${errors} ${errors === 1 ? 'error' : 'errores'}` : null,
+    warnings > 0
+      ? `${warnings} ${warnings === 1 ? 'advertencia' : 'advertencias'}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function CampaignsSection({ result }: { result: CampaignParseResult }) {
   const liverpoolStores = (c: CampaignParseResult['campaigns'][number]) =>
     c.supports
       .filter((s) => s.owner === 'liverpool')
       .reduce((n, s) => n + s.stores.length, 0);
 
   return (
-    <div className="diagnosis" style={{ marginBottom: '1.5rem' }}>
-      <h2 style={{ fontSize: '1.2rem' }}>Campañas detectadas</h2>
-
+    <Section
+      title="Campañas detectadas"
+      chip={result.totalCampaigns}
+      tone="neutral"
+    >
       <dl className="import__summary">
         <div>
           <dt>Campañas</dt>
@@ -447,24 +541,28 @@ function CampaignsView({ result }: { result: CampaignParseResult }) {
           Mostrando las primeras 100 de {result.campaigns.length} campañas.
         </p>
       )}
-    </div>
+    </Section>
   );
 }
 
-function Diagnosis({
+function FileDiagnosisSection({
   analysis,
   onDownload,
 }: {
   analysis: CalendarAnalysis;
   onDownload: () => void;
 }) {
-  const blocking = analysis.issues.filter((i) => i.severity === 'blocking');
-  const warnings = analysis.issues.filter((i) => i.severity === 'warning');
-
   return (
-    <div className="diagnosis">
+    <Section
+      title="Diagnóstico del archivo"
+      chip={`${analysis.dataRowCount} filas`}
+      tone="neutral"
+    >
       <div className="diagnosis__head">
-        <h2>Diagnóstico</h2>
+        <span className="text-muted">
+          Estructura detectada del calendario (hojas, columnas, vista previa y
+          comentarios).
+        </span>
         <button className="btn btn-secondary" onClick={onDownload}>
           Descargar diagnóstico (JSON)
         </button>
@@ -494,27 +592,6 @@ function Diagnosis({
           <dd>{analysis.comments.length}</dd>
         </div>
       </dl>
-
-      {blocking.length > 0 && (
-        <div className="import__issues import__issues--blocking">
-          <h3>Errores</h3>
-          <ul>
-            {blocking.map((i, idx) => (
-              <li key={idx}>{i.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {warnings.length > 0 && (
-        <div className="import__issues import__issues--warning">
-          <h3>Advertencias</h3>
-          <ul>
-            {warnings.map((i, idx) => (
-              <li key={idx}>{i.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <section className="diagnosis__section">
         <h3>Hojas del archivo</h3>
@@ -597,7 +674,7 @@ function Diagnosis({
           </div>
         </section>
       )}
-    </div>
+    </Section>
   );
 }
 
@@ -620,17 +697,12 @@ function ClassificationPanel({
   });
 
   return (
-    <div className="diagnosis" style={{ marginBottom: '1.5rem' }}>
-      <div className="diagnosis__head">
-        <h2>Clasificación operativa</h2>
-        <span
-          className={
-            pendingCount > 0 ? 'badge badge-warning' : 'badge badge-info'
-          }
-        >
-          {pendingCount > 0 ? `${pendingCount} pendientes` : 'Completa'}
-        </span>
-      </div>
+    <Section
+      title="Clasificación operativa"
+      chip={pendingCount > 0 ? `${pendingCount} pendientes` : 'Completa'}
+      tone={pendingCount > 0 ? 'warning' : 'success'}
+      defaultOpen={pendingCount > 0}
+    >
       <p className="import__note" style={{ marginTop: 0 }}>
         Clasifica cada campaña nueva como <strong>Institucional</strong> o{' '}
         <strong>Proveedor</strong>. Las que traen el tipo claro vienen
@@ -683,6 +755,6 @@ function ClassificationPanel({
           </tbody>
         </table>
       </div>
-    </div>
+    </Section>
   );
 }
