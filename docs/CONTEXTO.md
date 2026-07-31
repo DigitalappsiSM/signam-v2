@@ -174,6 +174,13 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
   **detalle** (soportes + tiendas + estado OK/incidencia + edición de Ekon), ⬇️
   **menú de descargas CSV**.
+- **PDF de errores** (`buildIssuesPdf`): diseño profesional con **franja de
+  marca**, **sujeto** (campaña + calendario), **resumen ejecutivo en tarjetas**
+  (incidencias · tipos · soportes afectados · tiendas afectadas), tablas
+  **por tipo** y **por soporte** (con %), **detalle** completo y **pie de página
+  numerado**. Si la campaña no tiene incidencias, muestra un estado
+  **"Sin incidencias"**. Las funciones de datos son puras y con pruebas
+  (`issueDetailRows`, `issuesSummaryMetrics`, `subjectCampaign`).
 - **Menú de descargas CSV**: se renderiza como **capa flotante** (portal a
   `document.body`, `position: fixed`) para no quedar recortado por el overflow de
   la tabla; se coloca junto al botón (abre hacia abajo o hacia arriba) y se
