@@ -139,6 +139,16 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
   **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
+- **UX resumen → detalle** (no se despliega todo a la vez): tras subir el
+  archivo aparece un **banner-titular fijo** (sticky) con las cifras clave
+  (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón
+  **Aceptar y guardar cambios**. El resto es un **acordeón** de secciones
+  colapsables (`Errores y advertencias`, `Clasificación operativa`, `Campañas
+  modificadas`, `Campañas eliminadas`, `Campañas nuevas`, `Campañas detectadas`,
+  `Diagnóstico del archivo`); cada una muestra su cifra en el encabezado y se
+  expande bajo demanda. Lo **crítico** abre por defecto: errores/advertencias,
+  clasificaciones pendientes, y campañas modificadas/eliminadas. El resumen
+  numérico se calcula con la función pura `importSummary` (con pruebas).
 
 ### 6.3 Campañas (vista consolidada)
 
