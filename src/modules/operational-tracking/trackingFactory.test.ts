@@ -3,6 +3,8 @@ import {
   initialTracking,
   applyCheckChange,
   setClassification,
+  markAllComplete,
+  addComment,
   campaignKeyId,
 } from './trackingFactory';
 import { campaignKeyId as ekonKeyId } from '@/modules/campaigns/ekon';
@@ -173,6 +175,47 @@ describe('applyCheckChange — relación de testigos', () => {
     if (!uncompleted.ok) return;
     expect(uncompleted.tracking.witnessComplete.completed).toBe(false);
     expect(uncompleted.tracking.witnessStart.completed).toBe(true);
+  });
+});
+
+describe('markAllComplete', () => {
+  it('marca los cinco indicadores como completados (source manual)', () => {
+    const t = markAllComplete(institutional(), actor2, 8000);
+    expect(t.linkDownload.completed).toBe(true);
+    expect(t.liverpoolValidation.completed).toBe(true);
+    expect(t.csmProgramming.completed).toBe(true);
+    expect(t.witnessStart.completed).toBe(true);
+    expect(t.witnessComplete.completed).toBe(true);
+    expect(t.csmProgramming.source).toBe('manual');
+    expect(t.csmProgramming.completedByUid).toBe('u2');
+    expect(t.updatedAt).toBe(8000);
+  });
+});
+
+describe('addComment', () => {
+  it('agrega un comentario a la bitácora con autor y fecha', () => {
+    const t = addComment(institutional(), 'c1', '  Todo listo  ', actor2, 9000);
+    expect(t.comments).toHaveLength(1);
+    expect(t.comments[0]).toMatchObject({
+      id: 'c1',
+      text: 'Todo listo',
+      createdAt: 9000,
+      createdByEmail: 'c@d.mx',
+    });
+    expect(t.updatedAt).toBe(9000);
+  });
+
+  it('conserva el orden cronológico al agregar varios', () => {
+    const t1 = addComment(institutional(), 'c1', 'Primero', actor, 1000);
+    const t2 = addComment(t1, 'c2', 'Segundo', actor2, 2000);
+    expect(t2.comments.map((c) => c.text)).toEqual(['Primero', 'Segundo']);
+  });
+
+  it('ignora comentarios vacíos (devuelve el documento sin cambios)', () => {
+    const base = institutional();
+    const t = addComment(base, 'c1', '   ', actor, 1000);
+    expect(t.comments).toHaveLength(0);
+    expect(t).toBe(base);
   });
 });
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -10,6 +10,8 @@ import {
   listOperationalTracking,
   updateCheck,
   updateClassification,
+  markAllChecks,
+  addComment,
   TrackingError,
 } from '@/services/campaignOperationalTracking';
 import type {
@@ -69,6 +71,14 @@ function isDone(
   }
 }
 
+/** Fecha y hora corta (dd/mm/aaaa · HH:MM) para la bitácora de comentarios. */
+function formatCommentStamp(ms: number): string {
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDdMmYyyy(d)} · ${hh}:${mm}`;
+}
+
 /** Texto de trazabilidad (quién/cuándo) para el tooltip de una casilla. */
 function checkTitle(row: TrackingRow, key: CheckKey, label: string): string {
   const c = row.tracking ? row.tracking[key] : null;
@@ -105,6 +115,10 @@ export function OperationalTrackingPage() {
   const [timeFilter, setTimeFilter] = useState<'all' | Timeframe>('all');
   const [params] = useSearchParams();
   const highlightKey = params.get('campana');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
+    {},
+  );
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -231,6 +245,73 @@ export function OperationalTrackingPage() {
     }
   }
 
+  async function markAllForRow(row: TrackingRow) {
+    if (!canWrite) return;
+    const busyKey = `${row.campaign.nameKey}:markall`;
+    if (busy.has(busyKey)) return;
+    const classification: Classification =
+      row.classification === 'unknown' ? 'institutional' : row.classification;
+    setActionError(null);
+    setBusyKey(busyKey, true);
+    try {
+      const updated = await markAllChecks({
+        campaignNameKey: row.campaign.nameKey,
+        campaignName: row.campaign.name,
+        classification,
+        linkValid: row.linkStatus === 'valid',
+        actor,
+      });
+      patchTracking(updated);
+    } catch (e) {
+      setActionError(
+        e instanceof TrackingError
+          ? e.message
+          : `No se pudieron marcar todos los indicadores de "${row.campaign.name}".`,
+      );
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  }
+
+  function toggleExpanded(nameKey: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(nameKey)) next.delete(nameKey);
+      else next.add(nameKey);
+      return next;
+    });
+  }
+
+  async function submitComment(row: TrackingRow) {
+    if (!canWrite) return;
+    const text = (commentDrafts[row.campaign.nameKey] ?? '').trim();
+    if (!text) return;
+    const busyKey = `${row.campaign.nameKey}:comment`;
+    if (busy.has(busyKey)) return;
+    const classification: Classification =
+      row.classification === 'unknown' ? 'institutional' : row.classification;
+    setActionError(null);
+    setBusyKey(busyKey, true);
+    try {
+      const updated = await addComment({
+        campaignNameKey: row.campaign.nameKey,
+        campaignName: row.campaign.name,
+        text,
+        classification,
+        linkValid: row.linkStatus === 'valid',
+        actor,
+      });
+      patchTracking(updated);
+      setCommentDrafts((prev) => ({ ...prev, [row.campaign.nameKey]: '' }));
+    } catch {
+      setActionError(
+        `No se pudo guardar el comentario de "${row.campaign.name}".`,
+      );
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -342,84 +423,183 @@ export function OperationalTrackingPage() {
                 ))}
                 <th>Estado general</th>
                 <th>Próx. vencimiento</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => {
                 const checks = effectiveChecks(r);
                 const highlighted = r.campaign.nameKey === highlightKey;
+                const comments = r.tracking?.comments ?? [];
+                const isExpanded = expanded.has(r.campaign.nameKey);
+                const isFinished = r.timeframe === 'finished';
+                const markAllBusy = busy.has(`${r.campaign.nameKey}:markall`);
+                const commentBusy = busy.has(`${r.campaign.nameKey}:comment`);
                 return (
-                  <tr
-                    key={r.campaign.id}
-                    className={highlighted ? 'ot-row--highlight' : undefined}
-                  >
-                    <td>{r.campaign.name}</td>
-                    <td>
-                      <select
-                        className="ot-class-select"
-                        aria-label={`Clasificación de ${r.campaign.name}`}
-                        value={
-                          r.classification === 'unknown' ? '' : r.classification
-                        }
-                        disabled={
-                          !canWrite ||
-                          busy.has(`${r.campaign.nameKey}:classification`)
-                        }
-                        onChange={(e) =>
-                          void setRowClassification(
-                            r,
-                            e.target.value as Classification,
-                          )
-                        }
-                      >
-                        {r.classification === 'unknown' && (
-                          <option value="" disabled>
-                            — Pendiente —
-                          </option>
+                  <Fragment key={r.campaign.id}>
+                    <tr
+                      className={highlighted ? 'ot-row--highlight' : undefined}
+                    >
+                      <td>{r.campaign.name}</td>
+                      <td>
+                        <select
+                          className="ot-class-select"
+                          aria-label={`Clasificación de ${r.campaign.name}`}
+                          value={
+                            r.classification === 'unknown'
+                              ? ''
+                              : r.classification
+                          }
+                          disabled={
+                            !canWrite ||
+                            busy.has(`${r.campaign.nameKey}:classification`)
+                          }
+                          onChange={(e) =>
+                            void setRowClassification(
+                              r,
+                              e.target.value as Classification,
+                            )
+                          }
+                        >
+                          {r.classification === 'unknown' && (
+                            <option value="" disabled>
+                              — Pendiente —
+                            </option>
+                          )}
+                          <option value="institutional">Institucional</option>
+                          <option value="provider">Proveedor</option>
+                        </select>
+                      </td>
+                      <td>{formatCivilString(r.campaign.fechaInicio)}</td>
+                      <td>{formatCivilString(r.campaign.fechaFin)}</td>
+                      <td>{r.distinctStores}</td>
+                      <td>
+                        {r.target} de {r.distinctStores}
+                      </td>
+                      {CHECK_COLUMNS.map((col) => {
+                        const done = isDone(checks, col.key);
+                        const cellBusy = busy.has(
+                          `${r.campaign.nameKey}:${col.key}`,
+                        );
+                        return (
+                          <td key={col.key} className="ot-check-cell">
+                            <input
+                              type="checkbox"
+                              className="ot-checkbox"
+                              checked={done}
+                              disabled={!canWrite || cellBusy}
+                              title={checkTitle(r, col.key, col.label)}
+                              aria-label={`${col.label} de ${r.campaign.name}`}
+                              onChange={(e) =>
+                                void toggleCheck(r, col.key, e.target.checked)
+                              }
+                            />
+                          </td>
+                        );
+                      })}
+                      <td>
+                        <span
+                          className={`ot-badge ${STATUS_META[r.overall].cls}`}
+                        >
+                          {STATUS_META[r.overall].icon}{' '}
+                          {STATUS_META[r.overall].label}
+                        </span>
+                      </td>
+                      <td>
+                        {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
+                      </td>
+                      <td className="ot-actions-cell">
+                        {isFinished && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary ot-mark-all"
+                            disabled={!canWrite || markAllBusy}
+                            onClick={() => void markAllForRow(r)}
+                            title="Marcar todos los indicadores de esta campaña terminada"
+                          >
+                            Marcar todas
+                          </button>
                         )}
-                        <option value="institutional">Institucional</option>
-                        <option value="provider">Proveedor</option>
-                      </select>
-                    </td>
-                    <td>{formatCivilString(r.campaign.fechaInicio)}</td>
-                    <td>{formatCivilString(r.campaign.fechaFin)}</td>
-                    <td>{r.distinctStores}</td>
-                    <td>
-                      {r.target} de {r.distinctStores}
-                    </td>
-                    {CHECK_COLUMNS.map((col) => {
-                      const done = isDone(checks, col.key);
-                      const cellBusy = busy.has(
-                        `${r.campaign.nameKey}:${col.key}`,
-                      );
-                      return (
-                        <td key={col.key} className="ot-check-cell">
-                          <input
-                            type="checkbox"
-                            className="ot-checkbox"
-                            checked={done}
-                            disabled={!canWrite || cellBusy}
-                            title={checkTitle(r, col.key, col.label)}
-                            aria-label={`${col.label} de ${r.campaign.name}`}
-                            onChange={(e) =>
-                              void toggleCheck(r, col.key, e.target.checked)
-                            }
-                          />
+                        <button
+                          type="button"
+                          className="btn btn-secondary ot-comments-toggle"
+                          aria-expanded={isExpanded}
+                          aria-label={`Comentarios de ${r.campaign.name}`}
+                          onClick={() => toggleExpanded(r.campaign.nameKey)}
+                          title="Ver/agregar comentarios"
+                        >
+                          💬 {comments.length}
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="ot-comments-row">
+                        <td colSpan={CHECK_COLUMNS.length + 9}>
+                          <div className="ot-comments">
+                            <h4 className="ot-comments__title">
+                              Comentarios · {r.campaign.name}
+                            </h4>
+                            {comments.length === 0 ? (
+                              <p className="text-muted ot-comments__empty">
+                                Aún no hay comentarios.
+                              </p>
+                            ) : (
+                              <ul className="ot-comments__list">
+                                {comments.map((cm) => (
+                                  <li key={cm.id} className="ot-comment">
+                                    <div className="ot-comment__meta">
+                                      <span className="ot-comment__author">
+                                        {cm.createdByEmail}
+                                      </span>
+                                      <span className="ot-comment__date">
+                                        {formatCommentStamp(cm.createdAt)}
+                                      </span>
+                                    </div>
+                                    <p className="ot-comment__text">
+                                      {cm.text}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {canWrite && (
+                              <div className="ot-comments__form">
+                                <textarea
+                                  className="ot-comments__input"
+                                  rows={2}
+                                  placeholder="Escribe un comentario…"
+                                  aria-label={`Nuevo comentario para ${r.campaign.name}`}
+                                  value={
+                                    commentDrafts[r.campaign.nameKey] ?? ''
+                                  }
+                                  disabled={commentBusy}
+                                  onChange={(e) =>
+                                    setCommentDrafts((prev) => ({
+                                      ...prev,
+                                      [r.campaign.nameKey]: e.target.value,
+                                    }))
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  disabled={
+                                    commentBusy ||
+                                    !(
+                                      commentDrafts[r.campaign.nameKey] ?? ''
+                                    ).trim()
+                                  }
+                                  onClick={() => void submitComment(r)}
+                                >
+                                  Agregar
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
-                      );
-                    })}
-                    <td>
-                      <span
-                        className={`ot-badge ${STATUS_META[r.overall].cls}`}
-                      >
-                        {STATUS_META[r.overall].icon}{' '}
-                        {STATUS_META[r.overall].label}
-                      </span>
-                    </td>
-                    <td>
-                      {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
-                    </td>
-                  </tr>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
