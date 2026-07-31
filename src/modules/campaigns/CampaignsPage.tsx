@@ -236,7 +236,10 @@ export function CampaignsPage() {
       ),
       ismExcludedCount: 0,
     };
-    download(await buildIssuesPdf(res), `errores-${safeName(c.name)}.pdf`);
+    download(
+      await buildIssuesPdf(res, { campaignName: c.name }),
+      `errores-${safeName(c.name)}.pdf`,
+    );
   }
 
   function downloadCsvFor(cons: Consolidation) {
