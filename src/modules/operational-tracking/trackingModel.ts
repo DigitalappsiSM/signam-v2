@@ -137,18 +137,31 @@ export function buildTrackingRows(
   });
 }
 
-/** Valores efectivos de los checks (usa el doc, o los valores por defecto). */
+/**
+ * Valores efectivos de los checks (usa el doc, o los valores por defecto).
+ *
+ * - `link`: si el usuario lo sobrescribió manualmente, manda su valor; si no, se
+ *   deriva del link del calendario (por defecto automático, editable).
+ * - `liverpool`: por defecto marcado si es Institucional **o** hay link válido.
+ */
 export function effectiveChecks(row: TrackingRow): {
+  link: boolean;
   liverpool: boolean;
   csm: boolean;
   witnessStart: boolean;
   witnessComplete: boolean;
 } {
   const t = row.tracking;
+  const linkValid = row.linkStatus === 'valid';
+  const link =
+    t && t.linkDownload && t.linkDownload.source === 'manual'
+      ? t.linkDownload.completed
+      : linkValid;
   return {
+    link,
     liverpool: t
       ? t.liverpoolValidation.completed
-      : row.classification === 'institutional',
+      : row.classification === 'institutional' || linkValid,
     csm: t ? t.csmProgramming.completed : false,
     witnessStart: t ? t.witnessStart.completed : false,
     witnessComplete: t ? t.witnessComplete.completed : false,
@@ -217,11 +230,5 @@ export function rowSeverity(row: TrackingRow): number {
 /** ¿La campaña activa está completamente al día (sin pendientes ni alertas)? */
 export function isFullyTracked(row: TrackingRow): boolean {
   const c = effectiveChecks(row);
-  return (
-    row.linkStatus === 'valid' &&
-    c.liverpool &&
-    c.csm &&
-    c.witnessStart &&
-    c.witnessComplete
-  );
+  return c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
 }

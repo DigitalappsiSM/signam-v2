@@ -189,19 +189,28 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   importada. El `campaignKeyId` se deriva del `nameKey` (mismo criterio que
   Ekon); si el nombre normalizado cambia, es una campaña nueva y **empieza un
   seguimiento nuevo** (no se traslada el anterior).
-- **Cinco indicadores**: **Link de descarga** (automático, derivado de
-  `campaign.link` — válido / faltante / inválido; nunca se persiste como check
-  mutable, así no se desincroniza), **Validación Liverpool**, **Programación
-  CSM**, **T Arranque** y **T Completos** (manuales; guardan quién y cuándo).
+- **Edición inline**: los indicadores se marcan **directamente como casillas en
+  la tabla** de `/seguimiento` (sin abrir un modal). Cada casilla guarda al
+  instante (quién/cuándo se ve en su tooltip). La clasificación se corrige con un
+  **selector en la misma fila**.
+- **Cinco indicadores** (editables): **Link de descarga**, **Validación
+  Liverpool**, **Programación CSM**, **T Arranque** y **T Completos**.
+  - **Link de descarga**: por defecto **automático** (marcado si `campaign.link`
+    es una URL válida) pero **editable**. Si el usuario lo cambia, su valor manda
+    (`source: manual`); mientras no lo toque, se deriva del link del calendario y
+    se actualiza en reimportaciones.
+  - **Validación Liverpool**: por defecto **marcada** si la campaña es
+    Institucional **o** tiene link válido; editable (si la desmarcas, se
+    respeta).
+  - **CSM / T Arranque / T Completos**: manuales, inician desmarcados.
 - **Clasificación Institucional/Proveedor**: automática si el `tipo` contiene
   `INSTITUCIONAL`/`PROVEEDOR` (ignorando mayúsculas/acentos); si es ambigua o
   vacía queda **pendiente**. Se define en la **importación** (selector con
   preselección; no se puede confirmar con clasificaciones pendientes) y puede
-  corregirse luego en Seguimiento (admin/operator). Una reimportación no cambia
-  una clasificación ya existente de forma silenciosa.
-- **Validación Liverpool** inicia **marcada** en campañas institucionales y
-  **pendiente** en proveedor (con `source: automatic`); al modificarla queda
-  `source: manual` con quién/cuándo.
+  corregirse luego con el selector inline en Seguimiento. En Seguimiento se
+  **permite marcar casillas aunque la clasificación esté pendiente**: se usa
+  Institucional como valor inicial editable (nunca se asume Proveedor). Una
+  reimportación no cambia una clasificación ya existente de forma silenciosa.
 - **Testigos** (confirmaciones manuales, sin evidencias ni tiendas individuales
   en esta fase): T Arranque confirma ≥ **10%** de las tiendas realmente
   consolidadas y vence al **5.º día hábil inclusivo** desde el inicio (solo se

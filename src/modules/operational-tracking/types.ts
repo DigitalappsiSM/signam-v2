@@ -39,7 +39,14 @@ export interface CampaignOperationalTracking {
   classificationUpdatedByUid: string;
   classificationUpdatedByEmail: string;
 
-  /** Validación Liverpool (manual; valor inicial según clasificación). */
+  /**
+   * Link de descarga: por defecto AUTOMÁTICO (marcado si `campaign.link` es una
+   * URL válida). Es editable: si el usuario lo cambia, `source: 'manual'` y su
+   * valor manda; mientras `source: 'automatic'`, la UI lo deriva del link del
+   * calendario (se actualiza en reimportaciones).
+   */
+  linkDownload: OperationalCheck;
+  /** Validación Liverpool (manual; por defecto marcada si Institucional o link válido). */
   liverpoolValidation: OperationalCheck;
   /** Programación CSM (siempre manual, inicia desmarcada). */
   csmProgramming: OperationalCheck;
@@ -56,6 +63,10 @@ export interface CampaignOperationalTracking {
   updatedByEmail: string;
 }
 
-/** Los cuatro indicadores manuales persistidos. */
+/** Indicadores editables persistidos. */
 export type CheckKey =
-  'liverpoolValidation' | 'csmProgramming' | 'witnessStart' | 'witnessComplete';
+  | 'linkDownload'
+  | 'liverpoolValidation'
+  | 'csmProgramming'
+  | 'witnessStart'
+  | 'witnessComplete';

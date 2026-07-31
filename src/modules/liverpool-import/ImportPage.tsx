@@ -20,6 +20,7 @@ import {
   type ImportClassificationSelection,
 } from '@/services/campaignOperationalTracking';
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
+import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import type { Classification } from '@/modules/operational-tracking/types';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import './ImportPage.css';
@@ -91,13 +92,14 @@ export function ImportPage() {
 
   // Campañas del calendario sin seguimiento previo (necesitan clasificación).
   const needClass = (() => {
-    const out: { nameKey: string; name: string; tipo: string }[] = [];
+    const out: { nameKey: string; name: string; tipo: string; link: string }[] =
+      [];
     const seen = new Set<string>();
     for (const c of parsedList) {
       const nameKey = campaignKey(c.name);
       if (existingKeys.has(nameKey) || seen.has(nameKey)) continue;
       seen.add(nameKey);
-      out.push({ nameKey, name: c.name, tipo: c.tipo });
+      out.push({ nameKey, name: c.name, tipo: c.tipo, link: c.link });
     }
     return out;
   })();
@@ -125,6 +127,7 @@ export function ImportPage() {
           campaignNameKey: k.nameKey,
           campaignName: k.name,
           classification: selections.get(k.nameKey) as Classification,
+          linkValid: isValidDownloadUrl(k.link),
           confirmedReclassify: false,
         }))
         .filter(

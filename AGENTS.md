@@ -50,12 +50,14 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignKeyId}` (mismo `campaignKeyId` que Ekon,
   derivado del `nameKey`). Contiene solo datos operativos; nunca se mezcla con
-  `campaigns` y la importación no borra ni sobrescribe checks manuales. Cinco
-  indicadores: **Link de descarga** (automático, derivado de `campaign.link`, no
-  se persiste como check mutable), **Validación Liverpool** (manual; inicia
-  marcada en Institucional y pendiente en Proveedor), **Programación CSM**,
-  **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar T
-  Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
+  `campaigns` y la importación no borra ni sobrescribe checks manuales. Los
+  indicadores se editan **inline como casillas** en la tabla (sin modal). Cinco
+  indicadores editables: **Link de descarga** (por defecto automático — marcado
+  si `campaign.link` es URL válida — pero editable: al cambiarlo `source:manual`
+  manda; si no, se deriva del calendario), **Validación Liverpool** (por defecto
+  marcada si Institucional **o** hay link válido; editable), **Programación
+  CSM**, **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar
+  T Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
   T Completos siga marcado. Clasificación **Institucional/Proveedor** obligatoria
   (se elige en la importación cuando el `tipo` no es inequívoco; nunca se asume
   Proveedor). Fechas civiles (sin desfase por zona horaria): T Arranque vence al

@@ -195,3 +195,34 @@
   text-align: center;
   white-space: nowrap;
 }
+
+/* Casillas y selector inline en la tabla de seguimiento. */
+.ot-check-col {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ot-checkbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+}
+
+.ot-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ot-class-select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.ot-row--highlight td {
+  background: var(--color-bg);
+  box-shadow: inset 3px 0 0 var(--color-accent, #2563eb);
+}

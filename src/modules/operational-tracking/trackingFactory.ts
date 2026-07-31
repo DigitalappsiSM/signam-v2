@@ -46,12 +46,15 @@ export interface InitialTrackingParams {
   campaignName: string;
   classification: Classification;
   classificationSource: ClassificationSource;
+  /** ¿El link del calendario es una URL válida? Fija los valores por defecto. */
+  linkValid: boolean;
 }
 
 /**
- * Documento inicial de seguimiento. Validación Liverpool arranca **marcada** en
- * campañas institucionales y **pendiente** en proveedor; todo con `source:
- * automatic`. Los demás checks inician desmarcados.
+ * Documento inicial de seguimiento (todos los checks con `source: automatic`):
+ * - **Link de descarga**: marcado si el link del calendario es válido.
+ * - **Validación Liverpool**: marcada si es Institucional **o** hay link válido.
+ * - **Programación CSM / T Arranque / T Completos**: desmarcados.
  */
 export function initialTracking(
   params: InitialTrackingParams,
@@ -59,6 +62,7 @@ export function initialTracking(
   now: number,
 ): CampaignOperationalTracking {
   const institutional = params.classification === 'institutional';
+  const validationDefault = institutional || params.linkValid;
   return {
     id: campaignKeyId(params.campaignNameKey),
     campaignNameKey: params.campaignNameKey,
@@ -68,7 +72,8 @@ export function initialTracking(
     classificationUpdatedAt: now,
     classificationUpdatedByUid: actor.uid,
     classificationUpdatedByEmail: actor.email,
-    liverpoolValidation: makeCheck(institutional, 'automatic', actor, now),
+    linkDownload: makeCheck(params.linkValid, 'automatic', actor, now),
+    liverpoolValidation: makeCheck(validationDefault, 'automatic', actor, now),
     csmProgramming: makeCheck(false, 'automatic', actor, now),
     witnessStart: makeCheck(false, 'automatic', actor, now),
     witnessComplete: makeCheck(false, 'automatic', actor, now),

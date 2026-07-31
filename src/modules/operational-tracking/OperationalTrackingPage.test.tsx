@@ -91,13 +91,13 @@ beforeEach(() => {
 });
 
 describe('OperationalTrackingPage', () => {
-  it('lista campañas y muestra clasificación pendiente para tipo desconocido', async () => {
+  it('la campaña con tipo desconocido queda con clasificación pendiente', async () => {
     renderPage();
-    await screen.findByText('BUEN FIN');
-    const rowUnk = screen.getByText('REGRESO').closest('tr')!;
-    expect(
-      within(rowUnk).getByText(/Clasificación pendiente/i),
-    ).toBeInTheDocument();
+    await screen.findByText('REGRESO');
+    const sel = screen.getByLabelText(
+      'Clasificación de REGRESO',
+    ) as HTMLSelectElement;
+    expect(sel.value).toBe('');
   });
 
   it('filtra por clasificación', async () => {
@@ -111,19 +111,11 @@ describe('OperationalTrackingPage', () => {
     expect(screen.queryByText('REGRESO')).not.toBeInTheDocument();
   });
 
-  it('admin puede marcar un check (llama al servicio)', async () => {
+  it('marca un check directamente en la tabla (sin abrir detalle)', async () => {
     vi.mocked(updateCheck).mockResolvedValue({} as never);
     renderPage();
     await screen.findByText('BUEN FIN');
-    const rowInst = screen.getByText('BUEN FIN').closest('tr')!;
-    await userEvent.click(
-      within(rowInst).getByRole('button', { name: /Ver detalle/i }),
-    );
-
-    const dialog = await screen.findByRole('dialog');
-    const csm = within(dialog).getByRole('checkbox', {
-      name: /Programación CSM/i,
-    });
+    const csm = screen.getByLabelText('Programación CSM de BUEN FIN');
     await userEvent.click(csm);
     await waitFor(() => expect(updateCheck).toHaveBeenCalledTimes(1));
     expect(updateCheck).toHaveBeenCalledWith(
@@ -132,21 +124,32 @@ describe('OperationalTrackingPage', () => {
         key: 'csmProgramming',
         completed: true,
         classification: 'institutional',
+        linkValid: true,
       }),
     );
   });
 
-  it('muestra los cinco indicadores en la vista general', async () => {
+  it('muestra los cinco indicadores como casillas en la tabla', async () => {
     renderPage();
     await screen.findByText('BUEN FIN');
-    for (const h of ['Validación', 'CSM', 'T Arr.', 'T Comp.', 'Link']) {
+    for (const h of ['Link', 'Validación', 'CSM', 'T Arr.', 'T Comp.']) {
       expect(screen.getByRole('columnheader', { name: h })).toBeInTheDocument();
     }
-    // Institucional sin seguimiento → Validación Liverpool marcada por defecto.
-    const rowInst = screen.getByText('BUEN FIN').closest('tr')!;
+    // Institucional con link válido → Validación y Link marcadas por defecto.
     expect(
-      within(rowInst).getByLabelText('Validación Liverpool: completado'),
-    ).toBeInTheDocument();
+      (
+        screen.getByLabelText(
+          'Validación Liverpool de BUEN FIN',
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByLabelText(
+          'Programación CSM de BUEN FIN',
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
   });
 
   it('muestra las fechas en formato dd/mm/aaaa', async () => {
