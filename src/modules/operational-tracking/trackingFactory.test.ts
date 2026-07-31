@@ -17,6 +17,7 @@ function institutional() {
       campaignName: 'BUEN FIN',
       classification: 'institutional',
       classificationSource: 'import-user',
+      linkValid: false,
     },
     actor,
     1000,
@@ -37,19 +38,46 @@ describe('initialTracking', () => {
     expect(t.witnessStart.completed).toBe(false);
   });
 
-  it('proveedor arranca con Validación Liverpool pendiente', () => {
+  it('proveedor sin link arranca con Validación Liverpool pendiente', () => {
     const t = initialTracking(
       {
         campaignNameKey: 'x',
         campaignName: 'X',
         classification: 'provider',
         classificationSource: 'calendar',
+        linkValid: false,
       },
       actor,
       1000,
     );
     expect(t.liverpoolValidation.completed).toBe(false);
-    expect(t.liverpoolValidation.source).toBe('automatic');
+    expect(t.linkDownload.completed).toBe(false);
+  });
+
+  it('un link válido marca Link y Validación por defecto (incluso proveedor)', () => {
+    const t = initialTracking(
+      {
+        campaignNameKey: 'x',
+        campaignName: 'X',
+        classification: 'provider',
+        classificationSource: 'calendar',
+        linkValid: true,
+      },
+      actor,
+      1000,
+    );
+    expect(t.linkDownload.completed).toBe(true);
+    expect(t.linkDownload.source).toBe('automatic');
+    expect(t.liverpoolValidation.completed).toBe(true);
+  });
+
+  it('el Link es un check editable: al cambiarlo queda source manual', () => {
+    const t = institutional();
+    const r = applyCheckChange(t, 'linkDownload', true, actor2, 4000);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.tracking.linkDownload.completed).toBe(true);
+    expect(r.tracking.linkDownload.source).toBe('manual');
   });
 });
 

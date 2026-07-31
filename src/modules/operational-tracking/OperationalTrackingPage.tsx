@@ -11,7 +11,6 @@ import {
   updateCheck,
   updateClassification,
   TrackingError,
-  type UpdateCheckParams,
 } from '@/services/campaignOperationalTracking';
 import type {
   CampaignOperationalTracking,
@@ -20,7 +19,7 @@ import type {
 } from './types';
 import { todayCivil, formatDdMmYyyy, formatCivilString } from './businessDays';
 import { type WitnessStatus } from './operationalStatus';
-import { STATUS_META, LINK_META } from './statusMeta';
+import { STATUS_META } from './statusMeta';
 import {
   buildTrackingRows,
   effectiveChecks,
@@ -30,19 +29,18 @@ import {
 import './OperationalTrackingPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
 
-/** Icono ✅/➖ para un check en la vista general. */
-function CheckCell({ done, label }: { done: boolean; label: string }) {
-  return (
-    <td
-      title={`${label}: ${done ? 'sí' : 'pendiente'}`}
-      className="ot-check-cell"
-    >
-      <span aria-label={`${label}: ${done ? 'completado' : 'pendiente'}`}>
-        {done ? '✅' : '➖'}
-      </span>
-    </td>
-  );
-}
+/** Columnas de indicadores editables (en orden). */
+const CHECK_COLUMNS: { key: CheckKey; label: string; short: string }[] = [
+  { key: 'linkDownload', label: 'Link de descarga', short: 'Link' },
+  {
+    key: 'liverpoolValidation',
+    label: 'Validación Liverpool',
+    short: 'Validación',
+  },
+  { key: 'csmProgramming', label: 'Programación CSM', short: 'CSM' },
+  { key: 'witnessStart', label: 'T Arranque', short: 'T Arr.' },
+  { key: 'witnessComplete', label: 'T Completos', short: 'T Comp.' },
+];
 
 function normalize(v: string): string {
   return v
@@ -52,12 +50,39 @@ function normalize(v: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Estado efectivo de un indicador dado, para pintar la casilla. */
+function isDone(
+  checks: ReturnType<typeof effectiveChecks>,
+  key: CheckKey,
+): boolean {
+  switch (key) {
+    case 'linkDownload':
+      return checks.link;
+    case 'liverpoolValidation':
+      return checks.liverpool;
+    case 'csmProgramming':
+      return checks.csm;
+    case 'witnessStart':
+      return checks.witnessStart;
+    case 'witnessComplete':
+      return checks.witnessComplete;
+  }
+}
+
+/** Texto de trazabilidad (quién/cuándo) para el tooltip de una casilla. */
+function checkTitle(row: TrackingRow, key: CheckKey, label: string): string {
+  const c = row.tracking ? row.tracking[key] : null;
+  if (c?.completed && c.completedByEmail) {
+    const when = c.completedAt ? formatDdMmYyyy(new Date(c.completedAt)) : '';
+    return `${label}: ${c.completedByEmail}${when ? ` · ${when}` : ''}`;
+  }
+  return label;
+}
+
 export function OperationalTrackingPage() {
   const { user } = useAuth();
-  // Fase pre-lanzamiento: cualquier usuario autenticado puede editar el
-  // seguimiento (igual que el resto de colecciones). El control por rol
-  // (viewer solo lectura) se activará antes de liberar, cuando los custom
-  // claims de rol estén provisionados; ver `permissions.ts` / `firestore.rules`.
+  // Fase pre-lanzamiento: cualquier usuario autenticado puede editar (el control
+  // por rol se activará antes de liberar; ver permissions.ts / firestore.rules).
   const canWrite = user != null;
   const actor = { uid: user?.uid ?? '', email: user?.email ?? '' };
 
@@ -68,6 +93,8 @@ export function OperationalTrackingPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | WitnessStatus>(
     'all',
@@ -76,10 +103,8 @@ export function OperationalTrackingPage() {
     'all' | Classification | 'unknown'
   >('all');
   const [timeFilter, setTimeFilter] = useState<'all' | Timeframe>('all');
-  const [params, setParams] = useSearchParams();
-  const [detailKey, setDetailKey] = useState<string | null>(
-    params.get('campana'),
-  );
+  const [params] = useSearchParams();
+  const highlightKey = params.get('campana');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -131,29 +156,86 @@ export function OperationalTrackingPage() {
   }, [rows, search, classFilter, timeFilter, statusFilter]);
 
   const patchTracking = useCallback((t: CampaignOperationalTracking) => {
-    setTrackingList((prev) => {
-      const rest = prev.filter((x) => x.campaignNameKey !== t.campaignNameKey);
-      return [...rest, t];
+    setTrackingList((prev) => [
+      ...prev.filter((x) => x.campaignNameKey !== t.campaignNameKey),
+      t,
+    ]);
+  }, []);
+
+  const setBusyKey = useCallback((key: string, on: boolean) => {
+    setBusy((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
     });
   }, []);
 
-  const detailRow = detailKey
-    ? (rows.find((r) => r.campaign.nameKey === detailKey) ?? null)
-    : null;
+  async function toggleCheck(
+    row: TrackingRow,
+    key: CheckKey,
+    completed: boolean,
+  ) {
+    if (!canWrite) return;
+    const busyKey = `${row.campaign.nameKey}:${key}`;
+    if (busy.has(busyKey)) return;
+    // Se permite marcar aunque la clasificación esté pendiente; se usa
+    // Institucional como valor inicial editable (nunca se asume Proveedor).
+    const classification: Classification =
+      row.classification === 'unknown' ? 'institutional' : row.classification;
+    setActionError(null);
+    setBusyKey(busyKey, true);
+    try {
+      const updated = await updateCheck({
+        campaignNameKey: row.campaign.nameKey,
+        campaignName: row.campaign.name,
+        key,
+        completed,
+        classification,
+        linkValid: row.linkStatus === 'valid',
+        actor,
+      });
+      patchTracking(updated);
+    } catch (e) {
+      setActionError(
+        e instanceof TrackingError
+          ? e.message
+          : `No se pudo guardar el cambio en "${row.campaign.name}".`,
+      );
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  }
 
-  function openDetail(nameKey: string | null) {
-    setDetailKey(nameKey);
-    const next = new URLSearchParams(params);
-    if (nameKey) next.set('campana', nameKey);
-    else next.delete('campana');
-    setParams(next, { replace: true });
+  async function setRowClassification(row: TrackingRow, value: Classification) {
+    if (!canWrite) return;
+    const busyKey = `${row.campaign.nameKey}:classification`;
+    if (busy.has(busyKey)) return;
+    setActionError(null);
+    setBusyKey(busyKey, true);
+    try {
+      const updated = await updateClassification({
+        campaignNameKey: row.campaign.nameKey,
+        campaignName: row.campaign.name,
+        classification: value,
+        linkValid: row.linkStatus === 'valid',
+        actor,
+      });
+      patchTracking(updated);
+    } catch {
+      setActionError(
+        `No se pudo guardar la clasificación de "${row.campaign.name}".`,
+      );
+    } finally {
+      setBusyKey(busyKey, false);
+    }
   }
 
   return (
     <>
       <PageHeader
         title="Seguimiento operativo"
-        description="Estados, testigos, fechas límite y alertas por campaña. Los checks manuales son independientes del calendario importado y sobreviven a las reimportaciones."
+        description="Marca los indicadores directamente en la tabla. Los checks son independientes del calendario importado y sobreviven a las reimportaciones."
         actions={
           <button className="btn btn-secondary" onClick={() => void reload()}>
             Actualizar
@@ -164,6 +246,11 @@ export function OperationalTrackingPage() {
       {error && (
         <div className="catalog__error" role="alert">
           {error}
+        </div>
+      )}
+      {actionError && (
+        <div className="catalog__error" role="alert">
+          {actionError}
         </div>
       )}
 
@@ -248,32 +335,51 @@ export function OperationalTrackingPage() {
                 <th>Fin</th>
                 <th>Tiendas</th>
                 <th>Objetivo 10%</th>
-                <th title="Link de descarga">Link</th>
-                <th title="Validación Liverpool">Validación</th>
-                <th title="Programación CSM">CSM</th>
-                <th title="T Arranque">T Arr.</th>
-                <th title="T Completos">T Comp.</th>
+                {CHECK_COLUMNS.map((col) => (
+                  <th key={col.key} title={col.label} className="ot-check-col">
+                    {col.short}
+                  </th>
+                ))}
                 <th>Estado general</th>
                 <th>Próx. vencimiento</th>
-                <th aria-label="Detalle" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => {
                 const checks = effectiveChecks(r);
+                const highlighted = r.campaign.nameKey === highlightKey;
                 return (
-                  <tr key={r.campaign.id}>
+                  <tr
+                    key={r.campaign.id}
+                    className={highlighted ? 'ot-row--highlight' : undefined}
+                  >
                     <td>{r.campaign.name}</td>
                     <td>
-                      {r.classification === 'unknown' ? (
-                        <span className="badge badge-warning">
-                          Clasificación pendiente
-                        </span>
-                      ) : r.classification === 'institutional' ? (
-                        'Institucional'
-                      ) : (
-                        'Proveedor'
-                      )}
+                      <select
+                        className="ot-class-select"
+                        aria-label={`Clasificación de ${r.campaign.name}`}
+                        value={
+                          r.classification === 'unknown' ? '' : r.classification
+                        }
+                        disabled={
+                          !canWrite ||
+                          busy.has(`${r.campaign.nameKey}:classification`)
+                        }
+                        onChange={(e) =>
+                          void setRowClassification(
+                            r,
+                            e.target.value as Classification,
+                          )
+                        }
+                      >
+                        {r.classification === 'unknown' && (
+                          <option value="" disabled>
+                            — Pendiente —
+                          </option>
+                        )}
+                        <option value="institutional">Institucional</option>
+                        <option value="provider">Proveedor</option>
+                      </select>
                     </td>
                     <td>{formatCivilString(r.campaign.fechaInicio)}</td>
                     <td>{formatCivilString(r.campaign.fechaFin)}</td>
@@ -281,22 +387,27 @@ export function OperationalTrackingPage() {
                     <td>
                       {r.target} de {r.distinctStores}
                     </td>
-                    <td
-                      className="ot-check-cell"
-                      title={LINK_META[r.linkStatus].label}
-                    >
-                      {LINK_META[r.linkStatus].icon}
-                    </td>
-                    <CheckCell
-                      done={checks.liverpool}
-                      label="Validación Liverpool"
-                    />
-                    <CheckCell done={checks.csm} label="Programación CSM" />
-                    <CheckCell done={checks.witnessStart} label="T Arranque" />
-                    <CheckCell
-                      done={checks.witnessComplete}
-                      label="T Completos"
-                    />
+                    {CHECK_COLUMNS.map((col) => {
+                      const done = isDone(checks, col.key);
+                      const cellBusy = busy.has(
+                        `${r.campaign.nameKey}:${col.key}`,
+                      );
+                      return (
+                        <td key={col.key} className="ot-check-cell">
+                          <input
+                            type="checkbox"
+                            className="ot-checkbox"
+                            checked={done}
+                            disabled={!canWrite || cellBusy}
+                            title={checkTitle(r, col.key, col.label)}
+                            aria-label={`${col.label} de ${r.campaign.name}`}
+                            onChange={(e) =>
+                              void toggleCheck(r, col.key, e.target.checked)
+                            }
+                          />
+                        </td>
+                      );
+                    })}
                     <td>
                       <span
                         className={`ot-badge ${STATUS_META[r.overall].cls}`}
@@ -308,17 +419,6 @@ export function OperationalTrackingPage() {
                     <td>
                       {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        title={`Ver detalle de ${r.campaign.name}`}
-                        aria-label={`Ver detalle de ${r.campaign.name}`}
-                        onClick={() => openDetail(r.campaign.nameKey)}
-                      >
-                        👁️
-                      </button>
-                    </td>
                   </tr>
                 );
               })}
@@ -327,268 +427,9 @@ export function OperationalTrackingPage() {
         </div>
       )}
 
-      {detailRow && (
-        <TrackingDetail
-          row={detailRow}
-          canWrite={canWrite}
-          actor={actor}
-          onClose={() => openDetail(null)}
-          onChanged={patchTracking}
-        />
+      {!canWrite && !loading && (
+        <p className="text-muted">Solo lectura (rol sin permiso de edición).</p>
       )}
     </>
-  );
-}
-
-function TrackingDetail({
-  row,
-  canWrite,
-  actor,
-  onClose,
-  onChanged,
-}: {
-  row: TrackingRow;
-  canWrite: boolean;
-  actor: { uid: string; email: string };
-  onClose: () => void;
-  onChanged: (t: CampaignOperationalTracking) => void;
-}) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const { campaign, tracking, classification } = row;
-
-  async function toggle(key: CheckKey, completed: boolean) {
-    if (!canWrite || busy) return;
-    if (classification === 'unknown') {
-      setErr('Primero define la clasificación de la campaña.');
-      return;
-    }
-    setBusy(key);
-    setErr(null);
-    setMsg(null);
-    try {
-      const params: UpdateCheckParams = {
-        campaignNameKey: campaign.nameKey,
-        campaignName: campaign.name,
-        key,
-        completed,
-        classification,
-        actor,
-      };
-      const updated = await updateCheck(params);
-      onChanged(updated);
-      setMsg('Guardado.');
-    } catch (e) {
-      setErr(
-        e instanceof TrackingError
-          ? e.message
-          : 'No se pudo guardar el cambio.',
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function classify(value: Classification) {
-    if (!canWrite || busy) return;
-    setBusy('classification');
-    setErr(null);
-    setMsg(null);
-    try {
-      const updated = await updateClassification({
-        campaignNameKey: campaign.nameKey,
-        campaignName: campaign.name,
-        classification: value,
-        actor,
-      });
-      onChanged(updated);
-      setMsg('Clasificación guardada.');
-    } catch {
-      setErr('No se pudo guardar la clasificación.');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const linkStatus = row.linkStatus;
-
-  return (
-    <div
-      className="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Detalle de seguimiento"
-    >
-      <div className="modal__backdrop" onClick={onClose} aria-hidden="true" />
-      <div className="modal__card" style={{ maxWidth: 720 }}>
-        <h2 className="modal__title">{campaign.name}</h2>
-        <p className="text-muted" style={{ marginTop: 0 }}>
-          {formatCivilString(campaign.fechaInicio)} –{' '}
-          {formatCivilString(campaign.fechaFin)} · {row.distinctStores} tiendas
-          · Objetivo de arranque: {row.target} de {row.distinctStores} tiendas
-        </p>
-
-        {err && (
-          <p className="catalog__error" role="alert">
-            {err}
-          </p>
-        )}
-        {msg && !err && (
-          <p className="text-muted" role="status">
-            {msg}
-          </p>
-        )}
-
-        <section className="ot-detail-block">
-          <h3>Clasificación</h3>
-          {classification === 'unknown' ? (
-            <p className="ot-alert">
-              <span className="badge badge-warning">Pendiente</span> Selecciona
-              la clasificación operativa.
-            </p>
-          ) : (
-            <p>
-              {classification === 'institutional'
-                ? 'Institucional'
-                : 'Proveedor'}
-              {tracking && (
-                <span className="text-muted">
-                  {' '}
-                  · origen: {tracking.classificationSource}
-                </span>
-              )}
-            </p>
-          )}
-          {canWrite && (
-            <div className="ot-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy !== null}
-                onClick={() => void classify('institutional')}
-              >
-                Institucional
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy !== null}
-                onClick={() => void classify('provider')}
-              >
-                Proveedor
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="ot-detail-block">
-          <h3>Indicadores</h3>
-          <ul className="ot-checks">
-            <li>
-              <span>
-                Link de descarga{' '}
-                <span className="text-muted">(automático)</span>
-              </span>
-              <span>
-                {LINK_META[linkStatus].icon} {LINK_META[linkStatus].label}
-              </span>
-            </li>
-            <CheckRow
-              label="Validación Liverpool"
-              check={tracking?.liverpoolValidation ?? null}
-              defaultChecked={classification === 'institutional'}
-              status={null}
-              busy={busy === 'liverpoolValidation'}
-              canWrite={canWrite}
-              onToggle={(v) => void toggle('liverpoolValidation', v)}
-            />
-            <CheckRow
-              label="Programación CSM"
-              check={tracking?.csmProgramming ?? null}
-              defaultChecked={false}
-              status={null}
-              busy={busy === 'csmProgramming'}
-              canWrite={canWrite}
-              onToggle={(v) => void toggle('csmProgramming', v)}
-            />
-            <CheckRow
-              label="T Arranque"
-              check={tracking?.witnessStart ?? null}
-              defaultChecked={false}
-              status={row.startStatus}
-              busy={busy === 'witnessStart'}
-              canWrite={canWrite}
-              onToggle={(v) => void toggle('witnessStart', v)}
-            />
-            <CheckRow
-              label="T Completos"
-              check={tracking?.witnessComplete ?? null}
-              defaultChecked={false}
-              status={row.completeStatus}
-              busy={busy === 'witnessComplete'}
-              canWrite={canWrite}
-              onToggle={(v) => void toggle('witnessComplete', v)}
-            />
-          </ul>
-          {!canWrite && (
-            <p className="text-muted">
-              Solo lectura (rol sin permiso de edición).
-            </p>
-          )}
-        </section>
-
-        <div className="modal__actions">
-          <button className="btn btn-secondary" onClick={onClose}>
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CheckRow({
-  label,
-  check,
-  defaultChecked,
-  status,
-  busy,
-  canWrite,
-  onToggle,
-}: {
-  label: string;
-  check: CampaignOperationalTracking['liverpoolValidation'] | null;
-  defaultChecked: boolean;
-  status: WitnessStatus | null;
-  busy: boolean;
-  canWrite: boolean;
-  onToggle: (completed: boolean) => void;
-}) {
-  const completed = check?.completed ?? defaultChecked;
-  return (
-    <li>
-      <span>
-        {label}
-        {status && (
-          <span className={`ot-badge ${STATUS_META[status].cls}`}>
-            {STATUS_META[status].icon} {STATUS_META[status].label}
-          </span>
-        )}
-        {check?.completedByEmail && (
-          <span className="text-muted ot-who"> · {check.completedByEmail}</span>
-        )}
-      </span>
-      <label className="ot-check-toggle">
-        <input
-          type="checkbox"
-          checked={completed}
-          disabled={!canWrite || busy}
-          onChange={(e) => onToggle(e.target.checked)}
-          aria-label={`${label}: ${completed ? 'completado' : 'pendiente'}`}
-        />
-        <span>{busy ? 'Guardando…' : completed ? 'Sí' : 'No'}</span>
-      </label>
-    </li>
   );
 }

@@ -56,6 +56,8 @@ export interface UpdateCheckParams {
   completed: boolean;
   /** Clasificación con la que crear el documento si aún no existe. */
   classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
   actor: TrackingActor;
 }
 
@@ -81,6 +83,7 @@ export async function updateCheck(
             campaignName: params.campaignName,
             classification: params.classification,
             classificationSource: 'import-user',
+            linkValid: params.linkValid,
           },
           params.actor,
           now,
@@ -108,6 +111,7 @@ export interface UpdateClassificationParams {
   campaignNameKey: string;
   campaignName: string;
   classification: Classification;
+  linkValid: boolean;
   actor: TrackingActor;
 }
 
@@ -143,6 +147,7 @@ export async function updateClassification(
           campaignName: params.campaignName,
           classification: params.classification,
           classificationSource: 'tracking-user',
+          linkValid: params.linkValid,
         },
         params.actor,
         now,
@@ -159,6 +164,8 @@ export interface ImportClassificationSelection {
   campaignNameKey: string;
   campaignName: string;
   classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
   /** El usuario confirmó cambiar una clasificación ya existente. */
   confirmedReclassify: boolean;
 }
@@ -192,6 +199,7 @@ export async function initializeTrackingForImport(
             campaignName: sel.campaignName,
             classification: sel.classification,
             classificationSource: 'import-user',
+            linkValid: sel.linkValid,
           },
           actor,
           now,
