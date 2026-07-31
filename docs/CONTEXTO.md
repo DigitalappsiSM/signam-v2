@@ -221,9 +221,16 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
   críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
   con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`.
-- **Permisos**: `tracking.read` (todos los roles) y `tracking.write`
-  (admin/operator). Las reglas de Firestore exigen el rol por **custom claims**
-  (misma fuente que el cliente) y prohíben el borrado físico.
+- **Fechas**: se muestran en formato **`dd/mm/aaaa`** en toda la sección y en el
+  Dashboard (helper puro `formatDdMmYyyy`/`formatCivilString`).
+- **Permisos**: la matriz define `tracking.read` (todos los roles) y
+  `tracking.write` (admin/operator). En la **fase pre-lanzamiento** —igual que el
+  resto de colecciones— cualquier usuario **autenticado** puede editar el
+  seguimiento (los custom claims de rol aún no están provisionados; forzar el rol
+  dejaría al único usuario administrador sin poder editar). El control por rol
+  (viewer solo lectura) se activará antes de liberar, sustituyendo `isSignedIn()`
+  por la comprobación de `role` en `firestore.rules`. Se conservan ya las
+  validaciones estructurales y la prohibición de **borrado físico**.
 - **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.

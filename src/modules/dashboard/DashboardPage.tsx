@@ -21,6 +21,8 @@ import {
   todayCivil,
   parseCampaignDate,
   calendarDaysUntil,
+  formatDdMmYyyy,
+  formatCivilString,
 } from '@/modules/operational-tracking/businessDays';
 import '@/modules/operational-tracking/OperationalTrackingPage.css';
 
@@ -29,7 +31,7 @@ function trackingLink(row: TrackingRow): string {
 }
 
 function isoDay(d: Date | null): string {
-  return d ? d.toISOString().slice(0, 10) : '—';
+  return d ? formatDdMmYyyy(d) : '—';
 }
 
 /** Panel inicial: resumen operativo, alertas y puntos de entrada a los módulos. */
@@ -203,7 +205,7 @@ export function DashboardPage() {
                 if (!c.csm) pend.push('CSM');
                 return {
                   row: r,
-                  text: `Inicia ${r.campaign.fechaInicio}${
+                  text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
                     pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
                   }`,
                 };

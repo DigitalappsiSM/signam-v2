@@ -76,3 +76,22 @@ export function calendarDaysUntil(today: Date, deadline: Date): number {
   const ms = deadline.getTime() - today.getTime();
   return Math.round(ms / 86_400_000);
 }
+
+/** Formatea una fecha civil como `dd/mm/aaaa`. */
+export function formatDdMmYyyy(d: Date): string {
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = String(d.getUTCFullYear());
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/**
+ * Formatea a `dd/mm/aaaa` una fecha del calendario (string). Si no se puede
+ * interpretar, devuelve el texto original recortado, o `—` si está vacío.
+ */
+export function formatCivilString(value: string | undefined): string {
+  const d = parseCampaignDate(value ?? '');
+  if (d) return formatDdMmYyyy(d);
+  const t = (value ?? '').trim();
+  return t === '' ? '—' : t;
+}

@@ -62,9 +62,11 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;
   aún sin festivos); T Completos vence en `fechaFin`. Objetivo de arranque =
   `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
-  evidencias ni se seleccionan tiendas individuales. Escritura restringida a
-  admin/operator por custom claims (misma fuente que el cliente); `read`
-  requiere autenticación; sin borrado físico desde el cliente.
+  evidencias ni se seleccionan tiendas individuales. Permisos: la matriz reserva
+  `tracking.write` a admin/operator, pero en **pre-lanzamiento** las reglas
+  permiten escribir a cualquier autenticado (como el resto de colecciones); el
+  control por rol se activará antes de liberar. `read` requiere autenticación;
+  **sin borrado físico** desde el cliente. Fechas mostradas en `dd/mm/aaaa`.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

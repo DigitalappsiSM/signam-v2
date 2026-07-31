@@ -5,6 +5,8 @@ import {
   calendarDaysUntil,
   addDays,
   parseCampaignDate,
+  formatDdMmYyyy,
+  formatCivilString,
 } from './businessDays';
 
 const d = (s: string) => parseCampaignDate(s)!;
@@ -83,5 +85,23 @@ describe('addDays', () => {
   it('suma y resta días civiles', () => {
     expect(ymd(addDays(d('2026-12-31'), 1))).toBe('2027-01-01');
     expect(ymd(addDays(d('2026-03-01'), -1))).toBe('2026-02-28');
+  });
+});
+
+describe('formatDdMmYyyy / formatCivilString', () => {
+  it('formatea una fecha civil como dd/mm/aaaa', () => {
+    expect(formatDdMmYyyy(d('2026-03-05'))).toBe('05/03/2026');
+    expect(formatDdMmYyyy(d('2026-12-31'))).toBe('31/12/2026');
+  });
+
+  it('formatea strings del calendario (ISO o día-primero) a dd/mm/aaaa', () => {
+    expect(formatCivilString('2026-03-05')).toBe('05/03/2026');
+    expect(formatCivilString('5/3/2026')).toBe('05/03/2026');
+  });
+
+  it('devuelve el original o — cuando no es interpretable', () => {
+    expect(formatCivilString('')).toBe('—');
+    expect(formatCivilString(undefined)).toBe('—');
+    expect(formatCivilString('sin fecha')).toBe('sin fecha');
   });
 });
