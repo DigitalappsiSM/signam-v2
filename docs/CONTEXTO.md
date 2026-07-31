@@ -203,6 +203,16 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
     Institucional **o** tiene link válido; editable (si la desmarcas, se
     respeta).
   - **CSM / T Arranque / T Completos**: manuales, inician desmarcados.
+- **Marcar todas** (campañas terminadas): en las filas cuya `fechaFin` ya pasó
+  (periodo **Terminada**) aparece un botón **"Marcar todas"** que marca los cinco
+  indicadores de una sola vez (`source: manual`, con quién/cuándo). No aparece en
+  campañas activas ni futuras.
+- **Bitácora de comentarios**: cada campaña tiene un **historial** de comentarios
+  (`comments[]`, cada uno con texto, autor y fecha) accesible desde un botón
+  `💬 N` que despliega un panel inline bajo la fila. Los comentarios se agregan al
+  final (orden cronológico) y **no** se borran ni editan desde el cliente. El
+  documento de seguimiento se crea al vuelo si aún no existía al comentar o al
+  usar "Marcar todas".
 - **Clasificación Institucional/Proveedor**: automática si el `tipo` contiene
   `INSTITUCIONAL`/`PROVEEDOR` (ignorando mayúsculas/acentos); si es ambigua o
   vacía queda **pendiente**. Se define en la **importación** (selector con

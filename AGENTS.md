@@ -58,7 +58,12 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   marcada si Institucional **o** hay link válido; editable), **Programación
   CSM**, **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar
   T Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
-  T Completos siga marcado. Clasificación **Institucional/Proveedor** obligatoria
+  T Completos siga marcado. En campañas **terminadas** (fecha de fin ya pasada)
+  aparece un botón **"Marcar todas"** por fila que marca los cinco indicadores de
+  golpe. Cada campaña tiene además una **bitácora de comentarios** (`comments[]`,
+  historial con autor y fecha) en un panel expandible; los comentarios se agregan
+  al final y no se borran desde el cliente. Clasificación
+  **Institucional/Proveedor** obligatoria
   (se elige en la importación cuando el `tipo` no es inequívoco; nunca se asume
   Proveedor). Fechas civiles (sin desfase por zona horaria): T Arranque vence al
   **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;

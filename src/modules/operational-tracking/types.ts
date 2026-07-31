@@ -11,6 +11,15 @@ export type Classification = 'institutional' | 'provider';
 /** Origen de la clasificación (para trazabilidad). */
 export type ClassificationSource = 'calendar' | 'import-user' | 'tracking-user';
 
+/** Un comentario de la bitácora de una campaña (historial). */
+export interface OperationalComment {
+  id: string;
+  text: string;
+  createdAt: number;
+  createdByUid: string;
+  createdByEmail: string;
+}
+
 /** Un indicador manual con su estado y trazabilidad. */
 export interface OperationalCheck {
   completed: boolean;
@@ -54,6 +63,9 @@ export interface CampaignOperationalTracking {
   witnessStart: OperationalCheck;
   /** T Completos (manual). */
   witnessComplete: OperationalCheck;
+
+  /** Bitácora de comentarios (orden cronológico, se agregan al final). */
+  comments: OperationalComment[];
 
   createdAt: number;
   createdByUid: string;

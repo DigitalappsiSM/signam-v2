@@ -5,6 +5,7 @@ import type {
   Classification,
   ClassificationSource,
   OperationalCheck,
+  OperationalComment,
 } from './types';
 
 /**
@@ -77,6 +78,7 @@ export function initialTracking(
     csmProgramming: makeCheck(false, 'automatic', actor, now),
     witnessStart: makeCheck(false, 'automatic', actor, now),
     witnessComplete: makeCheck(false, 'automatic', actor, now),
+    comments: [],
     createdAt: now,
     createdByUid: actor.uid,
     createdByEmail: actor.email,
@@ -138,6 +140,60 @@ export function applyCheckChange(
   }
 
   return { ok: true, tracking: next };
+}
+
+/**
+ * Marca **todos** los indicadores como completados (acción explícita del usuario,
+ * `source: 'manual'`). Se usa en el botón "Marcar todas" de campañas terminadas.
+ * No requiere reglas especiales: dejar todo marcado satisface la relación de
+ * testigos (T Completos ⇒ T Arranque).
+ */
+export function markAllComplete(
+  tracking: CampaignOperationalTracking,
+  actor: TrackingActor,
+  now: number,
+): CampaignOperationalTracking {
+  return {
+    ...tracking,
+    linkDownload: makeCheck(true, 'manual', actor, now),
+    liverpoolValidation: makeCheck(true, 'manual', actor, now),
+    csmProgramming: makeCheck(true, 'manual', actor, now),
+    witnessStart: makeCheck(true, 'manual', actor, now),
+    witnessComplete: makeCheck(true, 'manual', actor, now),
+    updatedAt: now,
+    updatedByUid: actor.uid,
+    updatedByEmail: actor.email,
+  };
+}
+
+/**
+ * Agrega un comentario a la bitácora (historial) conservando el resto del
+ * documento. El `id` se genera fuera (persistencia/UI) para mantener la pureza.
+ * Ignora textos vacíos devolviendo el documento sin cambios.
+ */
+export function addComment(
+  tracking: CampaignOperationalTracking,
+  id: string,
+  text: string,
+  actor: TrackingActor,
+  now: number,
+): CampaignOperationalTracking {
+  const trimmed = text.trim();
+  if (!trimmed) return tracking;
+  const comment: OperationalComment = {
+    id,
+    text: trimmed,
+    createdAt: now,
+    createdByUid: actor.uid,
+    createdByEmail: actor.email,
+  };
+  return {
+    ...tracking,
+    comments: [...(tracking.comments ?? []), comment],
+    updatedAt: now,
+    updatedByUid: actor.uid,
+    updatedByEmail: actor.email,
+  };
 }
 
 /**

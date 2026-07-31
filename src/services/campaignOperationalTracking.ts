@@ -1,9 +1,11 @@
 import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import {
+  addComment as addCommentPure,
   applyCheckChange,
   campaignKeyId,
   initialTracking,
+  markAllComplete,
   setClassification,
   type TrackingActor,
 } from '@/modules/operational-tracking/trackingFactory';
@@ -104,6 +106,111 @@ export async function updateCheck(
     void _id;
     tx.set(ref, data);
     return result.tracking;
+  });
+}
+
+export interface MarkAllChecksParams {
+  campaignNameKey: string;
+  campaignName: string;
+  /** Clasificación con la que crear el documento si aún no existe. */
+  classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
+  actor: TrackingActor;
+}
+
+/**
+ * Marca todos los indicadores de una campaña (botón "Marcar todas"). Crea el
+ * documento si no existe dentro de la misma transacción antes de marcar.
+ */
+export async function markAllChecks(
+  params: MarkAllChecksParams,
+): Promise<CampaignOperationalTracking> {
+  const database = db();
+  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  return runTransaction(database, async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const base = snap.exists()
+      ? (snap.data() as Omit<CampaignOperationalTracking, 'id'>)
+      : initialTracking(
+          {
+            campaignNameKey: params.campaignNameKey,
+            campaignName: params.campaignName,
+            classification: params.classification,
+            classificationSource: 'import-user',
+            linkValid: params.linkValid,
+          },
+          params.actor,
+          now,
+        );
+    const current: CampaignOperationalTracking = {
+      id: campaignKeyId(params.campaignNameKey),
+      ...base,
+    };
+    const tracking = markAllComplete(current, params.actor, now);
+    const { id: _id, ...data } = tracking;
+    void _id;
+    tx.set(ref, data);
+    return tracking;
+  });
+}
+
+export interface AddCommentParams {
+  campaignNameKey: string;
+  campaignName: string;
+  text: string;
+  /** Clasificación con la que crear el documento si aún no existe. */
+  classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
+  actor: TrackingActor;
+}
+
+/**
+ * Agrega un comentario a la bitácora de una campaña. Crea el documento si no
+ * existe dentro de la misma transacción antes de agregar el comentario.
+ */
+export async function addComment(
+  params: AddCommentParams,
+): Promise<CampaignOperationalTracking> {
+  const database = db();
+  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  return runTransaction(database, async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const base = snap.exists()
+      ? (snap.data() as Omit<CampaignOperationalTracking, 'id'>)
+      : initialTracking(
+          {
+            campaignNameKey: params.campaignNameKey,
+            campaignName: params.campaignName,
+            classification: params.classification,
+            classificationSource: 'import-user',
+            linkValid: params.linkValid,
+          },
+          params.actor,
+          now,
+        );
+    const current: CampaignOperationalTracking = {
+      id: campaignKeyId(params.campaignNameKey),
+      ...base,
+    };
+    const commentId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${now}-${Math.random().toString(36).slice(2)}`;
+    const tracking = addCommentPure(
+      current,
+      commentId,
+      params.text,
+      params.actor,
+      now,
+    );
+    const { id: _id, ...data } = tracking;
+    void _id;
+    tx.set(ref, data);
+    return tracking;
   });
 }
 

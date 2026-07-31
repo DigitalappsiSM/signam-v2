@@ -10,8 +10,14 @@ import {
   listOperationalTracking,
   updateCheck,
   updateClassification,
+  markAllChecks,
+  addComment,
 } from '@/services/campaignOperationalTracking';
 import type { UserRole } from '@/domain';
+import {
+  initialTracking,
+  addComment as addCommentPure,
+} from './trackingFactory';
 
 const authState = { role: 'admin' as UserRole };
 vi.mock('@/app/providers/AuthProvider', () => ({
@@ -38,6 +44,8 @@ vi.mock('@/services/campaignOperationalTracking', async () => {
     listOperationalTracking: vi.fn(),
     updateCheck: vi.fn(),
     updateClassification: vi.fn(),
+    markAllChecks: vi.fn(),
+    addComment: vi.fn(),
   };
 });
 
@@ -73,6 +81,13 @@ const UNK = campaign({
   tipo: 'Digital',
 });
 
+/** Fecha `YYYY-MM-DD` desplazada `offset` días respecto de hoy (para timeframe). */
+function dayOffset(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -88,6 +103,8 @@ beforeEach(() => {
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
   vi.mocked(updateCheck).mockReset();
   vi.mocked(updateClassification).mockReset();
+  vi.mocked(markAllChecks).mockReset();
+  vi.mocked(addComment).mockReset();
 });
 
 describe('OperationalTrackingPage', () => {
@@ -166,5 +183,105 @@ describe('OperationalTrackingPage', () => {
     expect(
       await screen.findByText(/No se pudo cargar el seguimiento/i),
     ).toBeInTheDocument();
+  });
+
+  it('solo las campañas terminadas ofrecen "Marcar todas"', async () => {
+    const FIN = campaign({
+      id: 'f',
+      name: 'TERMINADA',
+      nameKey: 'terminada',
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+    });
+    const FUT = campaign({
+      id: 'u2',
+      name: 'FUTURA',
+      nameKey: 'futura',
+      fechaInicio: dayOffset(30),
+      fechaFin: dayOffset(40),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN, FUT]);
+    renderPage();
+    await screen.findByText('TERMINADA');
+    const finRow = screen.getByText('TERMINADA').closest('tr')!;
+    expect(
+      within(finRow).getByRole('button', { name: 'Marcar todas' }),
+    ).toBeInTheDocument();
+    const futRow = screen.getByText('FUTURA').closest('tr')!;
+    expect(
+      within(futRow).queryByRole('button', { name: 'Marcar todas' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('"Marcar todas" marca todos los indicadores de la campaña', async () => {
+    vi.mocked(markAllChecks).mockResolvedValue({} as never);
+    const FIN = campaign({
+      id: 'f',
+      name: 'TERMINADA',
+      nameKey: 'terminada',
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+      tipo: 'INSTITUCIONAL',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN]);
+    renderPage();
+    await screen.findByText('TERMINADA');
+    await userEvent.click(screen.getByRole('button', { name: 'Marcar todas' }));
+    await waitFor(() => expect(markAllChecks).toHaveBeenCalledTimes(1));
+    expect(markAllChecks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: 'terminada',
+        classification: 'institutional',
+      }),
+    );
+  });
+
+  it('muestra el historial de comentarios al expandir', async () => {
+    const track = addCommentPure(
+      initialTracking(
+        {
+          campaignNameKey: 'buen fin',
+          campaignName: 'BUEN FIN',
+          classification: 'institutional',
+          classificationSource: 'import-user',
+          linkValid: true,
+        },
+        { uid: 'u1', email: 'a@b.mx' },
+        1000,
+      ),
+      'c1',
+      'Testigos revisados',
+      { uid: 'u1', email: 'a@b.mx' },
+      2000,
+    );
+    vi.mocked(listOperationalTracking).mockResolvedValue([track]);
+    renderPage();
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
+    );
+    expect(screen.getByText('Testigos revisados')).toBeInTheDocument();
+    expect(screen.getByText('a@b.mx')).toBeInTheDocument();
+  });
+
+  it('agrega un comentario desde el panel expandido', async () => {
+    vi.mocked(addComment).mockResolvedValue({} as never);
+    renderPage();
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
+    );
+    await userEvent.type(
+      screen.getByLabelText('Nuevo comentario para BUEN FIN'),
+      'Revisado',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Agregar' }));
+    await waitFor(() => expect(addComment).toHaveBeenCalledTimes(1));
+    expect(addComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: 'buen fin',
+        text: 'Revisado',
+      }),
+    );
   });
 });
