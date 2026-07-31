@@ -1,4 +1,12 @@
-import { useState, type ChangeEvent, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { analyzeCalendar, type CalendarAnalysis } from './calendarImport';
@@ -24,7 +32,14 @@ import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink'
 import type { Classification } from '@/modules/operational-tracking/types';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { importSummary, type ImportSummary } from './importSummary';
+import { nextBulk, type BulkState } from './accordionBulk';
 import './ImportPage.css';
+
+/**
+ * Señal de "expandir/colapsar todo". Las secciones la leen por contexto para no
+ * tener que recibir props a través de los componentes envoltorio.
+ */
+const AccordionBulkContext = createContext<BulkState | null>(null);
 
 type ClassChoice = Classification | '';
 
@@ -51,6 +66,7 @@ export function ImportPage() {
   const [selections, setSelections] = useState<Map<string, ClassChoice>>(
     new Map(),
   );
+  const [bulk, setBulk] = useState<BulkState | null>(null);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -228,122 +244,140 @@ export function ImportPage() {
       )}
 
       {phase === 'done' && (
-        <div className="imp-accordion">
-          {(blocking.length > 0 || warnings.length > 0) && (
-            <Section
-              title="Errores y advertencias"
-              chip={issuesChip(blocking.length, warnings.length)}
-              tone={blocking.length > 0 ? 'danger' : 'warning'}
-              defaultOpen
+        <AccordionBulkContext.Provider value={bulk}>
+          <div className="imp-accordion__toolbar">
+            <button
+              type="button"
+              className="btn btn-secondary imp-accordion__toggle"
+              onClick={() => setBulk((b) => nextBulk(b, true))}
             >
-              {blocking.length > 0 && (
-                <div className="import__issues import__issues--blocking">
-                  <h3>Errores</h3>
-                  <ul>
-                    {blocking.map((i, idx) => (
-                      <li key={idx}>{i.message}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {warnings.length > 0 && (
-                <div className="import__issues import__issues--warning">
-                  <h3>Advertencias</h3>
-                  <ul>
-                    {warnings.map((i, idx) => (
-                      <li key={idx}>{i.message}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </Section>
-          )}
-
-          {needClass.length > 0 && (
-            <ClassificationPanel
-              items={needClass}
-              selections={selections}
-              onChange={setSelection}
-              pendingCount={pendingCount}
-            />
-          )}
-
-          {diff && diff.modified.length > 0 && (
-            <Section
-              title="Campañas modificadas"
-              chip={diff.modified.length}
-              tone="info"
-              defaultOpen
+              Expandir todo
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary imp-accordion__toggle"
+              onClick={() => setBulk((b) => nextBulk(b, false))}
             >
-              <div className="diagnosis__table-wrap">
-                <table className="catalog__table">
-                  <thead>
-                    <tr>
-                      <th>Campaña</th>
-                      <th>Cambios</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {diff.modified.slice(0, 200).map((m) => (
-                      <tr key={m.campaign.name}>
-                        <td>{m.campaign.name}</td>
-                        <td>{m.changes.join(' · ')}</td>
+              Colapsar todo
+            </button>
+          </div>
+          <div className="imp-accordion">
+            {(blocking.length > 0 || warnings.length > 0) && (
+              <Section
+                title="Errores y advertencias"
+                chip={issuesChip(blocking.length, warnings.length)}
+                tone={blocking.length > 0 ? 'danger' : 'warning'}
+                defaultOpen
+              >
+                {blocking.length > 0 && (
+                  <div className="import__issues import__issues--blocking">
+                    <h3>Errores</h3>
+                    <ul>
+                      {blocking.map((i, idx) => (
+                        <li key={idx}>{i.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {warnings.length > 0 && (
+                  <div className="import__issues import__issues--warning">
+                    <h3>Advertencias</h3>
+                    <ul>
+                      {warnings.map((i, idx) => (
+                        <li key={idx}>{i.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {needClass.length > 0 && (
+              <ClassificationPanel
+                items={needClass}
+                selections={selections}
+                onChange={setSelection}
+                pendingCount={pendingCount}
+              />
+            )}
+
+            {diff && diff.modified.length > 0 && (
+              <Section
+                title="Campañas modificadas"
+                chip={diff.modified.length}
+                tone="info"
+                defaultOpen
+              >
+                <div className="diagnosis__table-wrap">
+                  <table className="catalog__table">
+                    <thead>
+                      <tr>
+                        <th>Campaña</th>
+                        <th>Cambios</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Section>
-          )}
+                    </thead>
+                    <tbody>
+                      {diff.modified.slice(0, 200).map((m) => (
+                        <tr key={m.campaign.name}>
+                          <td>{m.campaign.name}</td>
+                          <td>{m.changes.join(' · ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Section>
+            )}
 
-          {diff && diff.removed.length > 0 && (
-            <Section
-              title="Campañas eliminadas"
-              chip={diff.removed.length}
-              tone="danger"
-              defaultOpen
-            >
-              <p className="import__note" style={{ marginTop: 0 }}>
-                Estas campañas se eliminarán de la base de datos al guardar.
+            {diff && diff.removed.length > 0 && (
+              <Section
+                title="Campañas eliminadas"
+                chip={diff.removed.length}
+                tone="danger"
+                defaultOpen
+              >
+                <p className="import__note" style={{ marginTop: 0 }}>
+                  Estas campañas se eliminarán de la base de datos al guardar.
+                </p>
+                <ul className="text-muted">
+                  {diff.removed.slice(0, 100).map((c) => (
+                    <li key={c.id}>{c.name}</li>
+                  ))}
+                </ul>
+              </Section>
+            )}
+
+            {diff && diff.added.length > 0 && (
+              <Section
+                title="Campañas nuevas"
+                chip={diff.added.length}
+                tone="success"
+              >
+                <ul className="text-muted">
+                  {diff.added.slice(0, 100).map((c) => (
+                    <li key={c.name}>{c.name}</li>
+                  ))}
+                </ul>
+              </Section>
+            )}
+
+            {diff && !diff.hasChanges && (
+              <p className="import__note">
+                Las campañas del calendario coinciden con la base de datos. No
+                se reescribe nada.
               </p>
-              <ul className="text-muted">
-                {diff.removed.slice(0, 100).map((c) => (
-                  <li key={c.id}>{c.name}</li>
-                ))}
-              </ul>
-            </Section>
-          )}
+            )}
 
-          {diff && diff.added.length > 0 && (
-            <Section
-              title="Campañas nuevas"
-              chip={diff.added.length}
-              tone="success"
-            >
-              <ul className="text-muted">
-                {diff.added.slice(0, 100).map((c) => (
-                  <li key={c.name}>{c.name}</li>
-                ))}
-              </ul>
-            </Section>
-          )}
+            {campaigns && <CampaignsSection result={campaigns} />}
 
-          {diff && !diff.hasChanges && (
-            <p className="import__note">
-              Las campañas del calendario coinciden con la base de datos. No se
-              reescribe nada.
-            </p>
-          )}
-
-          {campaigns && <CampaignsSection result={campaigns} />}
-
-          {analysis && (
-            <FileDiagnosisSection
-              analysis={analysis}
-              onDownload={downloadDiagnosis}
-            />
-          )}
-        </div>
+            {analysis && (
+              <FileDiagnosisSection
+                analysis={analysis}
+                onDownload={downloadDiagnosis}
+              />
+            )}
+          </div>
+        </AccordionBulkContext.Provider>
       )}
     </>
   );
@@ -443,8 +477,15 @@ function Section({
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const bulk = useContext(AccordionBulkContext);
+  // "Expandir/colapsar todo": aplica el estado global de forma imperativa sin
+  // volver la sección controlada (el usuario sigue pudiendo abrir/cerrar a mano).
+  useEffect(() => {
+    if (bulk && ref.current) ref.current.open = bulk.open;
+  }, [bulk]);
   return (
-    <details className="imp-section" open={defaultOpen}>
+    <details ref={ref} className="imp-section" open={defaultOpen}>
       <summary className="imp-section__summary">
         <span className="imp-section__caret" aria-hidden="true">
           ▸

@@ -114,6 +114,18 @@
 }
 
 /* --- Acordeón resumen → detalle --- */
+.imp-accordion__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.imp-accordion__toggle {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.82rem;
+}
+
 .imp-accordion {
   display: flex;
   flex-direction: column;

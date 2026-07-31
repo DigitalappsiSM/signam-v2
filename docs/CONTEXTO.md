@@ -147,8 +147,10 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   modificadas`, `Campañas eliminadas`, `Campañas nuevas`, `Campañas detectadas`,
   `Diagnóstico del archivo`); cada una muestra su cifra en el encabezado y se
   expande bajo demanda. Lo **crítico** abre por defecto: errores/advertencias,
-  clasificaciones pendientes, y campañas modificadas/eliminadas. El resumen
-  numérico se calcula con la función pura `importSummary` (con pruebas).
+  clasificaciones pendientes, y campañas modificadas/eliminadas. Hay un control
+  **Expandir todo / Colapsar todo** sobre el acordeón (el usuario puede seguir
+  abriendo/cerrando cada sección a mano). El resumen numérico se calcula con la
+  función pura `importSummary` y el control con `nextBulk` (ambas con pruebas).
 
 ### 6.3 Campañas (vista consolidada)
 
