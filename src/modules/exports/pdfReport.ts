@@ -110,13 +110,15 @@ interface DocWithAutoTable {
   lastAutoTable: { finalY: number };
 }
 
-// Paleta del reporte.
-const BRAND: [number, number, number] = [225, 10, 29];
-const SLATE: [number, number, number] = [45, 55, 72];
-const DARK: [number, number, number] = [33, 37, 41];
-const MUTED: [number, number, number] = [108, 117, 125];
-const BORDER: [number, number, number] = [222, 226, 230];
-const ROW_ALT: [number, number, number] = [248, 249, 250];
+// Paleta del reporte (gama azul, en línea con la app).
+const NAVY: [number, number, number] = [30, 58, 138]; // franja superior + detalle
+const BLUE: [number, number, number] = [37, 99, 235]; // acentos + resúmenes
+const DARK: [number, number, number] = [30, 41, 59];
+const MUTED: [number, number, number] = [100, 116, 139];
+const BORDER: [number, number, number] = [219, 227, 240];
+const ROW_ALT: [number, number, number] = [240, 245, 252];
+const ACCENT_TINT: [number, number, number] = [235, 242, 254];
+const ACCENT_BORDER: [number, number, number] = [147, 197, 253];
 
 export interface IssuesPdfMeta {
   campaignName?: string;
@@ -140,8 +142,11 @@ export async function buildIssuesPdf(
     (doc as unknown as DocWithAutoTable).lastAutoTable.finalY;
 
   // --- Franja de marca ---
-  doc.setFillColor(...BRAND);
+  doc.setFillColor(...NAVY);
   doc.rect(0, 0, pageW, 30, 'F');
+  // Banda de acento más clara al pie de la franja.
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 30, pageW, 1.5, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -255,7 +260,7 @@ export async function buildIssuesPdf(
       lineColor: BORDER,
       lineWidth: 0.1,
     },
-    headStyles: { fillColor: SLATE, textColor: [255, 255, 255] },
+    headStyles: { fillColor: BLUE, textColor: [255, 255, 255] },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: {
       1: { halign: 'right', cellWidth: 26 },
@@ -280,7 +285,7 @@ export async function buildIssuesPdf(
       lineColor: BORDER,
       lineWidth: 0.1,
     },
-    headStyles: { fillColor: SLATE, textColor: [255, 255, 255] },
+    headStyles: { fillColor: BLUE, textColor: [255, 255, 255] },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: {
       1: { halign: 'right', cellWidth: 26 },
@@ -309,7 +314,7 @@ export async function buildIssuesPdf(
       lineWidth: 0.1,
       overflow: 'linebreak',
     },
-    headStyles: { fillColor: BRAND, textColor: [255, 255, 255] },
+    headStyles: { fillColor: NAVY, textColor: [255, 255, 255] },
     alternateRowStyles: { fillColor: ROW_ALT },
   });
 
@@ -324,7 +329,7 @@ function sectionTitle(
   y: number,
   text: string,
 ): number {
-  doc.setFillColor(...BRAND);
+  doc.setFillColor(...BLUE);
   doc.rect(x, y - 3.2, 1.6, 4.6, 'F');
   doc.setTextColor(...DARK);
   doc.setFont('helvetica', 'bold');
@@ -346,15 +351,19 @@ function drawStatCard(
   accent: boolean,
 ): void {
   doc.setDrawColor(
-    accent ? 244 : BORDER[0],
-    accent ? 179 : BORDER[1],
-    accent ? 179 : BORDER[2],
+    accent ? ACCENT_BORDER[0] : BORDER[0],
+    accent ? ACCENT_BORDER[1] : BORDER[1],
+    accent ? ACCENT_BORDER[2] : BORDER[2],
   );
-  doc.setFillColor(accent ? 253 : 245, accent ? 242 : 246, accent ? 242 : 248);
+  doc.setFillColor(
+    accent ? ACCENT_TINT[0] : 246,
+    accent ? ACCENT_TINT[1] : 248,
+    accent ? ACCENT_TINT[2] : 251,
+  );
   doc.roundedRect(x, y, w, h, 2, 2, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(17);
-  if (accent) doc.setTextColor(...BRAND);
+  if (accent) doc.setTextColor(...BLUE);
   else doc.setTextColor(...DARK);
   doc.text(value, x + w / 2, y + 10, { align: 'center' });
   doc.setFont('helvetica', 'normal');
