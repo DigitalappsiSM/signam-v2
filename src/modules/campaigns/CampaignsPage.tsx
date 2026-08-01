@@ -33,6 +33,9 @@ import {
   zipFileName,
 } from '@/modules/exports/csvExport';
 import { buildIssuesPdf, ISSUE_LABELS } from '@/modules/exports/pdfReport';
+import { SortableTh } from '@/components/SortableTh';
+import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
+import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
@@ -201,6 +204,21 @@ export function CampaignsPage() {
     });
   }, [campaigns, search, desde, hasta, perError]);
 
+  const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
+  const sorted = useMemo(
+    () =>
+      sortRows(filtered, sort, {
+        name: (c) => c.name,
+        tipo: (c) => c.tipo || '',
+        inicio: (c) => parseCampaignDate(c.fechaInicio)?.getTime() ?? 0,
+        fin: (c) => parseCampaignDate(c.fechaFin)?.getTime() ?? 0,
+        ekon: (c) => ekonByKey.get(c.nameKey) ?? 0,
+        tiendas: (c) => storeCountByCampaign.get(c.name) ?? 0,
+      }),
+    [filtered, sort, ekonByKey, storeCountByCampaign],
+  );
+  const onSort = (k: string) => setSort((s) => nextSortState(s, k));
+
   const filtersActive =
     search.trim() !== '' || hasPeriodFilter(desde, hasta) || perError !== null;
 
@@ -354,18 +372,48 @@ export function CampaignsPage() {
           <table className="catalog__table">
             <thead>
               <tr>
-                <th>Campaña</th>
-                <th>Tipo de campaña</th>
-                <th>Inicio</th>
-                <th>Fin</th>
+                <SortableTh
+                  label="Campaña"
+                  sortKey="name"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Tipo de campaña"
+                  sortKey="tipo"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Inicio"
+                  sortKey="inicio"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Fin"
+                  sortKey="fin"
+                  sort={sort}
+                  onSort={onSort}
+                />
                 <th>Contenido</th>
-                <th># campaña Ekon</th>
-                <th>Tiendas</th>
+                <SortableTh
+                  label="# campaña Ekon"
+                  sortKey="ekon"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Tiendas"
+                  sortKey="tiendas"
+                  sort={sort}
+                  onSort={onSort}
+                />
                 <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {sorted.map((c) => {
                 const cons = consByCampaign.get(c.name) ?? [];
                 const nIssues = (issuesByCampaign.get(c.name) ?? []).length;
                 const ekon = ekonByKey.get(c.nameKey);
@@ -373,8 +421,8 @@ export function CampaignsPage() {
                   <tr key={c.id}>
                     <td>{c.name}</td>
                     <td>{c.tipo || '—'}</td>
-                    <td>{c.fechaInicio}</td>
-                    <td>{c.fechaFin}</td>
+                    <td>{formatCivilString(c.fechaInicio)}</td>
+                    <td>{formatCivilString(c.fechaFin)}</td>
                     <td>
                       {c.link && c.link.trim() ? (
                         <a
@@ -482,8 +530,9 @@ function CampaignDetail({
       <div className="modal__card" style={{ maxWidth: 720 }}>
         <h2 className="modal__title">{campaign.name}</h2>
         <p className="text-muted" style={{ marginTop: 0 }}>
-          {campaign.tipo || 'Sin tipo'} · {campaign.fechaInicio} –{' '}
-          {campaign.fechaFin}
+          {campaign.tipo || 'Sin tipo'} ·{' '}
+          {formatCivilString(campaign.fechaInicio)} –{' '}
+          {formatCivilString(campaign.fechaFin)}
         </p>
 
         <EkonEditor

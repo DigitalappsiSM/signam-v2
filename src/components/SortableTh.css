@@ -1,0 +1,38 @@
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.th-sort--center {
+  justify-content: center;
+  text-align: center;
+}
+
+.th-sort--right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.th-sort:hover {
+  color: var(--color-accent, #2563eb);
+}
+
+.th-sort__arrow {
+  font-size: 0.7em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.th-sort--active .th-sort__arrow {
+  color: var(--color-accent, #2563eb);
+}
