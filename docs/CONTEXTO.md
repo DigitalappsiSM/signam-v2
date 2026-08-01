@@ -174,9 +174,21 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - **Ordenamiento**: los encabezados de la tabla son **clicables** para ordenar
   por Campaña, Tipo, Inicio, Fin, # Ekon o Tiendas (asc/desc, con flecha
   indicadora). Lógica pura reutilizable en `src/lib/tableSort.ts`.
-- Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
-  **detalle** (soportes + tiendas + estado OK/incidencia + edición de Ekon), ⬇️
-  **menú de descargas CSV**.
+- Acciones **por campaña**: 🅿️ **PPT de evidencias** (`.pptx`, solo esa campaña),
+  📄 **PDF de errores** (solo esa campaña), 👁️ **detalle** (soportes + tiendas +
+  estado OK/incidencia + edición de Ekon), ⬇️ **menú de descargas CSV**.
+- **PPT de evidencias** (`pptExport.ts`): plan puro `buildCampaignPptPlan` +
+  serialización `buildCampaignPpt` (PptxGenJS por import dinámico). **Una
+  diapositiva por pantalla física** (dedup por `screen.id`); portada con nombre
+  Liverpool + vigencia; nombre oficial de tienda del catálogo, soporte
+  solicitado y `ARTÍCULOS`; placeholder editable de foto. Diseño en la **gama
+  rosa de Liverpool** con los **logotipos reales** (Liverpool e in-Store Media)
+  en `src/assets/ppt/` (`logos.ts` los expone como data URL). Incluye **InStore
+  Media** por tienda+soporte (a diferencia del CSV) con ARTÍCULOS de respaldo;
+  reutiliza `normalizeStore`/`normalizeSupport` y la **excepción Guadalajara**
+  (78 → CRIUS + CUADRADA). Diapositiva final de **incidencias** paginada solo si
+  existen; no bloquea la descarga. Generación client-side; **sin persistencia**
+  en Firebase/Storage por ahora.
 - **PDF de errores** (`buildIssuesPdf`): diseño profesional con **franja de
   marca**, **sujeto** (campaña + calendario), **resumen ejecutivo en tarjetas**
   (incidencias · tipos · soportes afectados · tiendas afectadas), tablas

@@ -33,6 +33,11 @@ import {
   zipFileName,
 } from '@/modules/exports/csvExport';
 import { buildIssuesPdf, ISSUE_LABELS } from '@/modules/exports/pdfReport';
+import {
+  buildCampaignPptPlan,
+  buildCampaignPpt,
+  pptFileName,
+} from '@/modules/exports/pptExport';
 import { SortableTh } from '@/components/SortableTh';
 import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
@@ -72,6 +77,32 @@ function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
 }
 
+/** Icono estilizado de PowerPoint (recreado con formas, sin logo propietario). */
+function PptIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="2" y="3" width="20" height="18" rx="2.5" fill="#C43E1C" />
+      <text
+        x="12"
+        y="17"
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="700"
+        fill="#ffffff"
+        fontFamily="Arial, sans-serif"
+      >
+        P
+      </text>
+    </svg>
+  );
+}
+
 /**
  * Módulo Campañas (vista consolidada): lista las campañas guardadas y, por cada
  * una, permite exportar el PDF de errores, ver el detalle (soportes + tiendas +
@@ -95,6 +126,8 @@ export function CampaignsPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [zipBusyName, setZipBusyName] = useState<string | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const [pptBusyName, setPptBusyName] = useState<string | null>(null);
+  const [pptError, setPptError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -272,6 +305,23 @@ export function CampaignsPage() {
     );
   }
 
+  async function downloadPpt(c: StoredCampaign) {
+    if (pptBusyName) return; // evita dos generaciones simultáneas
+    setPptError(null);
+    setPptBusyName(c.name);
+    try {
+      const plan = buildCampaignPptPlan(c, screens);
+      const blob = await buildCampaignPpt(plan);
+      download(blob, pptFileName(c.name, c.fechaInicio, c.fechaFin));
+    } catch {
+      setPptError(
+        `No se pudo generar la PPT de evidencias de "${c.name}". Inténtalo de nuevo.`,
+      );
+    } finally {
+      setPptBusyName(null);
+    }
+  }
+
   function downloadCsvFor(cons: Consolidation) {
     download(
       new Blob([consolidationCsv(cons)], { type: 'text/csv;charset=utf-8' }),
@@ -283,7 +333,7 @@ export function CampaignsPage() {
     <>
       <PageHeader
         title="Campañas"
-        description="Campañas guardadas y su cruce contra el catálogo. Por cada campaña puedes exportar el PDF de errores, ver el detalle (soportes y tiendas), descargar sus CSV y asociar su número de campaña Ekon."
+        description="Campañas guardadas y su cruce contra el catálogo. Por cada campaña puedes generar la PPT de evidencias, exportar el PDF de errores, ver el detalle (soportes y tiendas), descargar sus CSV y asociar su número de campaña Ekon."
         actions={
           <button className="btn btn-secondary" onClick={() => void reload()}>
             Actualizar
@@ -344,6 +394,12 @@ export function CampaignsPage() {
       {csvError && (
         <div className="catalog__error" role="alert">
           {csvError}
+        </div>
+      )}
+
+      {pptError && (
+        <div className="catalog__error" role="alert">
+          {pptError}
         </div>
       )}
 
@@ -445,6 +501,20 @@ export function CampaignsPage() {
                     <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
                     <td>
                       <div className="campaign-actions">
+                        <button
+                          className="icon-btn"
+                          title={`Descargar PPT de evidencias de ${c.name}`}
+                          aria-label={`Descargar PPT de evidencias de ${c.name}`}
+                          disabled={pptBusyName !== null}
+                          aria-busy={pptBusyName === c.name}
+                          onClick={() => void downloadPpt(c)}
+                        >
+                          {pptBusyName === c.name ? (
+                            <span className="ppt-generating">…</span>
+                          ) : (
+                            <PptIcon />
+                          )}
+                        </button>
                         <button
                           className="icon-btn"
                           title="Exportar PDF de errores"
