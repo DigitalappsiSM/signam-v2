@@ -11,6 +11,10 @@ import {
   formatDdMmYyyy,
   formatCivilString,
 } from '@/modules/operational-tracking/businessDays';
+import {
+  LIVERPOOL_LOGO_DATA_URL,
+  INSTORE_MEDIA_LOGO_DATA_URL,
+} from '@/assets/ppt/logos';
 
 /**
  * Exportación de PPTX de evidencias fotográficas por campaña.
@@ -355,68 +359,77 @@ export function vigenciaText(plan: CampaignPptPlan): string {
 
 // --- Serialización PPTX ------------------------------------------------------
 
-// Paleta (gama de la app). Colores hex sin '#'.
-const DARK = '0F2A47';
-const ACCENT = '2563EB';
+// Paleta de marca Liverpool (rosa magenta + azul marino). Colores hex sin '#'.
+const PINK = 'FA29A3';
+const NAVY = '14284C';
+const STEEL = '48688B';
 const WHITE = 'FFFFFF';
-const MUTED = '64748B';
-const FOOT = '93A4BF';
-const CARD_BG = 'F8FAFC';
-const CARD_LINE = 'CBD5E1';
-const TITLE = '0F172A';
+const CARD_BG = 'F7F7F9';
+const CARD_LINE = 'D6D9E0';
 const FONT = 'Arial';
+
+const LIVERPOOL_RATIO = 368 / 96; // ancho/alto del logo
+const INSTORE_RATIO = 242 / 51;
 
 /** Máximo de incidencias por diapositiva (se paginan si hay más). */
 export const ISSUES_PER_SLIDE = 12;
 
 type PptxSlide = ReturnType<PptxGenJS['addSlide']>;
 
-function addField(
+/** Inserta una imagen; si falla (recurso no disponible) devuelve false. */
+function addImageSafe(
   slide: PptxSlide,
-  pptx: PptxGenJS,
-  x: number,
-  y: number,
-  w: number,
-  label: string,
-  value: string,
-): void {
-  slide.addText(label.toUpperCase(), {
-    x,
-    y,
-    w,
-    h: 0.28,
-    fontFace: FONT,
-    fontSize: 10,
-    color: MUTED,
-    bold: true,
-  });
-  slide.addText(value || '—', {
-    x,
-    y: y + 0.28,
-    w,
-    h: 0.5,
-    fontFace: FONT,
-    fontSize: 15,
-    color: TITLE,
-  });
-  void pptx;
+  data: string,
+  opts: { x: number; y: number; w: number; h: number },
+): boolean {
+  try {
+    slide.addImage({ data, ...opts });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function addBrand(slide: PptxSlide, x: number, y: number, w: number): void {
-  // Marca textual (recreada con texto nativo; el logo real puede sustituirse).
-  slide.addText('Liverpool', {
-    x,
-    y,
-    w,
-    h: 0.6,
-    align: 'right',
-    valign: 'middle',
-    fontFace: FONT,
-    fontSize: 20,
-    italic: true,
-    bold: true,
-    color: WHITE,
-  });
+/** Logo Liverpool (imagen); si falla, escribe la palabra como respaldo. */
+function addLiverpoolLogo(slide: PptxSlide, x: number, y: number, h: number) {
+  const w = h * LIVERPOOL_RATIO;
+  if (!addImageSafe(slide, LIVERPOOL_LOGO_DATA_URL, { x, y, w, h })) {
+    slide.addText('Liverpool', {
+      x,
+      y,
+      w,
+      h,
+      valign: 'middle',
+      fontFace: FONT,
+      fontSize: 20,
+      bold: true,
+      color: WHITE,
+    });
+  }
+}
+
+/** Logo in-Store Media alineado a la derecha; respaldo textual si falla. */
+function addInstoreLogo(
+  slide: PptxSlide,
+  rightX: number,
+  y: number,
+  h: number,
+) {
+  const w = h * INSTORE_RATIO;
+  const x = rightX - w;
+  if (!addImageSafe(slide, INSTORE_MEDIA_LOGO_DATA_URL, { x, y, w, h })) {
+    slide.addText('in-Store Media', {
+      x: rightX - 2.2,
+      y,
+      w: 2.2,
+      h,
+      align: 'right',
+      valign: 'middle',
+      fontFace: FONT,
+      fontSize: 12,
+      color: WHITE,
+    });
+  }
 }
 
 function addPhotoPlaceholder(
@@ -427,13 +440,22 @@ function addPhotoPlaceholder(
   w: number,
   h: number,
 ): void {
-  slide.addShape(pptx.ShapeType.rect, {
+  slide.addShape(pptx.ShapeType.roundRect, {
     x,
     y,
     w,
     h,
+    rectRadius: 0.12,
     fill: { color: CARD_BG },
     line: { color: CARD_LINE, width: 1.5, dashType: 'dash' },
+    shadow: {
+      type: 'outer',
+      color: 'BFC3CC',
+      blur: 6,
+      offset: 3,
+      angle: 90,
+      opacity: 0.5,
+    },
   });
   // Icono discreto de imagen (formas nativas): marco + sol + montaña.
   const ix = x + w / 2 - 0.6;
@@ -444,24 +466,24 @@ function addPhotoPlaceholder(
     w: 1.2,
     h: 0.9,
     rectRadius: 0.06,
-    fill: { color: 'FFFFFF' },
-    line: { color: '94A3B8', width: 1 },
+    fill: { color: WHITE },
+    line: { color: 'B7BDC8', width: 1 },
   });
   slide.addShape(pptx.ShapeType.ellipse, {
     x: ix + 0.16,
     y: iy + 0.14,
     w: 0.22,
     h: 0.22,
-    fill: { color: 'CBD5E1' },
-    line: { color: '94A3B8', width: 0.5 },
+    fill: { color: 'D6D9E0' },
+    line: { color: 'B7BDC8', width: 0.5 },
   });
   slide.addShape(pptx.ShapeType.triangle, {
     x: ix + 0.34,
     y: iy + 0.36,
     w: 0.7,
     h: 0.48,
-    fill: { color: 'CBD5E1' },
-    line: { color: '94A3B8', width: 0.5 },
+    fill: { color: 'D6D9E0' },
+    line: { color: 'B7BDC8', width: 0.5 },
   });
   slide.addText('COLOCAR EVIDENCIA FOTOGRÁFICA', {
     x,
@@ -472,134 +494,148 @@ function addPhotoPlaceholder(
     fontFace: FONT,
     fontSize: 16,
     bold: true,
-    color: '94A3B8',
+    color: '9AA1AF',
   });
 }
 
-function addCover(
+/** Icono de pantalla/soporte (formas nativas, contorno azul marino). */
+function addSupportIcon(
   slide: PptxSlide,
   pptx: PptxGenJS,
-  plan: CampaignPptPlan,
+  x: number,
+  y: number,
 ): void {
-  slide.background = { color: DARK };
-  addBrand(slide, 8.9, 0.4, 4.0);
-  slide.addShape(pptx.ShapeType.rect, {
-    x: 0.8,
-    y: 3.15,
-    w: 3.2,
-    h: 0.08,
-    fill: { color: ACCENT },
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x,
+    y,
+    w: 0.5,
+    h: 0.62,
+    rectRadius: 0.06,
+    fill: { color: WHITE },
+    line: { color: NAVY, width: 1.5 },
   });
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x: x + 0.19,
+    y: y + 0.46,
+    w: 0.12,
+    h: 0.06,
+    rectRadius: 0.02,
+    fill: { color: NAVY },
+    line: { color: NAVY, width: 0.5 },
+  });
+}
+
+function addCover(pptx: PptxGenJS, plan: CampaignPptPlan): void {
+  const slide = pptx.addSlide();
+  slide.background = { color: PINK };
+  addLiverpoolLogo(slide, 0.5, 0.4, 0.62);
   slide.addText(plan.campaignName, {
-    x: 0.8,
-    y: 2.1,
-    w: 11.7,
-    h: 1.0,
+    x: 0.7,
+    y: 2.5,
+    w: 11.9,
+    h: 1.1,
     fontFace: FONT,
-    fontSize: 40,
+    fontSize: 44,
     bold: true,
     color: WHITE,
   });
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0.75,
+    y: 3.62,
+    w: 1.6,
+    h: 0.05,
+    fill: { color: WHITE },
+  });
   slide.addText(vigenciaText(plan), {
-    x: 0.8,
-    y: 3.45,
-    w: 11.7,
+    x: 0.7,
+    y: 3.85,
+    w: 11.9,
     h: 0.6,
     fontFace: FONT,
-    fontSize: 18,
-    color: 'CBD5E1',
+    fontSize: 20,
+    color: WHITE,
   });
-  slide.addText('Evidencias fotográficas', {
-    x: 0.8,
-    y: 6.5,
-    w: 11.7,
-    h: 0.4,
-    fontFace: FONT,
-    fontSize: 12,
-    color: FOOT,
-  });
+  addInstoreLogo(slide, 12.83, 6.85, 0.34);
 }
 
 function addEvidence(
-  slide: PptxSlide,
   pptx: PptxGenJS,
   campaignName: string,
   s: PptEvidenceSlide,
 ): void {
+  const slide = pptx.addSlide();
   slide.background = { color: WHITE };
-  // Encabezado oscuro.
+  // Encabezado rosa con logo Liverpool.
   slide.addShape(pptx.ShapeType.rect, {
     x: 0,
     y: 0,
     w: 13.333,
     h: 0.9,
-    fill: { color: DARK },
+    fill: { color: PINK },
   });
-  slide.addText(campaignName, {
-    x: 0.4,
-    y: 0.12,
-    w: 8.3,
-    h: 0.66,
-    valign: 'middle',
-    fontFace: FONT,
-    fontSize: 20,
-    bold: true,
-    color: WHITE,
-  });
-  addBrand(slide, 9.0, 0.15, 3.9);
-  // Pie oscuro.
+  addLiverpoolLogo(slide, 0.4, 0.24, 0.42);
+  // Pie rosa con logo in-Store Media.
   slide.addShape(pptx.ShapeType.rect, {
     x: 0,
     y: 6.95,
     w: 13.333,
     h: 0.55,
-    fill: { color: DARK },
+    fill: { color: PINK },
   });
-  slide.addText('SIGNAM · Evidencias', {
-    x: 0.4,
-    y: 6.98,
-    w: 8,
-    h: 0.45,
-    valign: 'middle',
-    fontFace: FONT,
-    fontSize: 9,
-    color: FOOT,
-  });
+  addInstoreLogo(slide, 12.93, 7.07, 0.3);
 
   // Panel de información (izquierda).
-  const lx = 0.4;
+  const lx = 0.5;
+  slide.addText(campaignName, {
+    x: lx,
+    y: 1.2,
+    w: 4.0,
+    h: 0.5,
+    fontFace: FONT,
+    fontSize: 18,
+    bold: true,
+    color: NAVY,
+  });
+  slide.addShape(pptx.ShapeType.rect, {
+    x: lx + 0.02,
+    y: 1.72,
+    w: 0.7,
+    h: 0.04,
+    fill: { color: PINK },
+  });
   slide.addText(s.storeName, {
     x: lx,
-    y: 1.25,
-    w: 4.2,
-    h: 0.8,
+    y: 2.25,
+    w: 4.0,
+    h: 0.9,
     fontFace: FONT,
-    fontSize: 24,
+    fontSize: 30,
     bold: true,
-    color: TITLE,
+    color: NAVY,
   });
   slide.addText(`Tienda ${s.storeNumber}`, {
     x: lx,
-    y: 2.0,
-    w: 4.2,
+    y: 3.15,
+    w: 4.0,
     h: 0.4,
     fontFace: FONT,
     fontSize: 14,
-    color: MUTED,
+    color: STEEL,
   });
+  let y = 3.7;
   if (s.owner === 'instore-media') {
     slide.addShape(pptx.ShapeType.roundRect, {
       x: lx,
-      y: 2.5,
-      w: 2.2,
+      y,
+      w: 2.0,
       h: 0.4,
       rectRadius: 0.08,
-      fill: { color: ACCENT },
+      fill: { color: PINK },
     });
     slide.addText('InStore Media', {
       x: lx,
-      y: 2.5,
-      w: 2.2,
+      y,
+      w: 2.0,
       h: 0.4,
       align: 'center',
       valign: 'middle',
@@ -608,22 +644,54 @@ function addEvidence(
       bold: true,
       color: WHITE,
     });
+    y += 0.6;
   }
-  const fy = s.owner === 'instore-media' ? 3.15 : 2.7;
-  addField(slide, pptx, lx, fy, 4.2, 'Soporte solicitado', s.requestedSupport);
-  addField(
-    slide,
-    pptx,
-    lx,
-    fy + 0.95,
-    4.2,
-    'Normalización Liverpool',
-    s.calendarSupport,
-  );
-  addField(slide, pptx, lx, fy + 1.9, 4.2, 'Artículos', s.articulos);
+  slide.addText(s.requestedSupport, {
+    x: lx,
+    y,
+    w: 4.0,
+    h: 0.5,
+    fontFace: FONT,
+    fontSize: 17,
+    bold: true,
+    color: NAVY,
+  });
+  slide.addText('ARTÍCULOS', {
+    x: lx,
+    y: y + 0.6,
+    w: 4.0,
+    h: 0.26,
+    fontFace: FONT,
+    fontSize: 10,
+    bold: true,
+    color: STEEL,
+  });
+  slide.addText(s.articulos || '—', {
+    x: lx,
+    y: y + 0.85,
+    w: 4.0,
+    h: 0.4,
+    fontFace: FONT,
+    fontSize: 14,
+    color: NAVY,
+  });
+
+  // Icono de soporte + etiqueta (parte inferior izquierda, como la referencia).
+  addSupportIcon(slide, pptx, lx, 5.55);
+  slide.addText(s.requestedSupport, {
+    x: lx + 0.75,
+    y: 5.55,
+    w: 3.3,
+    h: 0.62,
+    valign: 'middle',
+    fontFace: FONT,
+    fontSize: 12,
+    bold: true,
+    color: STEEL,
+  });
 
   // Espacio para la fotografía (derecha).
-  addPhotoPlaceholder(slide, pptx, 4.9, 1.25, 8.0, 5.4);
+  addPhotoPlaceholder(slide, pptx, 5.0, 1.25, 7.9, 5.35);
 }
 
 function addIssues(pptx: PptxGenJS, issues: readonly PptEvidenceIssue[]): void {
@@ -636,22 +704,22 @@ function addIssues(pptx: PptxGenJS, issues: readonly PptEvidenceIssue[]): void {
       y: 0,
       w: 13.333,
       h: 0.9,
-      fill: { color: DARK },
+      fill: { color: PINK },
     });
+    addLiverpoolLogo(slide, 0.4, 0.24, 0.42);
     const title =
       pages > 1
         ? `INCIDENCIAS DE COBERTURA ${p + 1}/${pages}`
         : 'INCIDENCIAS DE COBERTURA';
     slide.addText(title, {
       x: 0.4,
-      y: 0.12,
+      y: 1.15,
       w: 12.5,
-      h: 0.66,
-      valign: 'middle',
+      h: 0.6,
       fontFace: FONT,
-      fontSize: 20,
+      fontSize: 22,
       bold: true,
-      color: WHITE,
+      color: NAVY,
     });
     const chunk = issues.slice(
       p * ISSUES_PER_SLIDE,
@@ -663,11 +731,11 @@ function addIssues(pptx: PptxGenJS, issues: readonly PptEvidenceIssue[]): void {
         options: {
           bullet: true,
           fontSize: 14,
-          color: TITLE,
+          color: NAVY,
           paraSpaceAfter: 8,
         },
       })),
-      { x: 0.6, y: 1.2, w: 12.1, h: 5.5, valign: 'top', fontFace: FONT },
+      { x: 0.6, y: 1.95, w: 12.1, h: 4.7, valign: 'top', fontFace: FONT },
     );
   }
 }
@@ -679,9 +747,9 @@ export async function buildCampaignPpt(plan: CampaignPptPlan): Promise<Blob> {
   pptx.layout = 'LAYOUT_WIDE'; // 13.333 x 7.5 in (16:9)
   pptx.defineSlideMaster({ title: 'SIGNAM', background: { color: WHITE } });
 
-  addCover(pptx.addSlide(), pptx, plan);
+  addCover(pptx, plan);
   for (const s of plan.slides) {
-    addEvidence(pptx.addSlide(), pptx, plan.campaignName, s);
+    addEvidence(pptx, plan.campaignName, s);
   }
   if (plan.issues.length > 0) addIssues(pptx, plan.issues);
 

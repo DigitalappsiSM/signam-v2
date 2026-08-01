@@ -181,12 +181,14 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   serialización `buildCampaignPpt` (PptxGenJS por import dinámico). **Una
   diapositiva por pantalla física** (dedup por `screen.id`); portada con nombre
   Liverpool + vigencia; nombre oficial de tienda del catálogo, soporte
-  solicitado, `calendarSupport` y `ARTÍCULOS`; placeholder editable de foto.
-  Incluye **InStore Media** por tienda+soporte (a diferencia del CSV) con
-  ARTÍCULOS de respaldo; reutiliza `normalizeStore`/`normalizeSupport` y la
-  **excepción Guadalajara** (78 → CRIUS + CUADRADA). Diapositiva final de
-  **incidencias** paginada solo si existen; no bloquea la descarga. Generación
-  client-side; **sin persistencia** en Firebase/Storage por ahora.
+  solicitado y `ARTÍCULOS`; placeholder editable de foto. Diseño en la **gama
+  rosa de Liverpool** con los **logotipos reales** (Liverpool e in-Store Media)
+  en `src/assets/ppt/` (`logos.ts` los expone como data URL). Incluye **InStore
+  Media** por tienda+soporte (a diferencia del CSV) con ARTÍCULOS de respaldo;
+  reutiliza `normalizeStore`/`normalizeSupport` y la **excepción Guadalajara**
+  (78 → CRIUS + CUADRADA). Diapositiva final de **incidencias** paginada solo si
+  existen; no bloquea la descarga. Generación client-side; **sin persistencia**
+  en Firebase/Storage por ahora.
 - **PDF de errores** (`buildIssuesPdf`): diseño profesional con **franja de
   marca**, **sujeto** (campaña + calendario), **resumen ejecutivo en tarjetas**
   (incidencias · tipos · soportes afectados · tiendas afectadas), tablas

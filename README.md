@@ -25,9 +25,9 @@ esa campaña— un archivo `.pptx` para preparar las evidencias fotográficas:
 - **Una diapositiva por pantalla física** del catálogo (se deduplica por
   `screen.id`; dos pantallas físicas distintas producen dos diapositivas aunque
   compartan tienda y soporte). Cada una muestra el **nombre oficial** de tienda
-  (del catálogo), el número, el **soporte solicitado** por el calendario, la
-  **Normalización Liverpool** (`calendarSupport`) y **ARTÍCULOS**, más un
-  **placeholder grande y editable** (`COLOCAR EVIDENCIA FOTOGRÁFICA`).
+  (del catálogo), el número, el **soporte solicitado** por el calendario y
+  **ARTÍCULOS**, más un **placeholder grande y editable**
+  (`COLOCAR EVIDENCIA FOTOGRÁFICA`).
 - **InStore Media** (MUPPI'S, PENDON, etc.) se incluye **temporalmente por
   tienda + soporte** (a diferencia del CSV, que los excluye); su nombre se toma
   de cualquier registro del catálogo con esa tienda y ARTÍCULOS usa un texto de
@@ -37,8 +37,10 @@ esa campaña— un archivo `.pptx` para preparar las evidencias fotográficas:
   inactivas, asignada sin poder expandir, InStore sin nombre, fechas faltantes…),
   paginadas si son muchas. Las incidencias **no bloquean** la descarga.
 - Formato **16:9**, formas y texto **nativos y editables** (Arial), pensado para
-  **PowerPoint (escritorio y Online) y Google Slides**. La marca se recrea con
-  texto nativo (sin binarios propietarios en el repositorio).
+  **PowerPoint (escritorio y Online) y Google Slides**. Diseño en la **gama rosa
+  de Liverpool** (encabezado y pie magenta) con los **logotipos reales**
+  (Liverpool e in-Store Media) extraídos de la presentación de referencia
+  autorizada y guardados como recursos pequeños en `src/assets/ppt/`.
 - Nombre del archivo:
   `Evidencias_<Campaña>_<dd-mm-aaaa>_al_<dd-mm-aaaa>.pptx` (sanitizado; `sin-fecha`
   si falta una vigencia).

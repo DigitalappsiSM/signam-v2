@@ -429,6 +429,22 @@ describe('buildCampaignPpt — estructura del PPTX', () => {
     expect(allText).toContain('INCIDENCIAS DE COBERTURA');
   });
 
+  it('incluye los logotipos como recursos de imagen en el PPTX', async () => {
+    const plan = buildCampaignPptPlan(
+      campaign({
+        supports: [support({ support: CRIUS, stores: [{ numero: '5' }] })],
+      }),
+      screens,
+    );
+    const zip = await JSZip.loadAsync(
+      await blobToArrayBuffer(await buildCampaignPpt(plan)),
+    );
+    const media = Object.keys(zip.files).filter((n) =>
+      /^ppt\/media\/.+\.(png|jpe?g)$/i.test(n),
+    );
+    expect(media.length).toBeGreaterThan(0);
+  });
+
   it('23-24) sin incidencias no incluye la diapositiva de incidencias', async () => {
     const clean = campaign({
       supports: [support({ support: CRIUS, stores: [{ numero: '5' }] })],
