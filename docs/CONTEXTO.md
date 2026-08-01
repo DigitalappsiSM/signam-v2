@@ -178,9 +178,12 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   marca**, **sujeto** (campaña + calendario), **resumen ejecutivo en tarjetas**
   (incidencias · tipos · soportes afectados · tiendas afectadas), tablas
   **por tipo** y **por soporte** (con %), **detalle** completo y **pie de página
-  numerado**. Si la campaña no tiene incidencias, muestra un estado
-  **"Sin incidencias"**. Las funciones de datos son puras y con pruebas
-  (`issueDetailRows`, `issuesSummaryMetrics`, `subjectCampaign`).
+  numerado**, en **paleta azul**. El detalle incluye el **nombre de la tienda**
+  (además del número), tomado del maestro (`Nombre de tienda`, indexado por
+  número normalizado); las tiendas que no existen en el catálogo quedan como `—`.
+  Si la campaña no tiene incidencias, muestra un estado **"Sin incidencias"**.
+  Las funciones de datos son puras y con pruebas (`issueDetailRows`,
+  `issuesSummaryMetrics`, `subjectCampaign`).
 - **Menú de descargas CSV**: se renderiza como **capa flotante** (portal a
   `document.body`, `position: fixed`) para no quedar recortado por el overflow de
   la tabla; se coloca junto al botón (abre hacia abajo o hacia arriba) y se

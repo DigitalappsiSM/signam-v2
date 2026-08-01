@@ -160,6 +160,18 @@ export function CampaignsPage() {
     return m;
   }, [screens]);
 
+  // Índice número de tienda (normalizado) → nombre, tomado del maestro, para
+  // enriquecer el PDF de errores con el nombre además del número.
+  const storeNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of screens) {
+      const num = normalizeStore(s.original['Numero de Tienda']);
+      const name = s.original['Nombre de tienda']?.trim();
+      if (num && name && !m.has(num)) m.set(num, name);
+    }
+    return m;
+  }, [screens]);
+
   // Tiendas distintas realmente incluidas tras la consolidación.
   const storeCountByCampaign = useMemo(() => {
     const m = new Map<string, number>();
@@ -237,7 +249,7 @@ export function CampaignsPage() {
       ismExcludedCount: 0,
     };
     download(
-      await buildIssuesPdf(res, { campaignName: c.name }),
+      await buildIssuesPdf(res, { campaignName: c.name, storeNames }),
       `errores-${safeName(c.name)}.pdf`,
     );
   }

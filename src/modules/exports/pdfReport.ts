@@ -30,18 +30,26 @@ function labelFor(code: string): string {
 export interface IssueDetailOptions {
   /** Incluir la columna "Campaña" (útil solo si el reporte abarca varias). */
   includeCampaign?: boolean;
+  /**
+   * Índice número de tienda (normalizado) → nombre, tomado del maestro. Si se
+   * pasa, se añade la columna "Nombre de tienda"; las tiendas que no existen en
+   * el catálogo (o incidencias sin tienda) quedan como `—`.
+   */
+  storeNames?: ReadonlyMap<string, string>;
 }
 
 /**
- * Filas de detalle para el reporte, ordenadas por campaña y soporte. Con
- * `includeCampaign` (por defecto) cada fila es `[campaña, soporte, tienda,
- * tipo]`; sin ella, `[soporte, tienda, tipo]` (reporte de una sola campaña).
+ * Filas de detalle para el reporte, ordenadas por campaña y soporte. Las
+ * columnas dependen de las opciones: `[campaña?, soporte, tienda, nombre?,
+ * tipo]`. `includeCampaign` (por defecto true) alterna la primera; pasar
+ * `storeNames` añade la columna de nombre de tienda.
  */
 export function issueDetailRows(
   result: ConsolidationResult,
   opts: IssueDetailOptions = {},
 ): string[][] {
   const includeCampaign = opts.includeCampaign ?? true;
+  const names = opts.storeNames;
   return [...result.issues]
     .sort(
       (a, b) =>
@@ -49,11 +57,14 @@ export function issueDetailRows(
         a.support.localeCompare(b.support, 'es') ||
         (a.store ?? '').localeCompare(b.store ?? '', 'es'),
     )
-    .map((i) =>
-      includeCampaign
-        ? [i.campaign, i.support, i.store ?? '—', labelFor(i.code)]
-        : [i.support, i.store ?? '—', labelFor(i.code)],
-    );
+    .map((i) => {
+      const row: string[] = [];
+      if (includeCampaign) row.push(i.campaign);
+      row.push(i.support, i.store ?? '—');
+      if (names) row.push(i.store ? (names.get(i.store) ?? '—') : '—');
+      row.push(labelFor(i.code));
+      return row;
+    });
 }
 
 /** Métricas concisas para el resumen ejecutivo del reporte. */
@@ -123,6 +134,8 @@ const ACCENT_BORDER: [number, number, number] = [147, 197, 253];
 export interface IssuesPdfMeta {
   campaignName?: string;
   calendarName?: string;
+  /** Índice número de tienda (normalizado) → nombre, del maestro. */
+  storeNames?: ReadonlyMap<string, string>;
 }
 
 /** Genera el PDF del reporte de incidencias y lo devuelve como Blob. */
@@ -296,15 +309,21 @@ export async function buildIssuesPdf(
   // --- Detalle de incidencias ---
   const includeCampaign =
     new Set(result.issues.map((i) => i.campaign)).size > 1;
-  const detailHead = includeCampaign
-    ? ['Campaña', 'Soporte', 'Tienda', 'Incidencia']
-    : ['Soporte', 'Tienda', 'Incidencia'];
+  const includeStoreName = !!meta.storeNames && meta.storeNames.size > 0;
+  const detailHead: string[] = [];
+  if (includeCampaign) detailHead.push('Campaña');
+  detailHead.push('Soporte', 'Tienda');
+  if (includeStoreName) detailHead.push('Nombre de tienda');
+  detailHead.push('Incidencia');
   y = sectionTitle(doc, M, finalY() + 10, 'Detalle de incidencias');
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: M, bottom: 18 },
     head: [detailHead],
-    body: issueDetailRows(result, { includeCampaign }),
+    body: issueDetailRows(result, {
+      includeCampaign,
+      storeNames: includeStoreName ? meta.storeNames : undefined,
+    }),
     theme: 'striped',
     styles: {
       fontSize: 8,
