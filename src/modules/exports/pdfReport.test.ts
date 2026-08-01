@@ -48,6 +48,51 @@ describe('issueDetailRows', () => {
     expect(rows[0]![1]).toBe('999');
     expect(rows[0]![2]).toBe(ISSUE_LABELS['store-not-in-catalog']);
   });
+
+  it('con storeNames añade la columna de nombre de tienda desde el maestro', () => {
+    const names = new Map([
+      ['83', 'Liverpool Polanco'],
+      ['999', 'Liverpool Insurgentes'],
+    ]);
+    const rows = issueDetailRows(result(), { storeNames: names });
+    // [campaña, soporte, tienda, nombre, tipo]
+    expect(rows[0]).toHaveLength(5);
+    expect(rows[0]![2]).toBe('999');
+    expect(rows[0]![3]).toBe('Liverpool Insurgentes');
+    expect(rows[1]![2]).toBe('83');
+    expect(rows[1]![3]).toBe('Liverpool Polanco');
+  });
+
+  it('nombre "—" cuando la tienda no está en el maestro o no hay tienda', () => {
+    const r: ConsolidationResult = {
+      consolidations: [],
+      excludedInstore: [],
+      ismExcludedCount: 0,
+      issues: [
+        {
+          code: 'store-not-in-catalog',
+          campaign: 'A',
+          support: 'X',
+          store: '404',
+          message: 'no existe',
+        },
+        {
+          code: 'support-not-in-catalog',
+          campaign: 'A',
+          support: 'Y',
+          message: 'sin tienda',
+        },
+      ],
+    };
+    const rows = issueDetailRows(r, {
+      includeCampaign: false,
+      storeNames: new Map([['1', 'Centro']]),
+    });
+    // [soporte, tienda, nombre, tipo]
+    const byStore = Object.fromEntries(rows.map((row) => [row[1], row[2]]));
+    expect(byStore['404']).toBe('—');
+    expect(byStore['—']).toBe('—');
+  });
 });
 
 describe('issuesSummaryMetrics', () => {
