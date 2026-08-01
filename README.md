@@ -12,7 +12,39 @@ Aplicación web para operar el flujo de programación de pantallas entre
 7. **Seguimiento operativo** por campaña (clasificación Institucional/Proveedor,
    link, validación, programación CSM y testigos con fechas límite y alertas),
    más un **Dashboard** con el resumen y las alertas críticas.
-8. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
+9. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+
+## Exportación de PPTX de evidencias
+
+Desde **Campañas**, cada fila tiene un botón de PowerPoint que genera —solo para
+esa campaña— un archivo `.pptx` para preparar las evidencias fotográficas:
+
+- **Portada** con el nombre original Liverpool de la campaña y su **vigencia**
+  (`Vigencia: dd/mm/aaaa al dd/mm/aaaa`, o `Fecha no disponible` si falta).
+- **Una diapositiva por pantalla física** del catálogo (se deduplica por
+  `screen.id`; dos pantallas físicas distintas producen dos diapositivas aunque
+  compartan tienda y soporte). Cada una muestra el **nombre oficial** de tienda
+  (del catálogo), el número, el **soporte solicitado** por el calendario, la
+  **Normalización Liverpool** (`calendarSupport`) y **ARTÍCULOS**, más un
+  **placeholder grande y editable** (`COLOCAR EVIDENCIA FOTOGRÁFICA`).
+- **InStore Media** (MUPPI'S, PENDON, etc.) se incluye **temporalmente por
+  tienda + soporte** (a diferencia del CSV, que los excluye); su nombre se toma
+  de cualquier registro del catálogo con esa tienda y ARTÍCULOS usa un texto de
+  respaldo (`No disponible — soporte InStore Media`).
+- **Diapositiva(s) final(es) de incidencias** (`INCIDENCIAS DE COBERTURA`), solo
+  si existen (tienda no encontrada, soporte sin correspondencia, solo pantallas
+  inactivas, asignada sin poder expandir, InStore sin nombre, fechas faltantes…),
+  paginadas si son muchas. Las incidencias **no bloquean** la descarga.
+- Formato **16:9**, formas y texto **nativos y editables** (Arial), pensado para
+  **PowerPoint (escritorio y Online) y Google Slides**. La marca se recrea con
+  texto nativo (sin binarios propietarios en el repositorio).
+- Nombre del archivo:
+  `Evidencias_<Campaña>_<dd-mm-aaaa>_al_<dd-mm-aaaa>.pptx` (sanitizado; `sin-fecha`
+  si falta una vigencia).
+
+La generación es **100% en el navegador** (import dinámico de `pptxgenjs`, en su
+propio chunk); **aún no** se persiste en Firebase ni en Storage.
 
 > Esta es la primera entrega: establece **arquitectura, modelos, seguridad y
 > pruebas**. La lógica de negocio (parser de Excel, motor de consolidación,

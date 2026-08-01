@@ -16,6 +16,21 @@ import {
   type ConsolidationIssue,
 } from '@/modules/consolidation/consolidate';
 import { buildZip } from '@/modules/exports/csvExport';
+import {
+  buildCampaignPptPlan,
+  buildCampaignPpt,
+} from '@/modules/exports/pptExport';
+
+vi.mock('@/modules/exports/pptExport', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/exports/pptExport')
+  >('@/modules/exports/pptExport');
+  return {
+    ...actual,
+    buildCampaignPptPlan: vi.fn(),
+    buildCampaignPpt: vi.fn(),
+  };
+});
 
 vi.mock('@/modules/consolidation/consolidate', async () => {
   const actual = await vi.importActual<
@@ -163,6 +178,16 @@ beforeEach(() => {
     .mockResolvedValue(new Blob(['zip']));
   vi.mocked(consolidate).mockReset();
   defaultConsolidation();
+  vi.mocked(buildCampaignPptPlan).mockReset().mockReturnValue({
+    campaignName: 'BUEN FIN',
+    startDate: '2026-05-10',
+    endDate: '2026-05-20',
+    slides: [],
+    issues: [],
+  });
+  vi.mocked(buildCampaignPpt)
+    .mockReset()
+    .mockResolvedValue(new Blob(['pptx']));
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
 });
@@ -364,6 +389,146 @@ describe('CampaignsPage — menú de descargas CSV', () => {
     const menu = await openMenu('BUEN FIN');
     expect(menu.closest('.diagnosis__table-wrap')).toBeNull();
     expect(document.body.contains(menu)).toBe(true);
+  });
+});
+
+describe('CampaignsPage — PPT de evidencias', () => {
+  const pptBtn = (name: string) =>
+    screen.getByRole('button', {
+      name: `Descargar PPT de evidencias de ${name}`,
+    });
+
+  it('muestra un botón PPT accesible por campaña, con el nombre en el aria-label', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    expect(pptBtn('BUEN FIN')).toBeInTheDocument();
+    expect(pptBtn('REGRESO A CLASES')).toBeInTheDocument();
+    expect(pptBtn('BUEN FIN')).toHaveAttribute('title');
+  });
+
+  it('al pulsar, llama al plan con la campaña y el catálogo correctos', async () => {
+    const scr = {
+      id: 's1',
+      original: {
+        'TIPO DE pantallas': '',
+        CENTROS: '',
+        CIRCUITO: '',
+        RESOLUCION: '',
+        FORMATO: '',
+        'Nombre en plataforma': '',
+        'TIPO DE PASES': '',
+        'Numero de Tienda': '1',
+        'Nombre de tienda': 'T',
+        Modelo: '',
+        ARTICULOS: '',
+        BRANDS: '',
+      },
+      metadata: {
+        active: true,
+        createdAt: 0,
+        updatedAt: 0,
+        createdBy: '',
+        updatedBy: '',
+        source: '',
+        sourceSheet: '',
+        sourceRow: 0,
+        deactivationReason: null,
+        version: 1,
+        calendarSupport: '',
+      },
+    };
+    vi.mocked(listScreens).mockResolvedValue([scr]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(pptBtn('BUEN FIN'));
+    await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
+    expect(buildCampaignPptPlan).toHaveBeenCalledTimes(1);
+    expect(buildCampaignPptPlan).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'BUEN FIN' }),
+      [scr],
+    );
+  });
+
+  it('genera exclusivamente la campaña seleccionada', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(pptBtn('BUEN FIN'));
+    await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(buildCampaignPptPlan).mock.calls[0]![0].name).toBe(
+      'BUEN FIN',
+    );
+  });
+
+  it('descarga el Blob con el nombre de archivo correcto', async () => {
+    const origCreate = document.createElement.bind(document);
+    const anchors: HTMLAnchorElement[] = [];
+    const spy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tag: string) => {
+        const el = origCreate(tag);
+        if (tag === 'a') anchors.push(el as HTMLAnchorElement);
+        return el;
+      });
+    try {
+      render(<CampaignsPage />);
+      await screen.findByText('BUEN FIN');
+      await userEvent.click(pptBtn('BUEN FIN'));
+      await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
+      const anchor = anchors[anchors.length - 1]!;
+      expect(anchor.download).toBe(
+        'Evidencias_BUEN_FIN_10-05-2026_al_20-05-2026.pptx',
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('muestra estado de generación y evita dos generaciones simultáneas', async () => {
+    let resolveFn: (b: Blob) => void = () => {};
+    vi.mocked(buildCampaignPpt).mockImplementation(
+      () =>
+        new Promise<Blob>((res) => {
+          resolveFn = res;
+        }),
+    );
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(pptBtn('BUEN FIN'));
+    await waitFor(() =>
+      expect(pptBtn('BUEN FIN')).toHaveAttribute('aria-busy', 'true'),
+    );
+    // Mientras genera, todos los botones PPT quedan deshabilitados.
+    expect(pptBtn('REGRESO A CLASES')).toBeDisabled();
+    resolveFn(new Blob(['pptx']));
+    await waitFor(() =>
+      expect(pptBtn('BUEN FIN')).toHaveAttribute('aria-busy', 'false'),
+    );
+  });
+
+  it('muestra un error comprensible si la generación falla', async () => {
+    vi.mocked(buildCampaignPpt).mockRejectedValue(new Error('boom'));
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(pptBtn('BUEN FIN'));
+    expect(
+      await screen.findByText(/No se pudo generar la PPT/i),
+    ).toHaveTextContent(/BUEN FIN/);
+  });
+
+  it('no interfiere con el menú de CSV ni genera ZIP', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(pptBtn('BUEN FIN'));
+    await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(buildZip).not.toHaveBeenCalled();
+    // El menú de CSV sigue funcionando.
+    await userEvent.click(
+      screen.getByRole('button', { name: /Descargar CSV de BUEN FIN/i }),
+    );
+    expect(
+      screen.getByRole('menu', { name: /Descargas de BUEN FIN/i }),
+    ).toBeInTheDocument();
   });
 });
 
