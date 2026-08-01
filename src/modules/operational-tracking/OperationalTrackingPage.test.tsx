@@ -185,6 +185,23 @@ describe('OperationalTrackingPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('ordena por campaña al pulsar el encabezado', async () => {
+    renderPage();
+    await screen.findByText('BUEN FIN');
+    const names = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => within(r).getAllByRole('cell')[0]?.textContent);
+    // Orden inicial (por nombre, ascendente en la carga).
+    expect(names()).toEqual(['BUEN FIN', 'REGRESO']);
+    // Dos clics → descendente.
+    const header = screen.getByRole('button', { name: 'Campaña' });
+    await userEvent.click(header);
+    await userEvent.click(header);
+    expect(names()).toEqual(['REGRESO', 'BUEN FIN']);
+  });
+
   it('solo las campañas terminadas ofrecen "Marcar todas"', async () => {
     const FIN = campaign({
       id: 'f',

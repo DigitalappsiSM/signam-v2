@@ -171,6 +171,9 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   hace **solo dentro del modal de detalle** (input + **Guardar** +
   **Desvincular**), acepta enteros positivos seguros y pide **confirmación**
   antes de reemplazar una asociación existente.
+- **Ordenamiento**: los encabezados de la tabla son **clicables** para ordenar
+  por Campaña, Tipo, Inicio, Fin, # Ekon o Tiendas (asc/desc, con flecha
+  indicadora). Lógica pura reutilizable en `src/lib/tableSort.ts`.
 - Acciones **por campaña**: 📄 **PDF de errores** (solo esa campaña), 👁️
   **detalle** (soportes + tiendas + estado OK/incidencia + edición de Ekon), ⬇️
   **menú de descargas CSV**.
@@ -262,8 +265,12 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
   críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
   con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`.
-- **Fechas**: se muestran en formato **`dd/mm/aaaa`** en toda la sección y en el
-  Dashboard (helper puro `formatDdMmYyyy`/`formatCivilString`).
+- **Ordenamiento**: los encabezados son **clicables** para ordenar por Campaña,
+  Clasificación, Inicio, Fin, Tiendas, Objetivo, Estado general o Próximo
+  vencimiento (asc/desc); las columnas de casillas y Acciones no ordenan.
+- **Fechas**: se muestran en formato **`dd/mm/aaaa`** en **todos los módulos**
+  (Campañas, Importar, Seguimiento y Dashboard) con los helpers puros
+  `formatDdMmYyyy`/`formatCivilString`.
 - **Permisos**: la matriz define `tracking.read` (todos los roles) y
   `tracking.write` (admin/operator). En la **fase pre-lanzamiento** —igual que el
   resto de colecciones— cualquier usuario **autenticado** puede editar el

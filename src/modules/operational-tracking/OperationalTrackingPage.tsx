@@ -19,15 +19,23 @@ import type {
   CheckKey,
   Classification,
 } from './types';
-import { todayCivil, formatDdMmYyyy, formatCivilString } from './businessDays';
+import {
+  todayCivil,
+  formatDdMmYyyy,
+  formatCivilString,
+  parseCampaignDate,
+} from './businessDays';
 import { type WitnessStatus } from './operationalStatus';
 import { STATUS_META } from './statusMeta';
 import {
   buildTrackingRows,
   effectiveChecks,
+  rowSeverity,
   type TrackingRow,
   type Timeframe,
 } from './trackingModel';
+import { SortableTh } from '@/components/SortableTh';
+import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
 import './OperationalTrackingPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
 
@@ -168,6 +176,25 @@ export function OperationalTrackingPage() {
       return true;
     });
   }, [rows, search, classFilter, timeFilter, statusFilter]);
+
+  const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
+  const sorted = useMemo(
+    () =>
+      sortRows(filtered, sort, {
+        name: (r) => r.campaign.name,
+        classification: (r) => r.classification,
+        inicio: (r) =>
+          parseCampaignDate(r.campaign.fechaInicio)?.getTime() ?? 0,
+        fin: (r) => parseCampaignDate(r.campaign.fechaFin)?.getTime() ?? 0,
+        tiendas: (r) => r.distinctStores,
+        objetivo: (r) => r.target,
+        estado: (r) => rowSeverity(r),
+        vencimiento: (r) =>
+          r.nextDeadline?.getTime() ?? Number.POSITIVE_INFINITY,
+      }),
+    [filtered, sort],
+  );
+  const onSort = (k: string) => setSort((s) => nextSortState(s, k));
 
   const patchTracking = useCallback((t: CampaignOperationalTracking) => {
     setTrackingList((prev) => [
@@ -410,24 +437,64 @@ export function OperationalTrackingPage() {
           <table className="catalog__table ot-table">
             <thead>
               <tr>
-                <th>Campaña</th>
-                <th>Clasificación</th>
-                <th>Inicio</th>
-                <th>Fin</th>
-                <th>Tiendas</th>
-                <th>Objetivo 10%</th>
+                <SortableTh
+                  label="Campaña"
+                  sortKey="name"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Clasificación"
+                  sortKey="classification"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Inicio"
+                  sortKey="inicio"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Fin"
+                  sortKey="fin"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Tiendas"
+                  sortKey="tiendas"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Objetivo 10%"
+                  sortKey="objetivo"
+                  sort={sort}
+                  onSort={onSort}
+                />
                 {CHECK_COLUMNS.map((col) => (
                   <th key={col.key} title={col.label} className="ot-check-col">
                     {col.short}
                   </th>
                 ))}
-                <th>Estado general</th>
-                <th>Próx. vencimiento</th>
+                <SortableTh
+                  label="Estado general"
+                  sortKey="estado"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Próx. vencimiento"
+                  sortKey="vencimiento"
+                  sort={sort}
+                  onSort={onSort}
+                />
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => {
+              {sorted.map((r) => {
                 const checks = effectiveChecks(r);
                 const highlighted = r.campaign.nameKey === highlightKey;
                 const comments = r.tracking?.comments ?? [];

@@ -33,6 +33,7 @@ import type { Classification } from '@/modules/operational-tracking/types';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { importSummary, type ImportSummary } from './importSummary';
 import { nextBulk, type BulkState } from './accordionBulk';
+import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import './ImportPage.css';
 
 /**
@@ -563,8 +564,8 @@ function CampaignsSection({ result }: { result: CampaignParseResult }) {
             {result.campaigns.slice(0, 100).map((c) => (
               <tr key={c.row}>
                 <td>{c.name}</td>
-                <td>{c.fechaInicio}</td>
-                <td>{c.fechaFin}</td>
+                <td>{formatCivilString(c.fechaInicio)}</td>
+                <td>{formatCivilString(c.fechaFin)}</td>
                 <td>
                   {c.supports
                     .filter((s) => s.owner === 'liverpool')
