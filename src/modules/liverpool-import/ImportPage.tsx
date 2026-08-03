@@ -18,6 +18,7 @@ import {
 import { readCalendarWorkbook } from './readCalendarWorkbook';
 import {
   diffCampaigns,
+  dedupeIncoming,
   campaignKey,
   type CampaignDiff,
 } from '@/modules/campaigns/campaignDiff';
@@ -82,18 +83,22 @@ export function ImportPage() {
       setAnalysis(analyzeCalendar(data));
       const parsed = parseCampaigns(data);
       setCampaigns(parsed);
-      setParsedList(parsed.campaigns);
+      // Deduplica el calendario por nameKey: la clasificación, el link y el
+      // conteo de pendientes se derivan de la campaña **fusionada**, no de la
+      // primera fila cruda (evita preseleccionar un tipo ambiguo o un link peor).
+      const merged = dedupeIncoming(parsed.campaigns);
+      setParsedList(merged);
       const [storedCampaigns, tracking] = await Promise.all([
         listCampaigns(),
         listOperationalTracking(),
       ]);
-      setDiff(diffCampaigns(parsed.campaigns, storedCampaigns));
+      setDiff(diffCampaigns(merged, storedCampaigns));
 
       // Preselección de clasificación para las campañas SIN seguimiento previo.
       const keys = new Set(tracking.map((t) => t.campaignNameKey));
       setExistingKeys(keys);
       const sel = new Map<string, ClassChoice>();
-      for (const c of parsed.campaigns) {
+      for (const c of merged) {
         const nameKey = campaignKey(c.name);
         if (keys.has(nameKey) || sel.has(nameKey)) continue;
         const auto = classifyFromTipo(c.tipo);

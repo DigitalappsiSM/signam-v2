@@ -28,7 +28,12 @@ export function campaignKey(name: string): string {
 }
 
 /** Une los soportes de un grupo de campañas: por soporte normalizado, con la
- *  unión de tiendas (dedup por número normalizado; conserva la primera grafía). */
+ *  unión de tiendas (dedup por número normalizado; conserva la primera grafía).
+ *
+ *  Regla clave: una lista de tiendas **vacía** es un comodín ("todas las
+ *  pantallas activas del soporte", ver `consolidate()`). Si alguna ocurrencia del
+ *  soporte viene sin tiendas, el resultado se mantiene como comodín (vacío) en
+ *  lugar de reducirse a la unión de tiendas explícitas (evita CSV incompletos). */
 function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
   const bySupport = new Map<
     string,
@@ -36,6 +41,7 @@ function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
       support: string;
       owner: CampaignSupport['owner'];
       stores: Map<string, StoreRef>;
+      wildcard: boolean;
     }
   >();
   const order: string[] = [];
@@ -44,9 +50,17 @@ function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
       const k = normalizeSupport(s.support);
       let entry = bySupport.get(k);
       if (!entry) {
-        entry = { support: s.support, owner: s.owner, stores: new Map() };
+        entry = {
+          support: s.support,
+          owner: s.owner,
+          stores: new Map(),
+          wildcard: false,
+        };
         bySupport.set(k, entry);
         order.push(k);
+      }
+      if (s.stores.length === 0) {
+        entry.wildcard = true; // "Asignada" sin comentario: todas las pantallas.
       }
       for (const st of s.stores) {
         const sk = normalizeStore(st.numero);
@@ -59,7 +73,8 @@ function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
     return {
       support: e.support,
       owner: e.owner,
-      stores: [...e.stores.values()],
+      // Comodín preservado: si alguna ocurrencia no tenía tiendas, va vacío.
+      stores: e.wildcard ? [] : [...e.stores.values()],
     };
   });
 }

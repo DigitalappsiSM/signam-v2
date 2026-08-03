@@ -165,6 +165,27 @@ describe('dedupeIncoming', () => {
     ]);
   });
 
+  it('conserva el comodín (sin tiendas) si alguna copia lo trae vacío', () => {
+    // Una fila asigna el soporte sin comentario (todas las pantallas) y otra
+    // lista tiendas explícitas: el resultado debe seguir siendo comodín (vacío),
+    // no reducirse a las tiendas explícitas (evita CSV incompleto).
+    const a = camp('X', {
+      supports: [{ support: 'LED', owner: 'liverpool', stores: [] }],
+    });
+    const b = camp('X', {
+      supports: [
+        {
+          support: 'LED',
+          owner: 'liverpool',
+          stores: [{ numero: '5', nombre: '' }],
+        },
+      ],
+    });
+    const [merged] = dedupeIncoming([a, b]);
+    expect(merged!.supports).toHaveLength(1);
+    expect(merged!.supports[0]!.stores).toHaveLength(0);
+  });
+
   it('deja el tipo vacío (Pendiente) si las copias discrepan', () => {
     const a = camp('X', { tipo: 'INSTITUCIONAL' });
     const b = camp('X', { tipo: 'PROVEEDOR' });
