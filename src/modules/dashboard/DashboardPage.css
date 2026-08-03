@@ -1,0 +1,441 @@
+/* Carga operativa por tienda y soporte (Dashboard). */
+
+.occ-section {
+  margin-top: 2rem;
+}
+
+.occ-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.occ-section__title {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.occ-updated {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* --- Filtros --- */
+.occ-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.occ-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.occ-field select,
+.occ-field input {
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: var(--color-text);
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.occ-field--search {
+  flex: 1 1 200px;
+}
+
+/* --- Tarjetas superiores --- */
+.occ-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.occ-card {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  padding: 0.85rem 1rem;
+}
+
+.occ-card__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.occ-card__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 0.2rem;
+}
+
+.occ-card__sub {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+}
+
+/* --- Gráficas de barras --- */
+.occ-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.occ-chart {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  padding: 1rem 1.15rem;
+}
+
+.occ-chart__title {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+
+.occ-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.occ-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.occ-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.occ-swatch--institutional {
+  background: #2456d6;
+}
+.occ-swatch--provider {
+  background: #ec0f8c;
+}
+.occ-swatch--unknown {
+  background: #94a3b8;
+}
+
+.occ-bar-row {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  cursor: pointer;
+  display: block;
+}
+
+.occ-bar-row:hover {
+  background: var(--accent-050);
+}
+
+.occ-bar-row:first-of-type {
+  border-top: none;
+}
+
+.occ-bar-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.occ-bar-row__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.occ-bar-row__peak {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.occ-bar-row__peak strong {
+  color: var(--color-primary-dark);
+  font-size: 1rem;
+}
+
+.occ-bar {
+  display: flex;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.occ-bar__seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.occ-bar__seg--institutional {
+  background: #2456d6;
+}
+.occ-bar__seg--provider {
+  background: #ec0f8c;
+}
+.occ-bar__seg--unknown {
+  background: #94a3b8;
+}
+
+.occ-bar-row__meta {
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+}
+
+.occ-owner-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-muted);
+  margin-left: 0.4rem;
+}
+
+.occ-owner-tag--instore-media {
+  color: var(--color-primary-dark);
+  border-color: rgba(236, 15, 140, 0.3);
+  background: var(--accent-050);
+}
+
+/* --- Matriz tienda × soporte --- */
+.occ-matrix-wrap {
+  margin-top: 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+.occ-matrix {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.occ-matrix th,
+.occ-matrix td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-right: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.occ-matrix th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  background: rgba(240, 243, 250, 0.9);
+  position: sticky;
+  top: 0;
+}
+
+.occ-matrix th.occ-matrix__rowhead,
+.occ-matrix td.occ-matrix__rowhead {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: rgba(240, 243, 250, 0.95);
+  z-index: 1;
+}
+
+.occ-cell {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.35rem 0.4rem;
+  border-radius: 4px;
+  color: var(--color-text);
+}
+
+.occ-cell:disabled {
+  cursor: default;
+  color: var(--color-text-muted);
+}
+
+/* Intensidad relativa (no es capacidad ni saturación). */
+.occ-cell--l0 {
+  color: #cbd5e1;
+}
+.occ-cell--l1 {
+  background: rgba(236, 15, 140, 0.12);
+}
+.occ-cell--l2 {
+  background: rgba(236, 15, 140, 0.24);
+}
+.occ-cell--l3 {
+  background: rgba(236, 15, 140, 0.4);
+  color: #fff;
+}
+.occ-cell--l4 {
+  background: rgba(236, 15, 140, 0.62);
+  color: #fff;
+}
+
+/* --- Panel de detalle (drill-down) --- */
+.occ-detail__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 27, 45, 0.4);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  z-index: 50;
+}
+
+.occ-detail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 100vw);
+  z-index: 51;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border-left: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-md);
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.occ-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.occ-detail__title {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.occ-detail__close {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.occ-detail__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 0.5rem 0 1rem;
+}
+
+.occ-detail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.occ-campaign {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.occ-campaign__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.occ-chip {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.occ-chip--institutional {
+  background: rgba(36, 86, 214, 0.14);
+  color: #1c47b0;
+}
+.occ-chip--provider {
+  background: rgba(236, 15, 140, 0.14);
+  color: var(--color-primary-dark);
+}
+.occ-chip--unknown {
+  background: rgba(148, 163, 184, 0.18);
+  color: #52627a;
+}
+
+.occ-campaign__meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
+.occ-empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}

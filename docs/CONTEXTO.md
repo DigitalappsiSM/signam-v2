@@ -312,6 +312,49 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.
 
+### 6.5 Panel — Carga por tienda y soporte (`/`)
+
+- El Dashboard conserva su resumen operativo (activas, alertas críticas,
+  vencimientos, inicios, terminadas con pendientes) y añade la sección **Carga
+  por tienda y soporte**, derivada en memoria de `campaigns`, `screens` y
+  `campaignOperationalTracking` (modelo puro `occupancyModel.ts`). **No** persiste
+  agregados en Firestore ni reejecuta `consolidate()` (no reutiliza sus
+  resultados porque excluyen InStore Media y agrupan por resolución).
+- **Definición de carga**: métrica principal **pico de campañas simultáneas**
+  (`peakConcurrentCampaigns`) = máximo, para cualquier día civil del periodo, de
+  campañas distintas que usan esa tienda/soporte ese día. Complementarias:
+  **campañas distintas** (`distinctCampaigns`), **días-campaña** (`campaignDays`
+  = suma de días activos por campaña en esa tienda/soporte), **tiendas** /
+  **soportes distintos**, y **pantallas físicas** (dedup por `screen.id`).
+- **No es capacidad**: el sistema aún **no** modela capacidad máxima por
+  pantalla (slots, circuito, rotación, TIPO DE PASES), por eso **no** se muestran
+  porcentajes de ocupación, “saturación” ni “slots libres”. La intensidad de
+  color de la matriz es solo relativa dentro de la vista.
+- **Segmentación** Institucional / Proveedor / **Pendiente** (nunca se asume
+  Proveedor): clasificación desde `tracking.classification` y, si no existe,
+  `classifyFromTipo(campaign.tipo)`. Se comunica por texto y color (no solo
+  color).
+- **Cruce** por `Numero de Tienda + calendarSupport` reutilizando
+  `normalizeStore`/`normalizeSupport`; solo pantallas **activas** suman; las
+  inactivas, tiendas inexistentes o soportes sin correspondencia generan
+  **incidencias de calidad** (no carga). Nombre oficial de tienda del catálogo.
+  “Asignada” sin comentario expande las pantallas activas del soporte; se
+  conserva la **excepción Guadalajara** (78 → CRIUS + CUADRADA: una campaña por
+  combinación, pero dos pantallas físicas).
+- **InStore Media separado**: MUPPI'S/PENDON siguen **excluidos del CSV**, pero
+  el panel muestra su **demanda solicitada** por tienda+soporte (sin pantallas
+  físicas; nombre oficial si la tienda existe, incidencia si no; “asignada” sin
+  comentario no se expande).
+- **Filtros**: periodo (Hoy / Semana actual / Próximos 7 / Mes actual / Próximos
+  30 / Rango personalizado, por intersección con fechas civiles), clasificación,
+  propietario, soporte, tienda y búsqueda; sincronizados con la **URL**
+  (`?periodo=&clasificacion=&tienda=&soporte=&q=`). Drill-down por soporte,
+  tienda o celda que lista las campañas con enlace a `/seguimiento?campana=`.
+- **Estados**: carga inicial, error (sin vaciar), sin campañas, sin datos para el
+  periodo/filtros; botón **Actualizar** que conserva los datos previos y muestra
+  la última actualización. `occupancyModel` está ampliamente cubierto por
+  pruebas puras.
+
 ## 7. Pendientes / próximos pasos
 
 - **Muppi's / ISM**: definir e implementar su lógica (hoy se excluyen).

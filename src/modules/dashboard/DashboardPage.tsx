@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { NAV_ROUTES } from '@/app/routes';
 import { listCampaigns } from '@/services/campaigns';
@@ -24,7 +24,28 @@ import {
   formatDdMmYyyy,
   formatCivilString,
 } from '@/modules/operational-tracking/businessDays';
+import {
+  buildOccupancyDashboard,
+  presetRange,
+  type DateRange,
+  type RangePreset,
+  type OccupancyClassification,
+  type Owner,
+  type SupportOccupancy,
+  type StoreOccupancy,
+  type StoreSupportOccupancy,
+  type OccupancyCampaign,
+} from './occupancyModel';
+import {
+  OccupancyFilters,
+  type OccupancyFilterValues,
+} from './components/OccupancyFilters';
+import { SupportOccupancyChart } from './components/SupportOccupancyChart';
+import { StoreOccupancyChart } from './components/StoreOccupancyChart';
+import { StoreSupportMatrix } from './components/StoreSupportMatrix';
+import { OccupancyDetailPanel } from './components/OccupancyDetailPanel';
 import '@/modules/operational-tracking/OperationalTrackingPage.css';
+import './DashboardPage.css';
 
 function trackingLink(row: TrackingRow): string {
   return `/seguimiento?campana=${encodeURIComponent(row.campaign.nameKey)}`;
@@ -32,6 +53,62 @@ function trackingLink(row: TrackingRow): string {
 
 function isoDay(d: Date | null): string {
   return d ? formatDdMmYyyy(d) : '—';
+}
+
+type Selection =
+  | { kind: 'support'; item: SupportOccupancy }
+  | { kind: 'store'; item: StoreOccupancy }
+  | { kind: 'cell'; item: StoreSupportOccupancy };
+
+interface DetailData {
+  title: string;
+  subtitle?: string;
+  stats: { label: string; value: string | number }[];
+  campaigns: OccupancyCampaign[];
+}
+
+function selectionToDetail(sel: Selection): DetailData {
+  if (sel.kind === 'support') {
+    const s = sel.item;
+    return {
+      title: s.supportName,
+      subtitle: s.owner === 'instore-media' ? 'InStore Media' : 'Liverpool',
+      stats: [
+        { label: 'Pico simultáneo', value: s.peakConcurrentCampaigns },
+        { label: 'Campañas', value: s.distinctCampaigns },
+        { label: 'Tiendas', value: s.distinctStores },
+        { label: 'Pantallas', value: s.physicalScreens },
+        { label: 'Días-campaña', value: s.campaignDays },
+      ],
+      campaigns: s.campaigns,
+    };
+  }
+  if (sel.kind === 'store') {
+    const s = sel.item;
+    return {
+      title: `${s.storeName} · ${s.storeNumber}`,
+      stats: [
+        { label: 'Pico simultáneo', value: s.peakConcurrentCampaigns },
+        { label: 'Campañas', value: s.distinctCampaigns },
+        { label: 'Soportes', value: s.distinctSupports },
+        { label: 'Pantallas', value: s.physicalScreens },
+        { label: 'Días-campaña', value: s.campaignDays },
+      ],
+      campaigns: s.campaigns,
+    };
+  }
+  const c = sel.item;
+  return {
+    title: `${c.storeName} · ${c.supportName}`,
+    subtitle: `Tienda ${c.storeNumber}`,
+    stats: [
+      { label: 'Pico simultáneo', value: c.peakConcurrentCampaigns },
+      { label: 'Campañas', value: c.distinctCampaigns },
+      { label: 'Pantallas', value: c.screenIds.length },
+      { label: 'Días-campaña', value: c.campaignDays },
+    ],
+    campaigns: c.campaigns,
+  };
 }
 
 /** Panel inicial: resumen operativo, alertas y puntos de entrada a los módulos. */
@@ -42,30 +119,36 @@ export function DashboardPage() {
   const [tracking, setTracking] = useState<CampaignOperationalTracking[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    setFailed(false);
+    try {
+      const [c, s, t] = await Promise.all([
+        listCampaigns(),
+        listScreens(),
+        listOperationalTracking(),
+      ]);
+      // Conserva datos previos hasta tener la respuesta (no vacía la pantalla).
+      setCampaigns(c);
+      setScreens(s);
+      setTracking(t);
+      setLoadedAt(new Date());
+      setLoadedOnce(true);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const [c, s, t] = await Promise.all([
-          listCampaigns(),
-          listScreens(),
-          listOperationalTracking(),
-        ]);
-        if (!active) return;
-        setCampaigns(c);
-        setScreens(s);
-        setTracking(t);
-      } catch {
-        if (active) setFailed(true);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    void load();
+  }, [load]);
 
   const today = useMemo(() => todayCivil(), []);
   const rows = useMemo(
@@ -143,6 +226,107 @@ export function DashboardPage() {
     };
   }, [rows, today]);
 
+  // --- Carga operativa (ocupación) -----------------------------------------
+  const [params, setParams] = useSearchParams();
+  const filters: OccupancyFilterValues = {
+    preset: (params.get('periodo') as RangePreset) || 'today',
+    desde: params.get('desde') ?? '',
+    hasta: params.get('hasta') ?? '',
+    classification:
+      (params.get('clasificacion') as OccupancyClassification | 'all') || 'all',
+    owner: (params.get('propietario') as Owner | 'all') || 'all',
+    support: params.get('soporte') ?? '',
+    store: params.get('tienda') ?? '',
+    search: params.get('q') ?? '',
+  };
+  const patchFilters = (patch: Partial<OccupancyFilterValues>) => {
+    const next = { ...filters, ...patch };
+    const p = new URLSearchParams();
+    if (next.preset !== 'today') p.set('periodo', next.preset);
+    if (next.preset === 'custom') {
+      if (next.desde) p.set('desde', next.desde);
+      if (next.hasta) p.set('hasta', next.hasta);
+    }
+    if (next.classification !== 'all')
+      p.set('clasificacion', next.classification);
+    if (next.owner !== 'all') p.set('propietario', next.owner);
+    if (next.support) p.set('soporte', next.support);
+    if (next.store) p.set('tienda', next.store);
+    if (next.search) p.set('q', next.search);
+    setParams(p, { replace: true });
+  };
+
+  const range: DateRange = useMemo(() => {
+    if (filters.preset === 'custom') {
+      const s = parseCampaignDate(filters.desde) ?? today;
+      const e = parseCampaignDate(filters.hasta) ?? s;
+      return s.getTime() <= e.getTime()
+        ? { start: s, end: e }
+        : { start: e, end: s };
+    }
+    return presetRange(filters.preset, today);
+  }, [filters.preset, filters.desde, filters.hasta, today]);
+
+  // Opciones de soporte/tienda: modelo del periodo sin filtros de tienda/soporte.
+  const optionsModel = useMemo(
+    () => buildOccupancyDashboard({ campaigns, screens, tracking, range }),
+    [campaigns, screens, tracking, range],
+  );
+  const supportOptions = useMemo(
+    () =>
+      [...optionsModel.supports]
+        .map((s) => ({ key: s.supportKey, name: s.supportName }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [optionsModel],
+  );
+  const storeOptions = useMemo(
+    () =>
+      [...optionsModel.stores]
+        .map((s) => ({ number: s.storeNumber, name: s.storeName }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [optionsModel],
+  );
+
+  const occupancy = useMemo(
+    () =>
+      buildOccupancyDashboard({
+        campaigns,
+        screens,
+        tracking,
+        range,
+        filters: {
+          classification: filters.classification,
+          owner: filters.owner,
+          store: filters.store || null,
+          support: filters.support || null,
+          search: filters.search,
+        },
+      }),
+    [
+      campaigns,
+      screens,
+      tracking,
+      range,
+      filters.classification,
+      filters.owner,
+      filters.store,
+      filters.support,
+      filters.search,
+    ],
+  );
+
+  const rowByKey = useMemo(() => {
+    const m = new Map<string, TrackingRow>();
+    for (const r of rows) m.set(r.campaign.nameKey, r);
+    return m;
+  }, [rows]);
+
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const detail = useMemo(
+    () => (selection ? selectionToDetail(selection) : null),
+    [selection],
+  );
+
   return (
     <>
       <PageHeader
@@ -150,7 +334,20 @@ export function DashboardPage() {
         description="Resumen operativo de campañas: estados, alertas críticas y próximos vencimientos."
       />
 
-      {!loading && !failed && campaigns.length > 0 && (
+      {loading && !loadedOnce && (
+        <p className="text-muted" role="status">
+          Cargando resumen…
+        </p>
+      )}
+
+      {failed && (
+        <div className="import__note" role="alert">
+          No se pudo cargar el resumen operativo. Revisa tu conexión y vuelve a
+          intentar.
+        </div>
+      )}
+
+      {loadedOnce && campaigns.length > 0 && (
         <>
           <section
             className="dash-summary"
@@ -225,11 +422,133 @@ export function DashboardPage() {
         </>
       )}
 
-      {failed && (
-        <div className="import__note">
-          No se pudo cargar el resumen operativo. Revisa tu conexión y vuelve a
-          intentar.
-        </div>
+      {loadedOnce && (
+        <section
+          className="occ-section"
+          aria-label="Carga por tienda y soporte"
+        >
+          <div className="occ-section__head">
+            <h2 className="occ-section__title">Carga por tienda y soporte</h2>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
+            >
+              {loadedAt && (
+                <span className="occ-updated">
+                  Actualizado {formatDdMmYyyy(loadedAt)}{' '}
+                  {String(loadedAt.getHours()).padStart(2, '0')}:
+                  {String(loadedAt.getMinutes()).padStart(2, '0')}
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void load()}
+                disabled={refreshing}
+                aria-busy={refreshing}
+              >
+                {refreshing ? 'Actualizando…' : 'Actualizar'}
+              </button>
+            </div>
+          </div>
+          <p className="text-muted" style={{ margin: '0 0 0.25rem' }}>
+            Carga operativa medida como{' '}
+            <strong>pico de campañas simultáneas</strong> en el periodo. No
+            representa un porcentaje de capacidad (aún no se modela capacidad
+            máxima por pantalla).
+          </p>
+
+          <OccupancyFilters
+            values={filters}
+            onChange={patchFilters}
+            supportOptions={supportOptions}
+            storeOptions={storeOptions}
+          />
+
+          {campaigns.length === 0 ? (
+            <p className="occ-empty">
+              Aún no hay campañas. Importa el calendario para ver la carga.
+            </p>
+          ) : occupancy.totals.distinctCampaigns === 0 ? (
+            <p className="occ-empty">
+              Sin campañas en el periodo o filtros seleccionados.
+            </p>
+          ) : (
+            <>
+              <div className="occ-cards">
+                <OccCard
+                  label="Tienda con mayor carga"
+                  value={occupancy.stores[0]?.storeName ?? '—'}
+                  sub={
+                    occupancy.stores[0]
+                      ? `Pico ${occupancy.stores[0].peakConcurrentCampaigns} simultáneas`
+                      : undefined
+                  }
+                />
+                <OccCard
+                  label="Soporte con mayor carga"
+                  value={occupancy.supports[0]?.supportName ?? '—'}
+                  sub={
+                    occupancy.supports[0]
+                      ? `Pico ${occupancy.supports[0].peakConcurrentCampaigns} simultáneas`
+                      : undefined
+                  }
+                />
+                <OccCard
+                  label="Campañas activas en el periodo"
+                  value={occupancy.totals.distinctCampaigns}
+                  sub={`Pico global ${occupancy.totals.peakConcurrentCampaigns}`}
+                />
+                <OccCard
+                  label="Tiendas utilizadas"
+                  value={occupancy.totals.distinctStores}
+                />
+                <OccCard
+                  label="Soportes utilizados"
+                  value={occupancy.totals.distinctSupports}
+                />
+              </div>
+
+              <div className="occ-charts">
+                <SupportOccupancyChart
+                  supports={occupancy.supports}
+                  onSelect={(item) => setSelection({ kind: 'support', item })}
+                />
+                <StoreOccupancyChart
+                  stores={occupancy.stores}
+                  onSelect={(item) => setSelection({ kind: 'store', item })}
+                />
+              </div>
+
+              <h3 style={{ fontSize: '1rem', margin: '1.25rem 0 0.25rem' }}>
+                Matriz tienda × soporte
+              </h3>
+              <p
+                className="text-muted"
+                style={{ margin: '0 0 0.25rem', fontSize: '0.82rem' }}
+              >
+                El color indica intensidad relativa del pico dentro de la vista,
+                no capacidad ni saturación.
+              </p>
+              <StoreSupportMatrix
+                supports={occupancy.supports}
+                stores={occupancy.stores}
+                matrix={occupancy.matrix}
+                onSelect={(item) => setSelection({ kind: 'cell', item })}
+              />
+            </>
+          )}
+        </section>
+      )}
+
+      {detail && (
+        <OccupancyDetailPanel
+          title={detail.title}
+          subtitle={detail.subtitle}
+          stats={detail.stats}
+          campaigns={detail.campaigns}
+          rowByKey={rowByKey}
+          onClose={() => setSelection(null)}
+        />
       )}
 
       <h2 style={{ fontSize: '1.1rem', margin: '1.5rem 0 0.75rem' }}>
@@ -278,6 +597,24 @@ function SummaryTile({
     <div className={`dash-tile${tone ? ` dash-tile--${tone}` : ''}`}>
       <div className="dash-tile__value">{value}</div>
       <div className="dash-tile__label">{label}</div>
+    </div>
+  );
+}
+
+function OccCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
+  return (
+    <div className="occ-card">
+      <div className="occ-card__label">{label}</div>
+      <div className="occ-card__value">{value}</div>
+      {sub && <div className="occ-card__sub">{sub}</div>}
     </div>
   );
 }
