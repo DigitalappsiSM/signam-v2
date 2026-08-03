@@ -10,9 +10,11 @@
   font-family: inherit;
   font-size: 0.9rem;
   padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   color: var(--color-text);
 }
 
@@ -113,17 +115,23 @@
 }
 
 .icon-btn {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   border-radius: var(--radius-sm);
   padding: 0.3rem 0.5rem;
   font-size: 1rem;
   line-height: 1;
   list-style: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .icon-btn:hover {
-  border-color: var(--color-text-muted);
+  border-color: var(--color-primary);
+  background: var(--accent-100);
 }
 
 .icon-btn:disabled {
@@ -142,8 +150,10 @@
   max-width: min(320px, calc(100vw - 16px));
   max-height: 320px;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
   padding: 0.35rem;
@@ -290,10 +300,12 @@
 
 .catalog__table-wrap {
   overflow-x: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-glass);
 }
 
 .catalog__table {
@@ -306,16 +318,29 @@
 .catalog__table td {
   text-align: left;
   padding: 0.65rem 0.85rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
   white-space: nowrap;
 }
 
 .catalog__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
-  background: var(--color-bg);
+  background: rgba(240, 243, 250, 0.9);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.catalog__table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.catalog__table tbody tr:hover td {
+  background: var(--accent-050);
 }
 
 .catalog__table tbody tr:last-child td {
@@ -352,7 +377,9 @@
 .modal__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(16, 24, 40, 0.45);
+  background: rgba(15, 27, 45, 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .modal__card {
@@ -360,7 +387,10 @@
   z-index: 1;
   width: 100%;
   max-width: 640px;
-  background: var(--color-surface);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-md);
   padding: 1.5rem;
@@ -412,5 +442,5 @@
 .screen-form__field input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(225, 10, 29, 0.12);
+  box-shadow: 0 0 0 3px var(--ring);
 }

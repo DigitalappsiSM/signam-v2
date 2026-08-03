@@ -34,15 +34,17 @@
 
 .diagnosis__table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 /* --- Titular fijo de importación (resumen + acción) --- */
 .imp-banner {
   position: sticky;
-  top: 0;
+  top: 60px;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -51,10 +53,12 @@
   flex-wrap: wrap;
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
 }
 
 .imp-banner__stats {
@@ -133,9 +137,12 @@
 }
 
 .imp-section {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
   overflow: hidden;
 }
 
