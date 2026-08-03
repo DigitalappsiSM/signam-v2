@@ -118,6 +118,23 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 
 ## 6. Flujos de la aplicación
 
+### 6.0 Identidad visual (tech-corporativa)
+
+- Sistema de diseño **glassmorphism** definido por tokens en
+  `src/styles/global.css`: superficies de "chrome" translúcidas con desenfoque
+  (`--glass-*`) sobre un **fondo ambiental fijo** (`body::before`) que combina
+  base fría, dos resplandores de marca y una **malla de puntos** tenue que evoca
+  las pantallas de señalización (LED).
+- **Acento único de marca: magenta Liverpool** (`--color-primary`, mismo rosa de
+  la PPT de evidencias), usado con moderación en marca, acción primaria, estado
+  activo del menú y anillo de foco. El **azul corporativo** (`--color-accent`) se
+  reserva para lo informativo (enlaces, `badge-info`). El resto del sistema se
+  mantiene neutro/sobrio para no competir con el acento.
+- Se aplica de forma transversal reutilizando clases compartidas (`.card`,
+  `.btn`, `.badge`, `.catalog__table`, topbar/sidebar, modales, menús); las
+  tablas e inputs se mantienen **nítidos** (alto contraste) para densidad de
+  datos. Respeta foco visible por teclado.
+
 ### 6.1 Catálogo Admira
 
 - Tabla con búsqueda (tolerante a acentos/mayúsculas) y filtros (estado, tienda,
