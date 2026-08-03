@@ -97,6 +97,31 @@
   margin-top: 0.15rem;
 }
 
+/* --- Paneles de gráficas ECharts (área + dona) --- */
+.occ-visuals {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 780px) {
+  .occ-visuals {
+    grid-template-columns: 1fr;
+  }
+}
+
+.occ-panel {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  padding: 1rem 1.15rem;
+  min-width: 0;
+}
+
 /* --- Gráficas de barras --- */
 .occ-charts {
   display: grid;
@@ -142,13 +167,13 @@
 }
 
 .occ-swatch--institutional {
-  background: #2456d6;
+  background: var(--cls-inst);
 }
 .occ-swatch--provider {
-  background: #ec0f8c;
+  background: var(--cls-prov);
 }
 .occ-swatch--unknown {
-  background: #94a3b8;
+  background: var(--cls-unknown);
 }
 
 .occ-bar-row {
@@ -208,13 +233,13 @@
 }
 
 .occ-bar__seg--institutional {
-  background: #2456d6;
+  background: var(--cls-inst);
 }
 .occ-bar__seg--provider {
-  background: #ec0f8c;
+  background: var(--cls-prov);
 }
 .occ-bar__seg--unknown {
-  background: #94a3b8;
+  background: var(--cls-unknown);
 }
 
 .occ-bar-row__meta {
@@ -276,7 +301,7 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--color-text-muted);
-  background: rgba(240, 243, 250, 0.9);
+  background: var(--color-surface-2);
   position: sticky;
   top: 0;
 }
@@ -286,7 +311,7 @@
   text-align: left;
   position: sticky;
   left: 0;
-  background: rgba(240, 243, 250, 0.95);
+  background: var(--color-surface-2);
   z-index: 1;
 }
 
@@ -309,20 +334,21 @@
 
 /* Intensidad relativa (no es capacidad ni saturación). */
 .occ-cell--l0 {
-  color: #cbd5e1;
+  color: var(--color-text-muted);
+  opacity: 0.6;
 }
 .occ-cell--l1 {
-  background: rgba(236, 15, 140, 0.12);
+  background: rgba(var(--heat), 0.14);
 }
 .occ-cell--l2 {
-  background: rgba(236, 15, 140, 0.24);
+  background: rgba(var(--heat), 0.28);
 }
 .occ-cell--l3 {
-  background: rgba(236, 15, 140, 0.4);
+  background: rgba(var(--heat), 0.46);
   color: #fff;
 }
 .occ-cell--l4 {
-  background: rgba(236, 15, 140, 0.62);
+  background: rgba(var(--heat), 0.66);
   color: #fff;
 }
 
@@ -395,7 +421,7 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
 }
 
 .occ-campaign__top {
@@ -416,16 +442,16 @@
 }
 
 .occ-chip--institutional {
-  background: rgba(36, 86, 214, 0.14);
-  color: #1c47b0;
+  background: color-mix(in srgb, var(--cls-inst) 16%, transparent);
+  color: var(--cls-inst);
 }
 .occ-chip--provider {
-  background: rgba(236, 15, 140, 0.14);
-  color: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--cls-prov) 16%, transparent);
+  color: var(--cls-prov);
 }
 .occ-chip--unknown {
-  background: rgba(148, 163, 184, 0.18);
-  color: #52627a;
+  background: color-mix(in srgb, var(--cls-unknown) 18%, transparent);
+  color: var(--cls-unknown);
 }
 
 .occ-campaign__meta {

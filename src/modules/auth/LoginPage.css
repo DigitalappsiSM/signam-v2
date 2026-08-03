@@ -20,7 +20,7 @@
       rgba(236, 15, 140, 0.16),
       transparent 55%
     ),
-    linear-gradient(160deg, #eef2fa 0%, #e5eaf4 100%);
+    var(--amb-base);
 }
 
 .login__card {
@@ -79,7 +79,7 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.75);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
 }
 
 .login__field input:focus {
@@ -101,9 +101,9 @@
 }
 
 .login__error {
-  background: #fdecea;
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
   color: var(--color-danger);
-  border: 1px solid #f5c6c0;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;
   font-size: 0.88rem;

@@ -1,35 +1,60 @@
 :root {
-  /* Base corporativa-tech: fondo frío con capas de vidrio (glassmorphism). */
-  --color-bg: #e9edf6;
+  /* ── Tema CLARO (base) ───────────────────────────────────────────────────
+     Analítica-corporativa: base azul para lo interactivo/informativo y
+     magenta Liverpool como detalle puntual de marca. */
+  color-scheme: light;
+
+  --color-bg: #eef2fa;
   --color-surface: #ffffff;
-  --color-border: #dbe0ea;
+  --color-surface-2: #f4f7fd;
+  --color-border: #dbe2ee;
   --color-text: #0f1b2d;
   --color-text-muted: #5b6577;
 
-  /* Identidad: magenta Liverpool como acento de marca/acción (una sola nota
-     audaz); azul corporativo para lo informativo (enlaces, badges). */
-  --color-primary: #ec0f8c;
-  --color-primary-dark: #c60e78;
+  /* Base = azul (acción/enlaces). Magenta = acento de marca puntual. */
+  --color-primary: #2456d6;
+  --color-primary-dark: #1c46b8;
   --color-accent: #2456d6;
+  --color-magenta: #ec0f8c;
+  --color-magenta-dark: #c60e78;
   --color-brand: #ec0f8c;
+
   --color-success: #0f8a4a;
   --color-warning: #b7791f;
   --color-danger: #c0261a;
 
-  --grad-primary: linear-gradient(135deg, #ec0f8c 0%, #9d2cc7 100%);
-  --grad-brand: linear-gradient(120deg, #ec0f8c 0%, #7c3aed 58%, #2456d6 120%);
+  /* Degradado de acción (azul) y degradado de marca (magenta→azul). */
+  --grad-primary: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  --grad-brand: linear-gradient(120deg, #ec0f8c 0%, #7c3aed 55%, #2456d6 120%);
 
-  /* Magenta translúcido reutilizable (acento). */
-  --accent-050: rgba(236, 15, 140, 0.06);
-  --accent-100: rgba(236, 15, 140, 0.1);
-  --accent-200: rgba(236, 15, 140, 0.16);
+  /* Azul translúcido reutilizable (hovers, superficies suaves). */
+  --accent-050: rgba(36, 86, 214, 0.06);
+  --accent-100: rgba(36, 86, 214, 0.1);
+  --accent-200: rgba(36, 86, 214, 0.16);
+
+  /* Magenta translúcido (detalles de marca). */
+  --magenta-100: rgba(236, 15, 140, 0.1);
+  --magenta-200: rgba(236, 15, 140, 0.18);
+
+  /* Clasificación de campañas (coinciden con la paleta ECharts). */
+  --cls-inst: #2563eb;
+  --cls-prov: #ec0f8c;
+  --cls-unknown: #f59e0b;
+  /* RGB del acento magenta para la intensidad relativa de la matriz. */
+  --heat: 236, 15, 140;
 
   /* Vidrio: superficies translúcidas con desenfoque para el "chrome". */
   --glass-bg: rgba(255, 255, 255, 0.66);
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(148, 163, 184, 0.3);
   --glass-blur: 14px;
-  --ring: rgba(236, 15, 140, 0.3);
+  --ring: rgba(36, 86, 214, 0.35);
+
+  /* Fondo ambiental (usado por body::before). */
+  --amb-glow-a: rgba(36, 86, 214, 0.14);
+  --amb-glow-b: rgba(236, 15, 140, 0.12);
+  --amb-dot: rgba(15, 27, 45, 0.05);
+  --amb-base: linear-gradient(180deg, #eef2fa 0%, #e5eaf4 100%);
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -40,6 +65,61 @@
   --font-sans:
     'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial,
     sans-serif;
+}
+
+/* ── Tema OSCURO ──────────────────────────────────────────────────────────
+   Navy analítico (estilo panel de resultados): fondos profundos, azul vivo
+   como acento base y magenta como chispa de marca. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #0b1220;
+  --color-surface: #111a2e;
+  --color-surface-2: #16223c;
+  --color-border: #24324f;
+  --color-text: #e6edf8;
+  --color-text-muted: #93a1bd;
+
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+  --color-accent: #60a5fa;
+  --color-magenta: #f45bb0;
+  --color-magenta-dark: #ec0f8c;
+  --color-brand: #f45bb0;
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  --grad-primary: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --grad-brand: linear-gradient(120deg, #f45bb0 0%, #a855f7 52%, #3b82f6 120%);
+
+  --accent-050: rgba(59, 130, 246, 0.08);
+  --accent-100: rgba(59, 130, 246, 0.14);
+  --accent-200: rgba(59, 130, 246, 0.22);
+
+  --magenta-100: rgba(244, 91, 176, 0.14);
+  --magenta-200: rgba(244, 91, 176, 0.24);
+
+  --cls-inst: #3b82f6;
+  --cls-prov: #f45bb0;
+  --cls-unknown: #fbbf24;
+  --heat: 244, 91, 176;
+
+  --glass-bg: rgba(17, 26, 46, 0.62);
+  --glass-strong: rgba(20, 31, 54, 0.88);
+  --glass-border: rgba(120, 145, 190, 0.18);
+  --glass-blur: 16px;
+  --ring: rgba(96, 165, 250, 0.45);
+
+  --amb-glow-a: rgba(37, 99, 235, 0.22);
+  --amb-glow-b: rgba(236, 15, 140, 0.16);
+  --amb-dot: rgba(148, 176, 226, 0.06);
+  --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.5);
+  --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -63,8 +143,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Fondo ambiental fijo: base fría + dos resplandores de marca + una malla de
-   puntos tenue que evoca las pantallas de señalización (LED). */
+/* Fondo ambiental fijo: base + dos resplandores de marca + una malla de
+   puntos tenue que evoca las pantallas de señalización (LED). Cambia por tema
+   mediante las variables --amb-*. */
 body::before {
   content: '';
   position: fixed;
@@ -73,17 +154,16 @@ body::before {
   pointer-events: none;
   background-image:
     radial-gradient(
-      1000px 600px at 8% -12%,
-      rgba(236, 15, 140, 0.14),
-      transparent 60%
-    ),
-    radial-gradient(
-      1000px 620px at 100% 0%,
-      rgba(36, 86, 214, 0.14),
+      1000px 620px at 100% -6%,
+      var(--amb-glow-a),
       transparent 55%
     ),
-    radial-gradient(rgba(15, 27, 45, 0.05) 1px, transparent 1.6px),
-    linear-gradient(180deg, #eef2fa 0%, #e5eaf4 100%);
+    radial-gradient(
+      1000px 600px at 6% -12%,
+      var(--amb-glow-b),
+      transparent 60%
+    ),
+    radial-gradient(var(--amb-dot) 1px, transparent 1.6px), var(--amb-base);
   background-size:
     auto,
     auto,
@@ -144,12 +224,12 @@ button {
 .btn-primary {
   background: var(--grad-primary);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(236, 15, 140, 0.28);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 8px 22px rgba(236, 15, 140, 0.4);
-  filter: saturate(1.05) brightness(1.03);
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.45);
+  filter: saturate(1.05) brightness(1.04);
 }
 
 .btn-primary:disabled {
@@ -168,17 +248,17 @@ button {
 
 .btn-secondary:hover {
   border-color: var(--color-primary);
-  color: var(--color-primary-dark);
+  color: var(--color-primary);
 }
 
 .btn-danger {
   background: var(--glass-strong);
-  border-color: #f0b9b3;
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
   color: var(--color-danger);
 }
 
 .btn-danger:hover {
-  background: #fdecea;
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
   border-color: var(--color-danger);
 }
 
@@ -204,21 +284,27 @@ button {
 }
 
 .badge-info {
-  background: rgba(36, 86, 214, 0.12);
+  background: var(--accent-100);
   color: var(--color-accent);
-  border-color: rgba(36, 86, 214, 0.24);
+  border-color: var(--accent-200);
+}
+
+.badge-brand {
+  background: var(--magenta-100);
+  color: var(--color-magenta);
+  border-color: var(--magenta-200);
 }
 
 .badge-warning {
-  background: #fdf3e0;
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
   color: var(--color-warning);
-  border-color: #f4d7a8;
+  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 
 .badge-muted {
-  background: rgba(100, 116, 139, 0.12);
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
   color: var(--color-text-muted);
-  border-color: rgba(100, 116, 139, 0.2);
+  border-color: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
 }
 
 .text-muted {
@@ -233,10 +319,11 @@ button {
   clip: rect(0 0 0 0);
 }
 
-/* Barra de desplazamiento discreta y tecnológica. */
+/* Barra de desplazamiento discreta y tecnológica (acento azul). */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(236, 15, 140, 0.35) transparent;
+  scrollbar-color: color-mix(in srgb, var(--color-primary) 45%, transparent)
+    transparent;
 }
 
 *::-webkit-scrollbar {
@@ -245,17 +332,17 @@ button {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(236, 15, 140, 0.32);
+  background: color-mix(in srgb, var(--color-primary) 42%, transparent);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(236, 15, 140, 0.5);
+  background: color-mix(in srgb, var(--color-primary) 62%, transparent);
   background-clip: padding-box;
 }
 
 ::selection {
-  background: rgba(236, 15, 140, 0.2);
+  background: var(--magenta-200);
 }

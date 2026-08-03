@@ -118,22 +118,37 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 
 ## 6. Flujos de la aplicación
 
-### 6.0 Identidad visual (tech-corporativa)
+### 6.0 Identidad visual (panel analítico, claro/oscuro)
 
 - Sistema de diseño **glassmorphism** definido por tokens en
   `src/styles/global.css`: superficies de "chrome" translúcidas con desenfoque
   (`--glass-*`) sobre un **fondo ambiental fijo** (`body::before`) que combina
-  base fría, dos resplandores de marca y una **malla de puntos** tenue que evoca
-  las pantallas de señalización (LED).
-- **Acento único de marca: magenta Liverpool** (`--color-primary`, mismo rosa de
-  la PPT de evidencias), usado con moderación en marca, acción primaria, estado
-  activo del menú y anillo de foco. El **azul corporativo** (`--color-accent`) se
-  reserva para lo informativo (enlaces, `badge-info`). El resto del sistema se
-  mantiene neutro/sobrio para no competir con el acento.
+  base, dos resplandores de marca y una **malla de puntos** tenue que evoca las
+  pantallas de señalización (LED).
+- **Base azul + detalle magenta.** Inspirado en un panel analítico oscuro, el
+  color de **acción/base es azul** (`--color-primary`) y el **magenta Liverpool**
+  (`--color-magenta`, mismo rosa de la PPT) se reserva como **acento puntual de
+  marca** (logotipo, barra del enlace activo, marcador de pico, intensidad de la
+  matriz, selección). El resto se mantiene sobrio para no competir.
+- **Tema claro y oscuro con interruptor.** Los mismos tokens tienen variante
+  oscura en `:root[data-theme='dark']`. El tema se gestiona en `src/app/theme.ts`
+  (persistencia en `localStorage`, respeta `prefers-color-scheme` si no hay
+  preferencia, e `initTheme()` en `main.tsx` evita el parpadeo). El **toggle**
+  vive en la topbar; `applyTheme` escribe `data-theme` y `color-scheme` en
+  `<html>`, por lo que **todos los módulos** (incluido el login) cambian de tema.
+- **Shell tipo panel:** topbar con marca, **pill "En línea"**, toggle de tema y
+  **chip de usuario** (avatar + rol); **barra lateral agrupada** por secciones
+  (Operación · Datos · Campañas · Administración) desde `NAV_ROUTES` (campo
+  `group`).
 - Se aplica de forma transversal reutilizando clases compartidas (`.card`,
   `.btn`, `.badge`, `.catalog__table`, topbar/sidebar, modales, menús); las
-  tablas e inputs se mantienen **nítidos** (alto contraste) para densidad de
-  datos. Respeta foco visible por teclado.
+  tablas e inputs se mantienen **nítidos** para densidad de datos. Respeta foco
+  visible por teclado.
+- **Gráficas con Apache ECharts** (`echarts`), cargadas por **import dinámico**
+  (chunk aparte, fuera del bundle inicial) mediante el envoltorio
+  `src/components/charts/EChart.tsx`. La paleta por tema está en
+  `chartTheme.ts`. El contenedor expone `role="img"` accesible y omite el render
+  sin canvas real (p. ej. jsdom en pruebas). Ver §6.5.
 
 ### 6.1 Catálogo Admira
 
@@ -354,6 +369,14 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   periodo/filtros; botón **Actualizar** que conserva los datos previos y muestra
   la última actualización. `occupancyModel` está ampliamente cubierto por
   pruebas puras.
+- **Gráficas ECharts** (import dinámico, tema claro/oscuro): **Carga diaria**
+  (área apilada de campañas simultáneas por día y clasificación, con marcador de
+  **pico** en magenta) y **Mezcla por clasificación** (dona). Ambas se derivan de
+  campos añadidos al modelo (`series: DailyLoadPoint[]` y `classificationTotals`),
+  respetan los filtros a nivel campaña y son coherentes con `totals`. Las barras
+  horizontales top-10 y la matriz tienda × soporte se conservan (accesibles, con
+  `aria-label` y drill-down); las gráficas son un refuerzo visual, no la única
+  fuente del dato.
 
 ## 7. Pendientes / próximos pasos
 

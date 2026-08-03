@@ -858,3 +858,99 @@ describe('presetRange', () => {
     expect(r.end.getUTCDate()).toBe(31);
   });
 });
+
+describe('buildOccupancyDashboard — serie diaria y dona por clasificación', () => {
+  it('la serie cubre cada día civil del periodo', () => {
+    const d = buildOccupancyDashboard({
+      campaigns: [],
+      screens: [],
+      tracking: [],
+      range: range('2026-05-01', '2026-05-05'),
+    });
+    expect(d.series).toHaveLength(5);
+    expect(d.series[0]?.date.getUTCDate()).toBe(1);
+    expect(d.series[4]?.date.getUTCDate()).toBe(5);
+    expect(d.series.every((p) => p.total === 0)).toBe(true);
+  });
+
+  it('cuenta campañas simultáneas por día y las separa por clasificación', () => {
+    const campaigns = [
+      campaign({
+        name: 'INST',
+        tipo: 'INSTITUCIONAL',
+        fechaInicio: '2026-05-01',
+        fechaFin: '2026-05-03',
+        supports: [
+          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
+        ],
+      }),
+      campaign({
+        name: 'PROV',
+        tipo: 'PROVEEDOR',
+        fechaInicio: '2026-05-02',
+        fechaFin: '2026-05-04',
+        supports: [
+          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
+        ],
+      }),
+    ];
+    const screens = [
+      screen({ id: 's1', numero: '1', calendarSupport: 'VIDEO WALL' }),
+    ];
+    const d = buildOccupancyDashboard({
+      campaigns,
+      screens,
+      tracking: [],
+      range: range('2026-05-01', '2026-05-05'),
+    });
+    // Día 2 y 3: ambas activas (pico 2, una de cada clasificación).
+    const day2 = d.series[1];
+    expect(day2?.total).toBe(2);
+    expect(day2?.institutional).toBe(1);
+    expect(day2?.provider).toBe(1);
+    // Día 5: ninguna activa.
+    expect(d.series[4]?.total).toBe(0);
+    // Dona: dos campañas distintas del periodo, una por clasificación.
+    expect(d.classificationTotals.institutional).toBe(1);
+    expect(d.classificationTotals.provider).toBe(1);
+    expect(d.classificationTotals.unknown).toBe(0);
+  });
+
+  it('la serie respeta el filtro de clasificación', () => {
+    const campaigns = [
+      campaign({
+        name: 'INST',
+        tipo: 'INSTITUCIONAL',
+        fechaInicio: '2026-05-01',
+        fechaFin: '2026-05-10',
+        supports: [
+          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
+        ],
+      }),
+      campaign({
+        name: 'PROV',
+        tipo: 'PROVEEDOR',
+        fechaInicio: '2026-05-01',
+        fechaFin: '2026-05-10',
+        supports: [
+          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
+        ],
+      }),
+    ];
+    const screens = [
+      screen({ id: 's1', numero: '1', calendarSupport: 'VIDEO WALL' }),
+    ];
+    const filters: OccupancyFilters = { classification: 'institutional' };
+    const d = buildOccupancyDashboard({
+      campaigns,
+      screens,
+      tracking: [],
+      range: MAY,
+      filters,
+    });
+    expect(d.classificationTotals.institutional).toBe(1);
+    expect(d.classificationTotals.provider).toBe(0);
+    expect(d.series.some((p) => p.provider > 0)).toBe(false);
+    expect(d.series.some((p) => p.institutional > 0)).toBe(true);
+  });
+});
