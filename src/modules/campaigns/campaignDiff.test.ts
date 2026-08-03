@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   campaignSignature,
   diffCampaigns,
+  dedupeIncoming,
   describeChanges,
   type StoredCampaign,
 } from './campaignDiff';
@@ -104,6 +105,70 @@ describe('diffCampaigns', () => {
     const s = [stored(camp('Nike')), stored(camp('Vieja'), 'id2')];
     const diff = diffCampaigns([camp('Nike')], s);
     expect(diff.removed.map((c) => c.name)).toEqual(['Vieja']);
+  });
+
+  it('deduplica el calendario entrante: la campaña repetida se agrega una vez', () => {
+    const diff = diffCampaigns([camp('Nike'), camp('Nike')], []);
+    expect(diff.added).toHaveLength(1);
+    expect(diff.added[0]!.name).toBe('Nike');
+  });
+
+  it('autolimpia duplicados en BD: conserva uno y elimina el resto', () => {
+    const s = [
+      stored(camp('Nike'), 'id1'),
+      stored(camp('Nike'), 'id2'), // duplicado redundante (mismo nameKey)
+    ];
+    const diff = diffCampaigns([camp('Nike')], s);
+    // Un documento se conserva (unchanged) y el duplicado se marca para borrar.
+    expect(diff.removed.map((c) => c.id)).toEqual(['id2']);
+    expect(diff.unchanged).toBe(1);
+    expect(diff.hasChanges).toBe(true);
+  });
+});
+
+describe('dedupeIncoming', () => {
+  it('une soportes/tiendas, toma el span más amplio y el mejor link', () => {
+    const a = camp('HIPER X', {
+      fechaInicio: '3/5/26',
+      fechaFin: '3/15/26',
+      link: '',
+      supports: [
+        {
+          support: 'VIDEO WALL',
+          owner: 'liverpool',
+          stores: [{ numero: '1', nombre: 'A' }],
+        },
+      ],
+    });
+    const b = camp('hiper  x', {
+      fechaInicio: '3/1/26',
+      fechaFin: '3/20/26',
+      link: 'https://x.com/a.zip',
+      supports: [
+        {
+          support: 'VIDEO WALL',
+          owner: 'liverpool',
+          stores: [{ numero: '2', nombre: 'B' }],
+        },
+      ],
+    });
+    const [merged, ...rest] = dedupeIncoming([a, b]);
+    expect(rest).toHaveLength(0); // una sola campaña
+    expect(merged!.fechaInicio).toBe('3/1/26');
+    expect(merged!.fechaFin).toBe('3/20/26');
+    expect(merged!.link).toBe('https://x.com/a.zip');
+    // Tiendas unidas bajo el mismo soporte.
+    expect(merged!.supports).toHaveLength(1);
+    expect(merged!.supports[0]!.stores.map((s) => s.numero).sort()).toEqual([
+      '1',
+      '2',
+    ]);
+  });
+
+  it('deja el tipo vacío (Pendiente) si las copias discrepan', () => {
+    const a = camp('X', { tipo: 'INSTITUCIONAL' });
+    const b = camp('X', { tipo: 'PROVEEDOR' });
+    expect(dedupeIncoming([a, b])[0]!.tipo).toBe('');
   });
 });
 
