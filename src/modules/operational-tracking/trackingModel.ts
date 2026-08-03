@@ -4,7 +4,10 @@ import {
   type Consolidation,
 } from '@/modules/consolidation/consolidate';
 import type { AdmiraScreen } from '@/domain';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignKey,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking, Classification } from './types';
 import { classifyFromTipo } from './campaignClassification';
 import { downloadLinkStatus, type DownloadLinkStatus } from './downloadLink';
@@ -56,6 +59,67 @@ function timeframeOf(
   return 'active';
 }
 
+/**
+ * Colapsa campañas que comparten `nameKey` en una sola. El seguimiento operativo
+ * es **por nombre de campaña** (un documento por `nameKey`, los checks y la
+ * bitácora sobreviven a las reimportaciones), por lo que dos campañas con el
+ * mismo nombre son la misma campaña operativa: mostrarlas como filas separadas
+ * duplica la vista y acopla sus comentarios/indicadores. Se conserva el orden de
+ * aparición y se toma el **span más amplio** (inicio más temprano, fin más
+ * tardío) y el **mejor link** disponible.
+ */
+function dedupeByNameKey(
+  campaigns: readonly StoredCampaign[],
+): StoredCampaign[] {
+  const groups = new Map<string, StoredCampaign[]>();
+  const order: string[] = [];
+  for (const c of campaigns) {
+    const g = groups.get(c.nameKey);
+    if (g) {
+      g.push(c);
+    } else {
+      groups.set(c.nameKey, [c]);
+      order.push(c.nameKey);
+    }
+  }
+  return order.map((key) => {
+    const group = groups.get(key)!;
+    const rep = group[0]!;
+    if (group.length === 1) return rep;
+    let earliest = rep;
+    let latest = rep;
+    for (const c of group) {
+      const s = parseCampaignDate(c.fechaInicio);
+      const sBest = parseCampaignDate(earliest.fechaInicio);
+      if (s && (!sBest || s.getTime() < sBest.getTime())) earliest = c;
+      const e = parseCampaignDate(c.fechaFin);
+      const eBest = parseCampaignDate(latest.fechaFin);
+      if (e && (!eBest || e.getTime() > eBest.getTime())) latest = c;
+    }
+    const link =
+      group.find((c) => downloadLinkStatus(c.link) === 'valid')?.link ??
+      group.find((c) => c.link.trim() !== '')?.link ??
+      rep.link;
+    // Clasificación por tipo: si los miembros discrepan (p. ej. uno
+    // Institucional y otro Proveedor) se deja **Pendiente** para forzar una
+    // decisión explícita; nunca se asume una clasificación (ver AGENTS.md).
+    const classes = new Set(
+      group.map((c) => classifyFromTipo(c.tipo)).filter((x) => x !== 'unknown'),
+    );
+    const tipo =
+      classes.size === 1
+        ? (group.find((c) => c.tipo.trim() !== '')?.tipo ?? rep.tipo)
+        : '';
+    return {
+      ...rep,
+      fechaInicio: earliest.fechaInicio,
+      fechaFin: latest.fechaFin,
+      link,
+      tipo,
+    };
+  });
+}
+
 export function buildTrackingRows(
   campaigns: readonly StoredCampaign[],
   screens: readonly AdmiraScreen[],
@@ -63,11 +127,14 @@ export function buildTrackingRows(
   today: Date,
 ): TrackingRow[] {
   const result = consolidate(campaigns, screens);
+  // Indexado por nameKey (no por nombre crudo): dos grafías del mismo nombre
+  // (mayúsculas/espacios) comparten llave, así el conteo de tiendas las une.
   const consByCampaign = new Map<string, Consolidation[]>();
   for (const c of result.consolidations) {
-    const list = consByCampaign.get(c.campaignName) ?? [];
+    const k = campaignKey(c.campaignName);
+    const list = consByCampaign.get(k) ?? [];
     list.push(c);
-    consByCampaign.set(c.campaignName, list);
+    consByCampaign.set(k, list);
   }
   const screenStore = new Map<string, string>();
   for (const s of screens) {
@@ -76,14 +143,15 @@ export function buildTrackingRows(
   const trackingByKey = new Map<string, CampaignOperationalTracking>();
   for (const t of tracking) trackingByKey.set(t.campaignNameKey, t);
 
-  return campaigns.map((campaign) => {
+  // Una fila por campaña (por nombre): colapsa duplicados con el mismo nameKey.
+  return dedupeByNameKey(campaigns).map((campaign) => {
     const t = trackingByKey.get(campaign.nameKey) ?? null;
     const classification: Classification | 'unknown' = t
       ? t.classification
       : classifyFromTipo(campaign.tipo);
 
     const stores = new Set<string>();
-    for (const cn of consByCampaign.get(campaign.name) ?? []) {
+    for (const cn of consByCampaign.get(campaign.nameKey) ?? []) {
       for (const id of cn.screenIds) {
         const store = screenStore.get(id);
         if (store) stores.add(store);
