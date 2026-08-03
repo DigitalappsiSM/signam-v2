@@ -98,6 +98,41 @@ describe('buildTrackingRows', () => {
     expect(rows[0]!.overall).toBe('overdue');
   });
 
+  it('colapsa campañas duplicadas (mismo nameKey) en una sola fila', () => {
+    const rows = buildTrackingRows(
+      [
+        campaign({
+          id: 'a',
+          name: 'HIPER X',
+          nameKey: 'hiper x',
+          link: '',
+          fechaInicio: '2026-03-05',
+          fechaFin: '2026-03-15',
+          tipo: '',
+        }),
+        campaign({
+          id: 'b',
+          name: 'HIPER X',
+          nameKey: 'hiper x',
+          link: 'https://x.com/a.zip',
+          fechaInicio: '2026-03-01',
+          fechaFin: '2026-03-20',
+          tipo: 'PROVEEDOR',
+        }),
+      ],
+      [],
+      [],
+      today,
+    );
+    // Una sola fila (no dos): se elimina el duplicado.
+    expect(rows).toHaveLength(1);
+    // Span más amplio y mejor link/tipo disponibles.
+    expect(rows[0]!.campaign.fechaInicio).toBe('2026-03-01');
+    expect(rows[0]!.campaign.fechaFin).toBe('2026-03-20');
+    expect(rows[0]!.linkStatus).toBe('valid');
+    expect(rows[0]!.classification).toBe('provider');
+  });
+
   it('marca link faltante e inválido', () => {
     const rows = buildTrackingRows(
       [

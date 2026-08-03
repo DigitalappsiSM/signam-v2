@@ -56,6 +56,58 @@ function timeframeOf(
   return 'active';
 }
 
+/**
+ * Colapsa campañas que comparten `nameKey` en una sola. El seguimiento operativo
+ * es **por nombre de campaña** (un documento por `nameKey`, los checks y la
+ * bitácora sobreviven a las reimportaciones), por lo que dos campañas con el
+ * mismo nombre son la misma campaña operativa: mostrarlas como filas separadas
+ * duplica la vista y acopla sus comentarios/indicadores. Se conserva el orden de
+ * aparición y se toma el **span más amplio** (inicio más temprano, fin más
+ * tardío) y el **mejor link** disponible.
+ */
+function dedupeByNameKey(
+  campaigns: readonly StoredCampaign[],
+): StoredCampaign[] {
+  const groups = new Map<string, StoredCampaign[]>();
+  const order: string[] = [];
+  for (const c of campaigns) {
+    const g = groups.get(c.nameKey);
+    if (g) {
+      g.push(c);
+    } else {
+      groups.set(c.nameKey, [c]);
+      order.push(c.nameKey);
+    }
+  }
+  return order.map((key) => {
+    const group = groups.get(key)!;
+    const rep = group[0]!;
+    if (group.length === 1) return rep;
+    let earliest = rep;
+    let latest = rep;
+    for (const c of group) {
+      const s = parseCampaignDate(c.fechaInicio);
+      const sBest = parseCampaignDate(earliest.fechaInicio);
+      if (s && (!sBest || s.getTime() < sBest.getTime())) earliest = c;
+      const e = parseCampaignDate(c.fechaFin);
+      const eBest = parseCampaignDate(latest.fechaFin);
+      if (e && (!eBest || e.getTime() > eBest.getTime())) latest = c;
+    }
+    const link =
+      group.find((c) => downloadLinkStatus(c.link) === 'valid')?.link ??
+      group.find((c) => c.link.trim() !== '')?.link ??
+      rep.link;
+    const tipo = group.find((c) => c.tipo.trim() !== '')?.tipo ?? rep.tipo;
+    return {
+      ...rep,
+      fechaInicio: earliest.fechaInicio,
+      fechaFin: latest.fechaFin,
+      link,
+      tipo,
+    };
+  });
+}
+
 export function buildTrackingRows(
   campaigns: readonly StoredCampaign[],
   screens: readonly AdmiraScreen[],
@@ -76,7 +128,8 @@ export function buildTrackingRows(
   const trackingByKey = new Map<string, CampaignOperationalTracking>();
   for (const t of tracking) trackingByKey.set(t.campaignNameKey, t);
 
-  return campaigns.map((campaign) => {
+  // Una fila por campaña (por nombre): colapsa duplicados con el mismo nameKey.
+  return dedupeByNameKey(campaigns).map((campaign) => {
     const t = trackingByKey.get(campaign.nameKey) ?? null;
     const classification: Classification | 'unknown' = t
       ? t.classification
