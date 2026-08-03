@@ -1,6 +1,11 @@
 import { normalizeSupport } from '@/domain';
 import { normalizeStore } from '@/modules/consolidation/consolidate';
-import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import type {
+  CampaignSupport,
+  ParsedCampaign,
+  StoreRef,
+} from '@/modules/liverpool-import/campaignParse';
+import { parseCampaignDate } from './dateFilter';
 
 /**
  * Detección de cambios de campañas contra lo guardado en la base de datos.
@@ -20,6 +25,130 @@ export interface StoredCampaign extends ParsedCampaign {
 /** Clave de identidad de campaña (por nombre, estable ante cambios de datos). */
 export function campaignKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Une los soportes de un grupo de campañas: por soporte normalizado, con la
+ *  unión de tiendas (dedup por número normalizado; conserva la primera grafía).
+ *
+ *  Regla clave: una lista de tiendas **vacía** es un comodín ("todas las
+ *  pantallas activas del soporte", ver `consolidate()`). Si alguna ocurrencia del
+ *  soporte viene sin tiendas, el resultado se mantiene como comodín (vacío) en
+ *  lugar de reducirse a la unión de tiendas explícitas (evita CSV incompletos). */
+function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
+  const bySupport = new Map<
+    string,
+    {
+      support: string;
+      owner: CampaignSupport['owner'];
+      stores: Map<string, StoreRef>;
+      wildcard: boolean;
+    }
+  >();
+  const order: string[] = [];
+  for (const c of group) {
+    for (const s of c.supports) {
+      const k = normalizeSupport(s.support);
+      let entry = bySupport.get(k);
+      if (!entry) {
+        entry = {
+          support: s.support,
+          owner: s.owner,
+          stores: new Map(),
+          wildcard: false,
+        };
+        bySupport.set(k, entry);
+        order.push(k);
+      }
+      if (s.stores.length === 0) {
+        entry.wildcard = true; // "Asignada" sin comentario: todas las pantallas.
+      }
+      for (const st of s.stores) {
+        const sk = normalizeStore(st.numero);
+        if (!entry.stores.has(sk)) entry.stores.set(sk, st);
+      }
+    }
+  }
+  return order.map((k) => {
+    const e = bySupport.get(k)!;
+    return {
+      support: e.support,
+      owner: e.owner,
+      // Comodín preservado: si alguna ocurrencia no tenía tiendas, va vacío.
+      stores: e.wildcard ? [] : [...e.stores.values()],
+    };
+  });
+}
+
+/**
+ * Fusiona un grupo de campañas que comparten `campaignKey` (la misma campaña
+ * repetida en el calendario) en una sola: unión de soportes/tiendas, **span de
+ * fechas más amplio**, mejor link y primer valor no vacío de `vendidoPor`/`mes`.
+ * Si los `tipo` no vacíos discrepan, se deja vacío para no asumir clasificación.
+ */
+function mergeParsedGroup(group: ParsedCampaign[]): ParsedCampaign {
+  const rep = group[0]!;
+  if (group.length === 1) return rep;
+
+  let earliest = rep;
+  let latest = rep;
+  for (const c of group) {
+    const s = parseCampaignDate(c.fechaInicio);
+    const sBest = parseCampaignDate(earliest.fechaInicio);
+    if (s && (!sBest || s.getTime() < sBest.getTime())) earliest = c;
+    const e = parseCampaignDate(c.fechaFin);
+    const eBest = parseCampaignDate(latest.fechaFin);
+    if (e && (!eBest || e.getTime() > eBest.getTime())) latest = c;
+  }
+
+  const isValidLink = (l: string) => /^https?:\/\//i.test(l.trim());
+  const link =
+    group.find((c) => isValidLink(c.link ?? ''))?.link ??
+    group.find((c) => (c.link ?? '').trim() !== '')?.link ??
+    rep.link;
+
+  const firstNonEmpty = (pick: (c: ParsedCampaign) => string) =>
+    group.map(pick).find((v) => v.trim() !== '') ?? '';
+
+  // Tipo: si las grafías no vacías coinciden (ignorando caja/espacios) se usa;
+  // si discrepan, se deja vacío (Pendiente) para forzar decisión explícita.
+  const distinctTipos = new Set(
+    group.map((c) => c.tipo.trim().toUpperCase()).filter((v) => v !== ''),
+  );
+  const tipo = distinctTipos.size === 1 ? firstNonEmpty((c) => c.tipo) : '';
+
+  return {
+    ...rep,
+    tipo,
+    vendidoPor: firstNonEmpty((c) => c.vendidoPor) || rep.vendidoPor,
+    fechaInicio: earliest.fechaInicio,
+    fechaFin: latest.fechaFin,
+    mes: firstNonEmpty((c) => c.mes) || rep.mes,
+    link,
+    supports: mergeSupports(group),
+  };
+}
+
+/**
+ * Deduplica el calendario entrante por `campaignKey`: fusiona filas repetidas de
+ * la misma campaña en una sola (conserva el orden de aparición). Evita que el
+ * mismo nombre se persista como varios documentos.
+ */
+export function dedupeIncoming(
+  incoming: readonly ParsedCampaign[],
+): ParsedCampaign[] {
+  const groups = new Map<string, ParsedCampaign[]>();
+  const order: string[] = [];
+  for (const c of incoming) {
+    const k = campaignKey(c.name);
+    const g = groups.get(k);
+    if (g) {
+      g.push(c);
+    } else {
+      groups.set(k, [c]);
+      order.push(k);
+    }
+  }
+  return order.map((k) => mergeParsedGroup(groups.get(k)!));
 }
 
 interface SupportSig {
@@ -118,14 +247,23 @@ export function diffCampaigns(
   incoming: readonly ParsedCampaign[],
   stored: readonly StoredCampaign[],
 ): CampaignDiff {
-  const storedByKey = new Map(stored.map((s) => [s.nameKey, s]));
-  const seen = new Set<string>();
+  // Deduplica el calendario entrante (misma campaña repetida → una sola).
+  const merged = dedupeIncoming(incoming);
 
+  // Representante por nameKey + duplicados redundantes en BD (para autolimpieza).
+  const storedByKey = new Map<string, StoredCampaign>();
+  const storedExtras: StoredCampaign[] = [];
+  for (const s of stored) {
+    if (storedByKey.has(s.nameKey)) storedExtras.push(s);
+    else storedByKey.set(s.nameKey, s);
+  }
+
+  const seen = new Set<string>();
   const added: ParsedCampaign[] = [];
   const modified: CampaignChange[] = [];
   let unchanged = 0;
 
-  for (const c of incoming) {
+  for (const c of merged) {
     const k = campaignKey(c.name);
     seen.add(k);
     const prev = storedByKey.get(k);
@@ -142,7 +280,12 @@ export function diffCampaigns(
     }
   }
 
-  const removed = stored.filter((s) => !seen.has(s.nameKey));
+  // Se eliminan: los representantes que ya no están en el calendario y **todos**
+  // los duplicados redundantes de BD (se conserva un documento por nameKey).
+  const removed = [
+    ...[...storedByKey.values()].filter((s) => !seen.has(s.nameKey)),
+    ...storedExtras,
+  ];
 
   return {
     added,

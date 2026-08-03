@@ -171,6 +171,14 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
   **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
+- **Identidad por nombre (sin duplicados)**: la campaña se identifica por
+  `nameKey`. `diffCampaigns` **deduplica el calendario entrante** (`dedupeIncoming`:
+  si una campaña aparece en varias filas se fusiona en una — unión de
+  soportes/tiendas, span de fechas más amplio, mejor link; si los `tipo`
+  discrepan se deja Pendiente, nunca se asume). Además, si en la base ya existen
+  documentos duplicados con el mismo `nameKey`, el diff **conserva uno y marca el
+  resto como eliminados** (autolimpieza en la siguiente importación confirmada).
+  Así el seguimiento y la consolidación dejan de ver campañas repetidas.
 - **UX resumen → detalle** (no se despliega todo a la vez): tras subir el
   archivo aparece un **banner-titular fijo** (sticky) con las cifras clave
   (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón
