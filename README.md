@@ -53,6 +53,31 @@ propio chunk); **aún no** se persiste en Firebase ni en Storage.
 > generación completa de CSV) se implementa en iteraciones posteriores. Los
 > módulos de la UI muestran explícitamente el alcance pendiente.
 
+## Panel: carga por tienda y soporte
+
+El Dashboard incluye la sección **Carga por tienda y soporte** (además del
+resumen operativo y las alertas). Deriva todo en memoria de `campaigns`,
+`screens` y `campaignOperationalTracking` (modelo puro `occupancyModel.ts`); no
+persiste métricas en Firestore ni reejecuta la consolidación CSV.
+
+- **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
+  día del periodo, de campañas distintas que usan esa tienda/soporte.
+- **Complementarias:** campañas distintas, **días-campaña**, tiendas/soportes
+  distintos y **pantallas físicas** (dedup por `screen.id`).
+- **Segmentación** Institucional / Proveedor / Pendiente (texto y color; nunca se
+  asume Proveedor).
+- **No es capacidad:** aún no se modela capacidad máxima por pantalla, por eso
+  **no** se muestran porcentajes de ocupación ni “saturación”; el color de la
+  matriz es intensidad relativa dentro de la vista.
+- **InStore Media** (MUPPI'S/PENDON) aparece **separado** como demanda
+  solicitada (siguen excluidos del CSV; sin pantallas físicas).
+- Cruce por `Numero de Tienda + calendarSupport` (solo pantallas activas;
+  inactivas/faltantes → incidencias de calidad), con la excepción **Guadalajara**
+  (78 → CRIUS + CUADRADA). Nombre oficial de tienda del catálogo.
+- **Filtros** (periodo, clasificación, propietario, soporte, tienda, búsqueda)
+  sincronizados con la URL, y **drill-down** por soporte/tienda/celda con enlace
+  a Seguimiento. Generación client-side; botón Actualizar sin vaciar la vista.
+
 ## Stack
 
 - **Frontend**: React 18 + TypeScript + Vite + React Router.
