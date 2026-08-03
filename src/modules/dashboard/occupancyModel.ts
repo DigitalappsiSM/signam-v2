@@ -109,12 +109,26 @@ export interface OccupancyTotals {
   physicalScreens: number;
 }
 
+/** Punto diario de carga: campañas activas ese día por clasificación. */
+export interface DailyLoadPoint {
+  /** Fecha civil (medianoche UTC). */
+  date: Date;
+  institutional: number;
+  provider: number;
+  unknown: number;
+  total: number;
+}
+
 export interface OccupancyDashboard {
   supports: SupportOccupancy[];
   stores: StoreOccupancy[];
   matrix: StoreSupportOccupancy[];
   issues: OccupancyIssue[];
   totals: OccupancyTotals;
+  /** Serie diaria de campañas simultáneas dentro del periodo. */
+  series: DailyLoadPoint[];
+  /** Campañas distintas del periodo por clasificación (para la dona). */
+  classificationTotals: ClassificationBreakdown;
 }
 
 /** Periodo civil (medianoche UTC, ambos extremos inclusivos). */
@@ -744,7 +758,56 @@ export function buildOccupancyDashboard(
     physicalScreens: allScreens.size,
   };
 
-  return { supports, stores, matrix, issues, totals };
+  const series = buildDailySeries(periodCampaigns, range);
+  const classificationTotals = breakdown(
+    periodCampaigns.map((p) => ({ oc: p.campaign })),
+  );
+
+  return {
+    supports,
+    stores,
+    matrix,
+    issues,
+    totals,
+    series,
+    classificationTotals,
+  };
+}
+
+/** Máximo de puntos diarios a materializar en la serie (evita rangos enormes). */
+const MAX_SERIES_DAYS = 400;
+
+/**
+ * Serie diaria de campañas simultáneas por clasificación dentro del periodo.
+ * Para cada día civil cuenta las campañas del periodo activas ese día.
+ */
+function buildDailySeries(
+  periodCampaigns: PeriodCampaign[],
+  range: DateRange,
+): DailyLoadPoint[] {
+  const startDay = dayNum(range.start);
+  const endDay = dayNum(range.end);
+  if (endDay < startDay) return [];
+  const span = Math.min(endDay - startDay + 1, MAX_SERIES_DAYS);
+  const points: DailyLoadPoint[] = [];
+  for (let i = 0; i < span; i += 1) {
+    const day = startDay + i;
+    const point: DailyLoadPoint = {
+      date: new Date(day * MS_DAY),
+      institutional: 0,
+      provider: 0,
+      unknown: 0,
+      total: 0,
+    };
+    for (const p of periodCampaigns) {
+      if (p.startDay <= day && day <= p.endDay) {
+        point[p.campaign.classification] += 1;
+        point.total += 1;
+      }
+    }
+    points.push(point);
+  }
+  return points;
 }
 
 // --- Periodos ----------------------------------------------------------------

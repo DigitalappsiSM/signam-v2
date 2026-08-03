@@ -44,6 +44,9 @@ import { SupportOccupancyChart } from './components/SupportOccupancyChart';
 import { StoreOccupancyChart } from './components/StoreOccupancyChart';
 import { StoreSupportMatrix } from './components/StoreSupportMatrix';
 import { OccupancyDetailPanel } from './components/OccupancyDetailPanel';
+import { DailyLoadChart } from './components/DailyLoadChart';
+import { ClassificationDonut } from './components/ClassificationDonut';
+import { useTheme } from '@/app/theme';
 import '@/modules/operational-tracking/OperationalTrackingPage.css';
 import './DashboardPage.css';
 
@@ -114,6 +117,7 @@ function selectionToDetail(sel: Selection): DetailData {
 /** Panel inicial: resumen operativo, alertas y puntos de entrada a los módulos. */
 export function DashboardPage() {
   const modules = NAV_ROUTES.filter((r) => r.path !== '/');
+  const { theme } = useTheme();
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
   const [tracking, setTracking] = useState<CampaignOperationalTracking[]>([]);
@@ -506,6 +510,28 @@ export function DashboardPage() {
                   label="Soportes utilizados"
                   value={occupancy.totals.distinctSupports}
                 />
+              </div>
+
+              <div className="occ-visuals">
+                <section
+                  className="occ-panel"
+                  aria-label="Campañas simultáneas por día"
+                >
+                  <h3 className="occ-chart__title">
+                    Carga diaria (campañas simultáneas)
+                  </h3>
+                  <DailyLoadChart series={occupancy.series} theme={theme} />
+                </section>
+                <section
+                  className="occ-panel occ-panel--narrow"
+                  aria-label="Campañas por clasificación"
+                >
+                  <h3 className="occ-chart__title">Mezcla por clasificación</h3>
+                  <ClassificationDonut
+                    breakdown={occupancy.classificationTotals}
+                    theme={theme}
+                  />
+                </section>
               </div>
 
               <div className="occ-charts">

@@ -77,10 +77,25 @@ persiste métricas en Firestore ni reejecuta la consolidación CSV.
 - **Filtros** (periodo, clasificación, propietario, soporte, tienda, búsqueda)
   sincronizados con la URL, y **drill-down** por soporte/tienda/celda con enlace
   a Seguimiento. Generación client-side; botón Actualizar sin vaciar la vista.
+- **Gráficas Apache ECharts** (import dinámico, chunk aparte): _Carga diaria_
+  (área apilada de campañas simultáneas por día, con marcador de pico) y _Mezcla
+  por clasificación_ (dona). Refuerzan las barras top-10 y la matriz, que siguen
+  siendo accesibles y con drill-down.
+
+## Interfaz: panel analítico claro/oscuro
+
+La app usa un sistema de diseño _glassmorphism_ por tokens (`src/styles/global.css`)
+con **base azul** y **magenta Liverpool como acento puntual**. Incluye **tema
+claro y oscuro con interruptor** en la barra superior (persistido en
+`localStorage`, respeta `prefers-color-scheme`; `src/app/theme.ts`), barra lateral
+**agrupada** por secciones y una topbar tipo panel (marca, estado _En línea_,
+toggle de tema y usuario). El cambio de tema aplica a **toda la app** vía
+`data-theme` en `<html>`.
 
 ## Stack
 
 - **Frontend**: React 18 + TypeScript + Vite + React Router.
+- **Gráficas**: Apache ECharts (carga diferida por import dinámico).
 - **Pruebas**: Vitest + Testing Library (jsdom).
 - **Calidad**: ESLint (flat config) + Prettier + `tsc` strict.
 - **Backend**: Firebase (Auth, Firestore, Storage, Functions, Hosting) con

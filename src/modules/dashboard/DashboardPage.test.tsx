@@ -181,6 +181,18 @@ describe('DashboardPage — carga por tienda y soporte', () => {
     expect(screen.getAllByText('Institucional').length).toBeGreaterThan(0);
   });
 
+  it('muestra las gráficas ECharts (área diaria y dona) accesibles', async () => {
+    renderDash();
+    await screen.findByRole('heading', { name: /Carga por tienda y soporte/i });
+    // El lienzo ECharts se difiere; el contenedor accesible siempre está.
+    expect(
+      screen.getByRole('img', { name: /Campañas simultáneas por día/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: /Campañas por clasificación/i }),
+    ).toBeInTheDocument();
+  });
+
   it('las barras exponen aria-label con el pico (accesibilidad)', async () => {
     renderDash();
     await screen.findByRole('heading', { name: /Soportes con mayor carga/i });
