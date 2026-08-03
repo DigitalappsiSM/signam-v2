@@ -4,7 +4,10 @@ import {
   type Consolidation,
 } from '@/modules/consolidation/consolidate';
 import type { AdmiraScreen } from '@/domain';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignKey,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking, Classification } from './types';
 import { classifyFromTipo } from './campaignClassification';
 import { downloadLinkStatus, type DownloadLinkStatus } from './downloadLink';
@@ -97,7 +100,16 @@ function dedupeByNameKey(
       group.find((c) => downloadLinkStatus(c.link) === 'valid')?.link ??
       group.find((c) => c.link.trim() !== '')?.link ??
       rep.link;
-    const tipo = group.find((c) => c.tipo.trim() !== '')?.tipo ?? rep.tipo;
+    // Clasificación por tipo: si los miembros discrepan (p. ej. uno
+    // Institucional y otro Proveedor) se deja **Pendiente** para forzar una
+    // decisión explícita; nunca se asume una clasificación (ver AGENTS.md).
+    const classes = new Set(
+      group.map((c) => classifyFromTipo(c.tipo)).filter((x) => x !== 'unknown'),
+    );
+    const tipo =
+      classes.size === 1
+        ? (group.find((c) => c.tipo.trim() !== '')?.tipo ?? rep.tipo)
+        : '';
     return {
       ...rep,
       fechaInicio: earliest.fechaInicio,
@@ -115,11 +127,14 @@ export function buildTrackingRows(
   today: Date,
 ): TrackingRow[] {
   const result = consolidate(campaigns, screens);
+  // Indexado por nameKey (no por nombre crudo): dos grafías del mismo nombre
+  // (mayúsculas/espacios) comparten llave, así el conteo de tiendas las une.
   const consByCampaign = new Map<string, Consolidation[]>();
   for (const c of result.consolidations) {
-    const list = consByCampaign.get(c.campaignName) ?? [];
+    const k = campaignKey(c.campaignName);
+    const list = consByCampaign.get(k) ?? [];
     list.push(c);
-    consByCampaign.set(c.campaignName, list);
+    consByCampaign.set(k, list);
   }
   const screenStore = new Map<string, string>();
   for (const s of screens) {
@@ -136,7 +151,7 @@ export function buildTrackingRows(
       : classifyFromTipo(campaign.tipo);
 
     const stores = new Set<string>();
-    for (const cn of consByCampaign.get(campaign.name) ?? []) {
+    for (const cn of consByCampaign.get(campaign.nameKey) ?? []) {
       for (const id of cn.screenIds) {
         const store = screenStore.get(id);
         if (store) stores.add(store);

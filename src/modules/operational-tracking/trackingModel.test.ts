@@ -7,8 +7,55 @@ import {
 import { parseCampaignDate } from './businessDays';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking } from './types';
+import type { AdmiraScreen } from '@/domain';
+import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
 
 const today = parseCampaignDate('2026-03-10')!;
+
+function screen(o: {
+  id: string;
+  numero: string;
+  soporte: string;
+}): AdmiraScreen {
+  return {
+    id: o.id,
+    original: {
+      'TIPO DE pantallas': '',
+      CENTROS: '',
+      CIRCUITO: '',
+      RESOLUCION: '',
+      FORMATO: '',
+      'Nombre en plataforma': '',
+      'TIPO DE PASES': '',
+      'Numero de Tienda': o.numero,
+      'Nombre de tienda': 'Tienda',
+      Modelo: '',
+      ARTICULOS: '',
+      BRANDS: '',
+    },
+    metadata: {
+      active: true,
+      createdAt: 0,
+      updatedAt: 0,
+      createdBy: '',
+      updatedBy: '',
+      source: '',
+      sourceSheet: '',
+      sourceRow: 0,
+      deactivationReason: null,
+      version: 1,
+      calendarSupport: o.soporte,
+    },
+  };
+}
+
+function support(soporte: string, numero: string): CampaignSupport {
+  return {
+    support: soporte,
+    owner: 'liverpool',
+    stores: [{ numero, nombre: '' }],
+  };
+}
 
 function campaign(over: Partial<StoredCampaign>): StoredCampaign {
   return {
@@ -131,6 +178,59 @@ describe('buildTrackingRows', () => {
     expect(rows[0]!.campaign.fechaFin).toBe('2026-03-20');
     expect(rows[0]!.linkStatus).toBe('valid');
     expect(rows[0]!.classification).toBe('provider');
+  });
+
+  it('une las tiendas de duplicados con grafías distintas del mismo nombre', () => {
+    const rows = buildTrackingRows(
+      [
+        campaign({
+          id: 'a',
+          name: 'HIPER X',
+          nameKey: 'hiper x',
+          supports: [support('VIDEO WALL', '1')],
+        }),
+        campaign({
+          id: 'b',
+          name: 'hiper  x', // misma llave (minúsculas + espacios), otra grafía
+          nameKey: 'hiper x',
+          supports: [support('VIDEO WALL', '2')],
+        }),
+      ],
+      [
+        screen({ id: 's1', numero: '1', soporte: 'VIDEO WALL' }),
+        screen({ id: 's2', numero: '2', soporte: 'VIDEO WALL' }),
+      ],
+      [],
+      today,
+    );
+    expect(rows).toHaveLength(1);
+    // Se cuentan las tiendas de ambas grafías (no solo la representativa).
+    expect(rows[0]!.distinctStores).toBe(2);
+    expect(rows[0]!.target).toBe(1); // 10% de 2, redondeo → 1
+  });
+
+  it('deja Pendiente si los duplicados tienen tipos en conflicto', () => {
+    const rows = buildTrackingRows(
+      [
+        campaign({
+          id: 'a',
+          name: 'HIPER X',
+          nameKey: 'hiper x',
+          tipo: 'INSTITUCIONAL',
+        }),
+        campaign({
+          id: 'b',
+          name: 'HIPER X',
+          nameKey: 'hiper x',
+          tipo: 'PROVEEDOR',
+        }),
+      ],
+      [],
+      [],
+      today,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.classification).toBe('unknown');
   });
 
   it('marca link faltante e inválido', () => {
