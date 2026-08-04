@@ -123,6 +123,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Resoluciones de fechas ambiguas confirmadas al importar (memoria estable
+    // para que la reimportación las respete). Se crean/actualizan; no se borran.
+    match /dateResolutions/{resolutionId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
     // Cerrado por defecto para cualquier otra ruta.
     match /{document=**} {
       allow read, write: if false;
