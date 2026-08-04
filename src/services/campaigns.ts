@@ -2,7 +2,7 @@ import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import {
-  campaignKey,
+  campaignIdentity,
   campaignSignature,
   type CampaignDiff,
   type StoredCampaign,
@@ -37,7 +37,9 @@ export async function listCampaigns(): Promise<StoredCampaign[]> {
 function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
   return {
     ...campaign,
-    nameKey: campaignKey(campaign.name),
+    // La identidad (todos los datos) es la llave: distingue dos campañas con el
+    // mismo nombre pero distinta vigencia/tiendas y asocia su seguimiento.
+    nameKey: campaignIdentity(campaign),
     signature: campaignSignature(campaign),
     updatedAt: now,
     updatedBy: actor.email,

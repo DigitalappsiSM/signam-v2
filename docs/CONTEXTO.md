@@ -171,14 +171,21 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
   **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
-- **Identidad por nombre (sin duplicados)**: la campaña se identifica por
-  `nameKey`. `diffCampaigns` **deduplica el calendario entrante** (`dedupeIncoming`:
-  si una campaña aparece en varias filas se fusiona en una — unión de
-  soportes/tiendas, span de fechas más amplio, mejor link; si los `tipo`
-  discrepan se deja Pendiente, nunca se asume). Además, si en la base ya existen
-  documentos duplicados con el mismo `nameKey`, el diff **conserva uno y marca el
-  resto como eliminados** (autolimpieza en la siguiente importación confirmada).
-  Así el seguimiento y la consolidación dejan de ver campañas repetidas.
+- **Identidad por _todos los datos_** (`campaignIdentity`): la campaña se
+  identifica por nombre **+ vigencia + tipo + vendido por + mes + link +
+  soportes/tiendas** (`campaignKey(name)#<hash(firma)>`), y ese valor es el
+  `nameKey` persistido y la llave del seguimiento. Así, dos filas con el mismo
+  nombre pero **distinta vigencia o distintas tiendas/soportes** (p. ej. dos
+  _flights_ de la misma campaña) son **campañas distintas**: dos filas en
+  Seguimiento, cada una con su propio seguimiento. `dedupeIncoming` colapsa
+  **solo filas idénticas**; el diff conserva un documento por identidad y marca
+  los idénticos redundantes como eliminados (autolimpieza).
+  - **Consecuencia:** como la identidad incluye todos los datos, un cambio de
+    cualquier dato al reimportar produce una identidad nueva → se ve como
+    **alta + baja** (no “modificada”) y el seguimiento se asocia a la identidad
+    nueva. La **consolidación/CSV de Admira no cambia** (sigue agrupando por
+    `Campaña + RESOLUCION`); el conteo de tiendas del Seguimiento se calcula
+    **por campaña** para no mezclar dos campañas con el mismo nombre.
 - **UX resumen → detalle** (no se despliega todo a la vez): tras subir el
   archivo aparece un **banner-titular fijo** (sticky) con las cifras clave
   (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón

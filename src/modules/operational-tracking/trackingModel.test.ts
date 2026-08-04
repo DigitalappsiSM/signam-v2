@@ -145,92 +145,72 @@ describe('buildTrackingRows', () => {
     expect(rows[0]!.overall).toBe('overdue');
   });
 
-  it('colapsa campañas duplicadas (mismo nameKey) en una sola fila', () => {
+  it('colapsa documentos idénticos (misma identidad) en una sola fila', () => {
     const rows = buildTrackingRows(
       [
-        campaign({
-          id: 'a',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          link: '',
-          fechaInicio: '2026-03-05',
-          fechaFin: '2026-03-15',
-          tipo: '',
-        }),
-        campaign({
-          id: 'b',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          link: 'https://x.com/a.zip',
-          fechaInicio: '2026-03-01',
-          fechaFin: '2026-03-20',
-          tipo: 'PROVEEDOR',
-        }),
+        campaign({ id: 'a', name: 'HIPER X', nameKey: 'hiper x#h1' }),
+        campaign({ id: 'b', name: 'HIPER X', nameKey: 'hiper x#h1' }),
       ],
       [],
       [],
       today,
     );
-    // Una sola fila (no dos): se elimina el duplicado.
     expect(rows).toHaveLength(1);
-    // Span más amplio y mejor link/tipo disponibles.
-    expect(rows[0]!.campaign.fechaInicio).toBe('2026-03-01');
-    expect(rows[0]!.campaign.fechaFin).toBe('2026-03-20');
-    expect(rows[0]!.linkStatus).toBe('valid');
-    expect(rows[0]!.classification).toBe('provider');
   });
 
-  it('une las tiendas de duplicados con grafías distintas del mismo nombre', () => {
+  it('dos "flights" del mismo nombre (identidad distinta) son dos filas', () => {
     const rows = buildTrackingRows(
       [
         campaign({
           id: 'a',
           name: 'HIPER X',
-          nameKey: 'hiper x',
-          supports: [support('VIDEO WALL', '1')],
+          nameKey: 'hiper x#jul',
+          fechaInicio: '2026-03-01',
+          fechaFin: '2026-03-10',
+          supports: [support('APARADOR', '1')],
         }),
         campaign({
           id: 'b',
-          name: 'hiper  x', // misma llave (minúsculas + espacios), otra grafía
-          nameKey: 'hiper x',
+          name: 'HIPER X',
+          nameKey: 'hiper x#ago',
+          fechaInicio: '2026-03-15',
+          fechaFin: '2026-03-25',
           supports: [support('VIDEO WALL', '2')],
         }),
       ],
       [
-        screen({ id: 's1', numero: '1', soporte: 'VIDEO WALL' }),
+        screen({ id: 's1', numero: '1', soporte: 'APARADOR' }),
         screen({ id: 's2', numero: '2', soporte: 'VIDEO WALL' }),
       ],
       [],
       today,
     );
-    expect(rows).toHaveLength(1);
-    // Se cuentan las tiendas de ambas grafías (no solo la representativa).
-    expect(rows[0]!.distinctStores).toBe(2);
-    expect(rows[0]!.target).toBe(1); // 10% de 2, redondeo → 1
+    // Dos filas independientes; cada una cuenta SOLO sus propias tiendas.
+    expect(rows).toHaveLength(2);
+    const byKey = new Map(rows.map((r) => [r.campaign.nameKey, r]));
+    expect(byKey.get('hiper x#jul')!.distinctStores).toBe(1);
+    expect(byKey.get('hiper x#ago')!.distinctStores).toBe(1);
   });
 
-  it('deja Pendiente si los duplicados tienen tipos en conflicto', () => {
+  it('asocia el seguimiento por identidad (cada flight su propio doc)', () => {
     const rows = buildTrackingRows(
       [
-        campaign({
-          id: 'a',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          tipo: 'INSTITUCIONAL',
-        }),
-        campaign({
-          id: 'b',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          tipo: 'PROVEEDOR',
-        }),
+        campaign({ id: 'a', name: 'HIPER X', nameKey: 'hiper x#jul' }),
+        campaign({ id: 'b', name: 'HIPER X', nameKey: 'hiper x#ago' }),
       ],
       [],
-      [],
+      [
+        {
+          campaignNameKey: 'hiper x#ago',
+          classification: 'provider',
+        } as CampaignOperationalTracking,
+      ],
       today,
     );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.classification).toBe('unknown');
+    const byKey = new Map(rows.map((r) => [r.campaign.nameKey, r]));
+    // Solo el flight con seguimiento toma esa clasificación.
+    expect(byKey.get('hiper x#ago')!.classification).toBe('provider');
+    expect(byKey.get('hiper x#jul')!.tracking).toBeNull();
   });
 
   it('marca link faltante e inválido', () => {
