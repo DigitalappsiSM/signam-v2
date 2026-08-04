@@ -168,11 +168,17 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - **Parseo de campañas** (matriz: fila = campaña, columnas = soportes,
   comentarios = tiendas `número⇥nombre`; se captura también `LINK`).
 - **Fechas sin ambigüedad día/mes**: las celdas de **fecha reales** de Excel se
-  leen por su valor (no por el texto formateado de la celda, que puede venir
-  mes-primero) y se guardan como ISO `AAAA-MM-DD`; la app las muestra en
-  `dd/mm/aaaa`. Así se evita el intercambio día↔mes (p. ej. 5 oct visto como 10
-  may). Las fechas escritas como **texto ambiguo** se resolverán con
-  confirmación del usuario en la importación (paso siguiente).
+  leen por su valor (no por el texto formateado, que puede venir mes-primero) y
+  se guardan como ISO `AAAA-MM-DD`; la app las muestra en `dd/mm/aaaa`. Así se
+  evita el intercambio día↔mes (p. ej. 5 oct visto como 10 may).
+- **Fechas de texto ambiguas → confirmación con memoria**: una fecha escrita
+  como **texto** `A/B/AAAA` con ambos componentes ≤ 12 (no se sabe si es
+  día/mes o mes/día) se marca en el panel **“Fechas por confirmar”**; el
+  guardado se **bloquea** hasta que el usuario elige la interpretación (viendo
+  ambas lecturas). La elección se **persiste** (`dateResolutions`, clave = la
+  cadena cruda) y en reimportaciones se **aplica sola** (no se vuelve a
+  preguntar ni se pierde). Lógica pura en `dateAmbiguity.ts`
+  (`isAmbiguousDate` / `interpretDate`).
 - **Persistencia con confirmación**: se comparan las campañas contra la base de
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).

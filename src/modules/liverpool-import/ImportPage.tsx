@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -20,8 +21,19 @@ import {
   diffCampaigns,
   dedupeIncoming,
   campaignIdentity,
-  type CampaignDiff,
+  type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
+import {
+  isAmbiguousDate,
+  interpretDate,
+  ambiguousInterpretations,
+  type DateOrder,
+} from './dateAmbiguity';
+import {
+  listDateResolutions,
+  saveDateResolutions,
+  type DateResolution,
+} from '@/services/dateResolutions';
 import { applyCampaignChanges, listCampaigns } from '@/services/campaigns';
 import {
   listOperationalTracking,
@@ -49,6 +61,33 @@ type Phase = 'idle' | 'analyzing' | 'done';
 
 type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
+/** Resuelve una fecha cruda a ISO usando la memoria y las elecciones en curso;
+ *  si sigue sin resolver (ambigua y sin elección) se deja tal cual. */
+function resolvedDateValue(
+  raw: string,
+  memory: Map<string, DateResolution>,
+  choices: Map<string, DateOrder>,
+): string {
+  if (!isAmbiguousDate(raw)) return raw;
+  const mem = memory.get(raw);
+  if (mem) return mem.iso;
+  const choice = choices.get(raw);
+  if (choice) return interpretDate(raw, choice) ?? raw;
+  return raw;
+}
+
+function resolveCampaignDates(
+  c: ParsedCampaign,
+  memory: Map<string, DateResolution>,
+  choices: Map<string, DateOrder>,
+): ParsedCampaign {
+  return {
+    ...c,
+    fechaInicio: resolvedDateValue(c.fechaInicio, memory, choices),
+    fechaFin: resolvedDateValue(c.fechaFin, memory, choices),
+  };
+}
+
 /** Importación del Calendario de Liverpool — inspección + campañas + guardado. */
 export function ImportPage() {
   const { user } = useAuth();
@@ -59,7 +98,17 @@ export function ImportPage() {
   const [analysis, setAnalysis] = useState<CalendarAnalysis | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignParseResult | null>(null);
   const [parsedList, setParsedList] = useState<ParsedCampaign[]>([]);
-  const [diff, setDiff] = useState<CampaignDiff | null>(null);
+  const [storedCampaigns, setStoredCampaigns] = useState<
+    StoredCampaign[] | null
+  >(null);
+  // Memoria persistida de fechas ambiguas ya confirmadas (raw → resolución).
+  const [dateMemory, setDateMemory] = useState<Map<string, DateResolution>>(
+    new Map(),
+  );
+  // Elección en curso del usuario para fechas ambiguas aún no confirmadas.
+  const [dateChoices, setDateChoices] = useState<Map<string, DateOrder>>(
+    new Map(),
+  );
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,35 +125,25 @@ export function ImportPage() {
     setFileName(file.name);
     setError(null);
     setSaveNotice(null);
-    setDiff(null);
+    setStoredCampaigns(null);
     setPhase('analyzing');
     try {
       const data = await readCalendarWorkbook(file);
       setAnalysis(analyzeCalendar(data));
       const parsed = parseCampaigns(data);
       setCampaigns(parsed);
-      // Deduplica el calendario por nameKey: la clasificación, el link y el
-      // conteo de pendientes se derivan de la campaña **fusionada**, no de la
-      // primera fila cruda (evita preseleccionar un tipo ambiguo o un link peor).
-      const merged = dedupeIncoming(parsed.campaigns);
-      setParsedList(merged);
-      const [storedCampaigns, tracking] = await Promise.all([
+      setParsedList(parsed.campaigns);
+      setDateChoices(new Map());
+      const [stored, tracking, resolutions] = await Promise.all([
         listCampaigns(),
         listOperationalTracking(),
+        listDateResolutions(),
       ]);
-      setDiff(diffCampaigns(merged, storedCampaigns));
-
-      // Preselección de clasificación para las campañas SIN seguimiento previo.
-      const keys = new Set(tracking.map((t) => t.campaignNameKey));
-      setExistingKeys(keys);
-      const sel = new Map<string, ClassChoice>();
-      for (const c of merged) {
-        const nameKey = campaignIdentity(c);
-        if (keys.has(nameKey) || sel.has(nameKey)) continue;
-        const auto = classifyFromTipo(c.tipo);
-        sel.set(nameKey, auto === 'unknown' ? '' : auto);
-      }
-      setSelections(sel);
+      setStoredCampaigns(stored);
+      setDateMemory(resolutions);
+      setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
+      // El diff, la deduplicación, la clasificación y las fechas ambiguas se
+      // derivan de forma reactiva (ver más abajo).
       setPhase('done');
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
@@ -115,35 +154,114 @@ export function ImportPage() {
     }
   }
 
+  // --- Derivaciones reactivas -----------------------------------------------
+  // Calendario con fechas resueltas (memoria + elecciones) y deduplicado.
+  const resolvedList = useMemo(
+    () =>
+      dedupeIncoming(
+        parsedList.map((c) => resolveCampaignDates(c, dateMemory, dateChoices)),
+      ),
+    [parsedList, dateMemory, dateChoices],
+  );
+
+  const diff = useMemo(
+    () =>
+      storedCampaigns ? diffCampaigns(resolvedList, storedCampaigns) : null,
+    [resolvedList, storedCampaigns],
+  );
+
+  // Fechas ambiguas (texto A/B con ambos ≤ 12) que NO están en la memoria: hay
+  // que confirmarlas. Las que ya están en la memoria se aplican solas.
+  const ambiguousRows = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: { raw: string; dmy: string | null; mdy: string | null }[] = [];
+    for (const c of parsedList) {
+      for (const raw of [c.fechaInicio, c.fechaFin]) {
+        if (!isAmbiguousDate(raw) || dateMemory.has(raw) || seen.has(raw)) {
+          continue;
+        }
+        seen.add(raw);
+        rows.push({ raw, ...ambiguousInterpretations(raw) });
+      }
+    }
+    return rows.sort((a, b) => a.raw.localeCompare(b.raw));
+  }, [parsedList, dateMemory]);
+
+  const pendingDatesCount = ambiguousRows.filter(
+    (r) => !dateChoices.get(r.raw),
+  ).length;
+
   // Campañas del calendario sin seguimiento previo (necesitan clasificación).
-  const needClass = (() => {
+  const needClass = useMemo(() => {
     const out: { nameKey: string; name: string; tipo: string; link: string }[] =
       [];
     const seen = new Set<string>();
-    for (const c of parsedList) {
+    for (const c of resolvedList) {
       const nameKey = campaignIdentity(c);
       if (existingKeys.has(nameKey) || seen.has(nameKey)) continue;
       seen.add(nameKey);
       out.push({ nameKey, name: c.name, tipo: c.tipo, link: c.link });
     }
     return out;
-  })();
+  }, [resolvedList, existingKeys]);
+
+  // Preselección de clasificación por identidad: agrega defaults para las
+  // identidades nuevas sin pisar lo que el usuario ya haya elegido.
+  useEffect(() => {
+    setSelections((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const c of resolvedList) {
+        const nameKey = campaignIdentity(c);
+        if (existingKeys.has(nameKey) || next.has(nameKey)) continue;
+        const auto = classifyFromTipo(c.tipo);
+        next.set(nameKey, auto === 'unknown' ? '' : auto);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [resolvedList, existingKeys]);
+
   const pendingCount = needClass.filter(
     (k) => !selections.get(k.nameKey),
   ).length;
   const canSave =
-    (Boolean(diff?.hasChanges) || needClass.length > 0) && pendingCount === 0;
-  const summary = importSummary(diff, analysis, needClass.length, pendingCount);
+    (Boolean(diff?.hasChanges) || needClass.length > 0) &&
+    pendingCount === 0 &&
+    pendingDatesCount === 0;
+  const summary = importSummary(
+    diff,
+    analysis,
+    needClass.length,
+    pendingCount + pendingDatesCount,
+  );
 
   function setSelection(nameKey: string, value: ClassChoice) {
     setSelections((prev) => new Map(prev).set(nameKey, value));
   }
 
+  function setDateChoice(raw: string, order: DateOrder) {
+    setDateChoices((prev) => new Map(prev).set(raw, order));
+  }
+
   async function saveChanges() {
-    if (saving || pendingCount > 0) return;
+    if (saving || pendingCount > 0 || pendingDatesCount > 0) return;
     setSaving(true);
     setError(null);
     try {
+      // Persiste las resoluciones de fecha confirmadas para reimportaciones.
+      const newResolutions: DateResolution[] = ambiguousRows
+        .map((r): DateResolution | null => {
+          const order = dateChoices.get(r.raw);
+          if (!order) return null;
+          const iso = interpretDate(r.raw, order);
+          return iso ? { raw: r.raw, order, iso } : null;
+        })
+        .filter((x): x is DateResolution => x !== null);
+      if (newResolutions.length > 0) {
+        await saveDateResolutions(newResolutions, actor);
+      }
+
       let res = { added: 0, modified: 0, removed: 0 };
       if (diff && diff.hasChanges) {
         res = await applyCampaignChanges(diff, actor);
@@ -165,14 +283,16 @@ export function ImportPage() {
         ? await initializeTrackingForImport(sels, actor)
         : { created: 0, reclassified: 0 };
 
-      const [stored, tracking] = await Promise.all([
+      const [stored, tracking, resolutions] = await Promise.all([
         listCampaigns(),
         listOperationalTracking(),
+        listDateResolutions(),
       ]);
-      setDiff(diffCampaigns(parsedList, stored));
+      setStoredCampaigns(stored);
+      setDateMemory(resolutions);
       setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
       setSaveNotice(
-        `Guardado: ${res.added} nuevas, ${res.modified} modificadas, ${res.removed} eliminadas. Seguimiento inicializado: ${track.created}.`,
+        `Guardado: ${res.added} nuevas, ${res.removed} eliminadas. Seguimiento inicializado: ${track.created}.`,
       );
     } catch {
       setError('No se pudieron guardar los cambios de campañas.');
@@ -296,6 +416,15 @@ export function ImportPage() {
                   </div>
                 )}
               </Section>
+            )}
+
+            {ambiguousRows.length > 0 && (
+              <AmbiguousDatesPanel
+                rows={ambiguousRows}
+                choices={dateChoices}
+                onChange={setDateChoice}
+                pendingCount={pendingDatesCount}
+              />
             )}
 
             {needClass.length > 0 && (
@@ -438,7 +567,7 @@ function ImportSummaryBanner({
             disabled={saving || !canSave}
             title={
               summary.pending > 0
-                ? `Faltan ${summary.pending} clasificaciones por definir`
+                ? `Faltan ${summary.pending} confirmaciones por definir (clasificación o fecha)`
                 : undefined
             }
           >
@@ -721,6 +850,93 @@ function FileDiagnosisSection({
           </div>
         </section>
       )}
+    </Section>
+  );
+}
+
+function AmbiguousDatesPanel({
+  rows,
+  choices,
+  onChange,
+  pendingCount,
+}: {
+  rows: { raw: string; dmy: string | null; mdy: string | null }[];
+  choices: Map<string, DateOrder>;
+  onChange: (raw: string, order: DateOrder) => void;
+  pendingCount: number;
+}) {
+  return (
+    <Section
+      title="Fechas por confirmar"
+      chip={pendingCount > 0 ? `${pendingCount} pendientes` : 'Completa'}
+      tone={pendingCount > 0 ? 'warning' : 'success'}
+      defaultOpen={pendingCount > 0}
+    >
+      <p className="import__note" style={{ marginTop: 0 }}>
+        Estas fechas del calendario están escritas como texto y son{' '}
+        <strong>ambiguas</strong> (no se sabe si el orden es día/mes o mes/día).
+        Elige la interpretación correcta; se <strong>recordará</strong> para las
+        próximas importaciones. No se puede guardar con fechas pendientes.
+      </p>
+      <div className="diagnosis__table-wrap">
+        <table className="catalog__table">
+          <thead>
+            <tr>
+              <th>Valor en el calendario</th>
+              <th>Día / mes (dd/mm)</th>
+              <th>Mes / día (mm/dd)</th>
+              <th>Interpretación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const val = choices.get(r.raw) ?? '';
+              return (
+                <tr key={r.raw}>
+                  <td>
+                    <code>{r.raw}</code>
+                  </td>
+                  <td className="text-muted">
+                    {r.dmy ? formatCivilString(r.dmy) : '—'}
+                  </td>
+                  <td className="text-muted">
+                    {r.mdy ? formatCivilString(r.mdy) : '—'}
+                  </td>
+                  <td>
+                    <select
+                      aria-label={`Interpretación de la fecha ${r.raw}`}
+                      value={val}
+                      onChange={(e) =>
+                        onChange(r.raw, e.target.value as DateOrder)
+                      }
+                    >
+                      <option value="">— Selecciona —</option>
+                      {r.dmy && (
+                        <option value="DMY">
+                          Día/mes → {formatCivilString(r.dmy)}
+                        </option>
+                      )}
+                      {r.mdy && (
+                        <option value="MDY">
+                          Mes/día → {formatCivilString(r.mdy)}
+                        </option>
+                      )}
+                    </select>
+                    {val === '' && (
+                      <span
+                        className="badge badge-warning"
+                        style={{ marginLeft: '0.4rem' }}
+                      >
+                        Pendiente
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
