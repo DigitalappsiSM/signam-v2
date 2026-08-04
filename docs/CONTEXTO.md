@@ -167,6 +167,12 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   soportes InStore.
 - **Parseo de campañas** (matriz: fila = campaña, columnas = soportes,
   comentarios = tiendas `número⇥nombre`; se captura también `LINK`).
+- **Fechas sin ambigüedad día/mes**: las celdas de **fecha reales** de Excel se
+  leen por su valor (no por el texto formateado de la celda, que puede venir
+  mes-primero) y se guardan como ISO `AAAA-MM-DD`; la app las muestra en
+  `dd/mm/aaaa`. Así se evita el intercambio día↔mes (p. ej. 5 oct visto como 10
+  may). Las fechas escritas como **texto ambiguo** se resolverán con
+  confirmación del usuario en la importación (paso siguiente).
 - **Persistencia con confirmación**: se comparan las campañas contra la base de
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
