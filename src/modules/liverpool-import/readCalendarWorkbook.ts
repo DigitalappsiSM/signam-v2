@@ -22,12 +22,15 @@ function isoFromExcelDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Texto formateado de una celda (equivalente a `raw:false`). */
 function toText(value: unknown): string {
   if (value === null || value === undefined) return '';
-  // Fechas reales de Excel → ISO (evita el swap día/mes del formato visual).
   if (value instanceof Date) return isoFromExcelDate(value);
   return String(value).trim();
 }
+
+/** Fecha **numérica** (posible mes-primero): `d/m/aaaa`, `m-d-aa`, etc. */
+const NUMERIC_DATE = /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/;
 
 /** Lee un archivo de calendario (File/Blob) en hojas de texto + comentarios. */
 export async function readCalendarWorkbook(file: Blob): Promise<WorkbookData> {
@@ -42,18 +45,35 @@ export async function readCalendarWorkbook(file: Blob): Promise<WorkbookData> {
     const ws = workbook.Sheets[name];
     if (!ws) continue;
 
-    // Filas como matriz. `raw:true` conserva los valores nativos: las fechas
-    // llegan como `Date` (por `cellDates`) y se normalizan a ISO sin ambigüedad
-    // día/mes; el resto se convierte a texto. Antes se usaba `raw:false`, que
-    // formateaba las fechas con el formato de la celda (posible mes-primero) y
-    // provocaba el intercambio día/mes.
-    const raw = XLSX.utils.sheet_to_json(ws, {
+    // Dos lecturas alineadas por [fila][col]:
+    // - `formatted` (raw:false) conserva el valor mostrado (nombre de mes del
+    //   MES, ceros a la izquierda, etc.) — es lo que se usa por defecto.
+    // - `native` (raw:true) trae el valor nativo; las fechas llegan como `Date`.
+    // Solo se normaliza a ISO una celda cuyo valor nativo es `Date` **y** cuyo
+    // texto formateado es una **fecha numérica** (posible mes-primero, que causa
+    // el swap día/mes). Así se corrigen las vigencias sin alterar el resto.
+    const formatted = XLSX.utils.sheet_to_json(ws, {
+      header: 1,
+      raw: false,
+      defval: '',
+      blankrows: true,
+    }) as unknown[][];
+    const native = XLSX.utils.sheet_to_json(ws, {
       header: 1,
       raw: true,
       defval: '',
       blankrows: true,
     }) as unknown[][];
-    const rows: string[][] = raw.map((r) => r.map(toText));
+    const rows: string[][] = formatted.map((r, ri) =>
+      r.map((cell, ci) => {
+        const text = toText(cell);
+        const value = native[ri]?.[ci];
+        if (value instanceof Date && NUMERIC_DATE.test(text)) {
+          return isoFromExcelDate(value);
+        }
+        return text;
+      }),
+    );
     sheets.push({ name, rows });
 
     // Comentarios de celda.
