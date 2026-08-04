@@ -5,7 +5,8 @@ import { ImportPage } from './ImportPage';
 import { analyzeCalendar } from './calendarImport';
 import { parseCampaigns } from './campaignParse';
 import { readCalendarWorkbook } from './readCalendarWorkbook';
-import { listCampaigns } from '@/services/campaigns';
+import { listCampaigns, applyCampaignChanges } from '@/services/campaigns';
+import { campaignIdentity } from '@/modules/campaigns/campaignDiff';
 import { listOperationalTracking } from '@/services/campaignOperationalTracking';
 import {
   listDateResolutions,
@@ -77,6 +78,7 @@ function parseResultWith(fechaInicio: string) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(readCalendarWorkbook).mockResolvedValue({
     sheets: [],
     comments: [],
@@ -124,6 +126,55 @@ describe('ImportPage — fechas ambiguas', () => {
     expect(resolutions).toEqual([
       { raw: '10/05/2026', order: 'MDY', iso: '2026-10-05' },
     ]);
+  });
+
+  it('persiste la confirmación aunque la fecha ya coincida con la BD (sin cambios)', async () => {
+    // Campaña ya guardada con la fecha ISO que corresponde a "10/05/2026" (MDY),
+    // y ya con seguimiento: no hay cambios de campaña ni clasificación pendiente,
+    // pero confirmar la fecha debe poder guardarse para recordar la resolución.
+    const resolved = {
+      row: 2,
+      name: 'HIPER X',
+      tipo: 'PROVEEDOR',
+      vendidoPor: 'LIVERPOOL',
+      fechaInicio: '2026-10-05',
+      fechaFin: '2026-11-01',
+      mes: 'Octubre',
+      link: '',
+      supports: [
+        {
+          support: 'VIDEO WALL',
+          owner: 'liverpool',
+          stores: [{ numero: '1', nombre: '' }],
+        },
+      ],
+    };
+    const identity = campaignIdentity(resolved as never);
+    vi.mocked(listCampaigns).mockResolvedValue([
+      { ...resolved, id: 's1', nameKey: identity, signature: 'sig' },
+    ] as never);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      { campaignNameKey: identity, classification: 'provider' },
+    ] as never);
+    vi.mocked(parseCampaigns).mockReturnValue(
+      parseResultWith('10/05/2026') as never,
+    );
+
+    render(<ImportPage />);
+    await upload();
+    const saveBtn = await screen.findByRole('button', {
+      name: /Aceptar y guardar/i,
+    });
+    expect(saveBtn).toBeDisabled();
+    await userEvent.selectOptions(
+      screen.getByLabelText('Interpretación de la fecha 10/05/2026'),
+      'MDY',
+    );
+    await waitFor(() => expect(saveBtn).not.toBeDisabled());
+    await userEvent.click(saveBtn);
+    await waitFor(() => expect(saveDateResolutions).toHaveBeenCalledTimes(1));
+    // No hubo cambios de campaña que aplicar.
+    expect(applyCampaignChanges).not.toHaveBeenCalled();
   });
 
   it('no pide confirmación para fechas ISO (no ambiguas)', async () => {

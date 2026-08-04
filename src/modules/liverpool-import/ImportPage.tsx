@@ -191,6 +191,21 @@ export function ImportPage() {
     (r) => !dateChoices.get(r.raw),
   ).length;
 
+  // Vista "Campañas detectadas" con las fechas ya resueltas (para que la vista
+  // previa coincida con lo que se guardará, no con la lectura cruda día-primero).
+  const resolvedResult = useMemo(
+    () =>
+      campaigns
+        ? {
+            ...campaigns,
+            campaigns: campaigns.campaigns.map((c) =>
+              resolveCampaignDates(c, dateMemory, dateChoices),
+            ),
+          }
+        : null,
+    [campaigns, dateMemory, dateChoices],
+  );
+
   // Campañas del calendario sin seguimiento previo (necesitan clasificación).
   const needClass = useMemo(() => {
     const out: { nameKey: string; name: string; tipo: string; link: string }[] =
@@ -225,10 +240,14 @@ export function ImportPage() {
   const pendingCount = needClass.filter(
     (k) => !selections.get(k.nameKey),
   ).length;
-  const canSave =
-    (Boolean(diff?.hasChanges) || needClass.length > 0) &&
-    pendingCount === 0 &&
-    pendingDatesCount === 0;
+  // Hay trabajo si: cambios en campañas, clasificaciones nuevas, o **fechas
+  // ambiguas por resolver** (aunque la fecha resuelta ya coincida con la BD, hay
+  // que persistir la confirmación para no volver a preguntar).
+  const hasWork =
+    Boolean(diff?.hasChanges) ||
+    needClass.length > 0 ||
+    ambiguousRows.length > 0;
+  const canSave = hasWork && pendingCount === 0 && pendingDatesCount === 0;
   const summary = importSummary(
     diff,
     analysis,
@@ -359,6 +378,7 @@ export function ImportPage() {
           summary={summary}
           saving={saving}
           canSave={canSave}
+          hasWork={hasWork}
           onSave={() => void saveChanges()}
         />
       )}
@@ -503,7 +523,7 @@ export function ImportPage() {
               </p>
             )}
 
-            {campaigns && <CampaignsSection result={campaigns} />}
+            {resolvedResult && <CampaignsSection result={resolvedResult} />}
 
             {analysis && (
               <FileDiagnosisSection
@@ -523,11 +543,13 @@ function ImportSummaryBanner({
   summary,
   saving,
   canSave,
+  hasWork,
   onSave,
 }: {
   summary: ImportSummary;
   saving: boolean;
   canSave: boolean;
+  hasWork: boolean;
   onSave: () => void;
 }) {
   return (
@@ -560,7 +582,7 @@ function ImportSummaryBanner({
         />
       </div>
       <div className="imp-banner__action">
-        {summary.hasWork ? (
+        {hasWork ? (
           <button
             className="btn btn-primary"
             onClick={onSave}
