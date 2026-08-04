@@ -19,7 +19,7 @@ import { readCalendarWorkbook } from './readCalendarWorkbook';
 import {
   diffCampaigns,
   dedupeIncoming,
-  campaignKey,
+  campaignIdentity,
   type CampaignDiff,
 } from '@/modules/campaigns/campaignDiff';
 import { applyCampaignChanges, listCampaigns } from '@/services/campaigns';
@@ -99,7 +99,7 @@ export function ImportPage() {
       setExistingKeys(keys);
       const sel = new Map<string, ClassChoice>();
       for (const c of merged) {
-        const nameKey = campaignKey(c.name);
+        const nameKey = campaignIdentity(c);
         if (keys.has(nameKey) || sel.has(nameKey)) continue;
         const auto = classifyFromTipo(c.tipo);
         sel.set(nameKey, auto === 'unknown' ? '' : auto);
@@ -121,7 +121,7 @@ export function ImportPage() {
       [];
     const seen = new Set<string>();
     for (const c of parsedList) {
-      const nameKey = campaignKey(c.name);
+      const nameKey = campaignIdentity(c);
       if (existingKeys.has(nameKey) || seen.has(nameKey)) continue;
       seen.add(nameKey);
       out.push({ nameKey, name: c.name, tipo: c.tipo, link: c.link });

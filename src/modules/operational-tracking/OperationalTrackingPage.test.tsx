@@ -3,7 +3,10 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { OperationalTrackingPage } from './OperationalTrackingPage';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignIdentity,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import {
@@ -137,7 +140,7 @@ describe('OperationalTrackingPage', () => {
     await waitFor(() => expect(updateCheck).toHaveBeenCalledTimes(1));
     expect(updateCheck).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaignNameKey: 'buen fin',
+        campaignNameKey: campaignIdentity(INST),
         key: 'csmProgramming',
         completed: true,
         classification: 'institutional',
@@ -247,7 +250,7 @@ describe('OperationalTrackingPage', () => {
     await waitFor(() => expect(markAllChecks).toHaveBeenCalledTimes(1));
     expect(markAllChecks).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaignNameKey: 'terminada',
+        campaignNameKey: campaignIdentity(FIN),
         classification: 'institutional',
       }),
     );
@@ -257,7 +260,7 @@ describe('OperationalTrackingPage', () => {
     const track = addCommentPure(
       initialTracking(
         {
-          campaignNameKey: 'buen fin',
+          campaignNameKey: campaignIdentity(INST),
           campaignName: 'BUEN FIN',
           classification: 'institutional',
           classificationSource: 'import-user',
@@ -296,7 +299,7 @@ describe('OperationalTrackingPage', () => {
     await waitFor(() => expect(addComment).toHaveBeenCalledTimes(1));
     expect(addComment).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaignNameKey: 'buen fin',
+        campaignNameKey: campaignIdentity(INST),
         text: 'Revisado',
       }),
     );

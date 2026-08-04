@@ -5,7 +5,10 @@ import {
   isFullyTracked,
 } from './trackingModel';
 import { parseCampaignDate } from './businessDays';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignIdentity,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking } from './types';
 import type { AdmiraScreen } from '@/domain';
 import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
@@ -90,16 +93,12 @@ describe('buildTrackingRows', () => {
   });
 
   it('usa la clasificación persistida por encima del tipo', () => {
+    const c = campaign({ tipo: 'INSTITUCIONAL' });
     const tracking = {
-      campaignNameKey: 'campaña',
+      campaignNameKey: campaignIdentity(c),
       classification: 'provider',
     } as CampaignOperationalTracking;
-    const rows = buildTrackingRows(
-      [campaign({ tipo: 'INSTITUCIONAL' })],
-      [],
-      [tracking],
-      today,
-    );
+    const rows = buildTrackingRows([c], [], [tracking], today);
     expect(rows[0]!.classification).toBe('provider');
   });
 
@@ -145,92 +144,82 @@ describe('buildTrackingRows', () => {
     expect(rows[0]!.overall).toBe('overdue');
   });
 
-  it('colapsa campañas duplicadas (mismo nameKey) en una sola fila', () => {
+  it('colapsa documentos idénticos (misma identidad) en una sola fila', () => {
     const rows = buildTrackingRows(
       [
-        campaign({
-          id: 'a',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          link: '',
-          fechaInicio: '2026-03-05',
-          fechaFin: '2026-03-15',
-          tipo: '',
-        }),
-        campaign({
-          id: 'b',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          link: 'https://x.com/a.zip',
-          fechaInicio: '2026-03-01',
-          fechaFin: '2026-03-20',
-          tipo: 'PROVEEDOR',
-        }),
+        campaign({ id: 'a', name: 'HIPER X', nameKey: 'hiper x#h1' }),
+        campaign({ id: 'b', name: 'HIPER X', nameKey: 'hiper x#h1' }),
       ],
       [],
       [],
       today,
     );
-    // Una sola fila (no dos): se elimina el duplicado.
     expect(rows).toHaveLength(1);
-    // Span más amplio y mejor link/tipo disponibles.
-    expect(rows[0]!.campaign.fechaInicio).toBe('2026-03-01');
-    expect(rows[0]!.campaign.fechaFin).toBe('2026-03-20');
-    expect(rows[0]!.linkStatus).toBe('valid');
-    expect(rows[0]!.classification).toBe('provider');
   });
 
-  it('une las tiendas de duplicados con grafías distintas del mismo nombre', () => {
+  it('dos "flights" del mismo nombre (identidad distinta) son dos filas', () => {
     const rows = buildTrackingRows(
       [
         campaign({
           id: 'a',
           name: 'HIPER X',
-          nameKey: 'hiper x',
-          supports: [support('VIDEO WALL', '1')],
+          nameKey: 'hiper x#jul',
+          fechaInicio: '2026-03-01',
+          fechaFin: '2026-03-10',
+          supports: [support('APARADOR', '1')],
         }),
         campaign({
           id: 'b',
-          name: 'hiper  x', // misma llave (minúsculas + espacios), otra grafía
-          nameKey: 'hiper x',
+          name: 'HIPER X',
+          nameKey: 'hiper x#ago',
+          fechaInicio: '2026-03-15',
+          fechaFin: '2026-03-25',
           supports: [support('VIDEO WALL', '2')],
         }),
       ],
       [
-        screen({ id: 's1', numero: '1', soporte: 'VIDEO WALL' }),
+        screen({ id: 's1', numero: '1', soporte: 'APARADOR' }),
         screen({ id: 's2', numero: '2', soporte: 'VIDEO WALL' }),
       ],
       [],
       today,
     );
-    expect(rows).toHaveLength(1);
-    // Se cuentan las tiendas de ambas grafías (no solo la representativa).
-    expect(rows[0]!.distinctStores).toBe(2);
-    expect(rows[0]!.target).toBe(1); // 10% de 2, redondeo → 1
+    // Dos filas independientes; cada una cuenta SOLO sus propias tiendas.
+    expect(rows).toHaveLength(2);
+    const byKey = new Map(rows.map((r) => [r.campaign.nameKey, r]));
+    expect(byKey.get('hiper x#jul')!.distinctStores).toBe(1);
+    expect(byKey.get('hiper x#ago')!.distinctStores).toBe(1);
   });
 
-  it('deja Pendiente si los duplicados tienen tipos en conflicto', () => {
+  it('asocia el seguimiento por identidad (cada flight su propio doc)', () => {
+    const jul = campaign({
+      id: 'a',
+      name: 'HIPER X',
+      fechaInicio: '2026-03-01',
+      fechaFin: '2026-03-10',
+    });
+    const ago = campaign({
+      id: 'b',
+      name: 'HIPER X',
+      fechaInicio: '2026-03-15',
+      fechaFin: '2026-03-25',
+    });
     const rows = buildTrackingRows(
+      [jul, ago],
+      [],
       [
-        campaign({
-          id: 'a',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          tipo: 'INSTITUCIONAL',
-        }),
-        campaign({
-          id: 'b',
-          name: 'HIPER X',
-          nameKey: 'hiper x',
-          tipo: 'PROVEEDOR',
-        }),
+        {
+          campaignNameKey: campaignIdentity(ago),
+          classification: 'provider',
+        } as CampaignOperationalTracking,
       ],
-      [],
-      [],
       today,
     );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.classification).toBe('unknown');
+    expect(rows).toHaveLength(2);
+    const byId = new Map(rows.map((r) => [r.identity, r]));
+    // Solo el flight con seguimiento (por identidad) toma esa clasificación.
+    expect(byId.get(campaignIdentity(ago))!.classification).toBe('provider');
+    expect(byId.get(campaignIdentity(jul))!.tracking).toBeNull();
   });
 
   it('marca link faltante e inválido', () => {
@@ -283,20 +272,16 @@ describe('criticalAlerts / isFullyTracked', () => {
   });
 
   it('isFullyTracked requiere link válido y los cuatro checks', () => {
+    const c = campaign({ link: 'https://x.com/a.zip' });
     const tracking = {
-      campaignNameKey: 'campaña',
+      campaignNameKey: campaignIdentity(c),
       classification: 'institutional',
       liverpoolValidation: { completed: true },
       csmProgramming: { completed: true },
       witnessStart: { completed: true },
       witnessComplete: { completed: true },
     } as unknown as CampaignOperationalTracking;
-    const rows = buildTrackingRows(
-      [campaign({ link: 'https://x.com/a.zip' })],
-      [],
-      [tracking],
-      today,
-    );
+    const rows = buildTrackingRows([c], [], [tracking], today);
     expect(isFullyTracked(rows[0]!)).toBe(true);
   });
 });

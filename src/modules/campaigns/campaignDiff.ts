@@ -1,11 +1,6 @@
 import { normalizeSupport } from '@/domain';
 import { normalizeStore } from '@/modules/consolidation/consolidate';
-import type {
-  CampaignSupport,
-  ParsedCampaign,
-  StoreRef,
-} from '@/modules/liverpool-import/campaignParse';
-import { parseCampaignDate } from './dateFilter';
+import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
 
 /**
  * Detección de cambios de campañas contra lo guardado en la base de datos.
@@ -27,128 +22,50 @@ export function campaignKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** Une los soportes de un grupo de campañas: por soporte normalizado, con la
- *  unión de tiendas (dedup por número normalizado; conserva la primera grafía).
+/** Hash determinístico corto (FNV-1a 32 bits en base36) para compactar la firma
+ *  dentro de la identidad y del id de documento. */
+function hashString(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/**
+ * **Identidad** de una campaña = nombre + **todos los datos** (vigencia, tipo,
+ * vendido por, mes, link y soportes/tiendas). Dos filas con el mismo nombre pero
+ * distinta vigencia o distintas tiendas/soportes (p. ej. dos "flights" de la
+ * misma campaña) tienen **identidades distintas** y se tratan como campañas
+ * separadas. Se usa como llave en el diff, la deduplicación, el seguimiento y el
+ * tablero. Formato legible + hash compacto: `nombre#<hash>`.
  *
- *  Regla clave: una lista de tiendas **vacía** es un comodín ("todas las
- *  pantallas activas del soporte", ver `consolidate()`). Si alguna ocurrencia del
- *  soporte viene sin tiendas, el resultado se mantiene como comodín (vacío) en
- *  lugar de reducirse a la unión de tiendas explícitas (evita CSV incompletos). */
-function mergeSupports(group: readonly ParsedCampaign[]): CampaignSupport[] {
-  const bySupport = new Map<
-    string,
-    {
-      support: string;
-      owner: CampaignSupport['owner'];
-      stores: Map<string, StoreRef>;
-      wildcard: boolean;
-    }
-  >();
-  const order: string[] = [];
-  for (const c of group) {
-    for (const s of c.supports) {
-      const k = normalizeSupport(s.support);
-      let entry = bySupport.get(k);
-      if (!entry) {
-        entry = {
-          support: s.support,
-          owner: s.owner,
-          stores: new Map(),
-          wildcard: false,
-        };
-        bySupport.set(k, entry);
-        order.push(k);
-      }
-      if (s.stores.length === 0) {
-        entry.wildcard = true; // "Asignada" sin comentario: todas las pantallas.
-      }
-      for (const st of s.stores) {
-        const sk = normalizeStore(st.numero);
-        if (!entry.stores.has(sk)) entry.stores.set(sk, st);
-      }
-    }
-  }
-  return order.map((k) => {
-    const e = bySupport.get(k)!;
-    return {
-      support: e.support,
-      owner: e.owner,
-      // Comodín preservado: si alguna ocurrencia no tenía tiendas, va vacío.
-      stores: e.wildcard ? [] : [...e.stores.values()],
-    };
-  });
-}
-
-/**
- * Fusiona un grupo de campañas que comparten `campaignKey` (la misma campaña
- * repetida en el calendario) en una sola: unión de soportes/tiendas, **span de
- * fechas más amplio**, mejor link y primer valor no vacío de `vendidoPor`/`mes`.
- * Si los `tipo` no vacíos discrepan, se deja vacío para no asumir clasificación.
+ * Consecuencia (aceptada): si cambia cualquier dato al reimportar, la identidad
+ * cambia; la campaña anterior se ve como eliminada y la nueva como alta, y el
+ * seguimiento se asocia a la nueva identidad.
  */
-function mergeParsedGroup(group: ParsedCampaign[]): ParsedCampaign {
-  const rep = group[0]!;
-  if (group.length === 1) return rep;
-
-  let earliest = rep;
-  let latest = rep;
-  for (const c of group) {
-    const s = parseCampaignDate(c.fechaInicio);
-    const sBest = parseCampaignDate(earliest.fechaInicio);
-    if (s && (!sBest || s.getTime() < sBest.getTime())) earliest = c;
-    const e = parseCampaignDate(c.fechaFin);
-    const eBest = parseCampaignDate(latest.fechaFin);
-    if (e && (!eBest || e.getTime() > eBest.getTime())) latest = c;
-  }
-
-  const isValidLink = (l: string) => /^https?:\/\//i.test(l.trim());
-  const link =
-    group.find((c) => isValidLink(c.link ?? ''))?.link ??
-    group.find((c) => (c.link ?? '').trim() !== '')?.link ??
-    rep.link;
-
-  const firstNonEmpty = (pick: (c: ParsedCampaign) => string) =>
-    group.map(pick).find((v) => v.trim() !== '') ?? '';
-
-  // Tipo: si las grafías no vacías coinciden (ignorando caja/espacios) se usa;
-  // si discrepan, se deja vacío (Pendiente) para forzar decisión explícita.
-  const distinctTipos = new Set(
-    group.map((c) => c.tipo.trim().toUpperCase()).filter((v) => v !== ''),
-  );
-  const tipo = distinctTipos.size === 1 ? firstNonEmpty((c) => c.tipo) : '';
-
-  return {
-    ...rep,
-    tipo,
-    vendidoPor: firstNonEmpty((c) => c.vendidoPor) || rep.vendidoPor,
-    fechaInicio: earliest.fechaInicio,
-    fechaFin: latest.fechaFin,
-    mes: firstNonEmpty((c) => c.mes) || rep.mes,
-    link,
-    supports: mergeSupports(group),
-  };
+export function campaignIdentity(c: ParsedCampaign): string {
+  return `${campaignKey(c.name)}#${hashString(campaignSignature(c))}`;
 }
 
 /**
- * Deduplica el calendario entrante por `campaignKey`: fusiona filas repetidas de
- * la misma campaña en una sola (conserva el orden de aparición). Evita que el
- * mismo nombre se persista como varios documentos.
+ * Deduplica el calendario entrante por **identidad** (todos los datos): solo se
+ * colapsan filas **idénticas** (mismo nombre y mismos datos). Dos campañas con
+ * el mismo nombre pero datos distintos se conservan como filas separadas.
  */
 export function dedupeIncoming(
   incoming: readonly ParsedCampaign[],
 ): ParsedCampaign[] {
-  const groups = new Map<string, ParsedCampaign[]>();
-  const order: string[] = [];
+  const seen = new Set<string>();
+  const out: ParsedCampaign[] = [];
   for (const c of incoming) {
-    const k = campaignKey(c.name);
-    const g = groups.get(k);
-    if (g) {
-      g.push(c);
-    } else {
-      groups.set(k, [c]);
-      order.push(k);
-    }
+    const id = campaignIdentity(c);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(c);
   }
-  return order.map((k) => mergeParsedGroup(groups.get(k)!));
+  return out;
 }
 
 interface SupportSig {
@@ -242,56 +159,56 @@ export interface CampaignDiff {
   hasChanges: boolean;
 }
 
-/** Compara las campañas entrantes contra las almacenadas. */
+/**
+ * Compara las campañas entrantes contra las almacenadas **por identidad** (todos
+ * los datos). Como la identidad incluye toda la información, un cambio de
+ * cualquier dato produce una identidad nueva: se refleja como **alta** (la
+ * versión nueva) + **baja** (la anterior), no como "modificada". `modified`
+ * queda vacío por diseño; se conserva en el tipo por compatibilidad.
+ */
 export function diffCampaigns(
   incoming: readonly ParsedCampaign[],
   stored: readonly StoredCampaign[],
 ): CampaignDiff {
-  // Deduplica el calendario entrante (misma campaña repetida → una sola).
+  // Deduplica el calendario entrante (solo colapsa filas idénticas).
   const merged = dedupeIncoming(incoming);
 
-  // Representante por nameKey + duplicados redundantes en BD (para autolimpieza).
-  const storedByKey = new Map<string, StoredCampaign>();
+  // Un representante por **identidad calculada** (todos los datos) + duplicados
+  // idénticos en BD (autolimpieza). La identidad se calcula del contenido, no
+  // del `nameKey` persistido (que es el nombre, llave estable de Ekon/CSV).
+  const storedById = new Map<string, StoredCampaign>();
   const storedExtras: StoredCampaign[] = [];
   for (const s of stored) {
-    if (storedByKey.has(s.nameKey)) storedExtras.push(s);
-    else storedByKey.set(s.nameKey, s);
+    const id = campaignIdentity(s);
+    if (storedById.has(id)) storedExtras.push(s);
+    else storedById.set(id, s);
   }
 
   const seen = new Set<string>();
   const added: ParsedCampaign[] = [];
-  const modified: CampaignChange[] = [];
   let unchanged = 0;
 
   for (const c of merged) {
-    const k = campaignKey(c.name);
-    seen.add(k);
-    const prev = storedByKey.get(k);
-    if (!prev) {
-      added.push(c);
-    } else if (prev.signature !== campaignSignature(c)) {
-      modified.push({
-        campaign: c,
-        stored: prev,
-        changes: describeChanges(prev, c),
-      });
-    } else {
-      unchanged += 1;
-    }
+    const id = campaignIdentity(c);
+    seen.add(id);
+    if (storedById.has(id)) unchanged += 1;
+    else added.push(c);
   }
 
-  // Se eliminan: los representantes que ya no están en el calendario y **todos**
-  // los duplicados redundantes de BD (se conserva un documento por nameKey).
+  // Se eliminan: las identidades que ya no están en el calendario y los
+  // documentos idénticos redundantes de BD (se conserva uno por identidad).
   const removed = [
-    ...[...storedByKey.values()].filter((s) => !seen.has(s.nameKey)),
+    ...[...storedById.entries()]
+      .filter(([id]) => !seen.has(id))
+      .map(([, s]) => s),
     ...storedExtras,
   ];
 
   return {
     added,
     removed,
-    modified,
+    modified: [],
     unchanged,
-    hasChanges: added.length > 0 || removed.length > 0 || modified.length > 0,
+    hasChanges: added.length > 0 || removed.length > 0,
   };
 }

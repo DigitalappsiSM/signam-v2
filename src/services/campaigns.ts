@@ -37,6 +37,9 @@ export async function listCampaigns(): Promise<StoredCampaign[]> {
 function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
   return {
     ...campaign,
+    // `nameKey` = nombre normalizado (llave estable de Ekon y del CSV). La
+    // separación de "flights" homónimos ocurre en Seguimiento vía la identidad
+    // por todos los datos (`campaignIdentity`), no aquí.
     nameKey: campaignKey(campaign.name),
     signature: campaignSignature(campaign),
     updatedAt: now,

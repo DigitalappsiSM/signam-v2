@@ -3,7 +3,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignIdentity,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { AdmiraScreen } from '@/domain';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
@@ -36,11 +39,11 @@ function campaign(over: Partial<StoredCampaign>): StoredCampaign {
   };
 }
 
+const VIEJA = campaign({ name: 'VIEJA', nameKey: 'vieja', tipo: 'PROVEEDOR' });
+
 beforeEach(() => {
   // Campaña terminada, sin link y con testigos pendientes → alerta crítica.
-  vi.mocked(listCampaigns).mockResolvedValue([
-    campaign({ name: 'VIEJA', nameKey: 'vieja', tipo: 'PROVEEDOR' }),
-  ]);
+  vi.mocked(listCampaigns).mockResolvedValue([VIEJA]);
   vi.mocked(listScreens).mockResolvedValue([]);
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
 });
@@ -136,7 +139,10 @@ describe('DashboardPage — resumen operativo', () => {
     // La campaña vencida aparece como alerta con enlace a Seguimiento.
     const links = await screen.findAllByRole('link', { name: 'VIEJA' });
     expect(links.length).toBeGreaterThan(0);
-    expect(links[0]).toHaveAttribute('href', '/seguimiento?campana=vieja');
+    expect(links[0]).toHaveAttribute(
+      'href',
+      `/seguimiento?campana=${encodeURIComponent(campaignIdentity(VIEJA))}`,
+    );
   });
 
   it('siempre muestra las tarjetas de módulos', async () => {

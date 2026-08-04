@@ -1,11 +1,10 @@
 import {
   consolidate,
   normalizeStore,
-  type Consolidation,
 } from '@/modules/consolidation/consolidate';
 import type { AdmiraScreen } from '@/domain';
 import {
-  campaignKey,
+  campaignIdentity,
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking, Classification } from './types';
@@ -37,6 +36,12 @@ export type Timeframe = 'upcoming' | 'active' | 'finished';
 
 export interface TrackingRow {
   campaign: StoredCampaign;
+  /**
+   * Identidad operativa (todos los datos): distingue dos "flights" homónimos.
+   * Es la llave del documento de seguimiento y del estado de la fila; el
+   * `campaign.nameKey` (nombre) se reserva para Ekon/CSV.
+   */
+  identity: string;
   tracking: CampaignOperationalTracking | null;
   classification: Classification | 'unknown';
   linkStatus: DownloadLinkStatus;
@@ -60,64 +65,23 @@ function timeframeOf(
 }
 
 /**
- * Colapsa campañas que comparten `nameKey` en una sola. El seguimiento operativo
- * es **por nombre de campaña** (un documento por `nameKey`, los checks y la
- * bitácora sobreviven a las reimportaciones), por lo que dos campañas con el
- * mismo nombre son la misma campaña operativa: mostrarlas como filas separadas
- * duplica la vista y acopla sus comentarios/indicadores. Se conserva el orden de
- * aparición y se toma el **span más amplio** (inicio más temprano, fin más
- * tardío) y el **mejor link** disponible.
+ * Colapsa documentos **idénticos** por identidad (todos los datos); conserva el
+ * orden de aparición. Dos campañas con el mismo nombre pero distinta
+ * vigencia/tiendas tienen identidades distintas y se conservan como filas
+ * separadas (cada una con su propio seguimiento).
  */
-function dedupeByNameKey(
+function dedupeByIdentity(
   campaigns: readonly StoredCampaign[],
 ): StoredCampaign[] {
-  const groups = new Map<string, StoredCampaign[]>();
-  const order: string[] = [];
+  const seen = new Set<string>();
+  const out: StoredCampaign[] = [];
   for (const c of campaigns) {
-    const g = groups.get(c.nameKey);
-    if (g) {
-      g.push(c);
-    } else {
-      groups.set(c.nameKey, [c]);
-      order.push(c.nameKey);
-    }
+    const id = campaignIdentity(c);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(c);
   }
-  return order.map((key) => {
-    const group = groups.get(key)!;
-    const rep = group[0]!;
-    if (group.length === 1) return rep;
-    let earliest = rep;
-    let latest = rep;
-    for (const c of group) {
-      const s = parseCampaignDate(c.fechaInicio);
-      const sBest = parseCampaignDate(earliest.fechaInicio);
-      if (s && (!sBest || s.getTime() < sBest.getTime())) earliest = c;
-      const e = parseCampaignDate(c.fechaFin);
-      const eBest = parseCampaignDate(latest.fechaFin);
-      if (e && (!eBest || e.getTime() > eBest.getTime())) latest = c;
-    }
-    const link =
-      group.find((c) => downloadLinkStatus(c.link) === 'valid')?.link ??
-      group.find((c) => c.link.trim() !== '')?.link ??
-      rep.link;
-    // Clasificación por tipo: si los miembros discrepan (p. ej. uno
-    // Institucional y otro Proveedor) se deja **Pendiente** para forzar una
-    // decisión explícita; nunca se asume una clasificación (ver AGENTS.md).
-    const classes = new Set(
-      group.map((c) => classifyFromTipo(c.tipo)).filter((x) => x !== 'unknown'),
-    );
-    const tipo =
-      classes.size === 1
-        ? (group.find((c) => c.tipo.trim() !== '')?.tipo ?? rep.tipo)
-        : '';
-    return {
-      ...rep,
-      fechaInicio: earliest.fechaInicio,
-      fechaFin: latest.fechaFin,
-      link,
-      tipo,
-    };
-  });
+  return out;
 }
 
 export function buildTrackingRows(
@@ -126,16 +90,6 @@ export function buildTrackingRows(
   tracking: readonly CampaignOperationalTracking[],
   today: Date,
 ): TrackingRow[] {
-  const result = consolidate(campaigns, screens);
-  // Indexado por nameKey (no por nombre crudo): dos grafías del mismo nombre
-  // (mayúsculas/espacios) comparten llave, así el conteo de tiendas las une.
-  const consByCampaign = new Map<string, Consolidation[]>();
-  for (const c of result.consolidations) {
-    const k = campaignKey(c.campaignName);
-    const list = consByCampaign.get(k) ?? [];
-    list.push(c);
-    consByCampaign.set(k, list);
-  }
   const screenStore = new Map<string, string>();
   for (const s of screens) {
     screenStore.set(s.id, normalizeStore(s.original['Numero de Tienda']));
@@ -143,15 +97,19 @@ export function buildTrackingRows(
   const trackingByKey = new Map<string, CampaignOperationalTracking>();
   for (const t of tracking) trackingByKey.set(t.campaignNameKey, t);
 
-  // Una fila por campaña (por nombre): colapsa duplicados con el mismo nameKey.
-  return dedupeByNameKey(campaigns).map((campaign) => {
-    const t = trackingByKey.get(campaign.nameKey) ?? null;
+  // Una fila por identidad de campaña (todos los datos): dos "flights" del mismo
+  // nombre son filas separadas. El conteo de tiendas se calcula **por campaña**
+  // (consolidando cada una por separado) para no mezclar los datos de otra
+  // campaña con el mismo nombre; la consolidación/CSV global no se altera.
+  return dedupeByIdentity(campaigns).map((campaign) => {
+    const identity = campaignIdentity(campaign);
+    const t = trackingByKey.get(identity) ?? null;
     const classification: Classification | 'unknown' = t
       ? t.classification
       : classifyFromTipo(campaign.tipo);
 
     const stores = new Set<string>();
-    for (const cn of consByCampaign.get(campaign.nameKey) ?? []) {
+    for (const cn of consolidate([campaign], screens).consolidations) {
       for (const id of cn.screenIds) {
         const store = screenStore.get(id);
         if (store) stores.add(store);
@@ -191,6 +149,7 @@ export function buildTrackingRows(
 
     return {
       campaign,
+      identity,
       tracking: t,
       classification,
       linkStatus: downloadLinkStatus(campaign.link),

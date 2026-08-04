@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   campaignSignature,
+  campaignIdentity,
   diffCampaigns,
   dedupeIncoming,
   describeChanges,
@@ -36,7 +37,8 @@ function stored(c: ParsedCampaign, id = 'id1'): StoredCampaign {
   return {
     ...c,
     id,
-    nameKey: c.name.trim().toLowerCase(),
+    // La identidad (todos los datos) es la llave persistida, igual que en prod.
+    nameKey: campaignIdentity(c),
     signature: campaignSignature(c),
   };
 }
@@ -94,11 +96,13 @@ describe('diffCampaigns', () => {
     expect(diff.unchanged).toBe(1);
   });
 
-  it('detecta modificadas con el detalle del cambio', () => {
+  it('un cambio de datos se refleja como alta + baja (identidad = todos los datos)', () => {
     const s = [stored(camp('Nike'))];
     const diff = diffCampaigns([camp('Nike', { fechaFin: '3/1/26' })], s);
-    expect(diff.modified).toHaveLength(1);
-    expect(diff.modified[0]!.changes.join(' ')).toContain('Vigencia fin');
+    // La versión nueva es alta; la anterior, baja. No hay "modificadas".
+    expect(diff.added).toHaveLength(1);
+    expect(diff.removed.map((c) => c.id)).toEqual(['id1']);
+    expect(diff.modified).toHaveLength(0);
   });
 
   it('detecta eliminadas (en BD, ya no en el calendario)', () => {
@@ -107,89 +111,60 @@ describe('diffCampaigns', () => {
     expect(diff.removed.map((c) => c.name)).toEqual(['Vieja']);
   });
 
-  it('deduplica el calendario entrante: la campaña repetida se agrega una vez', () => {
-    const diff = diffCampaigns([camp('Nike'), camp('Nike')], []);
-    expect(diff.added).toHaveLength(1);
-    expect(diff.added[0]!.name).toBe('Nike');
+  it('dos "flights" del mismo nombre (distinta vigencia) son dos altas', () => {
+    const jul = camp('HIPER X', {
+      fechaInicio: '7/15/26',
+      fechaFin: '7/31/26',
+    });
+    const ago = camp('HIPER X', { fechaInicio: '8/11/26', fechaFin: '9/7/26' });
+    const diff = diffCampaigns([jul, ago], []);
+    expect(diff.added).toHaveLength(2);
+    // Identidades distintas: no se colapsan.
+    expect(campaignIdentity(jul)).not.toBe(campaignIdentity(ago));
   });
 
-  it('autolimpia duplicados en BD: conserva uno y elimina el resto', () => {
+  it('autolimpia solo documentos IDÉNTICOS en BD (misma identidad)', () => {
     const s = [
       stored(camp('Nike'), 'id1'),
-      stored(camp('Nike'), 'id2'), // duplicado redundante (mismo nameKey)
+      stored(camp('Nike'), 'id2'), // idéntico → misma identidad → redundante
     ];
     const diff = diffCampaigns([camp('Nike')], s);
-    // Un documento se conserva (unchanged) y el duplicado se marca para borrar.
     expect(diff.removed.map((c) => c.id)).toEqual(['id2']);
     expect(diff.unchanged).toBe(1);
-    expect(diff.hasChanges).toBe(true);
   });
 });
 
 describe('dedupeIncoming', () => {
-  it('une soportes/tiendas, toma el span más amplio y el mejor link', () => {
-    const a = camp('HIPER X', {
-      fechaInicio: '3/5/26',
-      fechaFin: '3/15/26',
-      link: '',
+  it('colapsa solo filas idénticas (misma identidad)', () => {
+    const out = dedupeIncoming([camp('Nike'), camp('Nike')]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.name).toBe('Nike');
+  });
+
+  it('conserva flights distintos: mismo nombre, distinta vigencia/tiendas', () => {
+    const jul = camp('HIPER X', {
+      fechaInicio: '7/15/26',
+      fechaFin: '7/31/26',
+      supports: [
+        {
+          support: 'APARADOR',
+          owner: 'liverpool',
+          stores: [{ numero: '1', nombre: '' }],
+        },
+      ],
+    });
+    const ago = camp('HIPER X', {
+      fechaInicio: '8/11/26',
+      fechaFin: '9/7/26',
       supports: [
         {
           support: 'VIDEO WALL',
           owner: 'liverpool',
-          stores: [{ numero: '1', nombre: 'A' }],
+          stores: [{ numero: '2', nombre: '' }],
         },
       ],
     });
-    const b = camp('hiper  x', {
-      fechaInicio: '3/1/26',
-      fechaFin: '3/20/26',
-      link: 'https://x.com/a.zip',
-      supports: [
-        {
-          support: 'VIDEO WALL',
-          owner: 'liverpool',
-          stores: [{ numero: '2', nombre: 'B' }],
-        },
-      ],
-    });
-    const [merged, ...rest] = dedupeIncoming([a, b]);
-    expect(rest).toHaveLength(0); // una sola campaña
-    expect(merged!.fechaInicio).toBe('3/1/26');
-    expect(merged!.fechaFin).toBe('3/20/26');
-    expect(merged!.link).toBe('https://x.com/a.zip');
-    // Tiendas unidas bajo el mismo soporte.
-    expect(merged!.supports).toHaveLength(1);
-    expect(merged!.supports[0]!.stores.map((s) => s.numero).sort()).toEqual([
-      '1',
-      '2',
-    ]);
-  });
-
-  it('conserva el comodín (sin tiendas) si alguna copia lo trae vacío', () => {
-    // Una fila asigna el soporte sin comentario (todas las pantallas) y otra
-    // lista tiendas explícitas: el resultado debe seguir siendo comodín (vacío),
-    // no reducirse a las tiendas explícitas (evita CSV incompleto).
-    const a = camp('X', {
-      supports: [{ support: 'LED', owner: 'liverpool', stores: [] }],
-    });
-    const b = camp('X', {
-      supports: [
-        {
-          support: 'LED',
-          owner: 'liverpool',
-          stores: [{ numero: '5', nombre: '' }],
-        },
-      ],
-    });
-    const [merged] = dedupeIncoming([a, b]);
-    expect(merged!.supports).toHaveLength(1);
-    expect(merged!.supports[0]!.stores).toHaveLength(0);
-  });
-
-  it('deja el tipo vacío (Pendiente) si las copias discrepan', () => {
-    const a = camp('X', { tipo: 'INSTITUCIONAL' });
-    const b = camp('X', { tipo: 'PROVEEDOR' });
-    expect(dedupeIncoming([a, b])[0]!.tipo).toBe('');
+    expect(dedupeIncoming([jul, ago])).toHaveLength(2);
   });
 });
 
