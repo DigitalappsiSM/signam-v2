@@ -9,9 +9,23 @@ import type { CellComment, SheetData, WorkbookData } from './calendarImport';
  * engrosar el bundle principal.
  */
 
+/**
+ * Fecha de Excel → ISO `AAAA-MM-DD` **sin ambigüedad**. Se toman los componentes
+ * de la fecha real (no el texto formateado de la celda, que puede venir
+ * mes-primero y confundir día/mes). SheetJS con `cellDates` construye la fecha a
+ * medianoche local, por eso se usan los componentes locales.
+ */
+function isoFromExcelDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function toText(value: unknown): string {
   if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
+  // Fechas reales de Excel → ISO (evita el swap día/mes del formato visual).
+  if (value instanceof Date) return isoFromExcelDate(value);
   return String(value).trim();
 }
 
@@ -28,10 +42,14 @@ export async function readCalendarWorkbook(file: Blob): Promise<WorkbookData> {
     const ws = workbook.Sheets[name];
     if (!ws) continue;
 
-    // Filas como matriz de texto (raw:false formatea fechas/números).
+    // Filas como matriz. `raw:true` conserva los valores nativos: las fechas
+    // llegan como `Date` (por `cellDates`) y se normalizan a ISO sin ambigüedad
+    // día/mes; el resto se convierte a texto. Antes se usaba `raw:false`, que
+    // formateaba las fechas con el formato de la celda (posible mes-primero) y
+    // provocaba el intercambio día/mes.
     const raw = XLSX.utils.sheet_to_json(ws, {
       header: 1,
-      raw: false,
+      raw: true,
       defval: '',
       blankrows: true,
     }) as unknown[][];
