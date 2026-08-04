@@ -218,7 +218,7 @@ export function OperationalTrackingPage() {
     completed: boolean,
   ) {
     if (!canWrite) return;
-    const busyKey = `${row.campaign.nameKey}:${key}`;
+    const busyKey = `${row.identity}:${key}`;
     if (busy.has(busyKey)) return;
     // Se permite marcar aunque la clasificación esté pendiente; se usa
     // Institucional como valor inicial editable (nunca se asume Proveedor).
@@ -228,7 +228,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await updateCheck({
-        campaignNameKey: row.campaign.nameKey,
+        campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         key,
         completed,
@@ -250,13 +250,13 @@ export function OperationalTrackingPage() {
 
   async function setRowClassification(row: TrackingRow, value: Classification) {
     if (!canWrite) return;
-    const busyKey = `${row.campaign.nameKey}:classification`;
+    const busyKey = `${row.identity}:classification`;
     if (busy.has(busyKey)) return;
     setActionError(null);
     setBusyKey(busyKey, true);
     try {
       const updated = await updateClassification({
-        campaignNameKey: row.campaign.nameKey,
+        campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         classification: value,
         linkValid: row.linkStatus === 'valid',
@@ -274,7 +274,7 @@ export function OperationalTrackingPage() {
 
   async function markAllForRow(row: TrackingRow) {
     if (!canWrite) return;
-    const busyKey = `${row.campaign.nameKey}:markall`;
+    const busyKey = `${row.identity}:markall`;
     if (busy.has(busyKey)) return;
     const classification: Classification =
       row.classification === 'unknown' ? 'institutional' : row.classification;
@@ -282,7 +282,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await markAllChecks({
-        campaignNameKey: row.campaign.nameKey,
+        campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         classification,
         linkValid: row.linkStatus === 'valid',
@@ -311,9 +311,9 @@ export function OperationalTrackingPage() {
 
   async function submitComment(row: TrackingRow) {
     if (!canWrite) return;
-    const text = (commentDrafts[row.campaign.nameKey] ?? '').trim();
+    const text = (commentDrafts[row.identity] ?? '').trim();
     if (!text) return;
-    const busyKey = `${row.campaign.nameKey}:comment`;
+    const busyKey = `${row.identity}:comment`;
     if (busy.has(busyKey)) return;
     const classification: Classification =
       row.classification === 'unknown' ? 'institutional' : row.classification;
@@ -321,7 +321,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await addComment({
-        campaignNameKey: row.campaign.nameKey,
+        campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         text,
         classification,
@@ -329,7 +329,7 @@ export function OperationalTrackingPage() {
         actor,
       });
       patchTracking(updated);
-      setCommentDrafts((prev) => ({ ...prev, [row.campaign.nameKey]: '' }));
+      setCommentDrafts((prev) => ({ ...prev, [row.identity]: '' }));
     } catch {
       setActionError(
         `No se pudo guardar el comentario de "${row.campaign.name}".`,
@@ -496,12 +496,14 @@ export function OperationalTrackingPage() {
             <tbody>
               {sorted.map((r) => {
                 const checks = effectiveChecks(r);
-                const highlighted = r.campaign.nameKey === highlightKey;
+                const highlighted =
+                  r.identity === highlightKey ||
+                  r.campaign.nameKey === highlightKey;
                 const comments = r.tracking?.comments ?? [];
-                const isExpanded = expanded.has(r.campaign.nameKey);
+                const isExpanded = expanded.has(r.identity);
                 const isFinished = r.timeframe === 'finished';
-                const markAllBusy = busy.has(`${r.campaign.nameKey}:markall`);
-                const commentBusy = busy.has(`${r.campaign.nameKey}:comment`);
+                const markAllBusy = busy.has(`${r.identity}:markall`);
+                const commentBusy = busy.has(`${r.identity}:comment`);
                 return (
                   <Fragment key={r.campaign.id}>
                     <tr
@@ -519,7 +521,7 @@ export function OperationalTrackingPage() {
                           }
                           disabled={
                             !canWrite ||
-                            busy.has(`${r.campaign.nameKey}:classification`)
+                            busy.has(`${r.identity}:classification`)
                           }
                           onChange={(e) =>
                             void setRowClassification(
@@ -545,9 +547,7 @@ export function OperationalTrackingPage() {
                       </td>
                       {CHECK_COLUMNS.map((col) => {
                         const done = isDone(checks, col.key);
-                        const cellBusy = busy.has(
-                          `${r.campaign.nameKey}:${col.key}`,
-                        );
+                        const cellBusy = busy.has(`${r.identity}:${col.key}`);
                         return (
                           <td key={col.key} className="ot-check-cell">
                             <input
@@ -592,7 +592,7 @@ export function OperationalTrackingPage() {
                           className="btn btn-secondary ot-comments-toggle"
                           aria-expanded={isExpanded}
                           aria-label={`Comentarios de ${r.campaign.name}`}
-                          onClick={() => toggleExpanded(r.campaign.nameKey)}
+                          onClick={() => toggleExpanded(r.identity)}
                           title="Ver/agregar comentarios"
                         >
                           💬 {comments.length}
@@ -636,14 +636,12 @@ export function OperationalTrackingPage() {
                                   rows={2}
                                   placeholder="Escribe un comentario…"
                                   aria-label={`Nuevo comentario para ${r.campaign.name}`}
-                                  value={
-                                    commentDrafts[r.campaign.nameKey] ?? ''
-                                  }
+                                  value={commentDrafts[r.identity] ?? ''}
                                   disabled={commentBusy}
                                   onChange={(e) =>
                                     setCommentDrafts((prev) => ({
                                       ...prev,
-                                      [r.campaign.nameKey]: e.target.value,
+                                      [r.identity]: e.target.value,
                                     }))
                                   }
                                 />
@@ -652,9 +650,7 @@ export function OperationalTrackingPage() {
                                   className="btn btn-primary"
                                   disabled={
                                     commentBusy ||
-                                    !(
-                                      commentDrafts[r.campaign.nameKey] ?? ''
-                                    ).trim()
+                                    !(commentDrafts[r.identity] ?? '').trim()
                                   }
                                   onClick={() => void submitComment(r)}
                                 >

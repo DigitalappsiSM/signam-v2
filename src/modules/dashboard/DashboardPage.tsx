@@ -51,7 +51,8 @@ import '@/modules/operational-tracking/OperationalTrackingPage.css';
 import './DashboardPage.css';
 
 function trackingLink(row: TrackingRow): string {
-  return `/seguimiento?campana=${encodeURIComponent(row.campaign.nameKey)}`;
+  // Enlaza por identidad para resaltar el "flight" correcto en Seguimiento.
+  return `/seguimiento?campana=${encodeURIComponent(row.identity)}`;
 }
 
 function isoDay(d: Date | null): string {

@@ -3,7 +3,10 @@ import {
   normalizeStore,
 } from '@/modules/consolidation/consolidate';
 import type { AdmiraScreen } from '@/domain';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignIdentity,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking, Classification } from './types';
 import { classifyFromTipo } from './campaignClassification';
 import { downloadLinkStatus, type DownloadLinkStatus } from './downloadLink';
@@ -33,6 +36,12 @@ export type Timeframe = 'upcoming' | 'active' | 'finished';
 
 export interface TrackingRow {
   campaign: StoredCampaign;
+  /**
+   * Identidad operativa (todos los datos): distingue dos "flights" homónimos.
+   * Es la llave del documento de seguimiento y del estado de la fila; el
+   * `campaign.nameKey` (nombre) se reserva para Ekon/CSV.
+   */
+  identity: string;
   tracking: CampaignOperationalTracking | null;
   classification: Classification | 'unknown';
   linkStatus: DownloadLinkStatus;
@@ -56,8 +65,8 @@ function timeframeOf(
 }
 
 /**
- * Colapsa documentos **idénticos** (misma identidad `nameKey` = todos los datos);
- * conserva el orden de aparición. Dos campañas con el mismo nombre pero distinta
+ * Colapsa documentos **idénticos** por identidad (todos los datos); conserva el
+ * orden de aparición. Dos campañas con el mismo nombre pero distinta
  * vigencia/tiendas tienen identidades distintas y se conservan como filas
  * separadas (cada una con su propio seguimiento).
  */
@@ -67,8 +76,9 @@ function dedupeByIdentity(
   const seen = new Set<string>();
   const out: StoredCampaign[] = [];
   for (const c of campaigns) {
-    if (seen.has(c.nameKey)) continue;
-    seen.add(c.nameKey);
+    const id = campaignIdentity(c);
+    if (seen.has(id)) continue;
+    seen.add(id);
     out.push(c);
   }
   return out;
@@ -92,7 +102,8 @@ export function buildTrackingRows(
   // (consolidando cada una por separado) para no mezclar los datos de otra
   // campaña con el mismo nombre; la consolidación/CSV global no se altera.
   return dedupeByIdentity(campaigns).map((campaign) => {
-    const t = trackingByKey.get(campaign.nameKey) ?? null;
+    const identity = campaignIdentity(campaign);
+    const t = trackingByKey.get(identity) ?? null;
     const classification: Classification | 'unknown' = t
       ? t.classification
       : classifyFromTipo(campaign.tipo);
@@ -138,6 +149,7 @@ export function buildTrackingRows(
 
     return {
       campaign,
+      identity,
       tracking: t,
       classification,
       linkStatus: downloadLinkStatus(campaign.link),

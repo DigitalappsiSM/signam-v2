@@ -171,21 +171,22 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
   **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
-- **Identidad por _todos los datos_** (`campaignIdentity`): la campaña se
-  identifica por nombre **+ vigencia + tipo + vendido por + mes + link +
-  soportes/tiendas** (`campaignKey(name)#<hash(firma)>`), y ese valor es el
-  `nameKey` persistido y la llave del seguimiento. Así, dos filas con el mismo
-  nombre pero **distinta vigencia o distintas tiendas/soportes** (p. ej. dos
-  _flights_ de la misma campaña) son **campañas distintas**: dos filas en
-  Seguimiento, cada una con su propio seguimiento. `dedupeIncoming` colapsa
-  **solo filas idénticas**; el diff conserva un documento por identidad y marca
-  los idénticos redundantes como eliminados (autolimpieza).
-  - **Consecuencia:** como la identidad incluye todos los datos, un cambio de
-    cualquier dato al reimportar produce una identidad nueva → se ve como
-    **alta + baja** (no “modificada”) y el seguimiento se asocia a la identidad
-    nueva. La **consolidación/CSV de Admira no cambia** (sigue agrupando por
-    `Campaña + RESOLUCION`); el conteo de tiendas del Seguimiento se calcula
-    **por campaña** para no mezclar dos campañas con el mismo nombre.
+- **Dos llaves, dos propósitos.** El `nameKey` persistido es el **nombre**
+  normalizado (`campaignKey`), llave **estable** de la asociación Ekon y del
+  agrupado del CSV. Aparte, `campaignIdentity(c)` = nombre **+ todos los datos**
+  (vigencia, tipo, vendido por, mes, link, soportes/tiendas → `nombre#<hash>`)
+  es la **identidad operativa**: distingue dos _flights_ homónimos (mismo
+  nombre, distinta vigencia/tiendas).
+  - **En Seguimiento**: una fila **por identidad** (`TrackingRow.identity`), con
+    su propio documento de seguimiento (checks/bitácora) y su **conteo de tiendas
+    por campaña** (consolidando cada una por separado). Así, dos _flights_ de
+    “HIPER X” son dos filas independientes.
+  - **En importación**: `dedupeIncoming` colapsa **solo filas idénticas**;
+    `diffCampaigns` compara por identidad calculada (dos _flights_ = dos altas;
+    un cambio de datos = alta + baja; autolimpia solo documentos idénticos).
+  - **Ekon y CSV no cambian** (siguen por nombre): dos _flights_ comparten
+    número Ekon y export CSV agrupado por `Campaña + RESOLUCION`. La
+    consolidación/CSV no se altera.
 - **UX resumen → detalle** (no se despliega todo a la vez): tras subir el
   archivo aparece un **banner-titular fijo** (sticky) con las cifras clave
   (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón

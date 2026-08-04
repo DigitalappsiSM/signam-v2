@@ -173,12 +173,15 @@ export function diffCampaigns(
   // Deduplica el calendario entrante (solo colapsa filas idénticas).
   const merged = dedupeIncoming(incoming);
 
-  // Un representante por identidad + duplicados idénticos en BD (autolimpieza).
+  // Un representante por **identidad calculada** (todos los datos) + duplicados
+  // idénticos en BD (autolimpieza). La identidad se calcula del contenido, no
+  // del `nameKey` persistido (que es el nombre, llave estable de Ekon/CSV).
   const storedById = new Map<string, StoredCampaign>();
   const storedExtras: StoredCampaign[] = [];
   for (const s of stored) {
-    if (storedById.has(s.nameKey)) storedExtras.push(s);
-    else storedById.set(s.nameKey, s);
+    const id = campaignIdentity(s);
+    if (storedById.has(id)) storedExtras.push(s);
+    else storedById.set(id, s);
   }
 
   const seen = new Set<string>();
@@ -195,7 +198,9 @@ export function diffCampaigns(
   // Se eliminan: las identidades que ya no están en el calendario y los
   // documentos idénticos redundantes de BD (se conserva uno por identidad).
   const removed = [
-    ...[...storedById.values()].filter((s) => !seen.has(s.nameKey)),
+    ...[...storedById.entries()]
+      .filter(([id]) => !seen.has(id))
+      .map(([, s]) => s),
     ...storedExtras,
   ];
 

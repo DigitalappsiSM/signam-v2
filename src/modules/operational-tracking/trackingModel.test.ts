@@ -5,7 +5,10 @@ import {
   isFullyTracked,
 } from './trackingModel';
 import { parseCampaignDate } from './businessDays';
-import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import {
+  campaignIdentity,
+  type StoredCampaign,
+} from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking } from './types';
 import type { AdmiraScreen } from '@/domain';
 import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
@@ -90,16 +93,12 @@ describe('buildTrackingRows', () => {
   });
 
   it('usa la clasificación persistida por encima del tipo', () => {
+    const c = campaign({ tipo: 'INSTITUCIONAL' });
     const tracking = {
-      campaignNameKey: 'campaña',
+      campaignNameKey: campaignIdentity(c),
       classification: 'provider',
     } as CampaignOperationalTracking;
-    const rows = buildTrackingRows(
-      [campaign({ tipo: 'INSTITUCIONAL' })],
-      [],
-      [tracking],
-      today,
-    );
+    const rows = buildTrackingRows([c], [], [tracking], today);
     expect(rows[0]!.classification).toBe('provider');
   });
 
@@ -193,24 +192,34 @@ describe('buildTrackingRows', () => {
   });
 
   it('asocia el seguimiento por identidad (cada flight su propio doc)', () => {
+    const jul = campaign({
+      id: 'a',
+      name: 'HIPER X',
+      fechaInicio: '2026-03-01',
+      fechaFin: '2026-03-10',
+    });
+    const ago = campaign({
+      id: 'b',
+      name: 'HIPER X',
+      fechaInicio: '2026-03-15',
+      fechaFin: '2026-03-25',
+    });
     const rows = buildTrackingRows(
-      [
-        campaign({ id: 'a', name: 'HIPER X', nameKey: 'hiper x#jul' }),
-        campaign({ id: 'b', name: 'HIPER X', nameKey: 'hiper x#ago' }),
-      ],
+      [jul, ago],
       [],
       [
         {
-          campaignNameKey: 'hiper x#ago',
+          campaignNameKey: campaignIdentity(ago),
           classification: 'provider',
         } as CampaignOperationalTracking,
       ],
       today,
     );
-    const byKey = new Map(rows.map((r) => [r.campaign.nameKey, r]));
-    // Solo el flight con seguimiento toma esa clasificación.
-    expect(byKey.get('hiper x#ago')!.classification).toBe('provider');
-    expect(byKey.get('hiper x#jul')!.tracking).toBeNull();
+    expect(rows).toHaveLength(2);
+    const byId = new Map(rows.map((r) => [r.identity, r]));
+    // Solo el flight con seguimiento (por identidad) toma esa clasificación.
+    expect(byId.get(campaignIdentity(ago))!.classification).toBe('provider');
+    expect(byId.get(campaignIdentity(jul))!.tracking).toBeNull();
   });
 
   it('marca link faltante e inválido', () => {
@@ -263,20 +272,16 @@ describe('criticalAlerts / isFullyTracked', () => {
   });
 
   it('isFullyTracked requiere link válido y los cuatro checks', () => {
+    const c = campaign({ link: 'https://x.com/a.zip' });
     const tracking = {
-      campaignNameKey: 'campaña',
+      campaignNameKey: campaignIdentity(c),
       classification: 'institutional',
       liverpoolValidation: { completed: true },
       csmProgramming: { completed: true },
       witnessStart: { completed: true },
       witnessComplete: { completed: true },
     } as unknown as CampaignOperationalTracking;
-    const rows = buildTrackingRows(
-      [campaign({ link: 'https://x.com/a.zip' })],
-      [],
-      [tracking],
-      today,
-    );
+    const rows = buildTrackingRows([c], [], [tracking], today);
     expect(isFullyTracked(rows[0]!)).toBe(true);
   });
 });
