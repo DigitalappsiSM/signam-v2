@@ -253,8 +253,8 @@
   white-space: nowrap;
 }
 
-/* Casilla personalizada: marcada = degradado de marca con palomita blanca.
-   Mantiene la semántica del <input type=checkbox> y el foco accesible. */
+/* Casilla personalizada con palomita blanca. Mantiene la semántica del
+   <input type=checkbox> y el foco accesible. */
 .ot-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -276,10 +276,13 @@
   border-color: var(--color-primary);
 }
 
+/* Marcada = azul InStore Media sólido (dominante). El rosa se reserva para la
+   marca/navegación/CTA; en la tabla operativa el check va en azul. */
 .ot-checkbox:checked {
   border-color: transparent;
-  background: var(--grad-brand);
-  box-shadow: 0 4px 10px rgba(124, 58, 237, 0.3);
+  background: var(--color-primary);
+  box-shadow: 0 2px 6px
+    color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 .ot-checkbox:checked::after {

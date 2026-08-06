@@ -1,56 +1,57 @@
 :root {
   /* ── Tema CLARO (base) ───────────────────────────────────────────────────
-     SaaS premium: superficies claras muy redondeadas con sombra suave y un
-     degradado de marca violeta→magenta→coral, usado con moderación (marca,
-     navegación activa y CTA principal). El resto se mantiene sobrio para
-     jornadas largas de seguimiento operativo. */
+     SaaS premium: superficies claras muy redondeadas con sombra suave. El
+     azul InStore Media es el color dominante (acción, enlaces, foco, checks,
+     hovers). El degradado rosa Liverpool se reserva SOLO para los momentos de
+     gradiente: marca, navegación activa y CTA principal. */
   color-scheme: light;
 
-  --color-bg: #f4f4fb;
+  --color-bg: #f3f6fb;
   --color-surface: #ffffff;
-  --color-surface-2: #faf9fe;
-  --color-border: #ebe8f4;
-  --color-border-strong: #ddd8ec;
-  --color-text: #14121f;
-  --color-text-muted: #7b7890;
+  --color-surface-2: #f2f5fa;
+  --color-border: #e5eaf2;
+  --color-border-strong: #d5dded;
+  --color-text: #0f1b2d;
+  --color-text-muted: #5b6577;
 
   /* Superficies de contenido premium (redondeadas, sombra suave). */
-  --table-head-bg: #faf9fe;
-  --row-zebra: #fbfaff;
-  --row-hover: #f7f4ff;
+  --table-head-bg: #f3f6fb;
+  --row-zebra: #fafbfe;
+  --row-hover: #eef3fd;
 
-  /* Base = violeta de marca (acción/enlaces); magenta como pareja del
-     degradado de marca. */
-  --color-primary: #7c3aed;
-  --color-primary-dark: #6d28d9;
-  --color-accent: #7c3aed;
+  /* Base = azul InStore Media (dominante). Magenta Liverpool = pareja del
+     degradado de marca (uso puntual). */
+  --color-primary: #2456d6;
+  --color-primary-dark: #1c46b8;
+  --color-accent: #2456d6;
   --color-magenta: #ec0f8c;
   --color-magenta-dark: #c60e78;
-  --color-brand: #7c3aed;
+  --color-brand: #ec0f8c;
 
   --color-success: #0f9d58;
   --color-warning: #e2960b;
   --color-danger: #e5484d;
 
-  /* Degradado de marca (violeta→magenta→coral): identidad, navegación activa
-     y CTA principal. Uso moderado. */
+  /* Degradado de marca = rosa Liverpool. Es el ÚNICO degradado de color y se
+     usa con moderación: identidad, navegación activa y CTA principal. */
   --grad-primary: linear-gradient(
     120deg,
-    #7c3aed 0%,
-    #ec0f8c 60%,
-    #fb7185 120%
+    #ff3d9a 0%,
+    #ec0f8c 55%,
+    #c60e78 120%
   );
-  --grad-brand: linear-gradient(120deg, #7c3aed 0%, #ec0f8c 60%, #fb7185 120%);
+  --grad-brand: linear-gradient(120deg, #ff3d9a 0%, #ec0f8c 55%, #c60e78 120%);
+  /* Resplandor suave neutro-azul (ambiente de tarjetas; NO es rosa). */
   --grad-soft: linear-gradient(
     120deg,
-    rgba(124, 58, 237, 0.14),
-    rgba(236, 15, 140, 0.12)
+    rgba(36, 86, 214, 0.12),
+    rgba(59, 130, 246, 0.08)
   );
 
-  /* Violeta translúcido reutilizable (hovers, superficies suaves). */
-  --accent-050: rgba(124, 58, 237, 0.05);
-  --accent-100: rgba(124, 58, 237, 0.1);
-  --accent-200: rgba(124, 58, 237, 0.16);
+  /* Azul translúcido reutilizable (hovers, superficies suaves). */
+  --accent-050: rgba(36, 86, 214, 0.05);
+  --accent-100: rgba(36, 86, 214, 0.1);
+  --accent-200: rgba(36, 86, 214, 0.16);
 
   /* Magenta translúcido (detalles de marca). */
   --magenta-100: rgba(236, 15, 140, 0.1);
@@ -68,13 +69,13 @@
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(148, 163, 184, 0.3);
   --glass-blur: 14px;
-  --ring: rgba(124, 58, 237, 0.32);
+  --ring: rgba(36, 86, 214, 0.32);
 
   /* Fondo ambiental (usado por body::before). */
-  --amb-glow-a: rgba(124, 58, 237, 0.16);
-  --amb-glow-b: rgba(236, 15, 140, 0.1);
-  --amb-dot: rgba(20, 18, 31, 0.05);
-  --amb-base: linear-gradient(180deg, #f5f4fc 0%, #f1eff9 100%);
+  --amb-glow-a: rgba(36, 86, 214, 0.14);
+  --amb-glow-b: rgba(236, 15, 140, 0.09);
+  --amb-dot: rgba(15, 27, 45, 0.05);
+  --amb-base: linear-gradient(180deg, #f4f7fc 0%, #eef2f9 100%);
 
   --radius: 16px;
   --radius-sm: 12px;
@@ -85,7 +86,8 @@
   --shadow-pop: 0 18px 44px rgba(20, 18, 31, 0.14);
   --shadow-md: 0 18px 44px rgba(20, 18, 31, 0.14);
   --shadow-glass: 0 10px 30px rgba(20, 18, 31, 0.08);
-  --shadow-brand: 0 10px 24px rgba(124, 58, 237, 0.28);
+  /* Glow bajo el degradado rosa (CTA/navegación activa). */
+  --shadow-brand: 0 10px 24px rgba(236, 15, 140, 0.26);
   --sidebar-width: 252px;
   --font-sans:
     'Inter Variable', 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto,
@@ -95,78 +97,81 @@
 }
 
 /* ── Tema OSCURO ──────────────────────────────────────────────────────────
-   Studio oscuro: contraparte del tema claro premium. Fondo casi negro con
-   tinte violeta, paneles oscuros y el mismo degradado de marca
-   violeta→magenta→coral como acento. */
+   Studio navy: contraparte del tema claro. Fondos azul-profundos con el azul
+   InStore Media como acento dominante; el degradado rosa Liverpool queda solo
+   en los momentos de gradiente (marca, navegación activa, CTA). */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #0b0a12;
-  --color-surface: #14131f;
-  --color-surface-2: #1b1928;
-  --color-border: #262433;
-  --color-border-strong: #322f45;
-  --color-text: #eceaf5;
-  --color-text-muted: #8f8ca8;
+  --color-bg: #0b1220;
+  --color-surface: #111a2e;
+  --color-surface-2: #16223c;
+  --color-border: #24324f;
+  --color-border-strong: #30415f;
+  --color-text: #e6edf8;
+  --color-text-muted: #93a1bd;
 
-  /* Superficies de contenido (studio oscuro). */
-  --table-head-bg: #1b1928;
+  /* Superficies de contenido (studio navy). */
+  --table-head-bg: #16223c;
   --row-zebra: rgba(255, 255, 255, 0.02);
-  --row-hover: rgba(139, 92, 246, 0.12);
+  --row-hover: rgba(59, 130, 246, 0.12);
 
-  --color-primary: #8b5cf6;
-  --color-primary-dark: #7c3aed;
-  --color-accent: #a78bfa;
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+  --color-accent: #60a5fa;
   --color-magenta: #f472b6;
   --color-magenta-dark: #ec0f8c;
-  --color-brand: #a78bfa;
+  --color-brand: #f472b6;
 
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #fb7185;
 
+  /* Degradado de marca = rosa Liverpool (único degradado de color). */
   --grad-primary: linear-gradient(
     120deg,
-    #8b5cf6 0%,
+    #ff4da6 0%,
     #ec4899 55%,
-    #fb7185 120%
+    #db2777 120%
   );
-  --grad-brand: linear-gradient(120deg, #8b5cf6 0%, #ec4899 55%, #fb7185 120%);
+  --grad-brand: linear-gradient(120deg, #ff4da6 0%, #ec4899 55%, #db2777 120%);
+  /* Resplandor suave neutro-azul (NO es rosa). */
   --grad-soft: linear-gradient(
     120deg,
-    rgba(139, 92, 246, 0.22),
-    rgba(236, 72, 153, 0.16)
+    rgba(59, 130, 246, 0.2),
+    rgba(37, 99, 235, 0.14)
   );
 
-  --accent-050: rgba(139, 92, 246, 0.08);
-  --accent-100: rgba(139, 92, 246, 0.14);
-  --accent-200: rgba(139, 92, 246, 0.24);
+  --accent-050: rgba(59, 130, 246, 0.08);
+  --accent-100: rgba(59, 130, 246, 0.14);
+  --accent-200: rgba(59, 130, 246, 0.24);
 
   --magenta-100: rgba(244, 91, 176, 0.14);
   --magenta-200: rgba(244, 91, 176, 0.24);
 
-  --cls-inst: #818cf8;
+  --cls-inst: #60a5fa;
   --cls-prov: #f472b6;
   --cls-unknown: #fbbf24;
   --heat: 236, 72, 153;
 
-  --glass-bg: rgba(20, 19, 31, 0.66);
-  --glass-strong: rgba(27, 25, 40, 0.92);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(17, 26, 46, 0.66);
+  --glass-strong: rgba(20, 31, 54, 0.92);
+  --glass-border: rgba(120, 145, 190, 0.18);
   --glass-blur: 16px;
-  --ring: rgba(139, 92, 246, 0.5);
+  --ring: rgba(96, 165, 250, 0.5);
 
-  --amb-glow-a: rgba(139, 92, 246, 0.26);
-  --amb-glow-b: rgba(236, 72, 153, 0.16);
-  --amb-dot: rgba(180, 170, 220, 0.06);
-  --amb-base: linear-gradient(180deg, #0c0a15 0%, #08070e 100%);
+  --amb-glow-a: rgba(37, 99, 235, 0.24);
+  --amb-glow-b: rgba(236, 72, 153, 0.14);
+  --amb-dot: rgba(148, 176, 226, 0.06);
+  --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
 
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
   --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 18px 44px rgba(0, 0, 0, 0.55);
   --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.55);
   --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.5);
-  --shadow-brand: 0 10px 24px rgba(139, 92, 246, 0.4);
+  /* Glow bajo el degradado rosa (CTA/navegación activa). */
+  --shadow-brand: 0 10px 24px rgba(236, 72, 153, 0.36);
 }
 
 * {
@@ -267,7 +272,7 @@ button {
 
 .btn-primary:hover {
   filter: brightness(1.05) saturate(1.03);
-  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.36);
+  box-shadow: 0 12px 28px rgba(236, 15, 140, 0.34);
 }
 
 .btn-primary:disabled {
