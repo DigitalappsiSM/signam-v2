@@ -7,6 +7,8 @@ import {
   parseCampaignDate,
   formatDdMmYyyy,
   formatCivilString,
+  toIsoDate,
+  defaultTrackingWindow,
 } from './businessDays';
 
 const d = (s: string) => parseCampaignDate(s)!;
@@ -103,5 +105,29 @@ describe('formatDdMmYyyy / formatCivilString', () => {
     expect(formatCivilString('')).toBe('—');
     expect(formatCivilString(undefined)).toBe('—');
     expect(formatCivilString('sin fecha')).toBe('sin fecha');
+  });
+});
+
+describe('toIsoDate', () => {
+  it('formatea una fecha civil UTC como AAAA-MM-DD', () => {
+    expect(toIsoDate(new Date(Date.UTC(2026, 0, 5)))).toBe('2026-01-05');
+    expect(toIsoDate(new Date(Date.UTC(2026, 11, 31)))).toBe('2026-12-31');
+  });
+});
+
+describe('defaultTrackingWindow', () => {
+  it('abarca del día 1 del mes anterior al último día del mes siguiente', () => {
+    const w = defaultTrackingWindow(new Date(2026, 7, 15)); // agosto 2026
+    expect(w).toEqual({ desde: '2026-07-01', hasta: '2026-09-30' });
+  });
+
+  it('cruza el fin de año correctamente (enero → dic previo)', () => {
+    const w = defaultTrackingWindow(new Date(2026, 0, 10)); // enero 2026
+    expect(w).toEqual({ desde: '2025-12-01', hasta: '2026-02-28' });
+  });
+
+  it('cruza el fin de año correctamente (diciembre → enero siguiente)', () => {
+    const w = defaultTrackingWindow(new Date(2026, 11, 20)); // diciembre 2026
+    expect(w).toEqual({ desde: '2026-11-01', hasta: '2027-01-31' });
   });
 });

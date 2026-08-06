@@ -24,7 +24,13 @@ import {
   formatDdMmYyyy,
   formatCivilString,
   parseCampaignDate,
+  defaultTrackingWindow,
 } from './businessDays';
+import {
+  campaignIntersectsPeriod,
+  hasPeriodFilter,
+  periodError,
+} from '@/modules/campaigns/dateFilter';
 import { type WitnessStatus } from './operationalStatus';
 import { STATUS_META } from './statusMeta';
 import {
@@ -32,7 +38,6 @@ import {
   effectiveChecks,
   rowSeverity,
   type TrackingRow,
-  type Timeframe,
 } from './trackingModel';
 import { SortableTh } from '@/components/SortableTh';
 import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
@@ -120,7 +125,10 @@ export function OperationalTrackingPage() {
   const [classFilter, setClassFilter] = useState<
     'all' | Classification | 'unknown'
   >('all');
-  const [timeFilter, setTimeFilter] = useState<'all' | Timeframe>('all');
+  // Ventana por defecto: mes anterior + mes actual + mes siguiente.
+  const defaultWindow = useMemo(() => defaultTrackingWindow(), []);
+  const [desde, setDesde] = useState(defaultWindow.desde);
+  const [hasta, setHasta] = useState(defaultWindow.hasta);
   const [params] = useSearchParams();
   const highlightKey = params.get('campana');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -159,13 +167,41 @@ export function OperationalTrackingPage() {
     [campaigns, screens, trackingList, today],
   );
 
+  const perError = periodError(desde, hasta);
+
+  // Fila abierta por deep link (`/seguimiento?campana=...`, p. ej. desde una
+  // alerta del Panel). Debe respetarse aunque quede fuera de la ventana por
+  // defecto: se exime del filtro temporal para que el enlace siempre aterrice.
+  const isDeepLinked = useCallback(
+    (r: TrackingRow) =>
+      !!highlightKey &&
+      (r.identity === highlightKey || r.campaign.nameKey === highlightKey),
+    [highlightKey],
+  );
+
   const filtered = useMemo(() => {
+    if (perError) return [];
     const q = normalize(search);
+    const d = parseCampaignDate(desde);
+    const h = parseCampaignDate(hasta);
     return rows.filter((r) => {
       if (q && !normalize(r.campaign.name).includes(q)) return false;
       if (classFilter !== 'all' && r.classification !== classFilter)
         return false;
-      if (timeFilter !== 'all' && r.timeframe !== timeFilter) return false;
+      // Filtro temporal por intersección de vigencia con el rango elegido.
+      // Sin extremos (Ver todo) no filtra por fecha. La fila enlazada por
+      // `?campana=` se exime para honrar los deep links del Panel.
+      if (
+        !isDeepLinked(r) &&
+        !campaignIntersectsPeriod(
+          r.campaign.fechaInicio,
+          r.campaign.fechaFin,
+          d,
+          h,
+        )
+      ) {
+        return false;
+      }
       if (
         statusFilter !== 'all' &&
         r.startStatus !== statusFilter &&
@@ -175,7 +211,16 @@ export function OperationalTrackingPage() {
       }
       return true;
     });
-  }, [rows, search, classFilter, timeFilter, statusFilter]);
+  }, [
+    rows,
+    search,
+    classFilter,
+    desde,
+    hasta,
+    perError,
+    statusFilter,
+    isDeepLinked,
+  ]);
 
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(
@@ -402,22 +447,57 @@ export function OperationalTrackingPage() {
             <option value="unknown">Pendiente</option>
           </select>
         </label>
-        <label className="ot-filter">
-          <span className="text-muted">Periodo</span>
-          <select
-            value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value as 'all' | Timeframe)}
-          >
-            <option value="all">Todas</option>
-            <option value="active">Activas</option>
-            <option value="upcoming">Futuras</option>
-            <option value="finished">Terminadas</option>
-          </select>
+        <label className="campaign-date">
+          <span className="text-muted">Desde</span>
+          <input
+            type="date"
+            aria-label="Periodo desde"
+            value={desde}
+            max={hasta || undefined}
+            onChange={(e) => setDesde(e.target.value)}
+          />
         </label>
+        <label className="campaign-date">
+          <span className="text-muted">Hasta</span>
+          <input
+            type="date"
+            aria-label="Periodo hasta"
+            value={hasta}
+            min={desde || undefined}
+            onChange={(e) => setHasta(e.target.value)}
+          />
+        </label>
+        <button
+          className="btn btn-secondary"
+          onClick={() => {
+            setDesde(defaultWindow.desde);
+            setHasta(defaultWindow.hasta);
+          }}
+          title="Volver al periodo por defecto (mes anterior, actual y siguiente)"
+        >
+          Restablecer
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => {
+            setDesde('');
+            setHasta('');
+          }}
+          title="Quitar el filtro de fechas y mostrar todas las campañas"
+        >
+          Ver todo
+        </button>
         <span className="text-muted" style={{ alignSelf: 'center' }}>
           {filtered.length} de {campaigns.length} campañas
+          {hasPeriodFilter(desde, hasta) ? '' : ' · todo el periodo'}
         </span>
       </div>
+
+      {perError && (
+        <div className="catalog__error" role="alert">
+          {perError}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-muted">Cargando…</p>

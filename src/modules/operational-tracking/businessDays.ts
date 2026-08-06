@@ -77,6 +77,34 @@ export function calendarDaysUntil(today: Date, deadline: Date): number {
   return Math.round(ms / 86_400_000);
 }
 
+/** Formatea una fecha civil (UTC) como `AAAA-MM-DD` (para `input type="date"`). */
+export function toIsoDate(d: Date): string {
+  const yyyy = String(d.getUTCFullYear()).padStart(4, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Ventana por defecto de Seguimiento operativo: del **día 1 del mes anterior**
+ * al **último día del mes siguiente** (mes anterior + mes actual + mes
+ * siguiente), en fechas civiles. Devuelve los extremos en ISO `AAAA-MM-DD`.
+ * `Date.UTC` normaliza los desbordes de mes/año (p. ej. enero → dic del año
+ * anterior; diciembre → ene/feb del año siguiente).
+ */
+export function defaultTrackingWindow(now: Date = new Date()): {
+  desde: string;
+  hasta: string;
+} {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  return {
+    desde: toIsoDate(new Date(Date.UTC(y, m - 1, 1))),
+    // Día 0 del mes (m+2) = último día del mes siguiente (m+1).
+    hasta: toIsoDate(new Date(Date.UTC(y, m + 2, 0))),
+  };
+}
+
 /** Formatea una fecha civil como `dd/mm/aaaa`. */
 export function formatDdMmYyyy(d: Date): string {
   const dd = String(d.getUTCDate()).padStart(2, '0');
