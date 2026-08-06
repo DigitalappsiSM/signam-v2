@@ -1,0 +1,208 @@
+/* Alertas de baja ocupación — estilos del módulo. */
+
+.occ-controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.occ-section-title {
+  font-size: 1.05rem;
+  margin: 1.75rem 0 0.75rem;
+}
+
+.occ-count {
+  margin: 0.5rem 0;
+}
+
+/* Resumen en tarjetas. */
+.occ-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.occ-summary__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+}
+
+.occ-summary__value {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.occ-summary__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.occ-summary__card--zero {
+  border-left-color: var(--color-danger);
+}
+.occ-summary__card--one {
+  border-left-color: var(--color-warning);
+}
+.occ-summary__card--two {
+  border-left-color: var(--color-warning);
+}
+.occ-summary__card--ok {
+  border-left-color: var(--color-success);
+}
+.occ-summary__card--warn {
+  border-left-color: var(--color-magenta);
+}
+.occ-summary__card--total {
+  border-left-color: var(--color-accent);
+}
+
+/* Filtros. */
+.occ-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.occ-filter select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+}
+
+/* Distintivos de nivel (nunca solo color: llevan símbolo + texto). */
+.occ-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.occ-badge::before {
+  margin-right: 0.3rem;
+  font-weight: 900;
+}
+
+.occ-badge--sin-ocupacion {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+}
+.occ-badge--sin-ocupacion::before {
+  content: '✕';
+}
+
+.occ-badge--baja-critica {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+}
+.occ-badge--baja-critica::before {
+  content: '▲';
+}
+
+.occ-badge--baja-preventiva {
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
+}
+.occ-badge--baja-preventiva::before {
+  content: '△';
+}
+
+.occ-badge--normal {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+.occ-badge--normal::before {
+  content: '✓';
+}
+
+/* Distintivos de ratio. */
+.occ-ratio {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border: 1px solid var(--color-border);
+}
+.occ-ratio--r1 {
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-warning);
+}
+.occ-ratio--r3 {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+.occ-ratio--excluido {
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  color: var(--color-text-muted);
+}
+
+/* Grupos exportables. */
+.occ-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.occ-group__title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+
+.occ-group__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.occ-group__rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.occ-group__rows .btn {
+  white-space: nowrap;
+}
+
+/* Advertencia no bloqueante (usada también en Campañas). */
+.occ-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 34%, transparent);
+  color: var(--color-text);
+}
+
+.occ-warning__icon {
+  font-size: 1.1rem;
+}

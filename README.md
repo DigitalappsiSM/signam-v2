@@ -13,7 +13,34 @@ Aplicación web para operar el flujo de programación de pantallas entre
    link, validación, programación CSM y testigos con fechas límite y alertas),
    más un **Dashboard** con el resumen y las alertas críticas.
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
-9. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+9. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
+   proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
+10. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+
+## Alertas de baja ocupación
+
+Ruta `/alertas-ocupacion` (grupo **Operación**). Evalúa cada unidad
+`Numero de Tienda + NORMALIZACION LIVERPOOL + RESOLUCION` para una **fecha civil**
+(por defecto hoy, o una futura) y cuenta los contenidos de **proveedor vigentes**,
+deduplicados por `Campaña + ARTICULOS`:
+
+- **0** proveedores → _Sin ocupación comercial_ (alerta; **fuera de ambos CSV**).
+- **1** → _Baja ocupación crítica_ → **Ratio 1**.
+- **2** → _Baja ocupación preventiva_ → **Ratio 1**.
+- **3 o más** → _Ocupación normal_ → **Ratio 3**.
+
+Por cada `NORMALIZACION LIVERPOOL + RESOLUCION` se generan hasta dos CSV
+independientes (Ratio 1 y Ratio 3) con el **formato exacto de Admira**; los textos
+`RATIO 1` / `RATIO 3` viven **solo en el nombre del archivo**, que incluye la
+**fecha analizada** y la **fecha de generación**. No se descargan archivos vacíos.
+
+La **diferencia** entre fecha analizada (la que elige el usuario) y fecha generada
+(el día de la descarga) queda registrada en el nombre del archivo. Ratio 1/3 son
+recomendaciones calculadas para una fecha, no propiedades permanentes: no se
+persisten. La operación posterior en Admira es **manual**; SIGNAM **no** administra
+los contenidos institucionales y el **CSV normal de campañas no cambia**. El flujo
+de **Campañas** muestra una advertencia no bloqueante cuando hay pantallas con 1–2
+proveedores para hoy. Detalles en `src/modules/low-occupancy/README.md`.
 
 ## Exportación de PPTX de evidencias
 
@@ -165,6 +192,9 @@ src/
 │   ├── liverpool-import/
 │   ├── admira-catalog/
 │   ├── campaigns/
+│   ├── consolidation/
+│   ├── low-occupancy/   # Alertas de baja ocupación (Ratio 1 / Ratio 3)
+│   ├── operational-tracking/
 │   ├── exports/
 │   └── audit/
 ├── domain/         # Modelos y lógica pura (sin dependencias de framework)

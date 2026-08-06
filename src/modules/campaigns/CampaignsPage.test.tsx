@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { CampaignsPage } from './CampaignsPage';
+import { todayIsoDate } from '@/modules/low-occupancy/occupancyAnalysis';
+import {
+  emptyOriginal,
+  newScreenMetadata,
+} from '@/modules/admira-catalog/screenFactory';
+import type { AdmiraScreen } from '@/domain';
 import type { StoredCampaign } from './campaignDiff';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
@@ -529,6 +536,62 @@ describe('CampaignsPage — PPT de evidencias', () => {
     expect(
       screen.getByRole('menu', { name: /Descargas de BUEN FIN/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('CampaignsPage — advertencia de baja ocupación', () => {
+  const today = todayIsoDate();
+
+  function providerScreen(): AdmiraScreen {
+    return {
+      id: 'sc1',
+      original: {
+        ...emptyOriginal(),
+        'Numero de Tienda': '1',
+        RESOLUCION: 'R',
+        ARTICULOS: 'A',
+      },
+      metadata: {
+        ...newScreenMetadata({ uid: 'u', email: 'e@e.com' }, 0),
+        active: true,
+        calendarSupport: 'LED',
+      },
+    };
+  }
+
+  it('muestra la advertencia no bloqueante con enlace cuando hay baja ocupación hoy', async () => {
+    vi.mocked(listCampaigns).mockResolvedValue([
+      campaign({
+        id: 'p1',
+        name: 'PROVEEDOR HOY',
+        nameKey: 'proveedor hoy',
+        tipo: 'ISM/PROVEEDOR',
+        fechaInicio: today,
+        fechaFin: today,
+        supports: [
+          {
+            support: 'LED',
+            owner: 'liverpool',
+            stores: [{ numero: '1', nombre: '' }],
+          },
+        ],
+      }),
+    ]);
+    vi.mocked(listScreens).mockResolvedValue([providerScreen()]);
+
+    render(
+      <MemoryRouter>
+        <CampaignsPage />
+      </MemoryRouter>,
+    );
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/baja ocupación para hoy/i);
+    expect(status).toHaveTextContent(/La exportación puede continuar/i);
+    const link = within(status).getByRole('link', {
+      name: /Ver alertas de baja ocupación/i,
+    });
+    expect(link).toHaveAttribute('href', `/alertas-ocupacion?fecha=${today}`);
   });
 });
 

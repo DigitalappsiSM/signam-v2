@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { listCampaigns } from '@/services/campaigns';
@@ -47,6 +48,11 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import type { StoredCampaign } from './campaignDiff';
 import { parseEkonNumber } from './ekon';
 import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
+import {
+  analyzeLowOccupancy,
+  todayIsoDate,
+} from '@/modules/low-occupancy/occupancyAnalysis';
+import '@/modules/low-occupancy/LowOccupancyPage.css';
 import {
   campaignIntersectsPeriod,
   hasPeriodFilter,
@@ -160,6 +166,19 @@ export function CampaignsPage() {
   const result: ConsolidationResult = useMemo(
     () => consolidate(campaigns, screens),
     [campaigns, screens],
+  );
+
+  // Advertencia no bloqueante: pantallas con baja ocupación (1–2 proveedores)
+  // para hoy. No cambia el CSV normal ni bloquea la exportación.
+  const today = todayIsoDate();
+  const lowOccupancyToday = useMemo(
+    () =>
+      analyzeLowOccupancy({
+        campaigns,
+        screens,
+        analysisDate: today,
+      }).units.filter((u) => u.recommendedRatio === 1).length,
+    [campaigns, screens, today],
   );
 
   const consByCampaign = useMemo(() => {
@@ -344,6 +363,25 @@ export function CampaignsPage() {
       {error && (
         <div className="catalog__error" role="alert">
           {error}
+        </div>
+      )}
+
+      {lowOccupancyToday > 0 && (
+        <div className="occ-warning" role="status">
+          <span className="occ-warning__icon" aria-hidden="true">
+            ⚠️
+          </span>
+          <span>
+            Se detectaron {lowOccupancyToday}{' '}
+            {lowOccupancyToday === 1 ? 'pantalla' : 'pantallas'} con baja
+            ocupación para hoy. La exportación puede continuar.
+          </span>
+          <Link
+            className="btn btn-secondary"
+            to={`/alertas-ocupacion?fecha=${today}`}
+          >
+            Ver alertas de baja ocupación
+          </Link>
         </div>
       )}
 

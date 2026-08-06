@@ -36,6 +36,14 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Operación',
   },
   {
+    path: '/alertas-ocupacion',
+    label: 'Alertas de baja ocupación',
+    icon: '📉',
+    description:
+      'Detecta pantallas con baja variedad y genera CSV para Ratio 1 y Ratio 3.',
+    group: 'Operación',
+  },
+  {
     path: '/importar',
     label: 'Importar Calendario',
     icon: '📥',
