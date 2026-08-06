@@ -169,6 +169,16 @@ export function OperationalTrackingPage() {
 
   const perError = periodError(desde, hasta);
 
+  // Fila abierta por deep link (`/seguimiento?campana=...`, p. ej. desde una
+  // alerta del Panel). Debe respetarse aunque quede fuera de la ventana por
+  // defecto: se exime del filtro temporal para que el enlace siempre aterrice.
+  const isDeepLinked = useCallback(
+    (r: TrackingRow) =>
+      !!highlightKey &&
+      (r.identity === highlightKey || r.campaign.nameKey === highlightKey),
+    [highlightKey],
+  );
+
   const filtered = useMemo(() => {
     if (perError) return [];
     const q = normalize(search);
@@ -179,8 +189,10 @@ export function OperationalTrackingPage() {
       if (classFilter !== 'all' && r.classification !== classFilter)
         return false;
       // Filtro temporal por intersección de vigencia con el rango elegido.
-      // Sin extremos (Ver todo) no filtra por fecha.
+      // Sin extremos (Ver todo) no filtra por fecha. La fila enlazada por
+      // `?campana=` se exime para honrar los deep links del Panel.
       if (
+        !isDeepLinked(r) &&
         !campaignIntersectsPeriod(
           r.campaign.fechaInicio,
           r.campaign.fechaFin,
@@ -199,7 +211,16 @@ export function OperationalTrackingPage() {
       }
       return true;
     });
-  }, [rows, search, classFilter, desde, hasta, perError, statusFilter]);
+  }, [
+    rows,
+    search,
+    classFilter,
+    desde,
+    hasta,
+    perError,
+    statusFilter,
+    isDeepLinked,
+  ]);
 
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(

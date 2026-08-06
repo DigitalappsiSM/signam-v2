@@ -370,6 +370,28 @@ describe('OperationalTrackingPage — filtro de periodo', () => {
     expect(screen.getByText('REGRESO')).toBeInTheDocument();
   });
 
+  it('respeta el deep link ?campana= aunque quede fuera de la ventana por defecto', async () => {
+    const VIEJA = campaign({
+      id: 'v',
+      name: 'VIEJA',
+      nameKey: 'vieja',
+      fechaInicio: dayOffset(-200),
+      fechaFin: dayOffset(-190),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([VIEJA, INST]);
+    render(
+      <MemoryRouter
+        initialEntries={[
+          `/seguimiento?campana=${encodeURIComponent(campaignIdentity(VIEJA))}`,
+        ]}
+      >
+        <OperationalTrackingPage />
+      </MemoryRouter>,
+    );
+    // Aunque está fuera de la ventana de 3 meses, el deep link la muestra.
+    expect(await screen.findByText('VIEJA')).toBeInTheDocument();
+  });
+
   it('valida el rango invertido (Desde posterior a Hasta)', async () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Periodo desde'), {
