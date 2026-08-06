@@ -112,7 +112,7 @@
 
 .occ-badge--sin-ocupacion {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
 }
 .occ-badge--sin-ocupacion::before {
@@ -121,7 +121,7 @@
 
 .occ-badge--baja-critica {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
 .occ-badge--baja-critica::before {
@@ -130,7 +130,7 @@
 
 .occ-badge--baja-preventiva {
   background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 .occ-badge--baja-preventiva::before {
@@ -139,7 +139,7 @@
 
 .occ-badge--normal {
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-fg);
   border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
 }
 .occ-badge--normal::before {
@@ -157,11 +157,11 @@
 }
 .occ-ratio--r1 {
   background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
 }
 .occ-ratio--r3 {
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-fg);
 }
 .occ-ratio--excluido {
   background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);

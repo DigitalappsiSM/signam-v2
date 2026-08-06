@@ -95,7 +95,7 @@
   border-color: color-mix(in srgb, var(--color-success) 45%, transparent);
 }
 .imp-stat--success .imp-stat__value {
-  color: var(--color-success);
+  color: var(--color-success-fg);
 }
 .imp-stat--info {
   border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
@@ -107,13 +107,13 @@
   border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
 }
 .imp-stat--warning .imp-stat__value {
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
 }
 .imp-stat--danger {
   border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
 }
 .imp-stat--danger .imp-stat__value {
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
 }
 
 /* --- Acordeón resumen → detalle --- */
@@ -196,7 +196,7 @@
     var(--color-success) 14%,
     var(--color-surface)
   );
-  color: var(--color-success);
+  color: var(--color-success-fg);
   border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
 }
 .imp-chip--info {
@@ -214,11 +214,11 @@
     var(--color-warning) 16%,
     var(--color-surface)
   );
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
 }
 .imp-chip--danger {
   background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }

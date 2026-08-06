@@ -34,7 +34,7 @@
 .ot-overdue,
 .ot-late {
   background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 .ot-due-today {
@@ -43,7 +43,7 @@
     var(--color-warning) 20%,
     var(--color-surface)
   );
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 .ot-due-soon {
@@ -52,7 +52,7 @@
     var(--color-warning) 13%,
     var(--color-surface)
   );
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 26%, transparent);
 }
 .ot-on-track {
@@ -61,7 +61,7 @@
     var(--color-success) 14%,
     var(--color-surface)
   );
-  color: var(--color-success);
+  color: var(--color-success-fg);
   border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
 }
 .ot-done {
@@ -70,7 +70,7 @@
     var(--color-primary) 14%,
     var(--color-surface)
   );
-  color: var(--color-primary);
+  color: var(--color-info-fg);
   border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
 .ot-invalid,
@@ -208,10 +208,10 @@
 }
 
 .dash-tile--warn .dash-tile__value {
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
 }
 .dash-tile--danger .dash-tile__value {
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
 }
 
 .dash-tile__label {

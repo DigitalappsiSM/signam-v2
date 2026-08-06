@@ -39,7 +39,7 @@
 
 .catalog__error {
   background: color-mix(in srgb, var(--color-danger) 13%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border: 1px solid color-mix(in srgb, var(--color-danger) 38%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.85rem;
@@ -49,7 +49,7 @@
 
 .catalog__notice {
   background: color-mix(in srgb, var(--color-success) 13%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-fg);
   border: 1px solid color-mix(in srgb, var(--color-success) 38%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.85rem;
@@ -80,7 +80,7 @@
 .import__note {
   background: color-mix(in srgb, var(--color-warning) 13%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-warning) 38%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.85rem;
   font-size: 0.88rem;
@@ -107,17 +107,17 @@
 .import__issues--blocking {
   background: color-mix(in srgb, var(--color-danger) 13%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-danger) 38%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
 }
 
 .import__issues--warning {
   background: color-mix(in srgb, var(--color-warning) 13%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-warning) 38%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
 }
 
 .import__ok {
-  color: var(--color-success);
+  color: var(--color-success-fg);
   font-weight: 600;
 }
 

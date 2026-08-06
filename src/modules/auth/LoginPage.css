@@ -96,7 +96,7 @@
 
 .login__error {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;
