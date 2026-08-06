@@ -340,6 +340,17 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
   críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
   con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`.
+- **Filtro de periodo (rango de fechas)**: por defecto la tabla muestra solo las
+  campañas cuya vigencia **se traslapa** con la ventana **mes anterior + mes
+  actual + mes siguiente** (del día 1 del mes anterior al último día del mes
+  siguiente; helper puro `defaultTrackingWindow` en `businessDays.ts`). Hay
+  campos **Desde/Hasta** precargados con esa ventana, un botón **Restablecer**
+  (vuelve al default) y **Ver todo** (quita el filtro temporal). El cruce por
+  intersección reutiliza `campaignIntersectsPeriod`/`periodError` de
+  `campaigns/dateFilter`. Este filtro **reemplazó** al antiguo selector
+  Activas/Futuras/Terminadas (la noción de "Terminada" sigue viva internamente
+  para el botón "Marcar todas"). Se combina (AND) con Estado, Clasificación y
+  búsqueda.
 - **Ordenamiento**: los encabezados son **clicables** para ordenar por Campaña,
   Clasificación, Inicio, Fin, Tiendas, Objetivo, Estado general o Próximo
   vencimiento (asc/desc); las columnas de casillas y Acciones no ordenan.

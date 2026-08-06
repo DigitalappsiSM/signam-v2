@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  within,
+  waitFor,
+  fireEvent,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { OperationalTrackingPage } from './OperationalTrackingPage';
@@ -99,6 +105,16 @@ function renderPage() {
   );
 }
 
+/**
+ * Renderiza y quita el filtro temporal por defecto (pulsa "Ver todo") para que
+ * las pruebas que no verifican la ventana de fechas vean todas las campañas
+ * (los fixtures usan fechas fijas fuera de la ventana relativa a "hoy").
+ */
+async function renderAllPeriods() {
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: 'Ver todo' }));
+}
+
 beforeEach(() => {
   authState.role = 'admin';
   vi.mocked(listCampaigns).mockResolvedValue([INST, UNK]);
@@ -112,7 +128,7 @@ beforeEach(() => {
 
 describe('OperationalTrackingPage', () => {
   it('la campaña con tipo desconocido queda con clasificación pendiente', async () => {
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('REGRESO');
     const sel = screen.getByLabelText(
       'Clasificación de REGRESO',
@@ -121,7 +137,7 @@ describe('OperationalTrackingPage', () => {
   });
 
   it('filtra por clasificación', async () => {
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.selectOptions(
       screen.getByLabelText('Clasificación'),
@@ -133,7 +149,7 @@ describe('OperationalTrackingPage', () => {
 
   it('marca un check directamente en la tabla (sin abrir detalle)', async () => {
     vi.mocked(updateCheck).mockResolvedValue({} as never);
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const csm = screen.getByLabelText('Programación CSM de BUEN FIN');
     await userEvent.click(csm);
@@ -150,7 +166,7 @@ describe('OperationalTrackingPage', () => {
   });
 
   it('muestra los cinco indicadores como casillas en la tabla', async () => {
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     for (const h of ['Link', 'Validación', 'CSM', 'T Arr.', 'T Comp.']) {
       expect(screen.getByRole('columnheader', { name: h })).toBeInTheDocument();
@@ -173,7 +189,7 @@ describe('OperationalTrackingPage', () => {
   });
 
   it('muestra las fechas en formato dd/mm/aaaa', async () => {
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const rowInst = screen.getByText('BUEN FIN').closest('tr')!;
     expect(within(rowInst).getByText('10/05/2026')).toBeInTheDocument();
@@ -182,14 +198,14 @@ describe('OperationalTrackingPage', () => {
 
   it('muestra un mensaje de error de carga', async () => {
     vi.mocked(listCampaigns).mockRejectedValue(new Error('x'));
-    renderPage();
+    await renderAllPeriods();
     expect(
       await screen.findByText(/No se pudo cargar el seguimiento/i),
     ).toBeInTheDocument();
   });
 
   it('ordena por campaña al pulsar el encabezado', async () => {
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const names = () =>
       screen
@@ -221,7 +237,7 @@ describe('OperationalTrackingPage', () => {
       fechaFin: dayOffset(40),
     });
     vi.mocked(listCampaigns).mockResolvedValue([FIN, FUT]);
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('TERMINADA');
     const finRow = screen.getByText('TERMINADA').closest('tr')!;
     expect(
@@ -244,7 +260,7 @@ describe('OperationalTrackingPage', () => {
       tipo: 'INSTITUCIONAL',
     });
     vi.mocked(listCampaigns).mockResolvedValue([FIN]);
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('TERMINADA');
     await userEvent.click(screen.getByRole('button', { name: 'Marcar todas' }));
     await waitFor(() => expect(markAllChecks).toHaveBeenCalledTimes(1));
@@ -275,7 +291,7 @@ describe('OperationalTrackingPage', () => {
       2000,
     );
     vi.mocked(listOperationalTracking).mockResolvedValue([track]);
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
@@ -286,7 +302,7 @@ describe('OperationalTrackingPage', () => {
 
   it('agrega un comentario desde el panel expandido', async () => {
     vi.mocked(addComment).mockResolvedValue({} as never);
-    renderPage();
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
@@ -303,5 +319,67 @@ describe('OperationalTrackingPage', () => {
         text: 'Revisado',
       }),
     );
+  });
+});
+
+describe('OperationalTrackingPage — filtro de periodo', () => {
+  it('por defecto solo muestra campañas dentro de la ventana de 3 meses', async () => {
+    const IN = campaign({
+      id: 'in',
+      name: 'EN VENTANA',
+      nameKey: 'en ventana',
+      fechaInicio: dayOffset(0),
+      fechaFin: dayOffset(5),
+    });
+    const OUT = campaign({
+      id: 'out',
+      name: 'LEJANA',
+      nameKey: 'lejana',
+      fechaInicio: dayOffset(200),
+      fechaFin: dayOffset(210),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([IN, OUT]);
+    renderPage();
+    // La campaña vigente aparece; la lejana queda fuera de la ventana.
+    await screen.findByText('EN VENTANA');
+    expect(screen.queryByText('LEJANA')).not.toBeInTheDocument();
+
+    // "Ver todo" revela la lejana…
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todo' }));
+    expect(await screen.findByText('LEJANA')).toBeInTheDocument();
+
+    // …y "Restablecer" vuelve a la ventana por defecto (la oculta).
+    await userEvent.click(screen.getByRole('button', { name: 'Restablecer' }));
+    await waitFor(() =>
+      expect(screen.queryByText('LEJANA')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('EN VENTANA')).toBeInTheDocument();
+  });
+
+  it('permite filtrar por un rango de fechas personalizado', async () => {
+    // Fixtures por defecto: INST/UNK en mayo 2026 (fuera de la ventana actual).
+    renderPage();
+    // Con el rango a mayo 2026 aparecen.
+    fireEvent.change(screen.getByLabelText('Periodo desde'), {
+      target: { value: '2026-05-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Periodo hasta'), {
+      target: { value: '2026-05-31' },
+    });
+    expect(await screen.findByText('BUEN FIN')).toBeInTheDocument();
+    expect(screen.getByText('REGRESO')).toBeInTheDocument();
+  });
+
+  it('valida el rango invertido (Desde posterior a Hasta)', async () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Periodo desde'), {
+      target: { value: '2026-09-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Periodo hasta'), {
+      target: { value: '2026-01-01' },
+    });
+    expect(
+      await screen.findByText(/no puede ser posterior/i),
+    ).toBeInTheDocument();
   });
 });
