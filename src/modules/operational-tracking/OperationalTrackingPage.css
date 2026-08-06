@@ -145,32 +145,53 @@
 }
 
 .dash-tile {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-glass);
-  padding: 0.85rem 0.95rem;
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: 0.85rem 0.95rem 0.85rem 1.05rem;
+  overflow: hidden;
 }
 
-.dash-tile--warn {
-  border-color: #f5e199;
+/* Franja de estado a la izquierda: neutra por defecto, semáforo si hay tono. */
+.dash-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-border-strong);
 }
-.dash-tile--danger {
-  border-color: #f8b4b4;
+
+.dash-tile--warn::before {
+  background: var(--color-warning);
+}
+.dash-tile--danger::before {
+  background: var(--color-danger);
 }
 
 .dash-tile__value {
-  font-size: 1.6rem;
+  font-size: 1.55rem;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-tile--warn .dash-tile__value {
+  color: var(--color-warning);
+}
+.dash-tile--danger .dash-tile__value {
+  color: var(--color-danger);
 }
 
 .dash-tile__label {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-top: 0.3rem;
 }
 
 .dash-grid {
@@ -206,9 +227,10 @@
 }
 
 .ot-checkbox {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.05rem;
+  height: 1.05rem;
   cursor: pointer;
+  accent-color: var(--color-primary);
 }
 
 .ot-checkbox:disabled {
@@ -217,17 +239,26 @@
 }
 
 .ot-class-select {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   padding: 0.25rem 0.4rem;
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+}
+
+.ot-class-select:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .ot-row--highlight td {
-  background: var(--color-bg);
-  box-shadow: inset 3px 0 0 var(--color-accent, #2563eb);
+  background: var(--row-hover);
+}
+
+.ot-row--highlight td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 /* Acciones por fila: "Marcar todas" (solo terminadas) y comentarios. */

@@ -8,14 +8,22 @@
 .catalog__filters input,
 .catalog__filters select {
   font-family: inherit;
-  font-size: 0.9rem;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--glass-border);
+  font-size: 0.86rem;
+  padding: 0.44rem 0.6rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: var(--color-surface);
   color: var(--color-text);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.catalog__filters input:focus-visible,
+.catalog__filters select:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .catalog__search {
@@ -115,10 +123,8 @@
 }
 
 .icon-btn {
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
   border-radius: var(--radius-sm);
   padding: 0.3rem 0.5rem;
   font-size: 1rem;
@@ -300,25 +306,23 @@
 
 .catalog__table-wrap {
   overflow-x: auto;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-card);
 }
 
 .catalog__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .catalog__table th,
 .catalog__table td {
   text-align: left;
-  padding: 0.65rem 0.85rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
 
@@ -326,21 +330,26 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--color-text-muted);
-  background: rgba(240, 243, 250, 0.9);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: var(--table-head-bg);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .catalog__table tbody tr {
-  transition: background 0.12s ease;
+  transition: background 0.1s ease;
+}
+
+/* Cebra sutil para lectura de filas densas. */
+.catalog__table tbody tr:nth-child(even) td {
+  background: var(--row-zebra);
 }
 
 .catalog__table tbody tr:hover td {
-  background: var(--accent-050);
+  background: var(--row-hover);
 }
 
 .catalog__table tbody tr:last-child td {

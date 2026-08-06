@@ -1,15 +1,23 @@
 :root {
   /* ── Tema CLARO (base) ───────────────────────────────────────────────────
-     Analítica-corporativa: base azul para lo interactivo/informativo y
-     magenta Liverpool como detalle puntual de marca. */
+     SaaS operativo: superficies sólidas y nítidas para densidad de datos,
+     base azul para lo interactivo y magenta Liverpool como detalle de marca.
+     El "chrome" (topbar/sidebar/overlays) conserva el vidrio; el contenido y
+     las tablas van planos. */
   color-scheme: light;
 
-  --color-bg: #eef2fa;
+  --color-bg: #f4f6fb;
   --color-surface: #ffffff;
-  --color-surface-2: #f4f7fd;
-  --color-border: #dbe2ee;
+  --color-surface-2: #f2f5fa;
+  --color-border: #e2e7f0;
+  --color-border-strong: #d3dae7;
   --color-text: #0f1b2d;
   --color-text-muted: #5b6577;
+
+  /* Superficies de contenido (planas, sin desenfoque). */
+  --table-head-bg: #f4f6fb;
+  --row-zebra: #fafbfd;
+  --row-hover: #eef3fd;
 
   /* Base = azul (acción/enlaces). Magenta = acento de marca puntual. */
   --color-primary: #2456d6;
@@ -51,17 +59,19 @@
   --ring: rgba(36, 86, 214, 0.35);
 
   /* Fondo ambiental (usado por body::before). */
-  --amb-glow-a: rgba(36, 86, 214, 0.14);
-  --amb-glow-b: rgba(236, 15, 140, 0.12);
+  --amb-glow-a: rgba(36, 86, 214, 0.07);
+  --amb-glow-b: rgba(236, 15, 140, 0.06);
   --amb-dot: rgba(15, 27, 45, 0.05);
-  --amb-base: linear-gradient(180deg, #eef2fa 0%, #e5eaf4 100%);
+  --amb-base: linear-gradient(180deg, #f4f6fb 0%, #eef1f8 100%);
 
-  --radius: 14px;
-  --radius-sm: 9px;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 12px;
   --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.06);
+  --shadow-card: 0 1px 2px rgba(15, 27, 45, 0.05);
   --shadow-md: 0 10px 30px rgba(15, 27, 45, 0.12);
   --shadow-glass: 0 8px 30px rgba(30, 41, 90, 0.1);
-  --sidebar-width: 252px;
+  --sidebar-width: 244px;
   --font-sans:
     'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial,
     sans-serif;
@@ -77,8 +87,14 @@
   --color-surface: #111a2e;
   --color-surface-2: #16223c;
   --color-border: #24324f;
+  --color-border-strong: #30415f;
   --color-text: #e6edf8;
   --color-text-muted: #93a1bd;
+
+  /* Superficies de contenido (planas). */
+  --table-head-bg: #16223c;
+  --row-zebra: rgba(255, 255, 255, 0.018);
+  --row-hover: rgba(59, 130, 246, 0.1);
 
   --color-primary: #3b82f6;
   --color-primary-dark: #2563eb;
@@ -112,12 +128,13 @@
   --glass-blur: 16px;
   --ring: rgba(96, 165, 250, 0.45);
 
-  --amb-glow-a: rgba(37, 99, 235, 0.22);
-  --amb-glow-b: rgba(236, 15, 140, 0.16);
+  --amb-glow-a: rgba(37, 99, 235, 0.14);
+  --amb-glow-b: rgba(236, 15, 140, 0.1);
   --amb-dot: rgba(148, 176, 226, 0.06);
   --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.5);
   --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.45);
 }
@@ -143,9 +160,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Fondo ambiental fijo: base + dos resplandores de marca + una malla de
-   puntos tenue que evoca las pantallas de señalización (LED). Cambia por tema
-   mediante las variables --amb-*. */
+/* Fondo ambiental fijo y discreto: base sólida con un único resplandor de marca
+   muy tenue arriba a la derecha, detrás del chrome. El contenido va sobre
+   superficies planas para no restar legibilidad a los datos. */
 body::before {
   content: '';
   position: fixed;
@@ -154,22 +171,12 @@ body::before {
   pointer-events: none;
   background-image:
     radial-gradient(
-      1000px 620px at 100% -6%,
+      900px 520px at 100% -10%,
       var(--amb-glow-a),
-      transparent 55%
+      transparent 62%
     ),
-    radial-gradient(
-      1000px 600px at 6% -12%,
-      var(--amb-glow-b),
-      transparent 60%
-    ),
-    radial-gradient(var(--amb-dot) 1px, transparent 1.6px), var(--amb-base);
-  background-size:
-    auto,
-    auto,
-    24px 24px,
-    auto;
-  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+    var(--amb-base);
+  background-repeat: no-repeat, no-repeat;
 }
 
 a {
@@ -207,11 +214,11 @@ button {
   gap: 0.4rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.95rem;
-  font-size: 0.9rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.86rem;
   font-weight: 600;
   transition:
-    transform 0.12s ease,
+    transform 0.1s ease,
     background 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -221,55 +228,65 @@ button {
   transform: translateY(1px);
 }
 
+/* Acción primaria: azul sólido y plano (sin resplandor de marketing). */
 .btn-primary {
-  background: var(--grad-primary);
+  background: var(--color-primary);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.45);
-  filter: saturate(1.05) brightness(1.04);
+  background: var(--color-primary-dark);
 }
 
 .btn-primary:disabled {
-  filter: grayscale(0.4) opacity(0.7);
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 45%,
+    var(--color-surface)
+  );
   box-shadow: none;
   cursor: not-allowed;
 }
 
+/* Acción secundaria: superficie sólida con borde (contenido, no chrome). */
 .btn-secondary {
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  border-color: var(--glass-border);
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
+  background: var(--row-hover);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-danger {
-  background: var(--glass-strong);
+  background: var(--color-surface);
   border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
   color: var(--color-danger);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger:hover {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
   border-color: var(--color-danger);
 }
 
+/* Tarjeta de contenido: plana, borde fino, sombra sutil. */
 .card {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-glass);
-  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-card);
+  padding: 1.15rem 1.25rem;
 }
 
 .badge {
