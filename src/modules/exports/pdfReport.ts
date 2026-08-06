@@ -121,14 +121,14 @@ interface DocWithAutoTable {
   lastAutoTable: { finalY: number };
 }
 
-// Paleta del reporte (gama azul, en línea con la app).
-const NAVY: [number, number, number] = [30, 58, 138]; // franja superior + detalle
-const BLUE: [number, number, number] = [37, 99, 235]; // acentos + resúmenes
+// Paleta del reporte (cerúleo in-Store Media, en línea con la app).
+const NAVY: [number, number, number] = [11, 74, 112]; // franja superior + detalle
+const BLUE: [number, number, number] = [14, 121, 184]; // acentos + resúmenes
 const DARK: [number, number, number] = [30, 41, 59];
 const MUTED: [number, number, number] = [100, 116, 139];
 const BORDER: [number, number, number] = [219, 227, 240];
 const ROW_ALT: [number, number, number] = [240, 245, 252];
-const ACCENT_TINT: [number, number, number] = [235, 242, 254];
+const ACCENT_TINT: [number, number, number] = [231, 244, 251];
 const ACCENT_BORDER: [number, number, number] = [147, 197, 253];
 
 export interface IssuesPdfMeta {

@@ -17,13 +17,15 @@
   /* Superficies de contenido premium (redondeadas, sombra suave). */
   --table-head-bg: #f3f6fb;
   --row-zebra: #fafbfe;
-  --row-hover: #eef3fd;
+  --row-hover: #eaf4fb;
 
-  /* Base = azul InStore Media (dominante). Magenta Liverpool = pareja del
-     degradado de marca (uso puntual). */
-  --color-primary: #2456d6;
-  --color-primary-dark: #1c46b8;
-  --color-accent: #2456d6;
+  /* Base = azul cerúleo in-Store Media (tomado del logo). El primario es una
+     variante legible del cerúleo de marca (texto/enlaces AA sobre blanco); el
+     cerúleo vivo del logo (#1391d3) se usa como relleno de datos (--cls-inst).
+     Magenta Liverpool = pareja del degradado de marca (uso puntual). */
+  --color-primary: #0e79b8;
+  --color-primary-dark: #0a6198;
+  --color-accent: #0e79b8;
   --color-magenta: #ec0f8c;
   --color-magenta-dark: #c60e78;
   --color-brand: #ec0f8c;
@@ -41,24 +43,25 @@
     #c60e78 120%
   );
   --grad-brand: linear-gradient(120deg, #ff3d9a 0%, #ec0f8c 55%, #c60e78 120%);
-  /* Resplandor suave neutro-azul (ambiente de tarjetas; NO es rosa). */
+  /* Resplandor suave cerúleo (ambiente de tarjetas; NO es rosa). */
   --grad-soft: linear-gradient(
     120deg,
-    rgba(36, 86, 214, 0.12),
-    rgba(59, 130, 246, 0.08)
+    rgba(14, 121, 184, 0.12),
+    rgba(19, 145, 211, 0.08)
   );
 
-  /* Azul translúcido reutilizable (hovers, superficies suaves). */
-  --accent-050: rgba(36, 86, 214, 0.05);
-  --accent-100: rgba(36, 86, 214, 0.1);
-  --accent-200: rgba(36, 86, 214, 0.16);
+  /* Cerúleo translúcido reutilizable (hovers, superficies suaves). */
+  --accent-050: rgba(14, 121, 184, 0.05);
+  --accent-100: rgba(14, 121, 184, 0.1);
+  --accent-200: rgba(14, 121, 184, 0.16);
 
   /* Magenta translúcido (detalles de marca). */
   --magenta-100: rgba(236, 15, 140, 0.1);
   --magenta-200: rgba(236, 15, 140, 0.18);
 
-  /* Clasificación de campañas (coinciden con la paleta ECharts). */
-  --cls-inst: #2563eb;
+  /* Clasificación de campañas (coinciden con la paleta ECharts).
+     Institucional = cerúleo vivo del logo in-Store. */
+  --cls-inst: #1391d3;
   --cls-prov: #ec0f8c;
   --cls-unknown: #f59e0b;
   /* RGB del acento magenta para la intensidad relativa de la matriz. */
@@ -69,10 +72,10 @@
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(148, 163, 184, 0.3);
   --glass-blur: 14px;
-  --ring: rgba(36, 86, 214, 0.32);
+  --ring: rgba(14, 121, 184, 0.34);
 
   /* Fondo ambiental (usado por body::before). */
-  --amb-glow-a: rgba(36, 86, 214, 0.14);
+  --amb-glow-a: rgba(14, 121, 184, 0.14);
   --amb-glow-b: rgba(236, 15, 140, 0.09);
   --amb-dot: rgba(15, 27, 45, 0.05);
   --amb-base: linear-gradient(180deg, #f4f7fc 0%, #eef2f9 100%);
@@ -114,11 +117,11 @@
   /* Superficies de contenido (studio navy). */
   --table-head-bg: #16223c;
   --row-zebra: rgba(255, 255, 255, 0.02);
-  --row-hover: rgba(59, 130, 246, 0.12);
+  --row-hover: rgba(56, 168, 230, 0.12);
 
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-  --color-accent: #60a5fa;
+  --color-primary: #38a8e6;
+  --color-primary-dark: #2e92cc;
+  --color-accent: #62bcef;
   --color-magenta: #f472b6;
   --color-magenta-dark: #ec0f8c;
   --color-brand: #f472b6;
@@ -135,21 +138,21 @@
     #db2777 120%
   );
   --grad-brand: linear-gradient(120deg, #ff4da6 0%, #ec4899 55%, #db2777 120%);
-  /* Resplandor suave neutro-azul (NO es rosa). */
+  /* Resplandor suave cerúleo (NO es rosa). */
   --grad-soft: linear-gradient(
     120deg,
-    rgba(59, 130, 246, 0.2),
-    rgba(37, 99, 235, 0.14)
+    rgba(56, 168, 230, 0.2),
+    rgba(37, 150, 220, 0.14)
   );
 
-  --accent-050: rgba(59, 130, 246, 0.08);
-  --accent-100: rgba(59, 130, 246, 0.14);
-  --accent-200: rgba(59, 130, 246, 0.24);
+  --accent-050: rgba(56, 168, 230, 0.08);
+  --accent-100: rgba(56, 168, 230, 0.14);
+  --accent-200: rgba(56, 168, 230, 0.24);
 
   --magenta-100: rgba(244, 91, 176, 0.14);
   --magenta-200: rgba(244, 91, 176, 0.24);
 
-  --cls-inst: #60a5fa;
+  --cls-inst: #4aa9e6;
   --cls-prov: #f472b6;
   --cls-unknown: #fbbf24;
   --heat: 236, 72, 153;
@@ -158,9 +161,9 @@
   --glass-strong: rgba(20, 31, 54, 0.92);
   --glass-border: rgba(120, 145, 190, 0.18);
   --glass-blur: 16px;
-  --ring: rgba(96, 165, 250, 0.5);
+  --ring: rgba(56, 168, 230, 0.5);
 
-  --amb-glow-a: rgba(37, 99, 235, 0.24);
+  --amb-glow-a: rgba(37, 150, 220, 0.24);
   --amb-glow-b: rgba(236, 72, 153, 0.14);
   --amb-dot: rgba(148, 176, 226, 0.06);
   --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
