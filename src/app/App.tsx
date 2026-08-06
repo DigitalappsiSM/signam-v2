@@ -8,6 +8,7 @@ import { ImportPage } from '@/modules/liverpool-import/ImportPage';
 import { CatalogPage } from '@/modules/admira-catalog/CatalogPage';
 import { CampaignsPage } from '@/modules/campaigns/CampaignsPage';
 import { OperationalTrackingPage } from '@/modules/operational-tracking/OperationalTrackingPage';
+import { LowOccupancyPage } from '@/modules/low-occupancy/LowOccupancyPage';
 import { AuditPage } from '@/modules/audit/AuditPage';
 import { NotFoundPage } from '@/modules/NotFoundPage';
 
@@ -46,6 +47,7 @@ export function App() {
         <Route path="/catalogo" element={<CatalogPage />} />
         <Route path="/campanas" element={<CampaignsPage />} />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
+        <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
         <Route path="/historial" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

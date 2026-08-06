@@ -16,7 +16,9 @@ Herramienta web para operar la programación de pantallas entre **Liverpool** y
 5. **Consolidar por resolución** (`Campaña + RESOLUCION`).
 6. Generar los **CSV de programación** de Admira (+ ZIP) y un **reporte PDF** de
    incidencias para Liverpool.
-7. Guardar campañas, cambios y (a futuro) auditoría en **Firebase**.
+7. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
+   proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
+8. Guardar campañas, cambios y (a futuro) auditoría en **Firebase**.
 
 ## 2. Stack y arquitectura
 
@@ -44,8 +46,9 @@ src/
 │   ├── auth/             # LoginPage
 │   ├── admira-catalog/   # catálogo: tabla, formulario, import maestro, filtros
 │   ├── liverpool-import/ # inspector del calendario + parseo de campañas + guardado
-│   ├── consolidation/    # motor de consolidación (cruce → CSV)
+│   ├── consolidation/    # motor de consolidación (cruce → CSV; helpers reutilizables)
 │   ├── campaigns/        # diff de campañas (cambios vs BD) + Ekon
+│   ├── low-occupancy/    # alertas de baja ocupación → CSV Ratio 1 / Ratio 3
 │   ├── operational-tracking/ # seguimiento operativo (estados, testigos, alertas)
 │   ├── exports/          # CSV/ZIP + reporte PDF
 │   ├── dashboard/ audit/ # panel e historial (placeholder)
@@ -406,6 +409,113 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   `aria-label` y drill-down); las gráficas son un refuerzo visual, no la única
   fuente del dato.
 
+### 6.6 Alertas de baja ocupación (`/alertas-ocupacion`)
+
+> **Para IA (resumen de una frase):** módulo que, para una **fecha civil**,
+> cuenta los **contenidos de proveedor vigentes** de cada pantalla y genera CSV
+> de Admira que recomiendan poner institucionales de relleno en **Ratio 1** (poca
+> variedad) o dejarlos en **Ratio 3** (variedad normal). No cambia nada del flujo
+> existente; solo **detecta y exporta**. Carpeta: `src/modules/low-occupancy/`
+> (README propio con todo el detalle).
+
+**Contexto de negocio.** Admira reparte el loop en dos ratios: **Ratio 1** = 83 %
+(marcas/proveedores) y **Ratio 3** = 17 % (institucionales); **no existe Ratio
+2**. Si una pantalla tiene solo 1–2 contenidos de proveedor, Admira los repite
+demasiado en Ratio 1; el operador sube manualmente institucionales de relleno en
+Ratio 1 para dar variedad. SIGNAM **solo detecta** esas pantallas y genera los CSV
+que indican dónde los institucionales van en Ratio 1 y dónde permanecen en Ratio
+3. La carga final en Admira es **manual**; SIGNAM **no** administra institucionales
+(no sabe cuántos hay ni su orden/frecuencia; el mismo CSV sirve para 1, 2 o 3).
+
+**Unidad de análisis** = `Numero de Tienda + NORMALIZACION LIVERPOOL
+(metadata.calendarSupport) + RESOLUCION`. Una misma tienda puede dar resultados
+distintos por soporte o resolución.
+
+**Conteo de proveedores** = contenidos deduplicados por `Campaña + ARTICULOS`
+dentro de la unidad:
+
+- misma campaña + mismo artículo (repetido) → **1**;
+- misma campaña + dos artículos → **2**;
+- dos campañas + mismo artículo → **2**;
+- `TIPO DE PASES` y circuito **no** dividen; resolución y soporte normalizado
+  **sí** separan.
+
+Solo cuentan campañas **Proveedor** (`classifyFromTipo` = `provider`, reutilizada);
+Institucional / `ISM/INSTITUCIONAL 1` / desconocido **nunca** cuentan. Una campaña
+está vigente si `fechaInicio <= fechaAnalizada <= fechaFin` (inclusive, fechas
+civiles sin desfase UTC).
+
+**Clasificación → nivel → ratio → CSV:**
+
+| Proveedores | Nivel                     | Ratio     | CSV                |
+| ----------- | ------------------------- | --------- | ------------------ |
+| 0           | Sin ocupación comercial   | (ninguno) | **fuera de ambos** |
+| 1           | Baja ocupación crítica    | Ratio 1   | CSV Ratio 1        |
+| 2           | Baja ocupación preventiva | Ratio 1   | CSV Ratio 1        |
+| 3 o más     | Ocupación normal          | Ratio 3   | CSV Ratio 3        |
+
+Cero proveedores = **alerta** en la UI y queda fuera de ambos CSV.
+
+**Universo de pantallas** = todas las activas y elegibles del catálogo. Se
+**reutiliza** el motor de consolidación: se extrajeron de
+`consolidation/consolidate.ts` las funciones puras `buildScreenIndex`,
+`matchCampaignScreens` y `screenToAdmiraRow` (la consolidación normal las usa
+también; su comportamiento no cambió). Se conservan las exclusiones de **InStore
+Media** (`MUPPI'S`/`PENDON`), **ISM** (`TIPO DE pantallas` contiene `ISM`),
+**inactivas**, **sin normalización** (se reporta como incidencia) y la **excepción
+de Guadalajara Galerías** (78 → CRIUS + CUADRADA). "Asignada" sin comentario =
+todas las tiendas activas del soporte.
+
+**CSV Ratio 1 / Ratio 3.** La evaluación es por unidad, pero los **archivos** se
+agrupan por `NORMALIZACION LIVERPOOL + RESOLUCION` (dos CSV independientes por
+combinación). Formato **idéntico** al CSV normal (`serializeAdmiraCsv`,
+`AdmiraCsvRow`, columna guarda `LIVERPOOL` en A1, BOM UTF-8, CRLF,
+`RETAILERS=LIVERPOOL`, etiqueta `Tipo de Pases`). Los textos `RATIO 1`/`RATIO 3`
+aparecen **solo en el nombre del archivo**, nunca en las columnas. Nombre:
+`<NORMALIZACION>_<RESOLUCION>_RATIO_<1|3>_ANALISIS_<AAAA-MM-DD>_GENERADO_<AAAA-MM-DD>.csv`
+(incluye **fecha analizada** —la que elige el usuario— y **fecha de generación**
+—el día de la descarga—, aunque coincidan; saneado sin acentos/espacios/inválidos).
+**Nunca** se descargan CSV vacíos (botón deshabilitado con "Sin pantallas para
+Ratio 1/3").
+
+**Arquitectura (archivos clave).**
+
+- `occupancyAnalysis.ts` — **motor puro** `analyzeLowOccupancy({ campaigns,
+  screens, analysisDate })` + `filterUnits` + helpers (`todayIsoDate`,
+  `isCampaignActiveOn`, `countsForOccupancy`). Sin React ni Firebase.
+- `occupancyCsv.ts` + `occupancyFileName.ts` — generación de CSV y nombres.
+- `types.ts` — `OccupancyUnit`, `OccupancyExportGroup`, `OccupancyAnalysis`,
+  niveles y etiquetas.
+- `LowOccupancyPage.tsx` + `components/` (`OccupancySummary`, `OccupancyFilters`,
+  `OccupancyTable`, `OccupancyDetail`, `OccupancyExportGroups`, `LevelBadge`).
+
+**Datos y estado.** Carga bajo demanda con `Promise.all([listCampaigns(),
+listScreens()])`; recalcula al abrir, cambiar la fecha, pulsar **Recalcular** o
+volver tras importar. **No** se persisten resultados ni existe colección nueva:
+Ratio 1/3 son recomendaciones para una fecha, no propiedades permanentes. **No**
+hay catálogo institucional.
+
+**UI.** Ruta `/alertas-ocupacion` (grupo **Operación**), acepta `?fecha=AAAA-MM-DD`.
+Controles: fecha, Recalcular; filtros por centro, tienda, normalización,
+resolución, nivel, ratio y búsqueda por campaña/artículo (los filtros son
+**visuales**, no alteran los CSV completos). Resumen (unidades, 0/1/2/3+, grupos
+exportables, incidencias), tabla, detalle por unidad (contenidos, vigencias,
+soporte, pantallas físicas, llave de dedup) y exportaciones por soporte+resolución.
+Accesibilidad: etiquetas textuales + símbolos (no solo color). Descargas gated por
+permiso `export.csv`.
+
+**Advertencia no bloqueante en Campañas.** El flujo de Campañas muestra un aviso
+(`role="status"`) cuando hay pantallas con 1–2 proveedores para hoy, con enlace a
+`/alertas-ocupacion?fecha=AAAA-MM-DD`. **No** bloquea, no cambia el CSV normal ni
+las consolidaciones ni impide exportar.
+
+**Invariantes que NO cambian** (importante para futuras IA): la consolidación
+`Campaña + RESOLUCION`, el CSV normal de campañas, el nombre Admira
+`<Campaña>_ <ARTICULOS>`, el catálogo, el seguimiento operativo, Ekon, `TIPO DE
+PASES`, el ratio 83/17, las reglas de pantallas inactivas y las exclusiones
+InStore Media. La agrupación `NORMALIZACION LIVERPOOL + RESOLUCION` aplica **solo**
+a los CSV auxiliares Ratio 1/3.
+
 ## 7. Pendientes / próximos pasos
 
 - **Muppi's / ISM**: definir e implementar su lógica (hoy se excluyen).
@@ -431,4 +541,5 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 | Persistencia de campañas con confirmación de cambios          | ✅     |
 | Consolidación + CSV + ZIP + incidencias + PDF                 | ✅     |
 | Seguimiento operativo (estados, testigos, alertas) + Dashboard | ✅     |
+| Alertas de baja ocupación (Ratio 1 / Ratio 3, CSV por soporte+resolución) | ✅     |
 | Muppi's / ISM · Festivos/evidencias · Historial global        | ⏳     |

@@ -78,13 +78,27 @@ function key(support: string, store: string): string {
   return `${norm(support)}|${normalizeStore(store)}`;
 }
 
-interface ScreenIndex {
+export interface ScreenIndex {
   active: Map<string, AdmiraScreen[]>;
   inactive: Map<string, AdmiraScreen[]>;
   /** Pantallas activas por tienda (para la excepción de Guadalajara). */
   activeByStore: Map<string, AdmiraScreen[]>;
   /** Pantallas activas por soporte (para "Asignada sin comentario"). */
   activeBySupport: Map<string, AdmiraScreen[]>;
+}
+
+/**
+ * Resultado de cruzar UNA campaña contra el catálogo: sus pantallas activas
+ * participantes (deduplicadas por id, orden estable, sin ISM) más las
+ * incidencias y exclusiones generadas. Es la pieza reutilizable del motor: la
+ * consolidación normal y el análisis de baja ocupación la comparten para no
+ * mantener dos variantes incompatibles del cruce calendario↔catálogo.
+ */
+export interface CampaignMatch {
+  matched: AdmiraScreen[];
+  issues: ConsolidationIssue[];
+  excludedInstore: { campaign: string; support: string }[];
+  ismExcludedCount: number;
 }
 
 function push(map: Map<string, AdmiraScreen[]>, k: string, s: AdmiraScreen) {
@@ -115,7 +129,9 @@ function applyGuadalajara(
   }
 }
 
-function buildIndex(screens: readonly AdmiraScreen[]): ScreenIndex {
+export function buildScreenIndex(
+  screens: readonly AdmiraScreen[],
+): ScreenIndex {
   const active = new Map<string, AdmiraScreen[]>();
   const inactive = new Map<string, AdmiraScreen[]>();
   const activeByStore = new Map<string, AdmiraScreen[]>();
@@ -139,121 +155,135 @@ function buildIndex(screens: readonly AdmiraScreen[]): ScreenIndex {
   return { active, inactive, activeByStore, activeBySupport };
 }
 
+/**
+ * Cruza UNA campaña contra el catálogo indexado y devuelve sus pantallas
+ * participantes (activas, deduplicadas, sin ISM) más incidencias/exclusiones.
+ * Función pura reutilizable por la consolidación y por el análisis de ocupación.
+ */
+export function matchCampaignScreens(
+  campaign: ParsedCampaign,
+  index: ScreenIndex,
+): CampaignMatch {
+  const issues: ConsolidationIssue[] = [];
+  const excludedInstore: { campaign: string; support: string }[] = [];
+  // Pantallas participantes de la campaña (deduplicadas por id, orden estable).
+  const matched = new Map<string, AdmiraScreen>();
+  const gexc = GUADALAJARA_GALERIAS_EXCEPTION;
+
+  for (const support of campaign.supports) {
+    if (support.owner === 'instore-media') {
+      excludedInstore.push({
+        campaign: campaign.name,
+        support: support.support,
+      });
+      continue;
+    }
+
+    // Regla: "Asignada" sin comentario (sin tiendas) => todas las pantallas
+    // activas de ese soporte (todas las tiendas disponibles).
+    if (support.stores.length === 0) {
+      const all = index.activeBySupport.get(norm(support.support)) ?? [];
+      if (all.length === 0) {
+        issues.push({
+          code: 'support-not-in-catalog',
+          campaign: campaign.name,
+          support: support.support,
+          message: `Soporte "${support.support}" asignado sin comentario en "${campaign.name}", pero no hay pantallas mapeadas a ese soporte en el catálogo.`,
+        });
+      }
+      for (const s of all) matched.set(s.id, s);
+      // Excepción Guadalajara también aplica en modo "todas las tiendas".
+      applyGuadalajara(support.support, index, matched);
+      continue;
+    }
+
+    for (const store of support.stores) {
+      const num = normalizeStore(store.numero);
+      const k = key(support.support, num);
+      const activeMatches = index.active.get(k) ?? [];
+
+      if (activeMatches.length === 0) {
+        const inactiveMatches = index.inactive.get(k) ?? [];
+        const storeExists = (index.activeByStore.get(num) ?? []).length > 0;
+        let code: IssueCode;
+        let message: string;
+        if (inactiveMatches.length > 0) {
+          code = 'screen-inactive';
+          message = `Pantalla inactiva excluida: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`;
+        } else if (storeExists) {
+          code = 'store-support-mismatch';
+          message = `La tienda ${num} existe en el catálogo pero no con el soporte "${support.support}" (posible error de Liverpool o falta de mapeo): se excluye. Campaña "${campaign.name}".`;
+        } else {
+          code = 'store-not-in-catalog';
+          message = `La tienda ${num} no existe en el catálogo (el maestro es la verdad absoluta): se excluye. Campaña "${campaign.name}", soporte "${support.support}".`;
+        }
+        issues.push({
+          code,
+          campaign: campaign.name,
+          support: support.support,
+          store: num,
+          message,
+        });
+      }
+      for (const s of activeMatches) matched.set(s.id, s);
+
+      // Excepción exclusiva de Guadalajara Galerías: tienda 78 + VIDEO WALL
+      // CRIUS incluye además la configuración CUADRADA (900 x 900).
+      if (
+        num === gexc.storeNumber &&
+        norm(support.support) === norm(gexc.requestedSupport)
+      ) {
+        for (const s of index.activeByStore.get(gexc.storeNumber) ?? []) {
+          if (norm(s.original.Modelo) === 'CUADRADA') matched.set(s.id, s);
+        }
+      }
+    }
+  }
+
+  // Excluir pantallas ISM (lógica pendiente).
+  let ismExcludedCount = 0;
+  for (const [id, s] of matched) {
+    if (isISM(s)) {
+      matched.delete(id);
+      ismExcludedCount += 1;
+    }
+  }
+
+  return {
+    matched: [...matched.values()],
+    issues,
+    excludedInstore,
+    ismExcludedCount,
+  };
+}
+
 /** Consolida las campañas contra el catálogo. Función pura. */
 export function consolidate(
   campaigns: readonly ParsedCampaign[],
   screens: readonly AdmiraScreen[],
 ): ConsolidationResult {
-  const index = buildIndex(screens);
+  const index = buildScreenIndex(screens);
   const issues: ConsolidationIssue[] = [];
   const excludedInstore: { campaign: string; support: string }[] = [];
   const consolidations: Consolidation[] = [];
   let ismExcludedCount = 0;
 
-  const gexc = GUADALAJARA_GALERIAS_EXCEPTION;
-
   for (const campaign of campaigns) {
-    // Pantallas participantes de la campaña (deduplicadas por id, orden estable).
-    const matched = new Map<string, AdmiraScreen>();
-
-    for (const support of campaign.supports) {
-      if (support.owner === 'instore-media') {
-        excludedInstore.push({
-          campaign: campaign.name,
-          support: support.support,
-        });
-        continue;
-      }
-
-      // Regla: "Asignada" sin comentario (sin tiendas) => todas las pantallas
-      // activas de ese soporte (todas las tiendas disponibles).
-      if (support.stores.length === 0) {
-        const all = index.activeBySupport.get(norm(support.support)) ?? [];
-        if (all.length === 0) {
-          issues.push({
-            code: 'support-not-in-catalog',
-            campaign: campaign.name,
-            support: support.support,
-            message: `Soporte "${support.support}" asignado sin comentario en "${campaign.name}", pero no hay pantallas mapeadas a ese soporte en el catálogo.`,
-          });
-        }
-        for (const s of all) matched.set(s.id, s);
-        // Excepción Guadalajara también aplica en modo "todas las tiendas".
-        applyGuadalajara(support.support, index, matched);
-        continue;
-      }
-
-      for (const store of support.stores) {
-        const num = normalizeStore(store.numero);
-        const k = key(support.support, num);
-        const activeMatches = index.active.get(k) ?? [];
-
-        if (activeMatches.length === 0) {
-          const inactiveMatches = index.inactive.get(k) ?? [];
-          const storeExists = (index.activeByStore.get(num) ?? []).length > 0;
-          let code: IssueCode;
-          let message: string;
-          if (inactiveMatches.length > 0) {
-            code = 'screen-inactive';
-            message = `Pantalla inactiva excluida: campaña "${campaign.name}", soporte "${support.support}", tienda ${num}.`;
-          } else if (storeExists) {
-            code = 'store-support-mismatch';
-            message = `La tienda ${num} existe en el catálogo pero no con el soporte "${support.support}" (posible error de Liverpool o falta de mapeo): se excluye. Campaña "${campaign.name}".`;
-          } else {
-            code = 'store-not-in-catalog';
-            message = `La tienda ${num} no existe en el catálogo (el maestro es la verdad absoluta): se excluye. Campaña "${campaign.name}", soporte "${support.support}".`;
-          }
-          issues.push({
-            code,
-            campaign: campaign.name,
-            support: support.support,
-            store: num,
-            message,
-          });
-        }
-        for (const s of activeMatches) matched.set(s.id, s);
-
-        // Excepción exclusiva de Guadalajara Galerías: tienda 78 + VIDEO WALL
-        // CRIUS incluye además la configuración CUADRADA (900 x 900).
-        if (
-          num === gexc.storeNumber &&
-          norm(support.support) === norm(gexc.requestedSupport)
-        ) {
-          for (const s of index.activeByStore.get(gexc.storeNumber) ?? []) {
-            if (norm(s.original.Modelo) === 'CUADRADA') matched.set(s.id, s);
-          }
-        }
-      }
-    }
-
-    // Excluir pantallas ISM (lógica pendiente).
-    for (const [id, s] of matched) {
-      if (isISM(s)) {
-        matched.delete(id);
-        ismExcludedCount += 1;
-      }
-    }
+    const match = matchCampaignScreens(campaign, index);
+    issues.push(...match.issues);
+    excludedInstore.push(...match.excludedInstore);
+    ismExcludedCount += match.ismExcludedCount;
 
     // Agrupar por RESOLUCION.
     const byResolution = new Map<string, AdmiraScreen[]>();
-    for (const s of matched.values()) {
+    for (const s of match.matched) {
       const r = normalizeResolution(s.original.RESOLUCION);
       (byResolution.get(r) ?? byResolution.set(r, []).get(r)!).push(s);
     }
 
     for (const group of byResolution.values()) {
       const articulosList = group.map((s) => s.original.ARTICULOS);
-      const rows = dedupeRows(
-        group.map((s) => ({
-          ARTICULOS: s.original.ARTICULOS,
-          BRANDS: s.original.BRANDS,
-          CENTROS: s.original.CENTROS,
-          CIRCUITO: s.original.CIRCUITO,
-          RESOLUCION: s.original.RESOLUCION,
-          RETAILERS: RETAILERS_VALUE,
-          'TIPO DE PASES': s.original['TIPO DE PASES'],
-        })),
-      );
+      const rows = dedupeRows(group.map(screenToAdmiraRow));
       consolidations.push({
         campaignName: campaign.name,
         resolution: group[0]!.original.RESOLUCION,
@@ -294,7 +324,26 @@ export function summarizeIssues(
   return { total: issues.length, byCode, bySupport, byCampaign };
 }
 
-function dedupeRows(rows: AdmiraCsvRow[]): AdmiraCsvRow[] {
+/**
+ * Convierte una pantalla del catálogo en una fila del CSV de Admira. Es la
+ * única fuente del formato de fila (reutilizada por la consolidación normal y
+ * por los CSV auxiliares Ratio 1 / Ratio 3): `RETAILERS` es constante
+ * `LIVERPOOL` y el resto se toma literal de los campos originales del maestro.
+ */
+export function screenToAdmiraRow(screen: AdmiraScreen): AdmiraCsvRow {
+  return {
+    ARTICULOS: screen.original.ARTICULOS,
+    BRANDS: screen.original.BRANDS,
+    CENTROS: screen.original.CENTROS,
+    CIRCUITO: screen.original.CIRCUITO,
+    RESOLUCION: screen.original.RESOLUCION,
+    RETAILERS: RETAILERS_VALUE,
+    'TIPO DE PASES': screen.original['TIPO DE PASES'],
+  };
+}
+
+/** Deduplica filas de Admira idénticas conservando el orden de aparición. */
+export function dedupeRows(rows: readonly AdmiraCsvRow[]): AdmiraCsvRow[] {
   const seen = new Set<string>();
   const result: AdmiraCsvRow[] = [];
   for (const row of rows) {
