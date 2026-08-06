@@ -88,8 +88,10 @@
   --shadow-brand: 0 10px 24px rgba(124, 58, 237, 0.28);
   --sidebar-width: 252px;
   --font-sans:
-    'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial,
-    sans-serif;
+    'Inter Variable', 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto,
+    Helvetica, Arial, sans-serif;
+  /* Display/marca: grotesca geométrica premium para encabezados y cifras. */
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', var(--font-sans);
 }
 
 /* ── Tema OSCURO ──────────────────────────────────────────────────────────
@@ -218,7 +220,9 @@ h2,
 h3 {
   margin: 0 0 0.5rem;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 button {
@@ -385,4 +389,67 @@ button {
 
 ::selection {
   background: var(--magenta-200);
+}
+
+/* ── Motion ────────────────────────────────────────────────────────────────
+   Entrada sutil (fade + leve ascenso, sin rebote) para superficies al montar
+   la vista, y micro-elevación al pasar el cursor. Nunca en filas de tabla: en
+   UI informativa el movimiento por fila se lee descuidado. Todo se desactiva
+   con prefers-reduced-motion. */
+@keyframes ui-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dash-tile,
+  .occ-card,
+  .occ-panel,
+  .occ-chart,
+  .card,
+  .catalog__table-wrap,
+  .occ-matrix-wrap {
+    animation: ui-reveal 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  /* Escalonado de las rejillas de KPIs y tarjetas del panel. */
+  .dash-summary .dash-tile:nth-child(1),
+  .occ-cards .occ-card:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .dash-summary .dash-tile:nth-child(2),
+  .occ-cards .occ-card:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .dash-summary .dash-tile:nth-child(3),
+  .occ-cards .occ-card:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .dash-summary .dash-tile:nth-child(4),
+  .occ-cards .occ-card:nth-child(4) {
+    animation-delay: 0.17s;
+  }
+  .dash-summary .dash-tile:nth-child(5),
+  .occ-cards .occ-card:nth-child(5) {
+    animation-delay: 0.22s;
+  }
+
+  /* Micro-interacción: la tarjeta se eleva ligeramente al pasar el cursor. */
+  .dash-tile,
+  .occ-card {
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .dash-tile:hover,
+  .occ-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
 }

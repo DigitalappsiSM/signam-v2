@@ -19,9 +19,10 @@
 }
 
 .topbar__brand {
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   background: var(--grad-brand);
   -webkit-background-clip: text;
   background-clip: text;
