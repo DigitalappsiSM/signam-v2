@@ -34,31 +34,28 @@
 
 .diagnosis__table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 /* --- Titular fijo de importación (resumen + acción) --- */
 .imp-banner {
   position: sticky;
-  top: 60px;
+  top: 64px;
   z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.15rem;
   margin-bottom: 1.25rem;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-glass);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .imp-banner__stats {
@@ -72,16 +69,18 @@
   flex-direction: column;
   align-items: center;
   min-width: 72px;
-  padding: 0.35rem 0.6rem;
+  padding: 0.4rem 0.7rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg);
+  background: var(--color-surface-2);
 }
 
 .imp-stat__value {
+  font-family: var(--font-display);
   font-size: 1.35rem;
   font-weight: 700;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .imp-stat__label {
@@ -91,30 +90,30 @@
   letter-spacing: 0.02em;
 }
 
-/* Tonos: solo se resaltan cuando el valor es relevante (>0). */
+/* Tonos semánticos (theme-aware): solo se resaltan cuando el valor es >0. */
 .imp-stat--success {
-  border-color: #a7d8b8;
+  border-color: color-mix(in srgb, var(--color-success) 45%, transparent);
 }
 .imp-stat--success .imp-stat__value {
-  color: #216e39;
+  color: var(--color-success);
 }
 .imp-stat--info {
-  border-color: #a9cdec;
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 .imp-stat--info .imp-stat__value {
-  color: #1e4e79;
+  color: var(--color-primary);
 }
 .imp-stat--warning {
-  border-color: #f5e199;
+  border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
 }
 .imp-stat--warning .imp-stat__value {
-  color: #8a6d1b;
+  color: var(--color-warning);
 }
 .imp-stat--danger {
-  border-color: #f8b4b4;
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
 }
 .imp-stat--danger .imp-stat__value {
-  color: #9b1c1c;
+  color: var(--color-danger);
 }
 
 /* --- Acordeón resumen → detalle --- */
@@ -137,12 +136,10 @@
 }
 
 .imp-section {
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-glass);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -183,37 +180,45 @@
 }
 
 .imp-chip {
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
   white-space: nowrap;
 }
 
+/* Tonos semánticos (theme-aware): adaptan a claro/oscuro y respetan el toggle
+   manual (antes usaban prefers-color-scheme y quedaban claros en modo oscuro). */
 .imp-chip--success {
-  background: #e8f5ec;
-  color: #216e39;
-  border-color: #a7d8b8;
+  background: color-mix(
+    in srgb,
+    var(--color-success) 14%,
+    var(--color-surface)
+  );
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
 }
 .imp-chip--info {
-  background: #e8f2fb;
-  color: #1e4e79;
-  border-color: #a9cdec;
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 14%,
+    var(--color-surface)
+  );
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
 .imp-chip--warning {
-  background: #fef9e7;
-  color: #8a6d1b;
-  border-color: #f5e199;
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 16%,
+    var(--color-surface)
+  );
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
 }
 .imp-chip--danger {
-  background: #fde8e8;
-  color: #9b1c1c;
-  border-color: #f8b4b4;
-}
-
-@media (prefers-color-scheme: dark) {
-  .imp-chip {
-    filter: saturate(0.85) brightness(0.95);
-  }
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
