@@ -16,63 +16,72 @@
   color: var(--color-text);
 }
 
+/* Pill de estado suave: color semántico sobre su propio tinte. Adapta a
+   claro/oscuro vía tokens (respeta el toggle manual, no prefers-color-scheme).
+   El texto e icono siguen comunicando el estado sin depender solo del color. */
 .ot-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  border: 1px solid var(--color-border);
+  gap: 0.3rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid transparent;
   white-space: nowrap;
 }
 
-.ot-overdue {
-  background: #fde8e8;
-  color: #9b1c1c;
-  border-color: #f8b4b4;
+.ot-overdue,
+.ot-late {
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 .ot-due-today {
-  background: #fdf0e6;
-  color: #9c4221;
-  border-color: #f6c199;
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 20%,
+    var(--color-surface)
+  );
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 .ot-due-soon {
-  background: #fef9e7;
-  color: #8a6d1b;
-  border-color: #f5e199;
-}
-.ot-invalid {
-  background: #eef1f5;
-  color: #475569;
-  border-color: #cbd5e1;
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 13%,
+    var(--color-surface)
+  );
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 26%, transparent);
 }
 .ot-on-track {
-  background: #e8f5ec;
-  color: #216e39;
-  border-color: #a7d8b8;
+  background: color-mix(
+    in srgb,
+    var(--color-success) 14%,
+    var(--color-surface)
+  );
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
 }
 .ot-done {
-  background: #e8f2fb;
-  color: #1e4e79;
-  border-color: #a9cdec;
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 14%,
+    var(--color-surface)
+  );
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
-.ot-late {
-  background: #f3ecfb;
-  color: #5b3a86;
-  border-color: #cdb4e8;
-}
+.ot-invalid,
 .ot-upcoming {
-  background: #eef1f5;
-  color: #475569;
-  border-color: #cbd5e1;
-}
-
-@media (prefers-color-scheme: dark) {
-  .ot-badge {
-    filter: saturate(0.85) brightness(0.95);
-  }
+  background: color-mix(
+    in srgb,
+    var(--color-text-muted) 12%,
+    var(--color-surface)
+  );
+  color: var(--color-text-muted);
+  border-color: color-mix(in srgb, var(--color-text-muted) 24%, transparent);
 }
 
 .ot-table td {
@@ -139,44 +148,61 @@
 /* --- Panel operativo (Dashboard) --- */
 .dash-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
+/* KPI premium: tarjeta redondeada con sombra suave y un resplandor de marca
+   muy tenue en la esquina. warn/danger tiñen el número. */
 .dash-tile {
   position: relative;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  padding: 0.85rem 0.95rem 0.85rem 1.05rem;
+  padding: 1.15rem 1.25rem;
   overflow: hidden;
 }
 
-/* Franja de estado a la izquierda: neutra por defecto, semáforo si hay tono. */
-.dash-tile::before {
+.dash-tile::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--color-border-strong);
+  right: -34px;
+  top: -34px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: var(--grad-soft);
+  pointer-events: none;
 }
 
-.dash-tile--warn::before {
-  background: var(--color-warning);
+.dash-tile--warn {
+  border-color: color-mix(
+    in srgb,
+    var(--color-warning) 40%,
+    var(--color-border)
+  );
 }
-.dash-tile--danger::before {
-  background: var(--color-danger);
+.dash-tile--danger {
+  border-color: color-mix(
+    in srgb,
+    var(--color-danger) 40%,
+    var(--color-border)
+  );
+}
+.dash-tile--warn::after {
+  background: color-mix(in srgb, var(--color-warning) 22%, transparent);
+}
+.dash-tile--danger::after {
+  background: color-mix(in srgb, var(--color-danger) 22%, transparent);
 }
 
 .dash-tile__value {
-  font-size: 1.55rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -189,9 +215,9 @@
 
 .dash-tile__label {
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 500;
-  margin-top: 0.3rem;
+  margin-top: 0.4rem;
 }
 
 .dash-grid {
@@ -226,16 +252,55 @@
   white-space: nowrap;
 }
 
+/* Casilla personalizada: marcada = degradado de marca con palomita blanca.
+   Mantiene la semántica del <input type=checkbox> y el foco accesible. */
 .ot-checkbox {
-  width: 1.05rem;
-  height: 1.05rem;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 7px;
+  background: var(--color-surface);
   cursor: pointer;
-  accent-color: var(--color-primary);
+  position: relative;
+  vertical-align: middle;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ot-checkbox:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.ot-checkbox:checked {
+  border-color: transparent;
+  background: var(--grad-brand);
+  box-shadow: 0 4px 10px rgba(124, 58, 237, 0.3);
+}
+
+.ot-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.ot-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .ot-checkbox:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .ot-class-select {

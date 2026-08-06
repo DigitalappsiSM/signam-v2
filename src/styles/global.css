@@ -1,44 +1,56 @@
 :root {
   /* ── Tema CLARO (base) ───────────────────────────────────────────────────
-     SaaS operativo: superficies sólidas y nítidas para densidad de datos,
-     base azul para lo interactivo y magenta Liverpool como detalle de marca.
-     El "chrome" (topbar/sidebar/overlays) conserva el vidrio; el contenido y
-     las tablas van planos. */
+     SaaS premium: superficies claras muy redondeadas con sombra suave y un
+     degradado de marca violeta→magenta→coral, usado con moderación (marca,
+     navegación activa y CTA principal). El resto se mantiene sobrio para
+     jornadas largas de seguimiento operativo. */
   color-scheme: light;
 
-  --color-bg: #f4f6fb;
+  --color-bg: #f4f4fb;
   --color-surface: #ffffff;
-  --color-surface-2: #f2f5fa;
-  --color-border: #e2e7f0;
-  --color-border-strong: #d3dae7;
-  --color-text: #0f1b2d;
-  --color-text-muted: #5b6577;
+  --color-surface-2: #faf9fe;
+  --color-border: #ebe8f4;
+  --color-border-strong: #ddd8ec;
+  --color-text: #14121f;
+  --color-text-muted: #7b7890;
 
-  /* Superficies de contenido (planas, sin desenfoque). */
-  --table-head-bg: #f4f6fb;
-  --row-zebra: #fafbfd;
-  --row-hover: #eef3fd;
+  /* Superficies de contenido premium (redondeadas, sombra suave). */
+  --table-head-bg: #faf9fe;
+  --row-zebra: #fbfaff;
+  --row-hover: #f7f4ff;
 
-  /* Base = azul (acción/enlaces). Magenta = acento de marca puntual. */
-  --color-primary: #2456d6;
-  --color-primary-dark: #1c46b8;
-  --color-accent: #2456d6;
+  /* Base = violeta de marca (acción/enlaces); magenta como pareja del
+     degradado de marca. */
+  --color-primary: #7c3aed;
+  --color-primary-dark: #6d28d9;
+  --color-accent: #7c3aed;
   --color-magenta: #ec0f8c;
   --color-magenta-dark: #c60e78;
-  --color-brand: #ec0f8c;
+  --color-brand: #7c3aed;
 
-  --color-success: #0f8a4a;
-  --color-warning: #b7791f;
-  --color-danger: #c0261a;
+  --color-success: #0f9d58;
+  --color-warning: #e2960b;
+  --color-danger: #e5484d;
 
-  /* Degradado de acción (azul) y degradado de marca (magenta→azul). */
-  --grad-primary: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-  --grad-brand: linear-gradient(120deg, #ec0f8c 0%, #7c3aed 55%, #2456d6 120%);
+  /* Degradado de marca (violeta→magenta→coral): identidad, navegación activa
+     y CTA principal. Uso moderado. */
+  --grad-primary: linear-gradient(
+    120deg,
+    #7c3aed 0%,
+    #ec0f8c 60%,
+    #fb7185 120%
+  );
+  --grad-brand: linear-gradient(120deg, #7c3aed 0%, #ec0f8c 60%, #fb7185 120%);
+  --grad-soft: linear-gradient(
+    120deg,
+    rgba(124, 58, 237, 0.14),
+    rgba(236, 15, 140, 0.12)
+  );
 
-  /* Azul translúcido reutilizable (hovers, superficies suaves). */
-  --accent-050: rgba(36, 86, 214, 0.06);
-  --accent-100: rgba(36, 86, 214, 0.1);
-  --accent-200: rgba(36, 86, 214, 0.16);
+  /* Violeta translúcido reutilizable (hovers, superficies suaves). */
+  --accent-050: rgba(124, 58, 237, 0.05);
+  --accent-100: rgba(124, 58, 237, 0.1);
+  --accent-200: rgba(124, 58, 237, 0.16);
 
   /* Magenta translúcido (detalles de marca). */
   --magenta-100: rgba(236, 15, 140, 0.1);
@@ -56,87 +68,103 @@
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(148, 163, 184, 0.3);
   --glass-blur: 14px;
-  --ring: rgba(36, 86, 214, 0.35);
+  --ring: rgba(124, 58, 237, 0.32);
 
   /* Fondo ambiental (usado por body::before). */
-  --amb-glow-a: rgba(36, 86, 214, 0.07);
-  --amb-glow-b: rgba(236, 15, 140, 0.06);
-  --amb-dot: rgba(15, 27, 45, 0.05);
-  --amb-base: linear-gradient(180deg, #f4f6fb 0%, #eef1f8 100%);
+  --amb-glow-a: rgba(124, 58, 237, 0.16);
+  --amb-glow-b: rgba(236, 15, 140, 0.1);
+  --amb-dot: rgba(20, 18, 31, 0.05);
+  --amb-base: linear-gradient(180deg, #f5f4fc 0%, #f1eff9 100%);
 
-  --radius: 10px;
-  --radius-sm: 7px;
-  --radius-lg: 12px;
-  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.06);
-  --shadow-card: 0 1px 2px rgba(15, 27, 45, 0.05);
-  --shadow-md: 0 10px 30px rgba(15, 27, 45, 0.12);
-  --shadow-glass: 0 8px 30px rgba(30, 41, 90, 0.1);
-  --sidebar-width: 244px;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 10px rgba(20, 18, 31, 0.07);
+  --shadow-card: 0 10px 30px rgba(20, 18, 31, 0.06);
+  --shadow-pop: 0 18px 44px rgba(20, 18, 31, 0.14);
+  --shadow-md: 0 18px 44px rgba(20, 18, 31, 0.14);
+  --shadow-glass: 0 10px 30px rgba(20, 18, 31, 0.08);
+  --shadow-brand: 0 10px 24px rgba(124, 58, 237, 0.28);
+  --sidebar-width: 252px;
   --font-sans:
     'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial,
     sans-serif;
 }
 
 /* ── Tema OSCURO ──────────────────────────────────────────────────────────
-   Navy analítico (estilo panel de resultados): fondos profundos, azul vivo
-   como acento base y magenta como chispa de marca. */
+   Studio oscuro: contraparte del tema claro premium. Fondo casi negro con
+   tinte violeta, paneles oscuros y el mismo degradado de marca
+   violeta→magenta→coral como acento. */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #0b1220;
-  --color-surface: #111a2e;
-  --color-surface-2: #16223c;
-  --color-border: #24324f;
-  --color-border-strong: #30415f;
-  --color-text: #e6edf8;
-  --color-text-muted: #93a1bd;
+  --color-bg: #0b0a12;
+  --color-surface: #14131f;
+  --color-surface-2: #1b1928;
+  --color-border: #262433;
+  --color-border-strong: #322f45;
+  --color-text: #eceaf5;
+  --color-text-muted: #8f8ca8;
 
-  /* Superficies de contenido (planas). */
-  --table-head-bg: #16223c;
-  --row-zebra: rgba(255, 255, 255, 0.018);
-  --row-hover: rgba(59, 130, 246, 0.1);
+  /* Superficies de contenido (studio oscuro). */
+  --table-head-bg: #1b1928;
+  --row-zebra: rgba(255, 255, 255, 0.02);
+  --row-hover: rgba(139, 92, 246, 0.12);
 
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-  --color-accent: #60a5fa;
-  --color-magenta: #f45bb0;
+  --color-primary: #8b5cf6;
+  --color-primary-dark: #7c3aed;
+  --color-accent: #a78bfa;
+  --color-magenta: #f472b6;
   --color-magenta-dark: #ec0f8c;
-  --color-brand: #f45bb0;
+  --color-brand: #a78bfa;
 
   --color-success: #34d399;
   --color-warning: #fbbf24;
-  --color-danger: #f87171;
+  --color-danger: #fb7185;
 
-  --grad-primary: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  --grad-brand: linear-gradient(120deg, #f45bb0 0%, #a855f7 52%, #3b82f6 120%);
+  --grad-primary: linear-gradient(
+    120deg,
+    #8b5cf6 0%,
+    #ec4899 55%,
+    #fb7185 120%
+  );
+  --grad-brand: linear-gradient(120deg, #8b5cf6 0%, #ec4899 55%, #fb7185 120%);
+  --grad-soft: linear-gradient(
+    120deg,
+    rgba(139, 92, 246, 0.22),
+    rgba(236, 72, 153, 0.16)
+  );
 
-  --accent-050: rgba(59, 130, 246, 0.08);
-  --accent-100: rgba(59, 130, 246, 0.14);
-  --accent-200: rgba(59, 130, 246, 0.22);
+  --accent-050: rgba(139, 92, 246, 0.08);
+  --accent-100: rgba(139, 92, 246, 0.14);
+  --accent-200: rgba(139, 92, 246, 0.24);
 
   --magenta-100: rgba(244, 91, 176, 0.14);
   --magenta-200: rgba(244, 91, 176, 0.24);
 
-  --cls-inst: #3b82f6;
-  --cls-prov: #f45bb0;
+  --cls-inst: #818cf8;
+  --cls-prov: #f472b6;
   --cls-unknown: #fbbf24;
-  --heat: 244, 91, 176;
+  --heat: 236, 72, 153;
 
-  --glass-bg: rgba(17, 26, 46, 0.62);
-  --glass-strong: rgba(20, 31, 54, 0.88);
-  --glass-border: rgba(120, 145, 190, 0.18);
+  --glass-bg: rgba(20, 19, 31, 0.66);
+  --glass-strong: rgba(27, 25, 40, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur: 16px;
-  --ring: rgba(96, 165, 250, 0.45);
+  --ring: rgba(139, 92, 246, 0.5);
 
-  --amb-glow-a: rgba(37, 99, 235, 0.14);
-  --amb-glow-b: rgba(236, 15, 140, 0.1);
-  --amb-dot: rgba(148, 176, 226, 0.06);
-  --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
+  --amb-glow-a: rgba(139, 92, 246, 0.26);
+  --amb-glow-b: rgba(236, 72, 153, 0.16);
+  --amb-dot: rgba(180, 170, 220, 0.06);
+  --amb-base: linear-gradient(180deg, #0c0a15 0%, #08070e 100%);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.5);
-  --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.5);
+  --shadow-brand: 0 10px 24px rgba(139, 92, 246, 0.4);
 }
 
 * {
@@ -170,13 +198,10 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(
-      900px 520px at 100% -10%,
-      var(--amb-glow-a),
-      transparent 62%
-    ),
+    radial-gradient(900px 520px at 92% -8%, var(--amb-glow-a), transparent 60%),
+    radial-gradient(760px 460px at 6% 2%, var(--amb-glow-b), transparent 62%),
     var(--amb-base);
-  background-repeat: no-repeat, no-repeat;
+  background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
 a {
@@ -213,12 +238,13 @@ button {
   align-items: center;
   gap: 0.4rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.85rem;
-  font-size: 0.86rem;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: 0.55rem 1.15rem;
+  font-size: 0.85rem;
+  font-weight: 700;
   transition:
     transform 0.1s ease,
+    filter 0.15s ease,
     background 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -228,28 +254,25 @@ button {
   transform: translateY(1px);
 }
 
-/* Acción primaria: azul sólido y plano (sin resplandor de marketing). */
+/* Acción primaria: degradado de marca en píldora, con resplandor moderado. */
 .btn-primary {
-  background: var(--color-primary);
+  background: var(--grad-brand);
   color: #fff;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-brand);
 }
 
 .btn-primary:hover {
-  background: var(--color-primary-dark);
+  filter: brightness(1.05) saturate(1.03);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.36);
 }
 
 .btn-primary:disabled {
-  background: color-mix(
-    in srgb,
-    var(--color-primary) 45%,
-    var(--color-surface)
-  );
+  filter: grayscale(0.35) opacity(0.6);
   box-shadow: none;
   cursor: not-allowed;
 }
 
-/* Acción secundaria: superficie sólida con borde (contenido, no chrome). */
+/* Acción secundaria: superficie sólida con borde y sombra suave. */
 .btn-secondary {
   background: var(--color-surface);
   border-color: var(--color-border-strong);
@@ -280,13 +303,13 @@ button {
   border-color: var(--color-danger);
 }
 
-/* Tarjeta de contenido: plana, borde fino, sombra sutil. */
+/* Tarjeta de contenido premium: muy redondeada, sombra difusa y suave. */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
-  padding: 1.15rem 1.25rem;
+  padding: 1.25rem 1.4rem;
 }
 
 .badge {
