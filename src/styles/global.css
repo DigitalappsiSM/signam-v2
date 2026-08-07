@@ -1,43 +1,75 @@
 :root {
   /* ── Tema CLARO (base) ───────────────────────────────────────────────────
-     Analítica-corporativa: base azul para lo interactivo/informativo y
-     magenta Liverpool como detalle puntual de marca. */
+     SaaS premium: superficies claras muy redondeadas con sombra suave. El
+     azul InStore Media es el color dominante (acción, enlaces, foco, checks,
+     hovers). El degradado rosa Liverpool se reserva SOLO para los momentos de
+     gradiente: marca, navegación activa y CTA principal. */
   color-scheme: light;
 
-  --color-bg: #eef2fa;
+  --color-bg: #f3f6fb;
   --color-surface: #ffffff;
-  --color-surface-2: #f4f7fd;
-  --color-border: #dbe2ee;
+  --color-surface-2: #f2f5fa;
+  --color-border: #e5eaf2;
+  --color-border-strong: #d5dded;
   --color-text: #0f1b2d;
   --color-text-muted: #5b6577;
 
-  /* Base = azul (acción/enlaces). Magenta = acento de marca puntual. */
-  --color-primary: #2456d6;
-  --color-primary-dark: #1c46b8;
-  --color-accent: #2456d6;
+  /* Superficies de contenido premium (redondeadas, sombra suave). */
+  --table-head-bg: #f3f6fb;
+  --row-zebra: #fafbfe;
+  --row-hover: #eaf4fb;
+
+  /* Base = azul cerúleo in-Store Media (tomado del logo). El primario es una
+     variante legible del cerúleo de marca (texto/enlaces AA sobre blanco); el
+     cerúleo vivo del logo (#1391d3) se usa como relleno de datos (--cls-inst).
+     Magenta Liverpool = pareja del degradado de marca (uso puntual). */
+  --color-primary: #0e79b8;
+  --color-primary-dark: #0a6198;
+  --color-accent: #0e79b8;
   --color-magenta: #ec0f8c;
   --color-magenta-dark: #c60e78;
   --color-brand: #ec0f8c;
 
-  --color-success: #0f8a4a;
-  --color-warning: #b7791f;
-  --color-danger: #c0261a;
+  --color-success: #0f9d58;
+  --color-warning: #e2960b;
+  --color-danger: #e5484d;
 
-  /* Degradado de acción (azul) y degradado de marca (magenta→azul). */
-  --grad-primary: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-  --grad-brand: linear-gradient(120deg, #ec0f8c 0%, #7c3aed 55%, #2456d6 120%);
+  /* Variantes de TEXTO (foreground) más oscuras: contraste AA sobre los fondos
+     tintados de badges/alertas. Los tonos vivos de arriba se conservan para
+     bordes y fondos. */
+  --color-success-fg: #0f7a43;
+  --color-warning-fg: #8a5a00;
+  --color-danger-fg: #b42318;
+  --color-info-fg: #0a5e91;
 
-  /* Azul translúcido reutilizable (hovers, superficies suaves). */
-  --accent-050: rgba(36, 86, 214, 0.06);
-  --accent-100: rgba(36, 86, 214, 0.1);
-  --accent-200: rgba(36, 86, 214, 0.16);
+  /* Degradado de marca = rosa Liverpool. Es el ÚNICO degradado de color y se
+     usa con moderación: identidad, navegación activa y CTA principal. */
+  --grad-primary: linear-gradient(
+    120deg,
+    #ff3d9a 0%,
+    #ec0f8c 55%,
+    #c60e78 120%
+  );
+  --grad-brand: linear-gradient(120deg, #ff3d9a 0%, #ec0f8c 55%, #c60e78 120%);
+  /* Resplandor suave cerúleo (ambiente de tarjetas; NO es rosa). */
+  --grad-soft: linear-gradient(
+    120deg,
+    rgba(14, 121, 184, 0.12),
+    rgba(19, 145, 211, 0.08)
+  );
+
+  /* Cerúleo translúcido reutilizable (hovers, superficies suaves). */
+  --accent-050: rgba(14, 121, 184, 0.05);
+  --accent-100: rgba(14, 121, 184, 0.1);
+  --accent-200: rgba(14, 121, 184, 0.16);
 
   /* Magenta translúcido (detalles de marca). */
   --magenta-100: rgba(236, 15, 140, 0.1);
   --magenta-200: rgba(236, 15, 140, 0.18);
 
-  /* Clasificación de campañas (coinciden con la paleta ECharts). */
-  --cls-inst: #2563eb;
+  /* Clasificación de campañas (coinciden con la paleta ECharts).
+     Institucional = cerúleo vivo del logo in-Store. */
+  --cls-inst: #1391d3;
   --cls-prov: #ec0f8c;
   --cls-unknown: #f59e0b;
   /* RGB del acento magenta para la intensidad relativa de la matriz. */
@@ -48,28 +80,37 @@
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(148, 163, 184, 0.3);
   --glass-blur: 14px;
-  --ring: rgba(36, 86, 214, 0.35);
+  --ring: rgba(14, 121, 184, 0.34);
 
   /* Fondo ambiental (usado por body::before). */
-  --amb-glow-a: rgba(36, 86, 214, 0.14);
-  --amb-glow-b: rgba(236, 15, 140, 0.12);
+  --amb-glow-a: rgba(14, 121, 184, 0.14);
+  --amb-glow-b: rgba(236, 15, 140, 0.09);
   --amb-dot: rgba(15, 27, 45, 0.05);
-  --amb-base: linear-gradient(180deg, #eef2fa 0%, #e5eaf4 100%);
+  --amb-base: linear-gradient(180deg, #f4f7fc 0%, #eef2f9 100%);
 
-  --radius: 14px;
-  --radius-sm: 9px;
-  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.06);
-  --shadow-md: 0 10px 30px rgba(15, 27, 45, 0.12);
-  --shadow-glass: 0 8px 30px rgba(30, 41, 90, 0.1);
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 10px rgba(20, 18, 31, 0.07);
+  --shadow-card: 0 10px 30px rgba(20, 18, 31, 0.06);
+  --shadow-pop: 0 18px 44px rgba(20, 18, 31, 0.14);
+  --shadow-md: 0 18px 44px rgba(20, 18, 31, 0.14);
+  --shadow-glass: 0 10px 30px rgba(20, 18, 31, 0.08);
+  /* Glow bajo el degradado rosa (CTA/navegación activa). */
+  --shadow-brand: 0 10px 24px rgba(236, 15, 140, 0.26);
   --sidebar-width: 252px;
   --font-sans:
-    'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial,
-    sans-serif;
+    'Inter Variable', 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto,
+    Helvetica, Arial, sans-serif;
+  /* Display/marca: grotesca geométrica premium para encabezados y cifras. */
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', var(--font-sans);
 }
 
 /* ── Tema OSCURO ──────────────────────────────────────────────────────────
-   Navy analítico (estilo panel de resultados): fondos profundos, azul vivo
-   como acento base y magenta como chispa de marca. */
+   Studio navy: contraparte del tema claro. Fondos azul-profundos con el azul
+   InStore Media como acento dominante; el degradado rosa Liverpool queda solo
+   en los momentos de gradiente (marca, navegación activa, CTA). */
 :root[data-theme='dark'] {
   color-scheme: dark;
 
@@ -77,49 +118,77 @@
   --color-surface: #111a2e;
   --color-surface-2: #16223c;
   --color-border: #24324f;
+  --color-border-strong: #30415f;
   --color-text: #e6edf8;
   --color-text-muted: #93a1bd;
 
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-  --color-accent: #60a5fa;
-  --color-magenta: #f45bb0;
+  /* Superficies de contenido (studio navy). */
+  --table-head-bg: #16223c;
+  --row-zebra: rgba(255, 255, 255, 0.02);
+  --row-hover: rgba(56, 168, 230, 0.12);
+
+  --color-primary: #38a8e6;
+  --color-primary-dark: #2e92cc;
+  --color-accent: #62bcef;
+  --color-magenta: #f472b6;
   --color-magenta-dark: #ec0f8c;
-  --color-brand: #f45bb0;
+  --color-brand: #f472b6;
 
   --color-success: #34d399;
   --color-warning: #fbbf24;
-  --color-danger: #f87171;
+  --color-danger: #fb7185;
 
-  --grad-primary: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  --grad-brand: linear-gradient(120deg, #f45bb0 0%, #a855f7 52%, #3b82f6 120%);
+  /* En oscuro, el texto tintado ya contrasta bien: fg = tono vivo base. */
+  --color-success-fg: #34d399;
+  --color-warning-fg: #fbbf24;
+  --color-danger-fg: #fb7185;
+  --color-info-fg: #62bcef;
 
-  --accent-050: rgba(59, 130, 246, 0.08);
-  --accent-100: rgba(59, 130, 246, 0.14);
-  --accent-200: rgba(59, 130, 246, 0.22);
+  /* Degradado de marca = rosa Liverpool (único degradado de color). */
+  --grad-primary: linear-gradient(
+    120deg,
+    #ff4da6 0%,
+    #ec4899 55%,
+    #db2777 120%
+  );
+  --grad-brand: linear-gradient(120deg, #ff4da6 0%, #ec4899 55%, #db2777 120%);
+  /* Resplandor suave cerúleo (NO es rosa). */
+  --grad-soft: linear-gradient(
+    120deg,
+    rgba(56, 168, 230, 0.2),
+    rgba(37, 150, 220, 0.14)
+  );
+
+  --accent-050: rgba(56, 168, 230, 0.08);
+  --accent-100: rgba(56, 168, 230, 0.14);
+  --accent-200: rgba(56, 168, 230, 0.24);
 
   --magenta-100: rgba(244, 91, 176, 0.14);
   --magenta-200: rgba(244, 91, 176, 0.24);
 
-  --cls-inst: #3b82f6;
-  --cls-prov: #f45bb0;
+  --cls-inst: #4aa9e6;
+  --cls-prov: #f472b6;
   --cls-unknown: #fbbf24;
-  --heat: 244, 91, 176;
+  --heat: 236, 72, 153;
 
-  --glass-bg: rgba(17, 26, 46, 0.62);
-  --glass-strong: rgba(20, 31, 54, 0.88);
+  --glass-bg: rgba(17, 26, 46, 0.66);
+  --glass-strong: rgba(20, 31, 54, 0.92);
   --glass-border: rgba(120, 145, 190, 0.18);
   --glass-blur: 16px;
-  --ring: rgba(96, 165, 250, 0.45);
+  --ring: rgba(56, 168, 230, 0.5);
 
-  --amb-glow-a: rgba(37, 99, 235, 0.22);
-  --amb-glow-b: rgba(236, 15, 140, 0.16);
+  --amb-glow-a: rgba(37, 150, 220, 0.24);
+  --amb-glow-b: rgba(236, 72, 153, 0.14);
   --amb-dot: rgba(148, 176, 226, 0.06);
   --amb-base: linear-gradient(180deg, #0c1424 0%, #090f1c 100%);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.5);
-  --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow-glass: 0 10px 34px rgba(0, 0, 0, 0.5);
+  /* Glow bajo el degradado rosa (CTA/navegación activa). */
+  --shadow-brand: 0 10px 24px rgba(236, 72, 153, 0.36);
 }
 
 * {
@@ -143,9 +212,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Fondo ambiental fijo: base + dos resplandores de marca + una malla de
-   puntos tenue que evoca las pantallas de señalización (LED). Cambia por tema
-   mediante las variables --amb-*. */
+/* Fondo ambiental fijo y discreto: base sólida con un único resplandor de marca
+   muy tenue arriba a la derecha, detrás del chrome. El contenido va sobre
+   superficies planas para no restar legibilidad a los datos. */
 body::before {
   content: '';
   position: fixed;
@@ -153,23 +222,10 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(
-      1000px 620px at 100% -6%,
-      var(--amb-glow-a),
-      transparent 55%
-    ),
-    radial-gradient(
-      1000px 600px at 6% -12%,
-      var(--amb-glow-b),
-      transparent 60%
-    ),
-    radial-gradient(var(--amb-dot) 1px, transparent 1.6px), var(--amb-base);
-  background-size:
-    auto,
-    auto,
-    24px 24px,
-    auto;
-  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+    radial-gradient(900px 520px at 92% -8%, var(--amb-glow-a), transparent 60%),
+    radial-gradient(760px 460px at 6% 2%, var(--amb-glow-b), transparent 62%),
+    var(--amb-base);
+  background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
 a {
@@ -186,7 +242,9 @@ h2,
 h3 {
   margin: 0 0 0.5rem;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 button {
@@ -206,12 +264,13 @@ button {
   align-items: center;
   gap: 0.4rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.95rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: 0.55rem 1.15rem;
+  font-size: 0.85rem;
+  font-weight: 700;
   transition:
-    transform 0.12s ease,
+    transform 0.1s ease,
+    filter 0.15s ease,
     background 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -221,55 +280,62 @@ button {
   transform: translateY(1px);
 }
 
+/* Acción primaria: degradado de marca en píldora, con resplandor moderado. */
 .btn-primary {
-  background: var(--grad-primary);
+  background: var(--grad-brand);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
+  box-shadow: var(--shadow-brand);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.45);
-  filter: saturate(1.05) brightness(1.04);
+  filter: brightness(1.05) saturate(1.03);
+  box-shadow: 0 12px 28px rgba(236, 15, 140, 0.34);
 }
 
 .btn-primary:disabled {
-  filter: grayscale(0.4) opacity(0.7);
+  filter: grayscale(0.35) opacity(0.6);
   box-shadow: none;
   cursor: not-allowed;
 }
 
+/* Acción secundaria: superficie sólida con borde y sombra suave. */
 .btn-secondary {
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  border-color: var(--glass-border);
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
+  background: var(--row-hover);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-danger {
-  background: var(--glass-strong);
+  background: var(--color-surface);
   border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger:hover {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
   border-color: var(--color-danger);
 }
 
+/* Tarjeta de contenido premium: muy redondeada, sombra difusa y suave. */
 .card {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-glass);
-  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem 1.4rem;
 }
 
 .badge {
@@ -285,7 +351,7 @@ button {
 
 .badge-info {
   background: var(--accent-100);
-  color: var(--color-accent);
+  color: var(--color-info-fg);
   border-color: var(--accent-200);
 }
 
@@ -297,7 +363,7 @@ button {
 
 .badge-warning {
   background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 
@@ -345,4 +411,67 @@ button {
 
 ::selection {
   background: var(--magenta-200);
+}
+
+/* ── Motion ────────────────────────────────────────────────────────────────
+   Entrada sutil (fade + leve ascenso, sin rebote) para superficies al montar
+   la vista, y micro-elevación al pasar el cursor. Nunca en filas de tabla: en
+   UI informativa el movimiento por fila se lee descuidado. Todo se desactiva
+   con prefers-reduced-motion. */
+@keyframes ui-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dash-tile,
+  .occ-card,
+  .occ-panel,
+  .occ-chart,
+  .card,
+  .catalog__table-wrap,
+  .occ-matrix-wrap {
+    animation: ui-reveal 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  /* Escalonado de las rejillas de KPIs y tarjetas del panel. */
+  .dash-summary .dash-tile:nth-child(1),
+  .occ-cards .occ-card:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .dash-summary .dash-tile:nth-child(2),
+  .occ-cards .occ-card:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .dash-summary .dash-tile:nth-child(3),
+  .occ-cards .occ-card:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .dash-summary .dash-tile:nth-child(4),
+  .occ-cards .occ-card:nth-child(4) {
+    animation-delay: 0.17s;
+  }
+  .dash-summary .dash-tile:nth-child(5),
+  .occ-cards .occ-card:nth-child(5) {
+    animation-delay: 0.22s;
+  }
+
+  /* Micro-interacción: la tarjeta se eleva ligeramente al pasar el cursor. */
+  .dash-tile,
+  .occ-card {
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .dash-tile:hover,
+  .occ-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
 }

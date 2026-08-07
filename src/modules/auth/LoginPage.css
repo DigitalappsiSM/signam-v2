@@ -6,19 +6,14 @@
   padding: 1.5rem;
   background:
     radial-gradient(
-      760px 480px at 15% 0%,
-      rgba(99, 102, 241, 0.28),
+      780px 500px at 12% 0%,
+      color-mix(in srgb, var(--color-primary) 22%, transparent),
       transparent 60%
     ),
     radial-gradient(
-      720px 520px at 100% 100%,
-      rgba(6, 182, 212, 0.22),
-      transparent 55%
-    ),
-    radial-gradient(
-      640px 520px at 90% 0%,
-      rgba(236, 15, 140, 0.16),
-      transparent 55%
+      680px 520px at 92% 100%,
+      color-mix(in srgb, var(--color-magenta) 18%, transparent),
+      transparent 58%
     ),
     var(--amb-base);
 }
@@ -26,12 +21,10 @@
 .login__card {
   width: 100%;
   max-width: 400px;
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
   padding: 2rem 1.75rem;
   display: flex;
   flex-direction: column;
@@ -39,9 +32,10 @@
 }
 
 .login__brand {
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   background: var(--grad-brand);
   -webkit-background-clip: text;
   background-clip: text;
@@ -75,11 +69,11 @@
 .login__field input {
   font-family: inherit;
   font-size: 0.95rem;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--glass-border);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  background: var(--color-surface-2);
 }
 
 .login__field input:focus {
@@ -102,7 +96,7 @@
 
 .login__error {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;

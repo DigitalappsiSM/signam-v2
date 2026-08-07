@@ -29,16 +29,20 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.75rem 0.9rem;
-  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-left-width: 4px;
+  box-shadow: var(--shadow-card);
 }
 
 .occ-summary__value {
+  font-family: var(--font-display);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .occ-summary__label {
@@ -75,12 +79,19 @@
 }
 
 .occ-filter select {
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-surface);
   color: inherit;
   font: inherit;
+  box-shadow: var(--shadow-sm);
+}
+
+.occ-filter select:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* Distintivos de nivel (nunca solo color: llevan símbolo + texto). */
@@ -101,7 +112,7 @@
 
 .occ-badge--sin-ocupacion {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
 }
 .occ-badge--sin-ocupacion::before {
@@ -110,7 +121,7 @@
 
 .occ-badge--baja-critica {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
 .occ-badge--baja-critica::before {
@@ -119,7 +130,7 @@
 
 .occ-badge--baja-preventiva {
   background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
   border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
 }
 .occ-badge--baja-preventiva::before {
@@ -128,7 +139,7 @@
 
 .occ-badge--normal {
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-fg);
   border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
 }
 .occ-badge--normal::before {
@@ -146,11 +157,11 @@
 }
 .occ-ratio--r1 {
   background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-fg);
 }
 .occ-ratio--r3 {
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-fg);
 }
 .occ-ratio--excluido {
   background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
@@ -197,7 +208,7 @@
   flex-wrap: wrap;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-warning) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-warning) 34%, transparent);
   color: var(--color-text);
