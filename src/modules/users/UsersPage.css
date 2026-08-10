@@ -1,0 +1,110 @@
+.users__error {
+  border-color: color-mix(in srgb, var(--color-danger) 38%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  color: var(--color-danger-fg);
+  margin-bottom: 1rem;
+}
+
+.users__table-wrap {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.users__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.users__table th,
+.users__table td {
+  padding: 0.8rem 1rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.users__table th {
+  background: var(--table-head-bg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.users__table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--color-text-muted) 4%, transparent);
+}
+
+.users__table tbody tr:hover td {
+  background: var(--row-hover);
+}
+
+.users__table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.users__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.users__email {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.users__you {
+  text-transform: none;
+}
+
+.users__name {
+  font-size: 0.82rem;
+}
+
+.users__select {
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  min-width: 9rem;
+}
+
+.users__select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.users__col-action {
+  white-space: nowrap;
+}
+
+.users__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.users__ok {
+  color: var(--color-success-fg, var(--color-text));
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.users__err-inline {
+  color: var(--color-danger-fg);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.users__self-note {
+  font-size: 0.82rem;
+  font-style: italic;
+}

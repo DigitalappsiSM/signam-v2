@@ -1,3 +1,5 @@
+import type { Permission } from './permissions';
+
 /** Definición central de rutas y navegación de SIGNAM V2. */
 export interface RouteMeta {
   path: string;
@@ -7,6 +9,11 @@ export interface RouteMeta {
   description: string;
   /** Grupo de la barra lateral (secciones tipo panel analítico). */
   group: NavGroup;
+  /**
+   * Permiso requerido para ver la ruta en la navegación. Si se omite, la ruta
+   * es visible para cualquier usuario autenticado.
+   */
+  permission?: Permission;
 }
 
 export type NavGroup = 'Operación' | 'Datos' | 'Campañas' | 'Administración';
@@ -66,6 +73,15 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Campañas',
   },
   {
+    path: '/usuarios',
+    label: 'Usuarios y permisos',
+    icon: '👥',
+    description:
+      'Administra los usuarios y su rol (admin, operador, consulta).',
+    group: 'Administración',
+    permission: 'users.manage',
+  },
+  {
     path: '/historial',
     label: 'Historial',
     icon: '🕑',
@@ -74,10 +90,16 @@ export const NAV_ROUTES: RouteMeta[] = [
   },
 ];
 
-/** Agrupa las rutas por sección respetando `NAV_GROUP_ORDER`. */
-export function groupedNavRoutes(): { group: NavGroup; routes: RouteMeta[] }[] {
+/**
+ * Agrupa las rutas por sección respetando `NAV_GROUP_ORDER`. El predicado
+ * opcional `canAccess` filtra rutas restringidas por permiso (por defecto se
+ * incluyen todas). Los grupos sin rutas visibles se omiten.
+ */
+export function groupedNavRoutes(
+  canAccess: (route: RouteMeta) => boolean = () => true,
+): { group: NavGroup; routes: RouteMeta[] }[] {
   return NAV_GROUP_ORDER.map((group) => ({
     group,
-    routes: NAV_ROUTES.filter((r) => r.group === group),
+    routes: NAV_ROUTES.filter((r) => r.group === group && canAccess(r)),
   })).filter((g) => g.routes.length > 0);
 }

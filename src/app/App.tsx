@@ -10,6 +10,7 @@ import { CampaignsPage } from '@/modules/campaigns/CampaignsPage';
 import { OperationalTrackingPage } from '@/modules/operational-tracking/OperationalTrackingPage';
 import { LowOccupancyPage } from '@/modules/low-occupancy/LowOccupancyPage';
 import { AuditPage } from '@/modules/audit/AuditPage';
+import { UsersPage } from '@/modules/users/UsersPage';
 import { NotFoundPage } from '@/modules/NotFoundPage';
 
 /**
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/campanas" element={<CampaignsPage />} />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
         <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
+        <Route path="/usuarios" element={<UsersPage />} />
         <Route path="/historial" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

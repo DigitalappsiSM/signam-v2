@@ -19,6 +19,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin resuelto desde el custom claim del token (fuente de verdad del rol).
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.get('role', '') == 'admin';
+    }
+
     // --- Preparado para el control por rol (aún no aplicado en esta fase) ---
     function userRole() {
       return isSignedIn() &&
@@ -27,11 +32,14 @@ service cloud.firestore {
         : '';
     }
 
-    // Perfiles de usuario: cada quien lee el suyo; en esta fase, cualquier
-    // usuario autenticado puede administrarlos (se restringirá a admin).
+    // Perfiles de usuario (espejo legible del rol). La asignación de roles se
+    // hace exclusivamente desde Cloud Functions con el Admin SDK (que ignora
+    // estas reglas y establece el custom claim, fuente de verdad). Por eso el
+    // cliente no escribe aquí: cada quien lee su propio perfil y un admin puede
+    // leer todos para la pantalla de administración.
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if false;
     }
 
     // Catálogo Admira. La acción normal es INACTIVAR (metadata.active=false),
