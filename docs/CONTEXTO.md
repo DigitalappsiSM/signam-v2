@@ -114,10 +114,12 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   vacía. Escape RFC 4180, UTF-8 con BOM. El encabezado **escrito** rotula la
   última columna como `Tipo de Pases`; la llave interna de las filas y el
   encabezado del maestro permanecen `TIPO DE PASES`.
-- **Asociación campaña ↔ Ekon** (1–1): cada campaña puede tener a lo sumo un
-  número de campaña Ekon y cada número pertenece a una sola campaña. Se guarda
-  en colecciones separadas (`campaignEkonLinks`, `ekonCampaignNumbers`) que
-  sobreviven a reimportaciones; la importación nunca las toca.
+- **Asociación campaña ↔ Ekon** (muchos-a-uno): cada campaña puede tener a lo
+  sumo un número de campaña Ekon, pero un mismo número puede repetirse en varias
+  campañas. No se bloquea la unicidad: al reutilizar un número, la UI avisa en
+  qué otras campañas ya está y pide confirmación antes de guardar. Se guarda en
+  la colección separada `campaignEkonLinks` que sobrevive a reimportaciones; la
+  importación nunca la toca.
 
 ## 6. Flujos de la aplicación
 

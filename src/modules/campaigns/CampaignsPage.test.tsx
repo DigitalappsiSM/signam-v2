@@ -268,6 +268,48 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
     );
   });
 
+  it('avisa qué campaña ya usa el número y guarda si se confirma', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CampaignsPage />);
+    await screen.findByText('REGRESO A CLASES');
+
+    const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
+    await userEvent.click(within(rowB).getByTitle(/Ver detalle/i));
+
+    // 777 ya lo tiene BUEN FIN.
+    await userEvent.type(screen.getByLabelText(/# campaña Ekon/i), '777');
+    await userEvent.click(screen.getByRole('button', { name: /Guardar/i }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0]![0]).toContain('BUEN FIN');
+    expect(confirmSpy.mock.calls[0]![0]).toContain('777');
+
+    await waitFor(() => expect(saveEkonLink).toHaveBeenCalledTimes(1));
+    expect(saveEkonLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: 'regreso a clases',
+        ekonCampaignNumber: 777,
+      }),
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('avisa y NO guarda si se cancela la confirmación', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<CampaignsPage />);
+    await screen.findByText('REGRESO A CLASES');
+
+    const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
+    await userEvent.click(within(rowB).getByTitle(/Ver detalle/i));
+
+    await userEvent.type(screen.getByLabelText(/# campaña Ekon/i), '777');
+    await userEvent.click(screen.getByRole('button', { name: /Guardar/i }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(saveEkonLink).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
   it('rechaza en la UI un número Ekon inválido sin llamar al servicio', async () => {
     render(<CampaignsPage />);
     await screen.findByText('REGRESO A CLASES');

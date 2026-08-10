@@ -41,12 +41,14 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   mientras la **llave interna** de las filas (`AdmiraCsvRow`) y el **encabezado
   del maestro** permanecen `TIPO DE PASES`. `RETAILERS` es constante =
   `LIVERPOOL` (`RETAILERS_VALUE`).
-- **Asociación campaña ↔ Ekon**: relación estrictamente 1–1, persistida en
-  colecciones separadas (`campaignEkonLinks/{campaignKeyId}`,
-  `ekonCampaignNumbers/{ekonNumber}`). La importación del calendario nunca toca
-  esas colecciones y estas nunca modifican la campaña importada. El
-  `campaignKeyId` se deriva determinísticamente del `nameKey` (no del ID
-  aleatorio de `campaigns`).
+- **Asociación campaña ↔ Ekon**: relación muchos-a-uno (cada campaña tiene como
+  máximo un número; un mismo número puede repetirse en varias campañas),
+  persistida en la colección separada `campaignEkonLinks/{campaignKeyId}`. No se
+  reserva la unicidad del número: al reutilizarlo, la UI avisa en qué otras
+  campañas ya está y pide confirmación (`otherCampaignsWithEkonNumber`). La
+  importación del calendario nunca toca esa colección y esta nunca modifica la
+  campaña importada. El `campaignKeyId` se deriva determinísticamente del
+  `nameKey` (no del ID aleatorio de `campaigns`).
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignKeyId}` (mismo `campaignKeyId` que Ekon,
   derivado del `nameKey`). Contiene solo datos operativos; nunca se mezcla con

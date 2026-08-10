@@ -17,7 +17,6 @@ import {
   listEkonLinks,
   saveEkonLink,
   unlinkEkon,
-  EkonLinkError,
   type CampaignEkonLink,
 } from '@/services/campaignEkonLinks';
 import {
@@ -46,7 +45,7 @@ import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import type { StoredCampaign } from './campaignDiff';
-import { parseEkonNumber } from './ekon';
+import { parseEkonNumber, otherCampaignsWithEkonNumber } from './ekon';
 import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
 import {
   analyzeLowOccupancy,
@@ -199,7 +198,7 @@ export function CampaignsPage() {
     return m;
   }, [result]);
 
-  // Mapa nameKey → número Ekon asociado (1–1).
+  // Mapa nameKey → número Ekon asociado (cada campaña, a lo sumo un número).
   const ekonByKey = useMemo(() => {
     const m = new Map<string, number>();
     for (const l of ekonLinks) m.set(l.campaignNameKey, l.ekonCampaignNumber);
@@ -595,6 +594,7 @@ export function CampaignsPage() {
           campaign={detail}
           issues={issuesByCampaign.get(detail.name) ?? []}
           ekonNumber={ekonByKey.get(detail.nameKey) ?? null}
+          ekonLinks={ekonLinks}
           actor={actor}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
@@ -608,6 +608,7 @@ function CampaignDetail({
   campaign,
   issues,
   ekonNumber,
+  ekonLinks,
   actor,
   onChanged,
   onClose,
@@ -615,6 +616,7 @@ function CampaignDetail({
   campaign: StoredCampaign;
   issues: ConsolidationIssue[];
   ekonNumber: number | null;
+  ekonLinks: CampaignEkonLink[];
   actor: Actor;
   onChanged: () => Promise<void>;
   onClose: () => void;
@@ -646,6 +648,7 @@ function CampaignDetail({
         <EkonEditor
           campaign={campaign}
           ekonNumber={ekonNumber}
+          ekonLinks={ekonLinks}
           actor={actor}
           onChanged={onChanged}
         />
@@ -726,17 +729,22 @@ function CampaignDetail({
 
 /**
  * Editor de la asociación campaña ↔ número de campaña Ekon (dentro del modal).
- * Valida con `parseEkonNumber`, confirma antes de reemplazar una asociación
- * existente y delega la persistencia atómica en el servicio.
+ * Valida con `parseEkonNumber`, confirma antes de reemplazar la asociación
+ * existente de esta campaña y —como un número puede compartirse entre varias
+ * campañas— avisa y pide confirmación cuando el número ya está en otras
+ * campañas (ver `otherCampaignsWithEkonNumber`). Delega la persistencia en el
+ * servicio.
  */
 function EkonEditor({
   campaign,
   ekonNumber,
+  ekonLinks,
   actor,
   onChanged,
 }: {
   campaign: StoredCampaign;
   ekonNumber: number | null;
+  ekonLinks: CampaignEkonLink[];
   actor: Actor;
   onChanged: () => Promise<void>;
 }) {
@@ -773,6 +781,27 @@ function EkonEditor({
     ) {
       return;
     }
+    // Aviso: el número ya está en otras campañas. Se permite compartirlo, pero
+    // se pide confirmación indicando en qué campañas ya está puesto.
+    const others = otherCampaignsWithEkonNumber(
+      ekonLinks,
+      parsed.value,
+      campaign.nameKey,
+    );
+    if (others.length > 0) {
+      const names = others.map((o) => `• ${o.campaignName}`).join('\n');
+      if (
+        !window.confirm(
+          `El número Ekon ${parsed.value} ya está asignado a ${
+            others.length === 1
+              ? 'otra campaña'
+              : `otras ${others.length} campañas`
+          }:\n\n${names}\n\n¿Asignarlo también a "${campaign.name}"?`,
+        )
+      ) {
+        return;
+      }
+    }
     setSaving(true);
     try {
       await saveEkonLink({
@@ -783,12 +812,8 @@ function EkonEditor({
       });
       await onChanged();
       setStatus('Asociación guardada.');
-    } catch (e) {
-      setError(
-        e instanceof EkonLinkError
-          ? e.message
-          : 'No se pudo guardar la asociación Ekon.',
-      );
+    } catch {
+      setError('No se pudo guardar la asociación Ekon.');
     } finally {
       setSaving(false);
     }

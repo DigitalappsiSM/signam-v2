@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseEkonNumber, campaignKeyId, EKON_ERRORS } from './ekon';
+import {
+  parseEkonNumber,
+  campaignKeyId,
+  otherCampaignsWithEkonNumber,
+  EKON_ERRORS,
+} from './ekon';
 
 describe('parseEkonNumber', () => {
   it('acepta un entero positivo', () => {
@@ -99,5 +104,45 @@ describe('campaignKeyId', () => {
   it('trata el vacío de forma estable', () => {
     expect(campaignKeyId('')).toBe('_');
     expect(campaignKeyId('   ')).toBe('_');
+  });
+});
+
+describe('otherCampaignsWithEkonNumber', () => {
+  const links = [
+    {
+      campaignNameKey: 'buen fin',
+      campaignName: 'BUEN FIN',
+      ekonCampaignNumber: 777,
+    },
+    {
+      campaignNameKey: 'hot sale',
+      campaignName: 'HOT SALE',
+      ekonCampaignNumber: 777,
+    },
+    {
+      campaignNameKey: 'navidad',
+      campaignName: 'NAVIDAD',
+      ekonCampaignNumber: 12,
+    },
+  ];
+
+  it('devuelve las otras campañas que ya usan el número', () => {
+    expect(
+      otherCampaignsWithEkonNumber(links, 777, 'regreso a clases'),
+    ).toEqual([
+      { campaignNameKey: 'buen fin', campaignName: 'BUEN FIN' },
+      { campaignNameKey: 'hot sale', campaignName: 'HOT SALE' },
+    ]);
+  });
+
+  it('excluye a la campaña que se está editando', () => {
+    expect(otherCampaignsWithEkonNumber(links, 777, 'buen fin')).toEqual([
+      { campaignNameKey: 'hot sale', campaignName: 'HOT SALE' },
+    ]);
+  });
+
+  it('devuelve vacío cuando el número no está en ninguna otra campaña', () => {
+    expect(otherCampaignsWithEkonNumber(links, 999, 'buen fin')).toEqual([]);
+    expect(otherCampaignsWithEkonNumber(links, 12, 'navidad')).toEqual([]);
   });
 });

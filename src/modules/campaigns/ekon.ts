@@ -1,10 +1,14 @@
 /**
- * Lógica pura de la asociación uno-a-uno entre una campaña Liverpool y su
- * número de campaña Ekon.
+ * Lógica pura de la asociación entre una campaña Liverpool y su número de
+ * campaña Ekon.
  *
  * Aquí no hay Firestore ni React: solo validación de dominio y derivación de la
  * llave del documento. El servicio (`src/services/campaignEkonLinks.ts`) y la
  * UI (`CampaignsPage`) consumen estas funciones.
+ *
+ * Un número Ekon PUEDE pertenecer a varias campañas Liverpool (relación
+ * muchos-a-uno). La UI avisa cuando el número ya está en otra campaña y pide
+ * confirmación antes de guardar; ver `otherCampaignsWithEkonNumber`.
  *
  * Reglas del número Ekon:
  * - opcional y vacío por defecto;
@@ -43,6 +47,42 @@ export function parseEkonNumber(raw: string): EkonParseResult {
   }
   if (value <= 0) return { ok: false, error: EKON_ERRORS.notPositive };
   return { ok: true, value };
+}
+
+/** Datos mínimos de una campaña que comparte un número Ekon (para el aviso). */
+export interface EkonNumberOwner {
+  campaignNameKey: string;
+  campaignName: string;
+}
+
+/**
+ * Devuelve las OTRAS campañas que ya tienen asociado `ekonNumber`, excluyendo la
+ * campaña que se está editando (`currentNameKey`). Sirve para construir el aviso
+ * que se muestra al usuario antes de reutilizar un número en más de una campaña.
+ *
+ * Puro y sin efectos: opera sobre la lista de asociaciones ya cargada en la UI.
+ * Como ahora un número puede repetirse, esto es informativo (no un candado): el
+ * resultado alimenta la confirmación, no una validación que bloquee el guardado.
+ */
+export function otherCampaignsWithEkonNumber(
+  links: readonly {
+    campaignNameKey: string;
+    campaignName: string;
+    ekonCampaignNumber: number;
+  }[],
+  ekonNumber: number,
+  currentNameKey: string,
+): EkonNumberOwner[] {
+  return links
+    .filter(
+      (l) =>
+        l.ekonCampaignNumber === ekonNumber &&
+        l.campaignNameKey !== currentNameKey,
+    )
+    .map((l) => ({
+      campaignNameKey: l.campaignNameKey,
+      campaignName: l.campaignName,
+    }));
 }
 
 const B64URL =
