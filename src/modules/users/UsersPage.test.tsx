@@ -110,9 +110,7 @@ describe('UsersPage — administración', () => {
 
     await user.click(saveBtn);
 
-    await waitFor(() =>
-      expect(mockSet).toHaveBeenCalledWith('u2', 'admin'),
-    );
+    await waitFor(() => expect(mockSet).toHaveBeenCalledWith('u2', 'admin'));
     expect(
       await within(otherRow).findByText(/Rol actualizado/i),
     ).toBeInTheDocument();
@@ -125,11 +123,10 @@ describe('UsersPage — administración', () => {
     await screen.findByText('oper@signam.mx');
 
     const otherRow = screen.getByText('oper@signam.mx').closest('tr')!;
-    await user.selectOptions(
-      within(otherRow).getByRole('combobox'),
-      'viewer',
+    await user.selectOptions(within(otherRow).getByRole('combobox'), 'viewer');
+    await user.click(
+      within(otherRow).getByRole('button', { name: /Guardar/i }),
     );
-    await user.click(within(otherRow).getByRole('button', { name: /Guardar/i }));
 
     expect(
       await within(otherRow).findByText(/Solo un administrador/i),

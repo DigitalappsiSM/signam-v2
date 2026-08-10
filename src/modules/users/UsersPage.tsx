@@ -99,9 +99,7 @@ export function UsersPage() {
         await setUserRole(u.uid, row.selected);
         // Refleja el nuevo rol como rol actual de la fila.
         setUsers((prev) =>
-          prev.map((x) =>
-            x.uid === u.uid ? { ...x, role: row.selected } : x,
-          ),
+          prev.map((x) => (x.uid === u.uid ? { ...x, role: row.selected } : x)),
         );
         setRows((prev) => ({
           ...prev,
@@ -228,7 +226,10 @@ export function UsersPage() {
                       </span>
                     </td>
                     <td>
-                      <label className="visually-hidden" htmlFor={`role-${u.uid}`}>
+                      <label
+                        className="visually-hidden"
+                        htmlFor={`role-${u.uid}`}
+                      >
                         Rol de {u.email}
                       </label>
                       <select

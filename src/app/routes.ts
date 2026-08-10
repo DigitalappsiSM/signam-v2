@@ -76,7 +76,8 @@ export const NAV_ROUTES: RouteMeta[] = [
     path: '/usuarios',
     label: 'Usuarios y permisos',
     icon: '👥',
-    description: 'Administra los usuarios y su rol (admin, operador, consulta).',
+    description:
+      'Administra los usuarios y su rol (admin, operador, consulta).',
     group: 'Administración',
     permission: 'users.manage',
   },
