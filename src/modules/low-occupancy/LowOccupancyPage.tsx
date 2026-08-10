@@ -12,6 +12,8 @@ import {
   filterUnits,
   todayIsoDate,
 } from './occupancyAnalysis';
+import { compareOccupancy, previousCivilDate } from './occupancyComparison';
+import type { GroupComparison } from './occupancyComparison';
 import { buildRatioCsv } from './occupancyCsv';
 import { EMPTY_FILTERS } from './types';
 import type {
@@ -23,6 +25,7 @@ import { OccupancySummary } from './components/OccupancySummary';
 import { OccupancyFilters } from './components/OccupancyFilters';
 import { OccupancyTable } from './components/OccupancyTable';
 import { OccupancyDetail } from './components/OccupancyDetail';
+import { OccupancyChangeDetail } from './components/OccupancyChangeDetail';
 import { OccupancyExportGroups } from './components/OccupancyExportGroups';
 import '@/modules/admira-catalog/CatalogPage.css';
 import '@/modules/liverpool-import/ImportPage.css';
@@ -67,6 +70,9 @@ export function LowOccupancyPage() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [detail, setDetail] = useState<OccupancyUnit | null>(null);
+  const [changeDetail, setChangeDetail] = useState<GroupComparison | null>(
+    null,
+  );
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -99,6 +105,24 @@ export function LowOccupancyPage() {
   const analysis = useMemo(
     () => analyzeLowOccupancy({ campaigns, screens, analysisDate }),
     [campaigns, screens, analysisDate],
+  );
+
+  // Comparación contra el día calendario anterior con los MISMOS datos cargados
+  // (opción sin persistencia): reconstruye la fecha anterior para señalar si el
+  // resultado cambió y evitar cargar archivos idénticos en Admira. Ver la
+  // limitación documentada en `occupancyComparison.ts`.
+  const previousDate = useMemo(
+    () => previousCivilDate(analysisDate),
+    [analysisDate],
+  );
+  const previousAnalysis = useMemo(
+    () =>
+      analyzeLowOccupancy({ campaigns, screens, analysisDate: previousDate }),
+    [campaigns, screens, previousDate],
+  );
+  const comparison = useMemo(
+    () => compareOccupancy(analysis, previousAnalysis),
+    [analysis, previousAnalysis],
   );
 
   const normalizations = useMemo(
@@ -134,11 +158,13 @@ export function LowOccupancyPage() {
   }
 
   function viewZero(group: OccupancyExportGroup) {
+    // "Ver alertas" filtra por NIVEL `sin-ocupacion` (las unidades sin
+    // proveedores conservan ese nivel aunque pertenezcan a Ratio 3).
     setFilters({
       ...EMPTY_FILTERS,
       normalization: group.normalization,
       resolution: group.resolution,
-      ratio: '0',
+      level: 'sin-ocupacion',
     });
   }
 
@@ -178,7 +204,8 @@ export function LowOccupancyPage() {
         </label>
         <span className="text-muted" style={{ alignSelf: 'center' }}>
           Análisis vigente para <strong>{analysisDate}</strong>. Solo cuentan
-          los proveedores vigentes en esa fecha.
+          los proveedores vigentes en esa fecha. Cada tarjeta se compara con el
+          día calendario anterior para señalar si el resultado cambió.
         </span>
       </div>
 
@@ -194,8 +221,10 @@ export function LowOccupancyPage() {
           <OccupancyExportGroups
             groups={analysis.groups}
             canExport={canExport}
+            comparison={comparison}
             onDownload={downloadRatio}
             onViewZero={viewZero}
+            onViewChanges={setChangeDetail}
           />
 
           <h2 className="occ-section-title">Unidades evaluadas</h2>
@@ -218,6 +247,15 @@ export function LowOccupancyPage() {
 
       {detail && (
         <OccupancyDetail unit={detail} onClose={() => setDetail(null)} />
+      )}
+
+      {changeDetail && (
+        <OccupancyChangeDetail
+          comparison={changeDetail}
+          selectedDate={analysisDate}
+          previousDate={previousDate}
+          onClose={() => setChangeDetail(null)}
+        />
       )}
     </>
   );

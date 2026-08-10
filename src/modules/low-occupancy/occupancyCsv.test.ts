@@ -179,7 +179,7 @@ describe('CSV Ratio 1 / Ratio 3', () => {
     expect(r1.fileName).toContain('GENERADO_2026-08-06');
   });
 
-  it('no genera archivo vacío (devuelve null si no hay filas)', () => {
+  it('un ratio sin filas no genera archivo; las unidades sin proveedores se exportan en Ratio 3', () => {
     const screens = [
       screen(
         'a',
@@ -187,17 +187,20 @@ describe('CSV Ratio 1 / Ratio 3', () => {
         'LED',
       ),
     ];
-    // Sin proveedores: 0 filas en ambos ratios.
+    // Sin proveedores: la unidad pertenece a Ratio 3 (se exporta) y Ratio 1
+    // queda vacío.
     const res = analyzeLowOccupancy({
       campaigns: [],
       screens,
       analysisDate: DATE,
     });
     const group = res.groups[0]!;
+    // Ratio 1 vacío → no se descarga.
     expect(hasRatioRows(group, 1)).toBe(false);
-    expect(hasRatioRows(group, 3)).toBe(false);
     expect(buildRatioCsv(group, 1, DATES)).toBeNull();
-    expect(buildRatioCsv(group, 3, DATES)).toBeNull();
+    // Ratio 3 exporta la fila de la pantalla sin proveedores.
+    expect(hasRatioRows(group, 3)).toBe(true);
+    expect(buildRatioCsv(group, 3, DATES)).not.toBeNull();
   });
 
   it('deduplica filas idénticas', () => {

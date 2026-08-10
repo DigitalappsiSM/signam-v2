@@ -251,16 +251,18 @@ describe('LowOccupancyPage — exportaciones', () => {
     }
   });
 
-  it('deshabilita la descarga cuando no hay filas', async () => {
+  it('Ratio 1 sin filas se deshabilita; Ratio 3 exporta las unidades sin proveedores', async () => {
     renderPage();
     await screen.findByText(/APARADOR · R2/);
     const card = groupCard(/APARADOR · R2/);
+    // Sin unidades de 1–2 proveedores → Ratio 1 deshabilitado.
     expect(
       within(card).getByRole('button', { name: /Sin pantallas para Ratio 1/i }),
     ).toBeDisabled();
+    // La tienda 4 no tiene proveedores → pertenece a Ratio 3 y se exporta.
     expect(
-      within(card).getByRole('button', { name: /Sin pantallas para Ratio 3/i }),
-    ).toBeDisabled();
+      within(card).getByRole('button', { name: /Descargar CSV/i }),
+    ).toBeEnabled();
   });
 
   it('respeta el permiso de exportación (viewer no ve botones de descarga)', async () => {
@@ -278,6 +280,66 @@ describe('LowOccupancyPage — exportaciones', () => {
     expect(
       screen.queryByRole('button', { name: /Descargar CSV/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('LowOccupancyPage — comparación con el día anterior', () => {
+  function groupCard(title: RegExp) {
+    return screen.getByText(title).closest('article')!;
+  }
+
+  it('muestra la fecha comparada (día anterior) en dd/mm/aaaa', async () => {
+    renderPage('2026-08-20');
+    await screen.findByText(/LED · R/);
+    // El día calendario anterior a 2026-08-20 es 2026-08-19.
+    expect(
+      (await screen.findAllByText(/vs 19\/08\/2026/)).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('sin cambios entre días idénticos no ofrece "Ver cambios del día"', async () => {
+    renderPage('2026-08-20');
+    await screen.findByText(/LED · R/);
+    expect(
+      screen.queryByRole('button', { name: /Ver cambios del día/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('detecta un cambio de vigencia y abre el detalle de centros', async () => {
+    // Camp1 solo vigente desde 2026-08-15: el día anterior la tienda queda sin
+    // proveedores, así que el resultado cambia.
+    vi.mocked(listScreens).mockResolvedValue([
+      screenOf(
+        't1',
+        {
+          'Numero de Tienda': '1',
+          RESOLUCION: 'R',
+          ARTICULOS: 'A',
+          CENTROS: 'C1',
+          'Nombre de tienda': 'Tienda Uno',
+        },
+        'LED',
+      ),
+    ]);
+    vi.mocked(listCampaigns).mockResolvedValue([
+      { ...campaignOf('Camp1', 'LED', '1'), fechaInicio: '2026-08-15' },
+    ]);
+
+    renderPage('2026-08-15');
+    await screen.findByText(/LED · R/);
+    const card = groupCard(/LED · R/);
+    await userEvent.click(
+      within(card).getByRole('button', { name: /Ver cambios del día/i }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    // Encabezado con ambas fechas civiles.
+    expect(
+      within(dialog).getByText(/15\/08\/2026 comparado con/),
+    ).toHaveTextContent('14/08/2026');
+    // La tienda 1 entró en Ratio 1 y salió de Ratio 3 / Sin proveedores.
+    expect(within(dialog).getAllByText(/Tienda 1/).length).toBeGreaterThan(0);
+    // Ratio 1: la tienda entró hoy.
+    expect(within(dialog).getByText(/Entraron \(1\)/)).toBeInTheDocument();
   });
 });
 

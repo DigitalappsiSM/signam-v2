@@ -12,9 +12,17 @@ import type { ConsolidationIssue } from '@/modules/consolidation/consolidate';
 
 /** Nivel de ocupación comercial de una unidad. */
 export type OccupancyLevel =
-  'sin-ocupacion' | 'baja-critica' | 'baja-preventiva' | 'normal';
+  | 'sin-ocupacion'
+  | 'baja-critica'
+  | 'baja-preventiva'
+  | 'normal';
 
-/** Ratio recomendado. `null` cuando no hay ocupación comercial (0 proveedores). */
+/**
+ * Ratio recomendado. En el análisis vigente cada unidad recibe siempre `1` o
+ * `3`: las unidades con 0 proveedores pertenecen a **Ratio 3** (se exportan en
+ * el CSV Ratio 3) aunque conserven el nivel "Sin ocupación comercial". `null` se
+ * mantiene en el tipo por compatibilidad con la etiqueta "Excluido de CSV".
+ */
 export type RecommendedRatio = 1 | 3 | null;
 
 /**
@@ -72,7 +80,10 @@ export interface OccupancyExportGroup {
   ratio1Units: OccupancyUnit[];
   /** Unidades con 3 o más proveedores (Ratio 3). */
   ratio3Units: OccupancyUnit[];
-  /** Unidades sin ocupación comercial (0 proveedores): alerta, fuera de ambos CSV. */
+  /**
+   * Unidades sin ocupación comercial (0 proveedores): alerta visible y
+   * subconjunto de Ratio 3 (sus filas se exportan dentro de `ratio3Rows`).
+   */
   zeroUnits: OccupancyUnit[];
   /** Filas del CSV Ratio 1 (deduplicadas). */
   ratio1Rows: AdmiraCsvRow[];

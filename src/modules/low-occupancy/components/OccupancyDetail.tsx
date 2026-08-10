@@ -44,7 +44,9 @@ export function OccupancyDetail({
           <div className="import__note">
             {LEVEL_LABELS['sin-ocupacion']}: no hay contenidos de proveedor
             vigentes para la fecha analizada. Esta unidad se muestra como alerta
-            y queda <strong>fuera de ambos CSV</strong> (Ratio 1 y Ratio 3).
+            y, aun así, <strong>se exporta dentro del CSV Ratio 3</strong>{' '}
+            (subconjunto de Ratio 3) para que Admira coloque ahí los
+            institucionales de relleno.
           </div>
         ) : (
           <table className="catalog__table" style={{ marginTop: '0.5rem' }}>
