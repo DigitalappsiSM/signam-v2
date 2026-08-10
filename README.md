@@ -75,6 +75,53 @@ esa campaña— un archivo `.pptx` para preparar las evidencias fotográficas:
 La generación es **100% en el navegador** (import dinámico de `pptxgenjs`, en su
 propio chunk); **aún no** se persiste en Firebase ni en Storage.
 
+## Exportación del desglose Excel de campañas
+
+Desde **Campañas** se puede exportar el **desglose** (una hoja de cálculo `.xlsx`)
+del cruce campaña ↔ catálogo, de dos formas:
+
+- **Individual**: en el menú de descargas de cada fila, la opción
+  **“Descargar desglose Excel”** exporta la **instancia exacta** de esa campaña
+  (`StoredCampaign`), sin mezclar campañas o _flights_ homónimos.
+- **Masiva**: junto a los filtros, el botón **“Exportar todas (N)”** (o
+  **“Exportar filtradas (N)”** cuando hay filtros activos) exporta exactamente el
+  conjunto **visible** en la tabla — respeta la **búsqueda por nombre** y el
+  **periodo `Desde`/`Hasta`** (intersección inclusiva de vigencias). Se
+  deshabilita mientras genera, con periodo inválido o sin resultados.
+
+El libro tiene hasta tres hojas:
+
+- **`Desglose`**: una fila por **combinación única** de identidad de campaña +
+  número Ekon + configuración de pantalla. Columnas, en orden: _Número de campaña
+  en Ekon, Nombre de campaña, Fecha de inicio, Fecha de fin, Número de tienda,
+  Nombre de tienda, Soporte Liverpool, Tipo de pantalla, Modelo, Circuito,
+  Resolución, Formato, Nombre en plataforma_. **No** se cuentan pantallas: si
+  varias pantallas físicas comparten esos campos, colapsan en **una sola fila**;
+  un cambio de tienda, soporte, tipo, modelo, circuito, resolución, formato o
+  nombre en plataforma produce **otra fila**. El número Ekon se repite en cada
+  fila; si la campaña no lo tiene, la celda queda **vacía** (no se inventa cero).
+- **`Incidencias`** (solo si las hay): cruces fallidos y soportes/pantallas
+  excluidos (InStore Media / ISM), con Ekon, campaña, fechas, soporte, tienda,
+  código y mensaje.
+- **`Resumen`** (opcional): una fila por campaña con el número de
+  **configuraciones únicas** y **tiendas distintas** (sin contar pantallas).
+
+El cruce reutiliza `buildScreenIndex` / `matchCampaignScreens` de la consolidación
+(pantallas activas, cruce por `Numero de Tienda` + `calendarSupport`, excepción de
+Guadalajara y exclusión de InStore Media / ISM), construyendo el índice **una sola
+vez** por reporte. El formato incluye encabezados en negritas, **fila superior
+congelada**, **autofiltro**, anchos legibles, ajuste de texto, fechas visibles en
+`dd/mm/aaaa` (sin desfases de zona horaria), número de tienda como **texto** y
+Ekon como número o celda vacía. No se exportan IDs, `active`, versiones, autores
+ni marcas de tiempo SIGNAM.
+
+La lógica vive en `src/modules/exports/campaignReport.ts` (modelo puro: cruce,
+deduplicación, incidencias y orden) y `campaignExcelExport.ts` (serialización con
+`exceljs` por **import dinámico**, `Blob` y nombres de archivo). Nombres:
+`<EKON>_<Campaña>_<inicio>_<fin>_Desglose.xlsx` (o `Sin Ekon_…` sin Ekon) para el
+individual y `Campañas_<desde>_a_<hasta>.xlsx` (con variantes según los límites)
+para el masivo, siempre sanitizados.
+
 > Esta es la primera entrega: establece **arquitectura, modelos, seguridad y
 > pruebas**. La lógica de negocio (parser de Excel, motor de consolidación,
 > generación completa de CSV) se implementa en iteraciones posteriores. Los
