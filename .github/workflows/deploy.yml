@@ -1,7 +1,14 @@
 name: Deploy a Firebase Hosting
 
-# Publica la app en Firebase Hosting (proyecto signam-v2-prod), despliega las
-# Cloud Functions y las reglas e índices de Firestore.
+# Publica la app en Firebase Hosting (proyecto signam-v2-prod) y despliega las
+# reglas e índices de Firestore.
+#
+# NOTA: el despliegue de Cloud Functions está temporalmente DESACTIVADO porque
+# requiere el plan Blaze (de pago) y el proyecto está en el plan gratuito
+# (Spark). Como Firebase aborta todo el deploy si falla un target, incluir
+# `functions` bloqueaba también Hosting y las reglas. Cuando se active Blaze,
+# volver a añadir `functions` al `--only` de abajo para desplegar las funciones
+# de administración de usuarios (functions/src/users).
 #
 # Se ejecuta en cada push a `main` y también manualmente (workflow_dispatch).
 #
@@ -48,15 +55,14 @@ jobs:
           VITE_FIREBASE_APP_ID: '1:1015989960129:web:1e65613fa5725a3ffd8340'
           VITE_USE_FIREBASE_EMULATORS: 'false'
 
-      # Despliega Hosting, Cloud Functions y las reglas/índices de Firestore.
-      # El predeploy de `firebase.json` recompila las funciones con las
-      # dependencias instaladas en el paso anterior. Requiere que la cuenta de
-      # servicio tenga permiso para verificar/usar las APIs (rol "Editor" o
-      # "Service Usage Consumer") y desplegar funciones; ver docs/SETUP.md.
-      - name: Deploy (Hosting + Functions + reglas e índices de Firestore)
+      # Despliega Hosting y las reglas/índices de Firestore. Functions queda
+      # excluido a propósito (ver NOTA de la cabecera: pendiente de plan Blaze).
+      # Requiere que la cuenta de servicio tenga permiso para verificar/usar las
+      # APIs (rol "Editor" o "Service Usage Consumer"); ver docs/SETUP.md.
+      - name: Deploy (Hosting + reglas e índices de Firestore)
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only hosting,functions,firestore:rules,firestore:indexes
+          args: deploy --only hosting,firestore:rules,firestore:indexes
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: signam-v2-prod
