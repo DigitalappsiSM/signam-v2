@@ -271,8 +271,20 @@
 
 .occ-owner-tag--instore-media {
   color: var(--color-primary-dark);
-  border-color: rgba(236, 15, 140, 0.3);
+  border-color: var(--accent-200);
   background: var(--accent-050);
+}
+
+/* Icono de las tarjetas de acceso a módulos (rejilla "Módulos"). */
+.dash-module__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--color-primary);
+  background: var(--accent-100);
 }
 
 /* --- Matriz tienda × soporte --- */

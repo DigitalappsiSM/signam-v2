@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { signInWithEmail, authErrorMessage } from '@/services/auth';
+import { BrandLogo } from '@/components/BrandLogo';
 import './LoginPage.css';
 
 /**
@@ -31,9 +32,20 @@ export function LoginPage() {
 
   return (
     <div className="login">
+      <div className="login__panel" aria-hidden="true">
+        <div className="login__panel-brand">
+          <BrandLogo variant="white" height={40} />
+          <span className="login__panel-product">SIGNAM V2</span>
+        </div>
+        <p className="login__panel-tagline">
+          Plataforma de gestión de señalización digital en punto de venta.
+        </p>
+      </div>
+
       <form className="login__card" onSubmit={handleSubmit} noValidate>
         <div className="login__brand">
-          SIGNAM <strong>V2</strong>
+          <BrandLogo variant="brand" height={34} />
+          <span className="login__brand-product">SIGNAM V2</span>
         </div>
         <h1 className="login__title">Iniciar sesión</h1>
         <p className="login__subtitle">
