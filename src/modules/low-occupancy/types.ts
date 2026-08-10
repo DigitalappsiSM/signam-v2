@@ -12,10 +12,7 @@ import type { ConsolidationIssue } from '@/modules/consolidation/consolidate';
 
 /** Nivel de ocupación comercial de una unidad. */
 export type OccupancyLevel =
-  | 'sin-ocupacion'
-  | 'baja-critica'
-  | 'baja-preventiva'
-  | 'normal';
+  'sin-ocupacion' | 'baja-critica' | 'baja-preventiva' | 'normal';
 
 /**
  * Ratio recomendado. En el análisis vigente cada unidad recibe siempre `1` o
