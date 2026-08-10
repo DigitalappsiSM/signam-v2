@@ -265,7 +265,7 @@ describe('LowOccupancyPage — exportaciones', () => {
     ).toBeEnabled();
   });
 
-  it('respeta el permiso de exportación (viewer no ve botones de descarga)', async () => {
+  it('permite descargar los CSV a cualquier usuario (viewer incluido)', async () => {
     authState.user = {
       uid: 'v1',
       email: 'viewer@signam.mx',
@@ -274,12 +274,14 @@ describe('LowOccupancyPage — exportaciones', () => {
     };
     renderPage();
     await screen.findByText(/LED · R/);
+    // Info 100% operativa: el viewer también ve los botones de descarga y no
+    // aparece el mensaje de permiso restringido.
     expect(
-      screen.getAllByText(/Sin permiso de exportación/i).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole('button', { name: /Descargar CSV/i }),
+      screen.queryByText(/Sin permiso de exportación/i),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: /Descargar CSV/i }).length,
+    ).toBeGreaterThan(0);
   });
 });
 

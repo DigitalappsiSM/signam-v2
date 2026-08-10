@@ -21,6 +21,14 @@ describe('permisos por rol', () => {
     expect(can('viewer', 'calendar.import')).toBe(false);
   });
 
+  it('los CSV de ocupación (operativos) los puede exportar cualquier rol', () => {
+    expect(can('viewer', 'export.occupancyCsv')).toBe(true);
+    expect(can('operator', 'export.occupancyCsv')).toBe(true);
+    expect(can('admin', 'export.occupancyCsv')).toBe(true);
+    // Pero el export general (catálogo/campañas) sigue restringido al viewer.
+    expect(can('viewer', 'export.csv')).toBe(false);
+  });
+
   it('seguimiento operativo: admin/operator escriben, viewer solo lee', () => {
     expect(can('admin', 'tracking.write')).toBe(true);
     expect(can('operator', 'tracking.write')).toBe(true);

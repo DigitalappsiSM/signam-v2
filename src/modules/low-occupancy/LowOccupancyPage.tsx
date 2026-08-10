@@ -53,7 +53,9 @@ function isIsoDate(value: string): boolean {
  */
 export function LowOccupancyPage() {
   const { user } = useAuth();
-  const canExport = user ? can(user.role, 'export.csv') : false;
+  // Info 100% operativa: cualquier usuario autenticado puede descargar estos
+  // CSV (ver `export.occupancyCsv` en la matriz de permisos).
+  const canExport = user ? can(user.role, 'export.occupancyCsv') : false;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDate = useMemo(() => {

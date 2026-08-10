@@ -11,10 +11,16 @@ export type Permission =
   | 'catalog.deactivate'
   | 'calendar.import'
   | 'export.csv'
+  | 'export.occupancyCsv'
   | 'tracking.read'
   | 'tracking.write'
   | 'users.manage';
 
+// `export.occupancyCsv` lo tienen TODOS los roles a propósito: los CSV de las
+// alertas de baja ocupación son 100% operativos (se generan en el navegador a
+// partir de datos que cualquier usuario autenticado ya puede leer) y no
+// contienen información que deba resguardarse. Es distinto de `export.csv`, que
+// cubre las exportaciones de catálogo/campañas y sí queda restringido.
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     'catalog.read',
@@ -22,6 +28,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.deactivate',
     'calendar.import',
     'export.csv',
+    'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
     'users.manage',
@@ -30,10 +37,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.read',
     'calendar.import',
     'export.csv',
+    'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
   ],
-  viewer: ['catalog.read', 'tracking.read'],
+  viewer: ['catalog.read', 'export.occupancyCsv', 'tracking.read'],
 };
 
 /** Indica si un rol tiene un permiso dado. */
