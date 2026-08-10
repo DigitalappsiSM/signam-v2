@@ -33,6 +33,7 @@ import {
 } from '@/modules/campaigns/dateFilter';
 import { type WitnessStatus } from './operationalStatus';
 import { STATUS_META } from './statusMeta';
+import { Icon } from '@/components/Icon';
 import {
   buildTrackingRows,
   effectiveChecks,
@@ -648,7 +649,7 @@ export function OperationalTrackingPage() {
                         <span
                           className={`ot-badge ${STATUS_META[r.overall].cls}`}
                         >
-                          {STATUS_META[r.overall].icon}{' '}
+                          <Icon name={STATUS_META[r.overall].icon} size={14} />
                           {STATUS_META[r.overall].label}
                         </span>
                       </td>

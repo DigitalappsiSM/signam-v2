@@ -63,7 +63,7 @@
   border-left-color: var(--color-success);
 }
 .occ-summary__card--warn {
-  border-left-color: var(--color-magenta);
+  border-left-color: var(--color-warning);
 }
 .occ-summary__card--total {
   border-left-color: var(--color-accent);

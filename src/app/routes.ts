@@ -1,11 +1,12 @@
 import type { Permission } from './permissions';
+import type { IconName } from '@/components/Icon';
 
 /** Definición central de rutas y navegación de SIGNAM V2. */
 export interface RouteMeta {
   path: string;
   label: string;
-  /** Emoji usado como icono ligero en la navegación. */
-  icon: string;
+  /** Nombre del icono SVG (ver `components/Icon`) usado en la navegación. */
+  icon: IconName;
   description: string;
   /** Grupo de la barra lateral (secciones tipo panel analítico). */
   group: NavGroup;
@@ -30,14 +31,14 @@ export const NAV_ROUTES: RouteMeta[] = [
   {
     path: '/',
     label: 'Panel',
-    icon: '🏠',
+    icon: 'dashboard',
     description: 'Resumen del estado de SIGNAM V2.',
     group: 'Operación',
   },
   {
     path: '/seguimiento',
     label: 'Seguimiento operativo',
-    icon: '✅',
+    icon: 'activity',
     description:
       'Estados, testigos, fechas límite y alertas operativas por campaña.',
     group: 'Operación',
@@ -45,7 +46,7 @@ export const NAV_ROUTES: RouteMeta[] = [
   {
     path: '/alertas-ocupacion',
     label: 'Alertas de baja ocupación',
-    icon: '📉',
+    icon: 'bell',
     description:
       'Detecta pantallas con baja variedad y genera CSV para Ratio 1 y Ratio 3.',
     group: 'Operación',
@@ -53,21 +54,21 @@ export const NAV_ROUTES: RouteMeta[] = [
   {
     path: '/importar',
     label: 'Importar Calendario',
-    icon: '📥',
+    icon: 'calendar',
     description: 'Importa y valida el Calendario de Campañas de Liverpool.',
     group: 'Datos',
   },
   {
     path: '/catalogo',
     label: 'Catálogo Admira',
-    icon: '🗂️',
+    icon: 'monitor',
     description: 'Administra las pantallas del catálogo Admira CSM.',
     group: 'Datos',
   },
   {
     path: '/campanas',
     label: 'Campañas',
-    icon: '📣',
+    icon: 'megaphone',
     description:
       'Campañas guardadas, detalle, CSV de Admira y reporte de errores.',
     group: 'Campañas',
@@ -75,7 +76,7 @@ export const NAV_ROUTES: RouteMeta[] = [
   {
     path: '/usuarios',
     label: 'Usuarios y permisos',
-    icon: '👥',
+    icon: 'users',
     description:
       'Administra los usuarios y su rol (admin, operador, consulta).',
     group: 'Administración',
@@ -84,7 +85,7 @@ export const NAV_ROUTES: RouteMeta[] = [
   {
     path: '/historial',
     label: 'Historial',
-    icon: '🕑',
+    icon: 'shield',
     description: 'Auditoría de cambios, importaciones y exportaciones.',
     group: 'Administración',
   },

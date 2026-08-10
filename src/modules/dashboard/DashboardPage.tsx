@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
+import { Icon } from '@/components/Icon';
 import { NAV_ROUTES } from '@/app/routes';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
@@ -595,8 +596,8 @@ export function DashboardPage() {
             className="card"
             style={{ color: 'inherit', display: 'block' }}
           >
-            <div style={{ fontSize: '1.6rem' }} aria-hidden="true">
-              {route.icon}
+            <div className="dash-module__icon" aria-hidden="true">
+              <Icon name={route.icon} size={22} />
             </div>
             <h3 style={{ fontSize: '1.05rem', marginTop: '0.5rem' }}>
               {route.label}
