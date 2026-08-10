@@ -96,6 +96,11 @@ export interface SetUserRoleData {
  * refleja el rol en `users/{uid}`, registra la acción en auditoría y revoca los
  * tokens de refresco para que el nuevo rol aplique cuanto antes.
  *
+ * Es idempotente y reconcilia efectos parciales: si una operación previa fijó
+ * el claim pero falló antes de escribir el espejo/auditoría o revocar, un
+ * reintento completa esos pasos. Solo se considera "sin cambios" cuando el
+ * claim y el espejo ya coinciden con el rol solicitado.
+ *
  * Un administrador NO puede cambiar su propio rol: evita el auto-bloqueo (que
  * el único admin se degrade y nadie pueda volver a asignar roles).
  */
@@ -128,34 +133,48 @@ export const setUserRole = onCall(async (request): Promise<{ ok: true; role: Rol
       throw new HttpsError('not-found', 'El usuario no existe.');
     });
 
-  const previousRole = roleFromClaims(target.customClaims);
-  if (previousRole === role) {
+  const claimRole = roleFromClaims(target.customClaims);
+  const userDoc = getFirestore().collection('users').doc(uid);
+  const mirrorSnap = await userDoc.get();
+  const mirrorRole = mirrorSnap.exists
+    ? (mirrorSnap.data()?.role as Role | undefined) ?? null
+    : null;
+
+  // Nada que hacer solo si TODO ya está consistente (claim y espejo). Comparar
+  // únicamente el claim dejaría huérfanos el espejo, la auditoría o la
+  // revocación si una operación previa falló a mitad de camino tras fijar el
+  // claim; ese reintento debe reconciliar esos efectos, no saltárselos.
+  if (claimRole === role && mirrorRole === role) {
     return { ok: true, role };
   }
 
-  // Fuente de verdad: custom claim. Se conservan otros claims existentes.
-  await getAuth().setCustomUserClaims(uid, {
-    ...(target.customClaims ?? {}),
-    role,
-  });
+  // Rol previo "real" a efectos de auditoría: el último reflejado en el espejo
+  // (la última fuente auditada). Si el claim ya cambió pero el espejo quedó
+  // atrás, esto registra el cambio que la operación fallida no llegó a auditar.
+  const previousRole = mirrorRole ?? claimRole;
+
+  // Fuente de verdad: custom claim. Idempotente; se conservan otros claims.
+  if (claimRole !== role) {
+    await getAuth().setCustomUserClaims(uid, {
+      ...(target.customClaims ?? {}),
+      role,
+    });
+  }
 
   // Espejo legible del rol para historial y reglas que lo consultan.
   const now = Date.now();
-  await getFirestore()
-    .collection('users')
-    .doc(uid)
-    .set(
-      {
-        uid,
-        email: target.email ?? '',
-        displayName: target.displayName ?? '',
-        role,
-        updatedAt: now,
-        updatedByUid: actor.uid,
-        updatedByEmail: actor.email,
-      },
-      { merge: true },
-    );
+  await userDoc.set(
+    {
+      uid,
+      email: target.email ?? '',
+      displayName: target.displayName ?? '',
+      role,
+      updatedAt: now,
+      updatedByUid: actor.uid,
+      updatedByEmail: actor.email,
+    },
+    { merge: true },
+  );
 
   await recordAuditEvent({
     action: 'user.role.update',
