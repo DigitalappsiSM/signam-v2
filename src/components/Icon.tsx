@@ -24,7 +24,15 @@ export type IconName =
   | 'power'
   | 'menu'
   | 'close'
-  | 'chevron-down';
+  | 'chevron-down'
+  | 'alert-triangle'
+  | 'clock'
+  | 'help'
+  | 'check'
+  | 'check-circle'
+  | 'circle-dot'
+  | 'minus'
+  | 'ban';
 
 /** Contenido (`<path>`, etc.) de cada icono en un viewBox 0 0 24 24. */
 const PATHS: Record<IconName, JSX.Element> = {
@@ -90,6 +98,46 @@ const PATHS: Record<IconName, JSX.Element> = {
   menu: <path d="M3 6h18M3 12h18M3 18h18" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   'chevron-down': <path d="m5 9 7 7 7-7" />,
+  'alert-triangle': (
+    <>
+      <path d="M12 3.5 2.5 20h19L12 3.5Z" />
+      <path d="M12 10v4" />
+      <path d="M12 17.5h.01" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2 2-2 3" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  check: <path d="m4 12 5 5L20 6" />,
+  'check-circle': (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </>
+  ),
+  'circle-dot': (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+    </>
+  ),
+  minus: <path d="M5 12h14" />,
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m6 6 12 12" />
+    </>
+  ),
 };
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
