@@ -200,6 +200,145 @@
   white-space: nowrap;
 }
 
+/* Encabezado de la tarjeta con el estado de comparación. */
+.occ-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.occ-group__diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.occ-group__vs {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.occ-group__changes {
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+/* Distintivo del estado de comparación (nunca solo color: símbolo + texto). */
+.occ-diff {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.occ-diff--sm {
+  font-size: 0.66rem;
+  padding: 0.05rem 0.4rem;
+}
+
+.occ-diff::before {
+  margin-right: 0.25rem;
+  font-weight: 900;
+}
+
+.occ-diff--sin-cambios {
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  color: var(--color-text-muted);
+  border-color: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
+}
+.occ-diff--sin-cambios::before {
+  content: '=';
+}
+
+.occ-diff--cambio {
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-warning-fg);
+  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
+}
+.occ-diff--cambio::before {
+  content: '≠';
+}
+
+.occ-diff--nuevo {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success-fg);
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+.occ-diff--nuevo::before {
+  content: '+';
+}
+
+.occ-diff--vacio {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-fg);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+}
+.occ-diff--vacio::before {
+  content: '−';
+}
+
+/* Detalle de cambios (entradas/salidas de centros). */
+.occ-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.occ-changes__section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+}
+
+.occ-changes__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.occ-changes__counts {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+.occ-changes__empty {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.occ-changes__list {
+  margin: 0.35rem 0 0;
+}
+
+.occ-changes__list-head {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.occ-changes__list ul {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
+.occ-changes__list--in .occ-changes__list-head {
+  color: var(--color-success-fg);
+}
+.occ-changes__list--out .occ-changes__list-head {
+  color: var(--color-danger-fg);
+}
+
 /* Advertencia no bloqueante (usada también en Campañas). */
 .occ-warning {
   display: flex;

@@ -47,15 +47,19 @@ Una campaña está vigente cuando `fechaInicio <= fechaAnalizada <= fechaFin`
 
 ## Clasificación 0 / 1 / 2 / 3+
 
-| Proveedores | Nivel                     | Ratio     | CSV                |
-| ----------- | ------------------------- | --------- | ------------------ |
-| 0           | Sin ocupación comercial   | (ninguno) | **Fuera de ambos** |
-| 1           | Baja ocupación crítica    | Ratio 1   | CSV Ratio 1        |
-| 2           | Baja ocupación preventiva | Ratio 1   | CSV Ratio 1        |
-| 3 o más     | Ocupación normal          | Ratio 3   | CSV Ratio 3        |
+| Proveedores | Nivel                     | Ratio   | CSV                        |
+| ----------- | ------------------------- | ------- | -------------------------- |
+| 0           | Sin ocupación comercial   | Ratio 3 | **CSV Ratio 3 (subconj.)** |
+| 1           | Baja ocupación crítica    | Ratio 1 | CSV Ratio 1                |
+| 2           | Baja ocupación preventiva | Ratio 1 | CSV Ratio 1                |
+| 3 o más     | Ocupación normal          | Ratio 3 | CSV Ratio 3                |
 
-Las unidades con **cero proveedores** aparecen como **alerta** en la interfaz y
-quedan **fuera de ambos CSV**.
+Las unidades con **cero proveedores** conservan el nivel **Sin ocupación
+comercial** y aparecen como **alerta** en la interfaz, pero **pertenecen a Ratio
+3**: sus filas se exportan **dentro del CSV Ratio 3** (subconjunto de Ratio 3),
+para que Admira coloque ahí los institucionales de relleno. El filtro
+«Sin ocupación» y el botón **«Ver alertas»** siguen filtrando por el **nivel**
+`sin-ocupacion`.
 
 ## Agrupación de CSV
 
@@ -96,6 +100,44 @@ guiones bajos duplicados, conservando números y dimensiones).
 No se descargan CSV vacíos: si una combinación no tiene filas para un ratio, el
 botón se deshabilita y se muestra `Sin pantallas para Ratio 1/3`.
 
+## Comparación contra el día anterior
+
+Cada tarjeta `NORMALIZACION + RESOLUCION` indica si el resultado **cambió
+respecto al día calendario anterior**, para evitar cargar en Admira archivos
+idénticos día tras día.
+
+- **Reconstrucción sin persistencia.** «Ayer» se recalcula con las **campañas y
+  el maestro actuales** (no se guardan snapshots). El motor `analyzeLowOccupancy`
+  se ejecuta **dos veces con los mismos datos cargados**: para la fecha
+  seleccionada y para el día anterior.
+- **«Ayer» = día calendario anterior**, incluidos fines de semana
+  (`previousCivilDate` resta **un día civil** en UTC, sin desfase de zona horaria;
+  resuelve correctamente los cambios de mes y de año).
+- **Criterio de cambio (autoritativo):** se comparan las **filas finales
+  deduplicadas** de Admira por grupo y por ratio, **ignorando el orden**, el
+  encabezado, el BOM, el nombre del archivo y las fechas del nombre. «Sin
+  proveedores» se compara por **unidades** `tienda + normalización + resolución`.
+  El contador **ilustrativo de pantallas no determina el cambio**.
+- **Estados:** `Sin cambios`, `Cambió`, `Nuevo` y `Ya no tiene contenido`. Se
+  muestra un estado **general** por tarjeta y uno **individual** para Ratio 1,
+  Ratio 3 y Sin proveedores, junto con la **fecha comparada en `dd/mm/aaaa`**.
+- **Detalle:** resumen y lista de los **centros que entraron/salieron** por
+  sección (modal «Ver cambios del día»).
+- **Consulta histórica:** si se elige una fecha en el calendario, se compara
+  contra **su** día anterior.
+
+> ⚠️ **Limitación de la reconstrucción sin persistencia.** Como «ayer» se
+> reconstruye con los datos actuales, si el **maestro** o el **calendario**
+> cambiaron después, la comparación **no reproduce necesariamente el archivo
+> exacto** que se generó ayer. Señala si el resultado que Admira recibiría hoy
+> **para la fecha anterior** difiere del de la fecha seleccionada; **no** es un
+> historial auditable. Para reproducir el archivo exacto de un día habría que
+> persistir snapshots (opción no elegida en esta etapa).
+
+La comparación es **de solo lectura**: no altera columnas, encabezados,
+deduplicación, nombres ni contenido de los CSV, ni la advertencia general de
+Campañas.
+
 ## Arquitectura
 
 Separación estricta de responsabilidades:
@@ -104,9 +146,14 @@ Separación estricta de responsabilidades:
   `filterUnits`, helpers de fecha/clasificación). Sin React ni Firebase. Reutiliza
   `matchCampaignScreens` / `buildScreenIndex` del motor de consolidación para no
   mantener una segunda variante incompatible del cruce calendario↔catálogo.
+- **Comparación pura** — `occupancyComparison.ts` (`compareOccupancy`,
+  `previousCivilDate` y helpers de etiqueta/plural/fecha). Sin React ni Firebase;
+  reutiliza el resultado de `analyzeLowOccupancy` sin reimplementar consolidación
+  ni serialización.
 - **Generación CSV** — `occupancyCsv.ts` + `occupancyFileName.ts`.
 - **Presentación** — `LowOccupancyPage.tsx` y `components/` (resumen, filtros,
-  tabla, detalle, exportaciones).
+  tabla, detalle, exportaciones, distintivos de comparación y detalle de
+  cambios).
 - **Acceso a datos** — bajo demanda con `listCampaigns()` + `listScreens()`
   (`Promise.all`). Se recalcula al abrir la página, cambiar la fecha, pulsar
   **Recalcular** o volver tras una importación.

@@ -97,16 +97,21 @@ describe('analyzeLowOccupancy — niveles y ratios', () => {
     return analyzeLowOccupancy({ campaigns, screens, analysisDate: DATE });
   }
 
-  it('0 proveedores → Sin ocupación, sin ratio, fuera de ambos CSV', () => {
+  it('0 proveedores → Sin ocupación comercial, pero pertenece a Ratio 3 y se exporta ahí', () => {
     const res = analyzeWith([]);
     expect(res.units).toHaveLength(1);
     const u = res.units[0]!;
     expect(u.providerCount).toBe(0);
+    // Conserva el nivel "Sin ocupación comercial"…
     expect(u.level).toBe('sin-ocupacion');
-    expect(u.recommendedRatio).toBeNull();
+    // …pero pertenece a Ratio 3.
+    expect(u.recommendedRatio).toBe(3);
     const group = res.groups[0]!;
     expect(group.ratio1Rows).toHaveLength(0);
-    expect(group.ratio3Rows).toHaveLength(0);
+    // La fila de la pantalla sin proveedores se exporta en el CSV Ratio 3.
+    expect(group.ratio3Rows).toHaveLength(1);
+    expect(group.ratio3Units).toHaveLength(1);
+    // Sigue visible como alerta (subconjunto de Ratio 3).
     expect(group.zeroUnits).toHaveLength(1);
   });
 
