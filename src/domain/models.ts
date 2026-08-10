@@ -170,7 +170,8 @@ export type AuditAction =
   | 'master.import'
   | 'calendar.import'
   | 'consolidation.run'
-  | 'export.csv';
+  | 'export.csv'
+  | 'user.role.update';
 
 /** Evento de auditoría: quién, cuándo, qué, valores anteriores y nuevos. */
 export interface AuditEvent {

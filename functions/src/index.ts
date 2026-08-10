@@ -12,3 +12,4 @@ initializeApp();
 export * as imports from './imports';
 export * as consolidation from './consolidation';
 export * as exports from './exports';
+export * as users from './users';

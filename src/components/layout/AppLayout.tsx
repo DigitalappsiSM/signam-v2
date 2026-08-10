@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { groupedNavRoutes } from '@/app/routes';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { can } from '@/app/permissions';
 import { useTheme } from '@/app/theme';
 import { signOutCurrentUser } from '@/services/auth';
 import type { UserRole } from '@/domain';
@@ -34,7 +35,13 @@ function ThemeToggle() {
 export function AppLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
-  const groups = groupedNavRoutes();
+  // Oculta de la navegación las rutas restringidas cuyo permiso no tenga el rol
+  // actual (p. ej. "Usuarios y permisos" solo para admins). No es control de
+  // seguridad por sí solo: la página también verifica el permiso y el servidor
+  // valida cada operación.
+  const groups = groupedNavRoutes((route) =>
+    route.permission ? (user ? can(user.role, route.permission) : false) : true,
+  );
 
   return (
     <div className="layout">

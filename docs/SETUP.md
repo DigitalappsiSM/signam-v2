@@ -150,8 +150,22 @@ await getAuth().setCustomUserClaims(uid, { role });
 console.log(`Rol '${role}' asignado a ${uid}`);
 ```
 
-La asignación de roles desde la interfaz de administración forma parte de una
-iteración posterior.
+### Pantalla de administración de usuarios
+
+Una vez que exista **al menos un administrador** (bootstrap con el script de
+arriba), el resto de la gestión se hace desde la app: la sección **«Usuarios y
+permisos»** (visible solo para el rol `admin`) lista los usuarios y permite
+cambiar su rol. El cambio se aplica en el servidor mediante las Cloud Functions
+`users-listUsers` y `users-setUserRole`, que:
+
+- validan que quien invoca sea `admin`;
+- establecen el custom claim `role` (fuente de verdad) y revocan los tokens de
+  refresco para que el nuevo rol aplique cuanto antes;
+- reflejan el rol en `users/{uid}` y registran la acción en auditoría.
+
+El primer administrador **debe** crearse con el script (`setCustomUserClaims`),
+ya que la función exige un admin previo. Un administrador no puede cambiar su
+propio rol (evita el auto-bloqueo del único admin).
 
 ## Despliegue automático (GitHub Actions → Firebase Hosting)
 

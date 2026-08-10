@@ -10,6 +10,11 @@ import {
   connectStorageEmulator,
   type FirebaseStorage,
 } from 'firebase/storage';
+import {
+  getFunctions,
+  connectFunctionsEmulator,
+  type Functions,
+} from 'firebase/functions';
 import { appEnv } from './env';
 
 /**
@@ -27,6 +32,7 @@ export interface FirebaseServices {
   auth: Auth;
   db: Firestore;
   storage: FirebaseStorage;
+  functions: Functions;
 }
 
 let services: FirebaseServices | null = null;
@@ -45,6 +51,7 @@ function connectEmulators(s: FirebaseServices): void {
   });
   connectFirestoreEmulator(s.db, host, 8080);
   connectStorageEmulator(s.storage, host, 9199);
+  connectFunctionsEmulator(s.functions, host, 5001);
   emulatorsConnected = true;
 }
 
@@ -62,6 +69,7 @@ export function getFirebase(): FirebaseServices | null {
     auth: getAuth(app),
     db: getFirestore(app),
     storage: getStorage(app),
+    functions: getFunctions(app),
   };
 
   if (appEnv.useEmulators) {

@@ -12,7 +12,8 @@ export type AuditAction =
   | 'master.import'
   | 'calendar.import'
   | 'consolidation.run'
-  | 'export.csv';
+  | 'export.csv'
+  | 'user.role.update';
 
 export interface AuditEventInput {
   action: AuditAction;

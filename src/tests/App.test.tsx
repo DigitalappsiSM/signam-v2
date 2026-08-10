@@ -105,4 +105,27 @@ describe('App — con sesión activa', () => {
       screen.getByRole('heading', { name: /Página no encontrada/i }),
     ).toBeInTheDocument();
   });
+
+  it('muestra el enlace "Usuarios y permisos" a un administrador', () => {
+    signIn();
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
+    expect(
+      nav.getByRole('link', { name: /Usuarios y permisos/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('oculta "Usuarios y permisos" a roles sin permiso', () => {
+    signIn();
+    authState.user!.role = 'operator';
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
+    expect(
+      nav.queryByRole('link', { name: /Usuarios y permisos/i }),
+    ).not.toBeInTheDocument();
+  });
 });
