@@ -33,6 +33,12 @@ import {
   zipFileName,
 } from '@/modules/exports/csvExport';
 import { buildIssuesPdf, ISSUE_LABELS } from '@/modules/exports/pdfReport';
+import { buildCampaignReport } from '@/modules/exports/campaignReport';
+import {
+  buildCampaignReportBlob,
+  bulkReportFileName,
+  individualReportFileName,
+} from '@/modules/exports/campaignExcelExport';
 import {
   buildCampaignPptPlan,
   buildCampaignPpt,
@@ -133,6 +139,11 @@ export function CampaignsPage() {
   const [csvError, setCsvError] = useState<string | null>(null);
   const [pptBusyName, setPptBusyName] = useState<string | null>(null);
   const [pptError, setPptError] = useState<string | null>(null);
+  // Desglose Excel: por id de campaña (evita colisionar campañas homónimas).
+  const [excelBusyId, setExcelBusyId] = useState<string | null>(null);
+  const [excelError, setExcelError] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -347,6 +358,53 @@ export function CampaignsPage() {
     );
   }
 
+  // Desglose Excel de UNA campaña (la instancia exacta, sin mezclar homónimas).
+  async function downloadExcelFor(c: StoredCampaign) {
+    if (excelBusyId) return;
+    setExcelError(null);
+    setExcelBusyId(c.id);
+    try {
+      const report = buildCampaignReport([c], screens, ekonByKey);
+      const blob = await buildCampaignReportBlob(report);
+      download(
+        blob,
+        individualReportFileName({
+          campaignName: c.name,
+          ekonNumber: ekonByKey.get(c.nameKey) ?? null,
+          startDate: c.fechaInicio,
+          endDate: c.fechaFin,
+        }),
+      );
+      setOpenMenuId(null);
+    } catch {
+      setExcelError(
+        `No se pudo generar el desglose Excel de "${c.name}". Inténtalo de nuevo.`,
+      );
+      setOpenMenuId(null);
+    } finally {
+      setExcelBusyId(null);
+    }
+  }
+
+  // Desglose Excel masivo: exporta exactamente el arreglo `filtered` (respeta
+  // búsqueda y periodo Desde/Hasta, tal como los ve la tabla).
+  async function downloadBulkExcel() {
+    if (bulkBusy || perError !== null || filtered.length === 0) return;
+    setBulkError(null);
+    setBulkBusy(true);
+    try {
+      const report = buildCampaignReport(filtered, screens, ekonByKey);
+      const blob = await buildCampaignReportBlob(report);
+      download(blob, bulkReportFileName(desde, hasta));
+    } catch {
+      setBulkError(
+        'No se pudo generar el desglose Excel de las campañas. Inténtalo de nuevo.',
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -415,6 +473,19 @@ export function CampaignsPage() {
             Limpiar filtros
           </button>
         )}
+        <button
+          className="btn btn-primary"
+          onClick={() => void downloadBulkExcel()}
+          disabled={bulkBusy || perError !== null || filtered.length === 0}
+          aria-busy={bulkBusy}
+          title="Exportar el desglose Excel de las campañas visibles"
+        >
+          {bulkBusy
+            ? 'Generando Excel…'
+            : filtersActive
+              ? `Exportar filtradas (${filtered.length})`
+              : `Exportar todas (${filtered.length})`}
+        </button>
         <span className="text-muted" style={{ alignSelf: 'center' }}>
           {filtersActive
             ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
@@ -437,6 +508,18 @@ export function CampaignsPage() {
       {pptError && (
         <div className="catalog__error" role="alert">
           {pptError}
+        </div>
+      )}
+
+      {excelError && (
+        <div className="catalog__error" role="alert">
+          {excelError}
+        </div>
+      )}
+
+      {bulkError && (
+        <div className="catalog__error" role="alert">
+          {bulkError}
         </div>
       )}
 
@@ -567,12 +650,14 @@ export function CampaignsPage() {
                         >
                           👁️
                         </button>
-                        <CsvMenu
+                        <CampaignDownloadsMenu
                           campaign={c}
                           cons={cons}
                           open={openMenuId === c.id}
                           zipBusy={zipBusyName === c.name}
+                          excelBusy={excelBusyId === c.id}
                           onOpenChange={(o) => setOpenMenuId(o ? c.id : null)}
+                          onDownloadExcel={() => void downloadExcelFor(c)}
                           onDownloadCsv={(cn) => {
                             downloadCsvFor(cn);
                             setOpenMenuId(null);
@@ -896,18 +981,21 @@ function EkonEditor({
 }
 
 /**
- * Menú de descargas CSV de una campaña. Es un menú controlado por React que se
- * renderiza mediante `createPortal` hacia `document.body`, para no quedar
- * recortado por el overflow del contenedor desplazable de la tabla. Se coloca
- * junto al botón con `computeMenuPlacement` (abre hacia abajo o hacia arriba) y
- * se cierra al pulsar fuera, con Escape o al hacer scroll/resize.
+ * Menú de **descargas** de una campaña (desglose Excel, ZIP de CSV y CSV por
+ * resolución). Es un menú controlado por React que se renderiza mediante
+ * `createPortal` hacia `document.body`, para no quedar recortado por el overflow
+ * del contenedor desplazable de la tabla. Se coloca junto al botón con
+ * `computeMenuPlacement` (abre hacia abajo o hacia arriba) y se cierra al pulsar
+ * fuera, con Escape o al hacer scroll/resize.
  */
-function CsvMenu({
+function CampaignDownloadsMenu({
   campaign,
   cons,
   open,
   zipBusy,
+  excelBusy,
   onOpenChange,
+  onDownloadExcel,
   onDownloadCsv,
   onDownloadZip,
 }: {
@@ -915,7 +1003,9 @@ function CsvMenu({
   cons: Consolidation[];
   open: boolean;
   zipBusy: boolean;
+  excelBusy: boolean;
   onOpenChange: (open: boolean) => void;
+  onDownloadExcel: () => void;
   onDownloadCsv: (cn: Consolidation) => void;
   onDownloadZip: () => void;
 }) {
@@ -986,7 +1076,7 @@ function CsvMenu({
         ref={btnRef}
         type="button"
         className="icon-btn"
-        aria-label={`Descargar CSV de ${campaign.name}`}
+        aria-label={`Descargas de ${campaign.name}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
@@ -1004,6 +1094,17 @@ function CsvMenu({
             className="csv-menu__panel"
             style={style}
           >
+            <button
+              type="button"
+              role="menuitem"
+              className="csv-menu__item csv-menu__item--zip"
+              disabled={excelBusy}
+              aria-busy={excelBusy}
+              onClick={() => onDownloadExcel()}
+            >
+              {excelBusy ? 'Generando Excel…' : 'Descargar desglose Excel'}
+            </button>
+            <div className="csv-menu__sep" role="separator" />
             {cons.length === 0 ? (
               <span
                 className="csv-menu__empty text-muted"

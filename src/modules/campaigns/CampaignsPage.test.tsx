@@ -27,6 +27,8 @@ import {
   buildCampaignPptPlan,
   buildCampaignPpt,
 } from '@/modules/exports/pptExport';
+import { buildCampaignReport } from '@/modules/exports/campaignReport';
+import { buildCampaignReportBlob } from '@/modules/exports/campaignExcelExport';
 
 vi.mock('@/modules/exports/pptExport', async () => {
   const actual = await vi.importActual<
@@ -51,6 +53,20 @@ vi.mock('@/modules/exports/csvExport', async () => {
     typeof import('@/modules/exports/csvExport')
   >('@/modules/exports/csvExport');
   return { ...actual, buildZip: vi.fn() };
+});
+
+vi.mock('@/modules/exports/campaignReport', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/exports/campaignReport')
+  >('@/modules/exports/campaignReport');
+  return { ...actual, buildCampaignReport: vi.fn(actual.buildCampaignReport) };
+});
+
+vi.mock('@/modules/exports/campaignExcelExport', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/exports/campaignExcelExport')
+  >('@/modules/exports/campaignExcelExport');
+  return { ...actual, buildCampaignReportBlob: vi.fn() };
 });
 
 // Evita que jsdom falle al "descargar" (no implementa createObjectURL) y no
@@ -195,6 +211,10 @@ beforeEach(() => {
   vi.mocked(buildCampaignPpt)
     .mockReset()
     .mockResolvedValue(new Blob(['pptx']));
+  vi.mocked(buildCampaignReport).mockClear();
+  vi.mocked(buildCampaignReportBlob)
+    .mockReset()
+    .mockResolvedValue(new Blob(['xlsx']));
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
 });
@@ -326,11 +346,11 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 });
 
-describe('CampaignsPage — menú de descargas CSV', () => {
+describe('CampaignsPage — menú de descargas', () => {
   async function openMenu(name: string) {
     await userEvent.click(
       screen.getByRole('button', {
-        name: new RegExp(`Descargar CSV de ${name}`, 'i'),
+        name: new RegExp(`Descargas de ${name}`, 'i'),
       }),
     );
     return screen.getByRole('menu', {
@@ -338,15 +358,31 @@ describe('CampaignsPage — menú de descargas CSV', () => {
     });
   }
 
-  it('abre el menú con ZIP como primera opción y las resoluciones después', async () => {
+  it('ofrece el desglose Excel como primera opción, luego ZIP y resoluciones', async () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     const items = within(menu).getAllByRole('menuitem');
-    expect(items[0]).toHaveTextContent('Descargar todos en ZIP');
-    expect(items).toHaveLength(3); // ZIP + 2 resoluciones
+    expect(items[0]).toHaveTextContent('Descargar desglose Excel');
+    expect(items[1]).toHaveTextContent('Descargar todos en ZIP');
+    expect(items).toHaveLength(4); // Excel + ZIP + 2 resoluciones
     expect(within(menu).getByText('914 x 908 — 9 filas')).toBeInTheDocument();
     expect(within(menu).getByText('1920 x 1080 — 4 filas')).toBeInTheDocument();
+  });
+
+  it('descarga el desglose Excel de la instancia exacta de esa campaña', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    const menu = await openMenu('BUEN FIN');
+    await userEvent.click(within(menu).getByText('Descargar desglose Excel'));
+    await waitFor(() =>
+      expect(buildCampaignReportBlob).toHaveBeenCalledTimes(1),
+    );
+    // El modelo se construye con exactamente esa campaña (sin homónimas).
+    const campaignsArg = vi.mocked(buildCampaignReport).mock.calls[0]![0];
+    expect(campaignsArg).toHaveLength(1);
+    expect(campaignsArg[0]!.id).toBe('a');
+    expect(campaignsArg[0]!.name).toBe('BUEN FIN');
   });
 
   it('ofrece ZIP aunque la campaña tenga un único CSV', async () => {
@@ -362,7 +398,7 @@ describe('CampaignsPage — menú de descargas CSV', () => {
     expect(
       within(menu).getByText('Descargar todos en ZIP'),
     ).toBeInTheDocument();
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(2);
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(3); // Excel + ZIP + 1
   });
 
   it('solo permite un menú abierto a la vez', async () => {
@@ -371,7 +407,7 @@ describe('CampaignsPage — menú de descargas CSV', () => {
     await openMenu('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', {
-        name: /Descargar CSV de REGRESO A CLASES/i,
+        name: /Descargas de REGRESO A CLASES/i,
       }),
     );
     expect(screen.getAllByRole('menu')).toHaveLength(1);
@@ -438,6 +474,85 @@ describe('CampaignsPage — menú de descargas CSV', () => {
     const menu = await openMenu('BUEN FIN');
     expect(menu.closest('.diagnosis__table-wrap')).toBeNull();
     expect(document.body.contains(menu)).toBe(true);
+  });
+});
+
+describe('CampaignsPage — exportación masiva Excel', () => {
+  const bulkBtn = () =>
+    screen.getByRole('button', { name: /Exportar (todas|filtradas)/i });
+
+  it('sin filtros muestra "Exportar todas (N)" con el total visible', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    expect(
+      screen.getByRole('button', { name: 'Exportar todas (2)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('con búsqueda muestra "Exportar filtradas (N)" y exporta exactamente el filtrado', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.type(
+      screen.getByPlaceholderText('Buscar campaña…'),
+      'BUEN',
+    );
+    const btn = await screen.findByRole('button', {
+      name: 'Exportar filtradas (1)',
+    });
+    await userEvent.click(btn);
+    await waitFor(() =>
+      expect(buildCampaignReportBlob).toHaveBeenCalledTimes(1),
+    );
+    // Se exporta exactamente el arreglo `filtered` (respeta la búsqueda).
+    const calls = vi.mocked(buildCampaignReport).mock.calls;
+    const arg = calls[calls.length - 1]![0];
+    expect(arg).toHaveLength(1);
+    expect(arg[0]!.name).toBe('BUEN FIN');
+  });
+
+  it('el periodo Desde/Hasta afecta el conjunto exportado', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    // Solo agosto: excluye BUEN FIN (mayo), incluye REGRESO A CLASES.
+    await userEvent.type(screen.getByLabelText('Desde'), '2026-08-01');
+    const btn = await screen.findByRole('button', {
+      name: 'Exportar filtradas (1)',
+    });
+    await userEvent.click(btn);
+    await waitFor(() =>
+      expect(buildCampaignReportBlob).toHaveBeenCalledTimes(1),
+    );
+    const calls = vi.mocked(buildCampaignReport).mock.calls;
+    const arg = calls[calls.length - 1]![0];
+    expect(arg.map((c) => c.name)).toEqual(['REGRESO A CLASES']);
+  });
+
+  it('deshabilita el botón con periodo inválido', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.type(screen.getByLabelText('Desde'), '2026-09-01');
+    await userEvent.type(screen.getByLabelText('Hasta'), '2026-01-01');
+    expect(bulkBtn()).toBeDisabled();
+  });
+
+  it('deshabilita el botón cuando no hay resultados', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.type(
+      screen.getByPlaceholderText('Buscar campaña…'),
+      'NO EXISTE',
+    );
+    await waitFor(() => expect(bulkBtn()).toBeDisabled());
+  });
+
+  it('muestra un error comprensible si la generación masiva falla', async () => {
+    vi.mocked(buildCampaignReportBlob).mockRejectedValue(new Error('boom'));
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(bulkBtn());
+    expect(
+      await screen.findByText(/No se pudo generar el desglose Excel/i),
+    ).toBeInTheDocument();
   });
 });
 
@@ -571,9 +686,9 @@ describe('CampaignsPage — PPT de evidencias', () => {
     await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(buildZip).not.toHaveBeenCalled();
-    // El menú de CSV sigue funcionando.
+    // El menú de descargas sigue funcionando.
     await userEvent.click(
-      screen.getByRole('button', { name: /Descargar CSV de BUEN FIN/i }),
+      screen.getByRole('button', { name: /Descargas de BUEN FIN/i }),
     );
     expect(
       screen.getByRole('menu', { name: /Descargas de BUEN FIN/i }),
