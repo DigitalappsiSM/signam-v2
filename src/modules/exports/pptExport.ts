@@ -149,9 +149,108 @@ function guadalajaraCuadrada(index: ScreenIndex): AdmiraScreen[] {
   return store.filter((s) => norm(s.original.Modelo) === 'CUADRADA');
 }
 
+// --- Ordenamiento del plan (puro, estable) -----------------------------------
+
+/**
+ * Comparación de soportes tolerante a mayúsculas/minúsculas, espacios y acentos:
+ * reutiliza la clave normalizada (`normalizeSupport`) y ordena por punto de
+ * código. Es determinista e independiente del locale del sistema o navegador.
+ */
+function compareSupport(a: string, b: string): number {
+  const ka = norm(a);
+  const kb = norm(b);
+  return ka < kb ? -1 : ka > kb ? 1 : 0;
+}
+
+/** Interpreta una tienda como entero solo si su texto es puramente numérico. */
+function storeAsNumber(value: string): number | null {
+  const t = value.trim();
+  return /^\d+$/.test(t) ? Number(t) : null;
+}
+
+/** Comparación textual determinista (por punto de código), sin depender del locale. */
+function compareTextDeterministic(a: string, b: string): number {
+  const ta = a.trim();
+  const tb = b.trim();
+  return ta < tb ? -1 : ta > tb ? 1 : 0;
+}
+
+/**
+ * Orden total de tiendas: numérico ascendente cuando ambas son numéricas
+ * (`2, 9, 10, 78, 101`, nunca lexicográfico); si dos representaciones dan el
+ * mismo número se desempata por texto determinista. Los valores no numéricos o
+ * vacíos van después de los numéricos, con respaldo textual determinista.
+ */
+function compareStore(a: string, b: string): number {
+  const na = storeAsNumber(a);
+  const nb = storeAsNumber(b);
+  if (na !== null && nb !== null) {
+    return na !== nb ? na - nb : compareTextDeterministic(a, b);
+  }
+  if (na !== null) return -1;
+  if (nb !== null) return 1;
+  return compareTextDeterministic(a, b);
+}
+
+/**
+ * Orden estable por decoración: aplica `compare` y usa el índice original como
+ * último desempate, sin mutar el arreglo de entrada ni depender de que el motor
+ * implemente un `Array.prototype.sort` estable.
+ */
+function stableSort<T>(
+  items: readonly T[],
+  compare: (a: T, b: T) => number,
+): T[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => compare(a.item, b.item) || a.index - b.index)
+    .map((d) => d.item);
+}
+
+/** Orden de diapositivas: soporte solicitado (alfabético) y luego tienda (numérica). */
+function compareSlide(a: PptEvidenceSlide, b: PptEvidenceSlide): number {
+  return (
+    compareSupport(a.requestedSupport, b.requestedSupport) ||
+    compareStore(a.storeNumber, b.storeNumber)
+  );
+}
+
+function hasText(value: string | undefined): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * Orden de incidencias: primero las que tienen soporte (alfabético) y, dentro de
+ * cada soporte, las que tienen tienda (numérica) antes que las que no. Las
+ * incidencias sin soporte quedan al final. En cada nivel el índice original
+ * (vía `stableSort`) mantiene el orden relativo; no se altera ningún dato.
+ */
+function compareIssue(a: PptEvidenceIssue, b: PptEvidenceIssue): number {
+  const aSup = hasText(a.support);
+  const bSup = hasText(b.support);
+  if (aSup !== bSup) return aSup ? -1 : 1;
+  if (!aSup || !bSup) return 0; // ambas sin soporte → estabilidad por índice
+  const bySupport = compareSupport(a.support ?? '', b.support ?? '');
+  if (bySupport !== 0) return bySupport;
+  const aStore = hasText(a.storeNumber);
+  const bStore = hasText(b.storeNumber);
+  if (aStore !== bStore) return aStore ? -1 : 1;
+  if (!aStore || !bStore) return 0; // mismo soporte, ambas sin tienda → índice
+  return compareStore(a.storeNumber ?? '', b.storeNumber ?? '');
+}
+
 /**
  * Construye el plan de la PPT (puro). Deduplica por `screen.id` las pantallas del
  * catálogo y por `tienda|soporte` los soportes InStore Media sin pantalla.
+ *
+ * Orden del plan (solo afecta a la PPT, no a colecciones, calendario ni CSV):
+ *  - Las evidencias se ordenan por **soporte solicitado** (`requestedSupport`,
+ *    alfabético ascendente y tolerante a mayúsculas/acentos/espacios) y, dentro
+ *    de cada soporte, por **número de tienda** (numérico ascendente).
+ *  - Para varias pantallas de la misma tienda y soporte se **conserva el orden
+ *    del catálogo** (estable, sin desempatar por id/modelo/artículos/nombre).
+ *  - Las incidencias se ordenan por soporte y luego por tienda; las que no tienen
+ *    soporte o tienda quedan de forma determinista al final.
  */
 export function buildCampaignPptPlan(
   campaign: PptCampaignInput,
@@ -206,8 +305,8 @@ export function buildCampaignPptPlan(
     campaignName: campaign.name,
     startDate: campaign.fechaInicio,
     endDate: campaign.fechaFin,
-    slides,
-    issues,
+    slides: stableSort(slides, compareSlide),
+    issues: stableSort(issues, compareIssue),
   };
 }
 
