@@ -88,6 +88,73 @@
   vertical-align: middle;
 }
 
+/* Celda de Campaña con su nombre y el indicador de ciclo de vida. */
+.ot-campaign {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.ot-campaign__name {
+  font-weight: 600;
+}
+
+/* Indicador de estado Cancelada: icono + texto (no solo color) para
+   accesibilidad. Las campañas activas no llevan badge (estado por defecto). */
+.ot-cancelled {
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface));
+  color: var(--color-danger-fg);
+  border-color: color-mix(in srgb, var(--color-danger) 32%, transparent);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+}
+
+.ot-cancelled__meta {
+  font-size: 0.74rem;
+  max-width: 280px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+/* Fila cancelada: se mantiene visible pero atenuada para distinguirla. */
+.ot-row--cancelled td {
+  background: color-mix(in srgb, var(--color-danger) 5%, var(--color-surface));
+}
+
+/* Texto "No aplica" en las columnas de indicadores de una campaña cancelada. */
+.ot-na {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.ot-na-badge {
+  background: color-mix(
+    in srgb,
+    var(--color-text-muted) 12%,
+    var(--color-surface)
+  );
+  color: var(--color-text-muted);
+  border-color: color-mix(in srgb, var(--color-text-muted) 24%, transparent);
+}
+
+.ot-lifecycle-btn {
+  margin-right: 0.4rem;
+}
+
+/* Campo de motivo en el diálogo de cancelación. */
+.ot-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.ot-reason .ot-comments__input {
+  width: 100%;
+}
+
 .ot-detail-block {
   border-top: 1px solid var(--color-border);
   padding-top: 0.75rem;

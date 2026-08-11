@@ -4,8 +4,11 @@ import {
   addComment as addCommentPure,
   applyCheckChange,
   campaignKeyId,
+  cancelTracking as cancelTrackingPure,
   initialTracking,
   markAllComplete,
+  normalizeTracking,
+  reactivateTracking as reactivateTrackingPure,
   setClassification,
   type TrackingActor,
 } from '@/modules/operational-tracking/trackingFactory';
@@ -45,10 +48,13 @@ export async function listOperationalTracking(): Promise<
   CampaignOperationalTracking[]
 > {
   const snapshot = await getDocs(collection(db(), COLLECTION));
-  return snapshot.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Omit<CampaignOperationalTracking, 'id'>),
-  }));
+  // Normaliza los documentos legacy (sin ciclo de vida) a `active` al leer.
+  return snapshot.docs.map((d) =>
+    normalizeTracking({
+      id: d.id,
+      ...(d.data() as Omit<CampaignOperationalTracking, 'id'>),
+    }),
+  );
 }
 
 export interface UpdateCheckParams {
@@ -90,10 +96,10 @@ export async function updateCheck(
           params.actor,
           now,
         );
-    const current: CampaignOperationalTracking = {
+    const current: CampaignOperationalTracking = normalizeTracking({
       id: campaignKeyId(params.campaignNameKey),
       ...base,
-    };
+    });
     const result = applyCheckChange(
       current,
       params.key,
@@ -144,11 +150,108 @@ export async function markAllChecks(
           params.actor,
           now,
         );
-    const current: CampaignOperationalTracking = {
+    const current: CampaignOperationalTracking = normalizeTracking({
       id: campaignKeyId(params.campaignNameKey),
       ...base,
-    };
-    const tracking = markAllComplete(current, params.actor, now);
+    });
+    const result = markAllComplete(current, params.actor, now);
+    if (!result.ok) throw new TrackingError(result.reason);
+    const { id: _id, ...data } = result.tracking;
+    void _id;
+    tx.set(ref, data);
+    return result.tracking;
+  });
+}
+
+export interface CancelTrackingParams {
+  campaignNameKey: string;
+  campaignName: string;
+  /** Motivo opcional; texto vacío se persiste como `null`. */
+  reason: string;
+  /** Clasificación con la que crear el documento si aún no existe. */
+  classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
+  actor: TrackingActor;
+}
+
+/**
+ * Cancela una campaña (transición transaccional). Si no existe documento de
+ * seguimiento lo crea con los defaults actuales dentro de la misma transacción y
+ * después aplica la cancelación. Nunca modifica los checks, la clasificación ni
+ * los comentarios.
+ */
+export async function cancelCampaignTracking(
+  params: CancelTrackingParams,
+): Promise<CampaignOperationalTracking> {
+  const database = db();
+  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  return runTransaction(database, async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const base = snap.exists()
+      ? normalizeTracking({
+          id: campaignKeyId(params.campaignNameKey),
+          ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
+        })
+      : initialTracking(
+          {
+            campaignNameKey: params.campaignNameKey,
+            campaignName: params.campaignName,
+            classification: params.classification,
+            classificationSource: 'import-user',
+            linkValid: params.linkValid,
+          },
+          params.actor,
+          now,
+        );
+    const tracking = cancelTrackingPure(base, params.reason, params.actor, now);
+    const { id: _id, ...data } = tracking;
+    void _id;
+    tx.set(ref, data);
+    return tracking;
+  });
+}
+
+export interface ReactivateTrackingParams {
+  campaignNameKey: string;
+  campaignName: string;
+  /** Clasificación con la que crear el documento si aún no existe. */
+  classification: Classification;
+  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
+  linkValid: boolean;
+  actor: TrackingActor;
+}
+
+/**
+ * Reactiva una campaña cancelada (transición transaccional): vuelve a `active` y
+ * limpia el motivo. No modifica los checks: reaparecen con sus valores previos.
+ */
+export async function reactivateCampaignTracking(
+  params: ReactivateTrackingParams,
+): Promise<CampaignOperationalTracking> {
+  const database = db();
+  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  return runTransaction(database, async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const base = snap.exists()
+      ? normalizeTracking({
+          id: campaignKeyId(params.campaignNameKey),
+          ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
+        })
+      : initialTracking(
+          {
+            campaignNameKey: params.campaignNameKey,
+            campaignName: params.campaignName,
+            classification: params.classification,
+            classificationSource: 'import-user',
+            linkValid: params.linkValid,
+          },
+          params.actor,
+          now,
+        );
+    const tracking = reactivateTrackingPure(base, params.actor, now);
     const { id: _id, ...data } = tracking;
     void _id;
     tx.set(ref, data);
@@ -192,10 +295,10 @@ export async function addComment(
           params.actor,
           now,
         );
-    const current: CampaignOperationalTracking = {
+    const current: CampaignOperationalTracking = normalizeTracking({
       id: campaignKeyId(params.campaignNameKey),
       ...base,
-    };
+    });
     const commentId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
@@ -236,10 +339,10 @@ export async function updateClassification(
     const now = Date.now();
     let tracking: CampaignOperationalTracking;
     if (snap.exists()) {
-      const base: CampaignOperationalTracking = {
+      const base: CampaignOperationalTracking = normalizeTracking({
         id: campaignKeyId(params.campaignNameKey),
         ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
-      };
+      });
       tracking = setClassification(
         base,
         params.classification,
@@ -316,10 +419,12 @@ export async function initializeTrackingForImport(
         tx.set(ref, data);
         return 'created' as const;
       }
-      const base: CampaignOperationalTracking = {
+      // Normaliza el ciclo de vida (legacy → active) sin cambiarlo: la
+      // importación nunca altera `lifecycleStatus` ni el motivo de cancelación.
+      const base: CampaignOperationalTracking = normalizeTracking({
         id: campaignKeyId(sel.campaignNameKey),
         ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
-      };
+      });
       if (
         sel.confirmedReclassify &&
         base.classification !== sel.classification

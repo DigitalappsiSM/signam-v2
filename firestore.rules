@@ -79,24 +79,40 @@ service cloud.firestore {
     // desde el cliente y `campaignNameKey`/`createdAt`/`createdBy*` inmutables
     // tras la creación.
     //
+    // Ciclo de vida operativo (Activa/Cancelada): el cliente siempre escribe un
+    // `lifecycleStatus` válido y sus metadatos (el cliente normaliza los
+    // documentos legacy antes de persistir). El motivo de cancelación admite
+    // texto vacío, que se guarda como `null`. La lectura NO valida estos campos,
+    // por lo que los documentos anteriores siguen siendo legibles.
+    //
     // function canWriteTracking() {
     //   return isSignedIn() &&
     //     (request.auth.token.get('role', '') == 'admin'
     //      || request.auth.token.get('role', '') == 'operator');
     // }
+    function validLifecycle(data) {
+      return data.lifecycleStatus in ['active', 'cancelled']
+        && data.lifecycleUpdatedAt is int
+        && data.lifecycleUpdatedByUid is string
+        && data.lifecycleUpdatedByEmail is string
+        && (data.cancellationReason == null
+            || data.cancellationReason is string);
+    }
     match /campaignOperationalTracking/{campaignKeyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.campaignNameKey is string
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.createdAt is int
-        && request.resource.data.updatedAt is int;
+        && request.resource.data.updatedAt is int
+        && validLifecycle(request.resource.data);
       allow update: if isSignedIn()
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.campaignNameKey == resource.data.campaignNameKey
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.createdByUid == resource.data.createdByUid
-        && request.resource.data.createdByEmail == resource.data.createdByEmail;
+        && request.resource.data.createdByEmail == resource.data.createdByEmail
+        && validLifecycle(request.resource.data);
       allow delete: if false;
     }
 

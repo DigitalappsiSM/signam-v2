@@ -21,11 +21,14 @@ import {
   updateClassification,
   markAllChecks,
   addComment,
+  cancelCampaignTracking,
+  reactivateCampaignTracking,
 } from '@/services/campaignOperationalTracking';
 import type { UserRole } from '@/domain';
 import {
   initialTracking,
   addComment as addCommentPure,
+  cancelTracking as cancelTrackingPure,
 } from './trackingFactory';
 
 const authState = { role: 'admin' as UserRole };
@@ -55,6 +58,8 @@ vi.mock('@/services/campaignOperationalTracking', async () => {
     updateClassification: vi.fn(),
     markAllChecks: vi.fn(),
     addComment: vi.fn(),
+    cancelCampaignTracking: vi.fn(),
+    reactivateCampaignTracking: vi.fn(),
   };
 });
 
@@ -124,7 +129,30 @@ beforeEach(() => {
   vi.mocked(updateClassification).mockReset();
   vi.mocked(markAllChecks).mockReset();
   vi.mocked(addComment).mockReset();
+  vi.mocked(cancelCampaignTracking).mockReset();
+  vi.mocked(reactivateCampaignTracking).mockReset();
 });
+
+/** Documento de seguimiento CANCELADO para una campaña dada. */
+function cancelledTracking(c: StoredCampaign) {
+  const base = initialTracking(
+    {
+      campaignNameKey: campaignIdentity(c),
+      campaignName: c.name,
+      classification: 'institutional',
+      classificationSource: 'import-user',
+      linkValid: true,
+    },
+    { uid: 'u1', email: 'a@b.mx' },
+    1000,
+  );
+  return cancelTrackingPure(
+    base,
+    'Sin presupuesto',
+    { uid: 'u1', email: 'a@b.mx' },
+    2000,
+  );
+}
 
 describe('OperationalTrackingPage', () => {
   it('la campaña con tipo desconocido queda con clasificación pendiente', async () => {
@@ -403,5 +431,142 @@ describe('OperationalTrackingPage — filtro de periodo', () => {
     expect(
       await screen.findByText(/no puede ser posterior/i),
     ).toBeInTheDocument();
+  });
+});
+
+describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () => {
+  it('las canceladas aparecen por defecto y muestran el badge Cancelada', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      cancelledTracking(INST),
+    ]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    expect(within(row).getByText('Cancelada')).toBeInTheDocument();
+  });
+
+  it('los cinco checks muestran "No aplica" y no hay casillas ni "Marcar todas"', async () => {
+    const FIN = campaign({
+      id: 'f',
+      name: 'TERMINADA',
+      nameKey: 'terminada',
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+      tipo: 'INSTITUCIONAL',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN]);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      cancelledTracking(FIN),
+    ]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('TERMINADA')).closest('tr')!;
+    // Cinco "No aplica" en las columnas de indicadores.
+    expect(within(row).getAllByText('No aplica').length).toBe(6); // 5 checks + estado general
+    // Sin casillas editables.
+    expect(within(row).queryByRole('checkbox')).not.toBeInTheDocument();
+    // Aunque está terminada, no ofrece "Marcar todas".
+    expect(
+      within(row).queryByRole('button', { name: 'Marcar todas' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('el filtro Canceladas/Activas segmenta las filas', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      cancelledTracking(INST),
+    ]);
+    await renderAllPeriods();
+    await screen.findByText('BUEN FIN');
+    // Solo canceladas: queda BUEN FIN (cancelada), se va REGRESO (activa).
+    await userEvent.selectOptions(
+      screen.getByLabelText('Estado operativo'),
+      'cancelled',
+    );
+    expect(screen.getByText('BUEN FIN')).toBeInTheDocument();
+    expect(screen.queryByText('REGRESO')).not.toBeInTheDocument();
+    // Solo activas: al revés.
+    await userEvent.selectOptions(
+      screen.getByLabelText('Estado operativo'),
+      'active',
+    );
+    expect(screen.getByText('REGRESO')).toBeInTheDocument();
+    expect(screen.queryByText('BUEN FIN')).not.toBeInTheDocument();
+  });
+
+  it('cancelar pide confirmación, acepta motivo vacío y persiste', async () => {
+    vi.mocked(cancelCampaignTracking).mockResolvedValue(
+      cancelledTracking(INST) as never,
+    );
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    await userEvent.click(
+      within(row).getByRole('button', { name: 'Cancelar' }),
+    );
+    // Aparece el diálogo accesible.
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/No aplica/i)).toBeInTheDocument();
+    // Confirmar sin escribir motivo.
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: /Confirmar cancelación/i }),
+    );
+    await waitFor(() =>
+      expect(cancelCampaignTracking).toHaveBeenCalledTimes(1),
+    );
+    expect(cancelCampaignTracking).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: campaignIdentity(INST),
+        reason: '',
+      }),
+    );
+  });
+
+  it('si se cierra el diálogo no se guarda nada', async () => {
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    await userEvent.click(
+      within(row).getByRole('button', { name: 'Cancelar' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    // Botón "Cancelar" del diálogo (cierra sin guardar).
+    await userEvent.click(
+      within(dialog).getAllByRole('button', { name: 'Cancelar' })[0]!,
+    );
+    expect(cancelCampaignTracking).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('reactivar pide confirmación y persiste', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      cancelledTracking(INST),
+    ]);
+    vi.mocked(reactivateCampaignTracking).mockResolvedValue({} as never);
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    await userEvent.click(
+      within(row).getByRole('button', { name: 'Reactivar' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: /Confirmar reactivación/i }),
+    );
+    await waitFor(() =>
+      expect(reactivateCampaignTracking).toHaveBeenCalledTimes(1),
+    );
+    expect(reactivateCampaignTracking).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignNameKey: campaignIdentity(INST) }),
+    );
+  });
+
+  it('la clasificación sigue editable en una campaña cancelada', async () => {
+    vi.mocked(updateClassification).mockResolvedValue({} as never);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      cancelledTracking(INST),
+    ]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    const select = within(row).getByLabelText(
+      'Clasificación de BUEN FIN',
+    ) as HTMLSelectElement;
+    expect(select).not.toBeDisabled();
+    await userEvent.selectOptions(select, 'provider');
+    await waitFor(() => expect(updateClassification).toHaveBeenCalledTimes(1));
   });
 });

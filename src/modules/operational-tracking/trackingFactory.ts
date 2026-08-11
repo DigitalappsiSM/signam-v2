@@ -6,7 +6,15 @@ import type {
   ClassificationSource,
   OperationalCheck,
   OperationalComment,
+  TrackingLifecycleStatus,
 } from './types';
+
+/**
+ * Mensaje de dominio cuando se intenta editar los testigos de una campaña
+ * cancelada. La reactivación es la única vía para volver a editar los checks.
+ */
+export const CANCELLED_CHECK_MESSAGE =
+  'La campaña está cancelada: reactívala para volver a editar sus indicadores.';
 
 /**
  * Construcción y transición puras del documento de seguimiento operativo.
@@ -73,6 +81,11 @@ export function initialTracking(
     classificationUpdatedAt: now,
     classificationUpdatedByUid: actor.uid,
     classificationUpdatedByEmail: actor.email,
+    lifecycleStatus: 'active',
+    lifecycleUpdatedAt: now,
+    lifecycleUpdatedByUid: actor.uid,
+    lifecycleUpdatedByEmail: actor.email,
+    cancellationReason: null,
     linkDownload: makeCheck(params.linkValid, 'automatic', actor, now),
     liverpoolValidation: makeCheck(validationDefault, 'automatic', actor, now),
     csmProgramming: makeCheck(false, 'automatic', actor, now),
@@ -82,6 +95,90 @@ export function initialTracking(
     createdAt: now,
     createdByUid: actor.uid,
     createdByEmail: actor.email,
+    updatedAt: now,
+    updatedByUid: actor.uid,
+    updatedByEmail: actor.email,
+  };
+}
+
+/**
+ * Rellena los campos de ciclo de vida ausentes en documentos **legacy** (los
+ * creados antes de esta funcionalidad). Un documento sin `lifecycleStatus` se
+ * interpreta como `active`; los metadatos de transición faltantes se derivan de
+ * la creación y `cancellationReason` ausente se normaliza a `null`. Es idempotente
+ * y no altera un documento que ya trae ciclo de vida válido.
+ *
+ * Debe aplicarse tanto en lecturas de cliente como **dentro** de las
+ * transacciones de escritura, para que ningún camino escriba un documento sin
+ * estos campos.
+ */
+export function normalizeTracking(
+  tracking: CampaignOperationalTracking,
+): CampaignOperationalTracking {
+  const status: TrackingLifecycleStatus =
+    tracking.lifecycleStatus === 'cancelled' ? 'cancelled' : 'active';
+  return {
+    ...tracking,
+    lifecycleStatus: status,
+    lifecycleUpdatedAt: tracking.lifecycleUpdatedAt ?? tracking.createdAt,
+    lifecycleUpdatedByUid:
+      tracking.lifecycleUpdatedByUid ?? tracking.createdByUid,
+    lifecycleUpdatedByEmail:
+      tracking.lifecycleUpdatedByEmail ?? tracking.createdByEmail,
+    cancellationReason: tracking.cancellationReason ?? null,
+  };
+}
+
+/** ¿La campaña está cancelada? Tolera documentos legacy (los trata como activos). */
+export function isCancelled(tracking: CampaignOperationalTracking): boolean {
+  return normalizeTracking(tracking).lifecycleStatus === 'cancelled';
+}
+
+/**
+ * Marca la campaña como **Cancelada** (transición pura). No toca los checks, la
+ * clasificación ni los comentarios: sus valores quedan intactos para recuperarse
+ * al reactivar. El motivo es opcional: texto vacío se persiste como `null`.
+ * Registra quién y cuándo realizó la transición.
+ */
+export function cancelTracking(
+  tracking: CampaignOperationalTracking,
+  reason: string,
+  actor: TrackingActor,
+  now: number,
+): CampaignOperationalTracking {
+  const base = normalizeTracking(tracking);
+  const trimmed = reason.trim();
+  return {
+    ...base,
+    lifecycleStatus: 'cancelled',
+    lifecycleUpdatedAt: now,
+    lifecycleUpdatedByUid: actor.uid,
+    lifecycleUpdatedByEmail: actor.email,
+    cancellationReason: trimmed === '' ? null : trimmed,
+    updatedAt: now,
+    updatedByUid: actor.uid,
+    updatedByEmail: actor.email,
+  };
+}
+
+/**
+ * Reactiva la campaña (transición pura): vuelve a `active`, limpia el motivo de
+ * cancelación y registra quién/cuándo. **No** modifica los checks: reaparecen
+ * exactamente con los valores que tenían antes de cancelar.
+ */
+export function reactivateTracking(
+  tracking: CampaignOperationalTracking,
+  actor: TrackingActor,
+  now: number,
+): CampaignOperationalTracking {
+  const base = normalizeTracking(tracking);
+  return {
+    ...base,
+    lifecycleStatus: 'active',
+    lifecycleUpdatedAt: now,
+    lifecycleUpdatedByUid: actor.uid,
+    lifecycleUpdatedByEmail: actor.email,
+    cancellationReason: null,
     updatedAt: now,
     updatedByUid: actor.uid,
     updatedByEmail: actor.email,
@@ -107,6 +204,12 @@ export function applyCheckChange(
   actor: TrackingActor,
   now: number,
 ): CheckChangeResult {
+  // Una campaña cancelada no acepta cambios en sus indicadores: la reactivación
+  // es la única vía para volver a editarlos (no basta ocultar las casillas).
+  if (isCancelled(tracking)) {
+    return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
+  }
+
   if (
     key === 'witnessStart' &&
     !completed &&
@@ -152,17 +255,24 @@ export function markAllComplete(
   tracking: CampaignOperationalTracking,
   actor: TrackingActor,
   now: number,
-): CampaignOperationalTracking {
+): CheckChangeResult {
+  // "Marcar todas" también se rechaza sobre una campaña cancelada.
+  if (isCancelled(tracking)) {
+    return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
+  }
   return {
-    ...tracking,
-    linkDownload: makeCheck(true, 'manual', actor, now),
-    liverpoolValidation: makeCheck(true, 'manual', actor, now),
-    csmProgramming: makeCheck(true, 'manual', actor, now),
-    witnessStart: makeCheck(true, 'manual', actor, now),
-    witnessComplete: makeCheck(true, 'manual', actor, now),
-    updatedAt: now,
-    updatedByUid: actor.uid,
-    updatedByEmail: actor.email,
+    ok: true,
+    tracking: {
+      ...tracking,
+      linkDownload: makeCheck(true, 'manual', actor, now),
+      liverpoolValidation: makeCheck(true, 'manual', actor, now),
+      csmProgramming: makeCheck(true, 'manual', actor, now),
+      witnessStart: makeCheck(true, 'manual', actor, now),
+      witnessComplete: makeCheck(true, 'manual', actor, now),
+      updatedAt: now,
+      updatedByUid: actor.uid,
+      updatedByEmail: actor.email,
+    },
   };
 }
 

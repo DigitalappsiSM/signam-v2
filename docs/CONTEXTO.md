@@ -297,10 +297,17 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - Sección independiente (no columnas nuevas en Campañas) con el estado operativo
   de cada campaña. Persistencia **separada** en
   `campaignOperationalTracking/{campaignKeyId}`: la importación **nunca** borra
-  ni sobrescribe checks manuales, y el seguimiento **nunca** modifica la campaña
-  importada. El `campaignKeyId` se deriva del `nameKey` (mismo criterio que
-  Ekon); si el nombre normalizado cambia, es una campaña nueva y **empieza un
-  seguimiento nuevo** (no se traslada el anterior).
+  ni sobrescribe checks manuales ni el estado de ciclo de vida, y el seguimiento
+  **nunca** modifica la campaña importada. La llave operativa se deriva de
+  `campaignIdentity(campaign)` (nombre **+ todos los datos**: vigencia, tipo,
+  vendido por, mes, link, soportes/tiendas): el `id` del documento es
+  `campaignKeyId(campaignIdentity(...))` y el campo `campaignNameKey` guarda esa
+  identidad. Así, dos _flights_ homónimos tienen seguimientos independientes; si
+  cambia cualquier dato que altere la identidad, es **otra** campaña y **empieza
+  un seguimiento nuevo** (no se hereda por nombre ni por `nameKey`). (Ekon sí usa
+  `campaignKeyId(nameKey)`, solo el nombre, y no cambia; el texto anterior que
+  decía que el seguimiento se derivaba del `nameKey` quedó corregido aquí para
+  reflejar el comportamiento real por identidad completa.)
 - **Edición inline**: los indicadores se marcan **directamente como casillas en
   la tabla** de `/seguimiento` (sin abrir un modal). Cada casilla guarda al
   instante (quién/cuándo se ve en su tooltip). La clasificación se corrige con un
@@ -351,7 +358,11 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - El **Dashboard** deriva (no persiste) el resumen operativo: activas,
   seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
   críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
-  con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`.
+  con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`. Las campañas
+  **canceladas se excluyen por completo** de este resumen (se filtran las filas
+  operacionalmente aplicables **antes** de calcular todas las secciones, para que
+  una cancelada no acabe como “En curso sin atrasos” solo porque `criticalAlerts`
+  devuelva un arreglo vacío).
 - **Filtro de periodo (rango de fechas)**: por defecto la tabla muestra solo las
   campañas cuya vigencia **se traslapa** con la ventana **mes anterior + mes
   actual + mes siguiente** (del día 1 del mes anterior al último día del mes
@@ -377,6 +388,39 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   (viewer solo lectura) se activará antes de liberar, sustituyendo `isSignedIn()`
   por la comprobación de `role` en `firestore.rules`. Se conservan ya las
   validaciones estructurales y la prohibición de **borrado físico**.
+- **Estado Activa/Cancelada (ciclo de vida)**: campo tipado
+  `lifecycleStatus: 'active' | 'cancelled'` en el documento de seguimiento (más
+  `lifecycleUpdatedAt`, `lifecycleUpdatedByUid/Email` y
+  `cancellationReason: string | null`). **Alcance exclusivamente operativo**: no
+  cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación, y las
+  canceladas **siguen contando** en la carga por tienda/soporte del Dashboard;
+  solo se excluyen del **resumen operativo** superior.
+  - **Cancelar** (acción individual por fila, confirmación accesible, **motivo
+    opcional**): la campaña no requiere ninguno de los cinco checks (se muestran
+    **“No aplica”**, sin casillas ni “Marcar todas”), no genera alertas,
+    pendientes ni vencimientos (próximo vencimiento `—`) y muestra de forma
+    accesible quién/cuándo/motivo. Los checks, la clasificación y los comentarios
+    se **conservan** intactos. El diálogo bloquea dobles envíos; cerrarlo no
+    guarda nada.
+  - **Reactivar** (confirmación): vuelve a **Activa**, limpia el motivo y los
+    cinco checks reaparecen **exactamente** como estaban; se recalculan alertas y
+    vencimientos con las reglas normales.
+  - **Transición pura y probada** (`cancelTracking`/`reactivateTracking` en
+    `trackingFactory.ts`), aplicada de forma **transaccional** por la capa de
+    servicio (`cancelCampaignTracking`/`reactivateCampaignTracking`), que crea el
+    documento con los defaults actuales si aún no existe antes de aplicar la
+    transición. Nunca modifica checks, clasificación ni comentarios.
+  - **Protección de reglas operativas**: `updateCheck` y `markAllChecks`
+    **rechazan** cambios sobre una cancelada (`TrackingError`);
+    `updateClassification` y `addComment` siguen permitidos. No se depende de
+    ocultar las casillas.
+  - **Compatibilidad legacy**: los documentos sin estos campos se interpretan
+    como `active` (`normalizeTracking`, aplicada en **lecturas** y **dentro de
+    las transacciones**); no requiere migración manual. Las reglas de Firestore
+    validan el enum y los tipos de los metadatos; la lectura no los exige.
+  - **Reimportaciones**: reimportar una identidad idéntica conserva `cancelled`;
+    `initializeTrackingForImport` no cambia `lifecycleStatus`, el motivo ni los
+    metadatos de transición. Una nueva `campaignIdentity` empieza `active`.
 - **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.
@@ -388,7 +432,10 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   por tienda y soporte**, derivada en memoria de `campaigns`, `screens` y
   `campaignOperationalTracking` (modelo puro `occupancyModel.ts`). **No** persiste
   agregados en Firestore ni reejecuta `consolidate()` (no reutiliza sus
-  resultados porque excluyen InStore Media y agrupan por resolución).
+  resultados porque excluyen InStore Media y agrupan por resolución). La sección
+  de carga **recibe todas las campañas**, incluidas las **canceladas** (solo el
+  resumen operativo superior las excluye); su resultado no cambia por el estado
+  de ciclo de vida.
 - **Definición de carga**: métrica principal **pico de campañas simultáneas**
   (`peakConcurrentCampaigns`) = máximo, para cualquier día civil del periodo, de
   campañas distintas que usan esa tienda/soporte ese día. Complementarias:

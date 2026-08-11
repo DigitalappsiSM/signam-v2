@@ -954,3 +954,32 @@ describe('buildOccupancyDashboard — serie diaria y dona por clasificación', (
     expect(d.series.some((p) => p.institutional > 0)).toBe(true);
   });
 });
+
+describe('occupancy — canceladas siguen participando en la carga', () => {
+  it('una campaña cancelada NO se excluye de la carga por tienda/soporte', () => {
+    const campaigns = [
+      campaign({
+        name: 'A',
+        nameKey: 'a',
+        supports: [
+          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
+        ],
+      }),
+    ];
+    const screens = [
+      screen({ id: 's1', numero: '1', calendarSupport: 'VIDEO WALL' }),
+    ];
+    // Documento de seguimiento CANCELADO para la misma campaña.
+    const cancelled = {
+      campaignNameKey: 'a',
+      classification: 'institutional',
+      lifecycleStatus: 'cancelled',
+    } as unknown as CampaignOperationalTracking;
+    const withCancel = build(campaigns, screens, { tracking: [cancelled] });
+    const withoutTrack = build(campaigns, screens);
+    // La carga es idéntica: el estado cancelado no altera la carga.
+    expect(withCancel.totals.distinctCampaigns).toBe(1);
+    expect(withCancel.totals.physicalScreens).toBe(1);
+    expect(withCancel.totals).toEqual(withoutTrack.totals);
+  });
+});

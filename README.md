@@ -11,7 +11,8 @@ Aplicación web para operar el flujo de programación de pantallas entre
 6. Generar los **CSV de programación** de Admira.
 7. **Seguimiento operativo** por campaña (clasificación Institucional/Proveedor,
    link, validación, programación CSM y testigos con fechas límite y alertas),
-   más un **Dashboard** con el resumen y las alertas críticas.
+   con un **estado manual Activa/Cancelada** por campaña, más un **Dashboard**
+   con el resumen y las alertas críticas.
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
 9. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
    proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
@@ -127,12 +128,44 @@ para el masivo, siempre sanitizados.
 > generación completa de CSV) se implementa en iteraciones posteriores. Los
 > módulos de la UI muestran explícitamente el alcance pendiente.
 
+## Seguimiento operativo: estado Activa/Cancelada
+
+Cada campaña del seguimiento tiene un **estado de ciclo de vida** manual —
+**Activa** o **Cancelada**— que **solo** afecta al seguimiento operativo (no
+cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación). Vive en
+`campaignOperationalTracking/{campaignKeyId}` (campos `lifecycleStatus`,
+`lifecycleUpdatedAt/By*` y `cancellationReason`); la importación del calendario
+**nunca** lo borra ni sobrescribe.
+
+- **Cancelar** (acción individual por fila, con confirmación accesible y un
+  **motivo opcional**): la campaña no requiere ninguno de los cinco checks (se
+  muestran **“No aplica”**), no genera alertas, pendientes ni vencimientos, y
+  desaparece del **resumen operativo** del Dashboard. Sus checks, clasificación y
+  comentarios se **conservan** intactos.
+- **Reactivar** (con confirmación): vuelve a **Activa**, limpia el motivo y los
+  cinco checks reaparecen exactamente como estaban; se recalculan alertas y
+  vencimientos con las reglas normales.
+- El estado **sobrevive a reimportaciones idénticas** (misma
+  `campaignIdentity`); si cambian fechas, link, tipo, vendedor, soportes o
+  tiendas y la identidad cambia, se trata como **otra** campaña y **empieza
+  activa** (no se hereda por nombre ni por `nameKey`).
+- Las canceladas **permanecen visibles** por defecto (filtro
+  Todas/Activas/Canceladas, inicial **Todas**) con un badge inequívoco
+  **“Cancelada”** (icono + texto). Los comentarios y la clasificación siguen
+  disponibles y editables según los permisos actuales.
+- Documentos **legacy** sin el campo se interpretan como **Activa** (sin
+  migración manual). `updateCheck`/`markAllChecks` **rechazan** cambios sobre una
+  cancelada (`TrackingError`); reactivar es la única vía para volver a editar los
+  checks.
+
 ## Panel: carga por tienda y soporte
 
 El Dashboard incluye la sección **Carga por tienda y soporte** (además del
 resumen operativo y las alertas). Deriva todo en memoria de `campaigns`,
 `screens` y `campaignOperationalTracking` (modelo puro `occupancyModel.ts`); no
-persiste métricas en Firestore ni reejecuta la consolidación CSV.
+persiste métricas en Firestore ni reejecuta la consolidación CSV. **Las campañas
+canceladas siguen contando aquí**: solo se excluyen del resumen operativo
+superior, no de la carga.
 
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.

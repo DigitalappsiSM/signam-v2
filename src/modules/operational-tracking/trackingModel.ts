@@ -7,7 +7,11 @@ import {
   campaignIdentity,
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
-import type { CampaignOperationalTracking, Classification } from './types';
+import type {
+  CampaignOperationalTracking,
+  Classification,
+  TrackingLifecycleStatus,
+} from './types';
 import { classifyFromTipo } from './campaignClassification';
 import { downloadLinkStatus, type DownloadLinkStatus } from './downloadLink';
 import { witnessStartTarget } from './witnessTarget';
@@ -44,6 +48,12 @@ export interface TrackingRow {
   identity: string;
   tracking: CampaignOperationalTracking | null;
   classification: Classification | 'unknown';
+  /**
+   * Ciclo de vida operativo. `cancelled` exime a la campaña de todos los checks,
+   * alertas y vencimientos operativos (ver `criticalAlerts`/`isFullyTracked` y el
+   * resumen del Dashboard). Los documentos legacy sin estado se leen como `active`.
+   */
+  lifecycleStatus: TrackingLifecycleStatus;
   linkStatus: DownloadLinkStatus;
   distinctStores: number;
   target: number;
@@ -107,6 +117,10 @@ export function buildTrackingRows(
     const classification: Classification | 'unknown' = t
       ? t.classification
       : classifyFromTipo(campaign.tipo);
+    // Documentos legacy sin ciclo de vida se interpretan como `active`.
+    const lifecycleStatus: TrackingLifecycleStatus =
+      t?.lifecycleStatus === 'cancelled' ? 'cancelled' : 'active';
+    const cancelled = lifecycleStatus === 'cancelled';
 
     const stores = new Set<string>();
     for (const cn of consolidate([campaign], screens).consolidations) {
@@ -141,17 +155,21 @@ export function buildTrackingRows(
     const startCivil = parseCampaignDate(campaign.fechaInicio);
     const endCivil = parseCampaignDate(campaign.fechaFin);
     const deadlines: Date[] = [];
-    if (!(start?.completed ?? false) && startCivil) {
-      deadlines.push(fifthBusinessDay(startCivil));
+    // Una campaña cancelada no tiene vencimientos operativos aplicables.
+    if (!cancelled) {
+      if (!(start?.completed ?? false) && startCivil) {
+        deadlines.push(fifthBusinessDay(startCivil));
+      }
+      if (!(complete?.completed ?? false) && endCivil) deadlines.push(endCivil);
+      deadlines.sort((a, b) => a.getTime() - b.getTime());
     }
-    if (!(complete?.completed ?? false) && endCivil) deadlines.push(endCivil);
-    deadlines.sort((a, b) => a.getTime() - b.getTime());
 
     return {
       campaign,
       identity,
       tracking: t,
       classification,
+      lifecycleStatus,
       linkStatus: downloadLinkStatus(campaign.link),
       distinctStores,
       target: witnessStartTarget(distinctStores),
@@ -209,8 +227,18 @@ export interface RowAlert {
   label: string;
 }
 
+/**
+ * ¿La fila participa en los cálculos operativos (checks, alertas, vencimientos)?
+ * Una campaña cancelada queda fuera de todo el resumen operativo del Dashboard.
+ */
+export function isOperationallyApplicable(row: TrackingRow): boolean {
+  return row.lifecycleStatus !== 'cancelled';
+}
+
 /** Alertas críticas de una campaña (§12.B). Vacío = sin alertas críticas. */
 export function criticalAlerts(row: TrackingRow): RowAlert[] {
+  // Una campaña cancelada nunca genera alertas críticas.
+  if (row.lifecycleStatus === 'cancelled') return [];
   const c = effectiveChecks(row);
   const out: RowAlert[] = [];
   if (row.startStatus === 'overdue') {
@@ -256,6 +284,8 @@ export function rowSeverity(row: TrackingRow): number {
 
 /** ¿La campaña activa está completamente al día (sin pendientes ni alertas)? */
 export function isFullyTracked(row: TrackingRow): boolean {
+  // Una campaña cancelada no se considera "seguimiento completo".
+  if (row.lifecycleStatus === 'cancelled') return false;
   const c = effectiveChecks(row);
   return c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
 }

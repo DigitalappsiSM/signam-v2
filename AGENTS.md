@@ -50,9 +50,17 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   campaña importada. El `campaignKeyId` se deriva determinísticamente del
   `nameKey` (no del ID aleatorio de `campaigns`).
 - **Seguimiento operativo**: colección independiente
-  `campaignOperationalTracking/{campaignKeyId}` (mismo `campaignKeyId` que Ekon,
-  derivado del `nameKey`). Contiene solo datos operativos; nunca se mezcla con
-  `campaigns` y la importación no borra ni sobrescribe checks manuales. Los
+  `campaignOperationalTracking/{campaignKeyId}`. La llave operativa se deriva de
+  `campaignIdentity(campaign)` (nombre **+ todos los datos**: vigencia, tipo,
+  vendido por, mes, link, soportes/tiendas), **no** del `nameKey`: el `id` del
+  documento es `campaignKeyId(campaignIdentity(...))` y el campo
+  `campaignNameKey` guarda esa identidad. Así, dos _flights_ homónimos con
+  distinta identidad tienen seguimientos independientes, y si cambia cualquier
+  dato que altere la identidad se considera **otra** campaña (empieza un
+  seguimiento nuevo; no se hereda por nombre ni por `nameKey`). Ekon, en cambio,
+  **sí** usa `campaignKeyId(nameKey)` (solo nombre) y no cambia. Contiene solo
+  datos operativos; nunca se mezcla con `campaigns` y la importación no borra ni
+  sobrescribe checks manuales ni el estado de ciclo de vida. Los
   indicadores se editan **inline como casillas** en la tabla (sin modal). Cinco
   indicadores editables: **Link de descarga** (por defecto automático — marcado
   si `campaign.link` es URL válida — pero editable: al cambiarlo `source:manual`
@@ -76,6 +84,27 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   permiten escribir a cualquier autenticado (como el resto de colecciones); el
   control por rol se activará antes de liberar. `read` requiere autenticación;
   **sin borrado físico** desde el cliente. Fechas mostradas en `dd/mm/aaaa`.
+- **Estado de ciclo de vida operativo (Activa/Cancelada)**: campo tipado
+  `lifecycleStatus: 'active' | 'cancelled'` (más `lifecycleUpdatedAt`,
+  `lifecycleUpdatedByUid/Email` y `cancellationReason: string | null`) en el
+  documento de seguimiento. **Solo afecta al seguimiento operativo**: no toca
+  ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación, y **las
+  canceladas siguen contando** en la carga por tienda/soporte del Dashboard.
+  Reglas: (1) documentos legacy sin el campo se interpretan como `active`
+  (`normalizeTracking`, aplicada en lecturas **y** dentro de las transacciones);
+  (2) cancelar/reactivar son transiciones **transaccionales y puras**
+  (`cancelTracking`/`reactivateTracking` en `trackingFactory.ts`) que **no**
+  modifican checks, clasificación ni comentarios; (3) una campaña cancelada no
+  requiere checks (se muestran "No aplica"), no genera alertas/pendientes/
+  vencimientos y queda **fuera** del resumen operativo del Dashboard (se filtran
+  las filas aplicables antes de calcular todas las secciones); (4) `updateCheck`
+  y `markAllChecks` **rechazan** cambios sobre una cancelada (`TrackingError`);
+  `updateClassification` y `addComment` siguen permitidos; (5) el estado
+  sobrevive a reimportaciones idénticas (misma `campaignIdentity`) y **no** se
+  transfiere si la identidad cambia; (6) `cancellationReason` vacío se persiste
+  como `null` y se limpia al reactivar; al reactivar los checks reaparecen tal
+  cual estaban. Las reglas de Firestore validan el enum y los tipos de estos
+  campos; la lectura no los exige (compatibilidad legacy).
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

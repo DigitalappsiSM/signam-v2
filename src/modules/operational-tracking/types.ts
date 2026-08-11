@@ -11,6 +11,15 @@ export type Classification = 'institutional' | 'provider';
 /** Origen de la clasificación (para trazabilidad). */
 export type ClassificationSource = 'calendar' | 'import-user' | 'tracking-user';
 
+/**
+ * Estado de ciclo de vida operativo de la campaña (independiente de los
+ * testigos). `active` es el estado normal; `cancelled` es un estado **manual**
+ * que exime a la campaña de todos los checks, alertas y vencimientos operativos
+ * sin borrar sus valores. Se distingue deliberadamente de los estados de los
+ * testigos (`WitnessStatus`): aquí no se usa un campo `status` ambiguo.
+ */
+export type TrackingLifecycleStatus = 'active' | 'cancelled';
+
 /** Un comentario de la bitácora de una campaña (historial). */
 export interface OperationalComment {
   id: string;
@@ -47,6 +56,26 @@ export interface CampaignOperationalTracking {
   classificationUpdatedAt: number;
   classificationUpdatedByUid: string;
   classificationUpdatedByEmail: string;
+
+  /**
+   * Ciclo de vida operativo (Activa/Cancelada). Los documentos **legacy** que no
+   * traen este campo se interpretan como `active` (ver `normalizeTracking`). Una
+   * campaña `cancelled` no requiere checks, no genera alertas ni vencimientos y
+   * conserva intactos sus checks/comentarios/clasificación para recuperarlos al
+   * reactivar.
+   */
+  lifecycleStatus: TrackingLifecycleStatus;
+  /** Marca de tiempo de la última transición de ciclo de vida. */
+  lifecycleUpdatedAt: number;
+  /** UID de quien realizó la última transición de ciclo de vida. */
+  lifecycleUpdatedByUid: string;
+  /** Correo de quien realizó la última transición de ciclo de vida. */
+  lifecycleUpdatedByEmail: string;
+  /**
+   * Motivo opcional de cancelación. Texto vacío se persiste como `null`. Se
+   * limpia (a `null`) al reactivar.
+   */
+  cancellationReason: string | null;
 
   /**
    * Link de descarga: por defecto AUTOMÁTICO (marcado si `campaign.link` es una
