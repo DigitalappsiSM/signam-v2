@@ -207,11 +207,16 @@ function stableSort<T>(
     .map((d) => d.item);
 }
 
-/** Orden de diapositivas: soporte solicitado (alfabético) y luego tienda (numérica). */
+/**
+ * Orden de diapositivas: **número de tienda** (numérico ascendente) como criterio
+ * primario, de modo que todas las evidencias de una misma tienda quedan juntas;
+ * dentro de cada tienda se agrupan por soporte solicitado (alfabético). El orden
+ * del catálogo se conserva para pantallas con la misma tienda y soporte.
+ */
 function compareSlide(a: PptEvidenceSlide, b: PptEvidenceSlide): number {
   return (
-    compareSupport(a.requestedSupport, b.requestedSupport) ||
-    compareStore(a.storeNumber, b.storeNumber)
+    compareStore(a.storeNumber, b.storeNumber) ||
+    compareSupport(a.requestedSupport, b.requestedSupport)
   );
 }
 
@@ -244,9 +249,11 @@ function compareIssue(a: PptEvidenceIssue, b: PptEvidenceIssue): number {
  * catálogo y por `tienda|soporte` los soportes InStore Media sin pantalla.
  *
  * Orden del plan (solo afecta a la PPT, no a colecciones, calendario ni CSV):
- *  - Las evidencias se ordenan por **soporte solicitado** (`requestedSupport`,
- *    alfabético ascendente y tolerante a mayúsculas/acentos/espacios) y, dentro
- *    de cada soporte, por **número de tienda** (numérico ascendente).
+ *  - Las evidencias se ordenan por **número de tienda** (numérico ascendente,
+ *    `2, 9, 10, 78, 101`) como criterio primario, así que todas las evidencias de
+ *    una misma tienda quedan juntas; dentro de cada tienda se agrupan por
+ *    **soporte solicitado** (`requestedSupport`, alfabético y tolerante a
+ *    mayúsculas/acentos/espacios).
  *  - Para varias pantallas de la misma tienda y soporte se **conserva el orden
  *    del catálogo** (estable, sin desempatar por id/modelo/artículos/nombre).
  *  - Las incidencias se ordenan por soporte y luego por tienda; las que no tienen

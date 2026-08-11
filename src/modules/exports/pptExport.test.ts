@@ -350,59 +350,82 @@ describe('buildCampaignPptPlan — incidencias de fecha', () => {
 // --- Orden estable ----------------------------------------------------------
 
 describe('buildCampaignPptPlan — orden', () => {
-  it('25) agrupa por soporte solicitado (alfabético) y conserva el orden del catálogo por tienda', () => {
+  it('25) ordena por tienda primero: la tienda vence al soporte', () => {
     const plan = buildCampaignPptPlan(
       campaign({
         supports: [
-          support({ support: CRIUS, stores: [{ numero: '5' }] }),
+          support({ support: CRIUS, stores: [{ numero: '3' }] }),
           support({
             support: 'PANTALLA',
-            stores: [{ numero: '3' }, { numero: '4' }],
+            stores: [{ numero: '5' }, { numero: '10' }],
           }),
         ],
       }),
       [
-        screen({ id: 'a', numero: '5', calendarSupport: CRIUS }),
-        screen({ id: 'b1', numero: '3', calendarSupport: 'PANTALLA' }),
-        screen({ id: 'b2', numero: '3', calendarSupport: 'PANTALLA' }),
-        screen({ id: 'c', numero: '4', calendarSupport: 'PANTALLA' }),
+        screen({ id: 'a', numero: '3', calendarSupport: CRIUS }),
+        screen({ id: 'b', numero: '5', calendarSupport: 'PANTALLA' }),
+        screen({ id: 'c', numero: '10', calendarSupport: 'PANTALLA' }),
       ],
     );
-    // 'PANTALLA' < 'VIDEO WALL CRIUS'; dentro de PANTALLA: tiendas 3, 3, 4
-    // (b1 y b2 conservan el orden del catálogo); CRIUS (tienda 5) al final.
-    expect(plan.slides.map((s) => s.key)).toEqual(['b1', 'b2', 'c', 'a']);
+    // Criterio primario = tienda numérica: 3, 5, 10 (no se agrupa por soporte
+    // primero, aunque 'PANTALLA' < 'VIDEO WALL CRIUS').
+    expect(plan.slides.map((s) => s.storeNumber)).toEqual(['3', '5', '10']);
+    expect(plan.slides.map((s) => s.key)).toEqual(['a', 'b', 'c']);
     expect(plan.slides.map((s) => s.requestedSupport)).toEqual([
-      'PANTALLA',
-      'PANTALLA',
-      'PANTALLA',
       CRIUS,
+      'PANTALLA',
+      'PANTALLA',
     ]);
   });
 
-  it('26) agrupa los soportes alfabéticamente aunque lleguen en orden inverso o intercalados', () => {
+  it('26) las tiendas quedan en orden numérico global aunque los soportes lleguen intercalados o en orden inverso', () => {
     const plan = buildCampaignPptPlan(
       campaign({
         supports: [
-          support({ support: 'ZEBRA', stores: [{ numero: '1' }] }),
-          support({ support: 'ALFA', stores: [{ numero: '1' }] }),
-          support({ support: 'ZEBRA', stores: [{ numero: '2' }] }),
-          support({ support: 'MEDIA', stores: [{ numero: '1' }] }),
+          support({ support: 'ZEBRA', stores: [{ numero: '10' }] }),
+          support({ support: 'ALFA', stores: [{ numero: '2' }] }),
+          support({ support: 'ZEBRA', stores: [{ numero: '78' }] }),
+          support({ support: 'MEDIA', stores: [{ numero: '9' }] }),
         ],
       }),
       [
-        screen({ id: 'z1', numero: '1', calendarSupport: 'ZEBRA' }),
-        screen({ id: 'a1', numero: '1', calendarSupport: 'ALFA' }),
-        screen({ id: 'z2', numero: '2', calendarSupport: 'ZEBRA' }),
-        screen({ id: 'm1', numero: '1', calendarSupport: 'MEDIA' }),
+        screen({ id: 'z1', numero: '10', calendarSupport: 'ZEBRA' }),
+        screen({ id: 'a1', numero: '2', calendarSupport: 'ALFA' }),
+        screen({ id: 'z2', numero: '78', calendarSupport: 'ZEBRA' }),
+        screen({ id: 'm1', numero: '9', calendarSupport: 'MEDIA' }),
       ],
     );
+    expect(plan.slides.map((s) => s.storeNumber)).toEqual([
+      '2',
+      '9',
+      '10',
+      '78',
+    ]);
+    expect(plan.slides.map((s) => s.key)).toEqual(['a1', 'm1', 'z1', 'z2']);
+  });
+
+  it('26b) dentro de una misma tienda, los soportes se agrupan alfabéticamente', () => {
+    const plan = buildCampaignPptPlan(
+      campaign({
+        supports: [
+          support({ support: 'ZEBRA', stores: [{ numero: '7' }] }),
+          support({ support: 'ALFA', stores: [{ numero: '7' }] }),
+          support({ support: 'MEDIA', stores: [{ numero: '7' }] }),
+        ],
+      }),
+      [
+        screen({ id: 'z', numero: '7', calendarSupport: 'ZEBRA' }),
+        screen({ id: 'a', numero: '7', calendarSupport: 'ALFA' }),
+        screen({ id: 'm', numero: '7', calendarSupport: 'MEDIA' }),
+      ],
+    );
+    // Todas son la tienda 7: se agrupan por soporte (ALFA < MEDIA < ZEBRA).
     expect(plan.slides.map((s) => s.requestedSupport)).toEqual([
       'ALFA',
       'MEDIA',
       'ZEBRA',
-      'ZEBRA',
     ]);
-    expect(plan.slides.map((s) => s.key)).toEqual(['a1', 'm1', 'z1', 'z2']);
+    expect(plan.slides.map((s) => s.key)).toEqual(['a', 'm', 'z']);
   });
 
   it('27) ordena las tiendas numéricamente (2, 9, 10, 78, 101), no lexicográficamente', () => {
@@ -470,18 +493,19 @@ describe('buildCampaignPptPlan — orden', () => {
         screen({ id: 'p20', numero: '20', nombre: 'Tienda 20' }),
       ],
     );
-    // BANNER < MUPPIS < PENDON < VIDEO WALL CRIUS (alfabético normalizado).
-    expect(plan.slides.map((s) => s.requestedSupport)).toEqual([
-      'BANNER',
-      "MUPPI'S",
-      'PENDON',
-      CRIUS,
-    ]);
+    // Orden por tienda numérica global (soportes ISM y Liverpool entremezclados):
+    // 3 (MUPPI'S), 4 (BANNER), 10 (CRIUS), 20 (PENDON).
     expect(plan.slides.map((s) => s.storeNumber)).toEqual([
-      '4',
       '3',
-      '20',
+      '4',
       '10',
+      '20',
+    ]);
+    expect(plan.slides.map((s) => s.requestedSupport)).toEqual([
+      "MUPPI'S",
+      'BANNER',
+      CRIUS,
+      'PENDON',
     ]);
   });
 
