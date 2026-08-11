@@ -477,6 +477,118 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 });
 
+describe('CampaignsPage — flights homónimos (dedup de descargas)', () => {
+  // Reproduce el caso "EL CORTE INGLES": tres flights homónimos que, con el
+  // motor real, deben producir una sola consolidación por resolución. El menú
+  // debe mostrar una única opción por resolución (no una por flight) y el ZIP
+  // recibir exactamente dos consolidaciones.
+  function ledScreen(
+    id: string,
+    numero: string,
+    resolution: string,
+    centros: string,
+    articulos: string,
+  ): AdmiraScreen {
+    return {
+      id,
+      original: {
+        ...emptyOriginal(),
+        'Numero de Tienda': numero,
+        RESOLUCION: resolution,
+        CENTROS: centros,
+        ARTICULOS: articulos,
+      },
+      metadata: {
+        ...newScreenMetadata({ uid: 'u', email: 'e@e.com' }, 0),
+        active: true,
+        calendarSupport: 'LED',
+      },
+    };
+  }
+
+  async function setupHomonymousFlights() {
+    // 10 pantallas 914 X 908 (filas distintas por CENTROS) + 1 pantalla 690 X 832.
+    const screens: AdmiraScreen[] = [];
+    for (let i = 1; i <= 10; i += 1) {
+      screens.push(ledScreen(`s${i}`, String(i), '914 X 908', `C${i}`, 'A'));
+    }
+    screens.push(ledScreen('s11', '11', '690 X 832', 'C11', 'B'));
+
+    const stores = Array.from({ length: 11 }, (_, i) => ({
+      numero: String(i + 1),
+      nombre: '',
+    }));
+    const flight = (id: string): StoredCampaign =>
+      campaign({
+        id,
+        name: 'EL CORTE INGLES',
+        nameKey: 'el corte ingles',
+        supports: [{ support: 'LED', owner: 'liverpool', stores }],
+      });
+
+    vi.mocked(listCampaigns).mockResolvedValue([
+      flight('f1'),
+      flight('f2'),
+      flight('f3'),
+    ]);
+    vi.mocked(listScreens).mockResolvedValue(screens);
+    vi.mocked(listEkonLinks).mockResolvedValue([]);
+    // Usa el motor real de consolidación (no un resultado ya deduplicado).
+    const actual = await vi.importActual<
+      typeof import('@/modules/consolidation/consolidate')
+    >('@/modules/consolidation/consolidate');
+    vi.mocked(consolidate).mockImplementation(actual.consolidate);
+  }
+
+  it('muestra una sola opción por resolución pese a los flights repetidos', async () => {
+    await setupHomonymousFlights();
+    render(<CampaignsPage />);
+    await screen.findAllByText('EL CORTE INGLES');
+
+    // Hay varias filas homónimas; abrimos el menú de la primera.
+    const triggers = screen.getAllByRole('button', {
+      name: /Descargas de EL CORTE INGLES/i,
+    });
+    await userEvent.click(triggers[0]!);
+    const menu = screen.getByRole('menu', {
+      name: /Descargas de EL CORTE INGLES/i,
+    });
+
+    // Exactamente una opción por resolución.
+    expect(within(menu).getAllByText('690 X 832 — 1 filas')).toHaveLength(1);
+    expect(within(menu).getAllByText('914 X 908 — 10 filas')).toHaveLength(1);
+
+    // No hay seis botones de resolución (comportamiento anterior: 3 flights × 2).
+    const resItems = within(menu)
+      .getAllByRole('menuitem')
+      .filter((el) => /—\s*\d+\s*filas/.test(el.textContent ?? ''));
+    expect(resItems).toHaveLength(2);
+  });
+
+  it('el ZIP recibe una sola consolidación por resolución', async () => {
+    await setupHomonymousFlights();
+    render(<CampaignsPage />);
+    await screen.findAllByText('EL CORTE INGLES');
+
+    const triggers = screen.getAllByRole('button', {
+      name: /Descargas de EL CORTE INGLES/i,
+    });
+    await userEvent.click(triggers[0]!);
+    const menu = screen.getByRole('menu', {
+      name: /Descargas de EL CORTE INGLES/i,
+    });
+    await userEvent.click(within(menu).getByText('Descargar todos en ZIP'));
+
+    await waitFor(() => expect(buildZip).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(buildZip).mock.calls[0]![0];
+    expect(arg).toHaveLength(2);
+    expect(arg.map((c) => c.resolution).sort()).toEqual([
+      '690 X 832',
+      '914 X 908',
+    ]);
+  });
+});
+
 describe('CampaignsPage — exportación masiva Excel', () => {
   const bulkBtn = () =>
     screen.getByRole('button', { name: /Exportar (todas|filtradas)/i });

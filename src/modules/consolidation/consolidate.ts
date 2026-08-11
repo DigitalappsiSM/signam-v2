@@ -1,8 +1,8 @@
 import {
   RETAILERS_VALUE,
   buildAdmiraCampaignName,
+  buildConsolidationKey,
   joinArticulos,
-  normalizeResolution,
   normalizeSupport,
   GUADALAJARA_GALERIAS_EXCEPTION,
   type AdmiraCsvRow,
@@ -257,7 +257,27 @@ export function matchCampaignScreens(
   };
 }
 
-/** Consolida las campañas contra el catálogo. Función pura. */
+/**
+ * Acumulador de una consolidación (`Campaña + RESOLUCION`). Reúne, a lo largo de
+ * todos los flights homónimos, las pantallas participantes deduplicadas por
+ * `screen.id` y en orden estable de aparición.
+ */
+interface ConsolidationAccumulator {
+  campaignName: string;
+  /** Resolución original (primera aparición) usada para mostrar/serializar. */
+  resolution: string;
+  screens: Map<string, AdmiraScreen>;
+}
+
+/**
+ * Consolida las campañas contra el catálogo. Función pura.
+ *
+ * La llave definitiva es `Campaña + RESOLUCION` (`buildConsolidationKey`), por
+ * lo que varios **flights homónimos** (misma campaña repetida en el calendario)
+ * se unen en una **única** `Consolidation` por resolución: las pantallas se
+ * acumulan globalmente y se deduplican por `screen.id`. Así el menú de descargas
+ * y el ZIP presentan un solo CSV por resolución, en vez de uno por flight.
+ */
 export function consolidate(
   campaigns: readonly ParsedCampaign[],
   screens: readonly AdmiraScreen[],
@@ -265,8 +285,11 @@ export function consolidate(
   const index = buildScreenIndex(screens);
   const issues: ConsolidationIssue[] = [];
   const excludedInstore: { campaign: string; support: string }[] = [];
-  const consolidations: Consolidation[] = [];
   let ismExcludedCount = 0;
+
+  // Acumulador global por `Campaña + RESOLUCION`. El orden de inserción de las
+  // llaves determina el orden de las consolidaciones resultantes.
+  const groups = new Map<string, ConsolidationAccumulator>();
 
   for (const campaign of campaigns) {
     const match = matchCampaignScreens(campaign, index);
@@ -274,29 +297,42 @@ export function consolidate(
     excludedInstore.push(...match.excludedInstore);
     ismExcludedCount += match.ismExcludedCount;
 
-    // Agrupar por RESOLUCION.
-    const byResolution = new Map<string, AdmiraScreen[]>();
     for (const s of match.matched) {
-      const r = normalizeResolution(s.original.RESOLUCION);
-      (byResolution.get(r) ?? byResolution.set(r, []).get(r)!).push(s);
+      // Resoluciones con diferencias cosméticas (mayúsculas/espacios) se
+      // consideran iguales: la llave normaliza la resolución.
+      const key = buildConsolidationKey(campaign.name, s.original.RESOLUCION);
+      let acc = groups.get(key);
+      if (!acc) {
+        acc = {
+          campaignName: campaign.name,
+          resolution: s.original.RESOLUCION,
+          screens: new Map(),
+        };
+        groups.set(key, acc);
+      }
+      // Deduplicación de pantallas por id (una misma pantalla compartida por
+      // varios flights entra una sola vez).
+      if (!acc.screens.has(s.id)) acc.screens.set(s.id, s);
     }
+  }
 
-    for (const group of byResolution.values()) {
-      const articulosList = group.map((s) => s.original.ARTICULOS);
-      const rows = dedupeRows(group.map(screenToAdmiraRow));
-      consolidations.push({
-        campaignName: campaign.name,
-        resolution: group[0]!.original.RESOLUCION,
-        admiraCampaignName: buildAdmiraCampaignName(
-          campaign.name,
-          articulosList,
-        ),
-        articulos: joinArticulos(articulosList),
-        rows,
-        screenIds: group.map((s) => s.id),
-        storeCount: group.length,
-      });
-    }
+  const consolidations: Consolidation[] = [];
+  for (const acc of groups.values()) {
+    const group = [...acc.screens.values()];
+    const articulosList = group.map((s) => s.original.ARTICULOS);
+    const rows = dedupeRows(group.map(screenToAdmiraRow));
+    consolidations.push({
+      campaignName: acc.campaignName,
+      resolution: acc.resolution,
+      admiraCampaignName: buildAdmiraCampaignName(
+        acc.campaignName,
+        articulosList,
+      ),
+      articulos: joinArticulos(articulosList),
+      rows,
+      screenIds: group.map((s) => s.id),
+      storeCount: group.length,
+    });
   }
 
   return { consolidations, issues, excludedInstore, ismExcludedCount };

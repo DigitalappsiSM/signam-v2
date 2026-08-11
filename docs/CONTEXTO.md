@@ -204,6 +204,13 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   - **Ekon y CSV no cambian** (siguen por nombre): dos _flights_ comparten
     número Ekon y export CSV agrupado por `Campaña + RESOLUCION`. La
     consolidación/CSV no se altera.
+  - **Descargas deduplicadas**: como la llave es `Campaña + RESOLUCION`, varios
+    _flights_ homónimos se **unen** en una única consolidación por resolución
+    (las pantallas se acumulan globalmente y se deduplican por `screen.id`). Se
+    **presenta y descarga un único CSV por resolución** —tanto en el menú como en
+    el ZIP—, sin opciones repetidas; su contenido es la **unión deduplicada** de
+    las pantallas aplicables de todos los flights (`consolidate`, con prueba de
+    regresión en `consolidate.test.ts` y en `CampaignsPage.test.tsx`).
 - **UX resumen → detalle** (no se despliega todo a la vez): tras subir el
   archivo aparece un **banner-titular fijo** (sticky) con las cifras clave
   (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón
@@ -271,8 +278,11 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   **Descargar todos en ZIP**, empaqueta todas las resoluciones de la campaña en
   un ZIP (reutiliza `buildZip`, mismos nombres y contenido que las descargas
   individuales); el archivo se nombra **`<Campaña>_ Todas las resoluciones.zip`**.
-  Después, un separador y las descargas individuales por resolución. Si la
-  campaña no tiene consolidaciones, muestra **“Sin CSV”** y no ofrece ZIP.
+  Después, un separador y las descargas individuales por resolución. Como la
+  consolidación es por `Campaña + RESOLUCION`, se muestra **una sola opción por
+  resolución** aunque la campaña tenga varios _flights_ homónimos (sin opciones
+  repetidas), y el ZIP contiene un único CSV por resolución. Si la campaña no
+  tiene consolidaciones, muestra **“Sin CSV”** y no ofrece ZIP.
 - **Contadores**: reflejan los resultados filtrados. Sin filtros muestran los
   totales globales; con búsqueda o periodo activo muestran
   `N de total campañas · CSV visibles · incidencias visibles` (calculados solo a

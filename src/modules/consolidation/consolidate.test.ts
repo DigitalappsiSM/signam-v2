@@ -396,6 +396,101 @@ describe('consolidate', () => {
     expect(summary.bySupport['VIDEO WALL CRIUS']).toBe(2);
   });
 
+  it('une flights homónimos en una sola consolidación por Campaña + RESOLUCION', () => {
+    // Pantallas: dos comparten resolución (914 x 908) y una tiene otra
+    // resolución (690 X 832). "shared" la solicitan varios flights.
+    const screens = [
+      screen(
+        'shared',
+        { 'Numero de Tienda': '1', RESOLUCION: '914 x 908', ARTICULOS: 'A1' },
+        'LED',
+      ),
+      screen(
+        'extra',
+        { 'Numero de Tienda': '2', RESOLUCION: '914 X 908', ARTICULOS: 'A2' },
+        'LED',
+      ),
+      screen(
+        'otra',
+        { 'Numero de Tienda': '3', RESOLUCION: '690 X 832', ARTICULOS: 'B' },
+        'LED',
+      ),
+    ];
+    const flight = (stores: string[]) =>
+      campaign('EL CORTE INGLES', [
+        {
+          support: 'LED',
+          owner: 'liverpool',
+          stores: stores.map((numero) => ({ numero, nombre: '' })),
+        },
+      ]);
+    // Tres flights homónimos: el primero pide 1 y 3; el segundo repite 1 (misma
+    // pantalla compartida) y suma 2; el tercero repite todo.
+    const campaigns = [
+      flight(['1', '3']),
+      flight(['1', '2']),
+      flight(['1', '2', '3']),
+    ];
+
+    const result = consolidate(campaigns, screens);
+
+    // Una sola consolidación por resolución normalizada (no una por flight).
+    expect(result.consolidations).toHaveLength(2);
+
+    const byRes = new Map(
+      result.consolidations.map((c) => [c.resolution.toUpperCase(), c]),
+    );
+    const c914 = byRes.get('914 X 908')!;
+    const c690 = byRes.get('690 X 832')!;
+
+    // 914 x 908: unión de pantallas no repetidas y dedup de la compartida.
+    expect([...c914.screenIds].sort()).toEqual(['extra', 'shared']);
+    expect(c914.rows).toHaveLength(2);
+    // Artículos unidos conservando el orden de aparición.
+    expect(c914.admiraCampaignName).toBe('EL CORTE INGLES_ A1 + A2');
+
+    // 690 X 832: una sola pantalla, una sola fila.
+    expect(c690.screenIds).toEqual(['otra']);
+    expect(c690.rows).toHaveLength(1);
+  });
+
+  it('no mezcla campañas con nombres distintos aunque compartan resolución', () => {
+    const screens = [
+      screen(
+        'a',
+        { 'Numero de Tienda': '1', RESOLUCION: '914 x 908', ARTICULOS: 'A' },
+        'LED',
+      ),
+      screen(
+        'b',
+        { 'Numero de Tienda': '2', RESOLUCION: '914 x 908', ARTICULOS: 'B' },
+        'LED',
+      ),
+    ];
+    const campaigns = [
+      campaign('CAMPAÑA UNO', [
+        {
+          support: 'LED',
+          owner: 'liverpool',
+          stores: [{ numero: '1', nombre: '' }],
+        },
+      ]),
+      campaign('CAMPAÑA DOS', [
+        {
+          support: 'LED',
+          owner: 'liverpool',
+          stores: [{ numero: '2', nombre: '' }],
+        },
+      ]),
+    ];
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(2);
+    expect(result.consolidations.map((c) => c.campaignName).sort()).toEqual([
+      'CAMPAÑA DOS',
+      'CAMPAÑA UNO',
+    ]);
+  });
+
   it('ignora pantallas sin normalización (sin mapear)', () => {
     const screens = [
       screen(
