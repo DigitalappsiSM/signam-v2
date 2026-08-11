@@ -3,6 +3,7 @@ import {
   buildTrackingRows,
   criticalAlerts,
   isFullyTracked,
+  isOperationallyApplicable,
 } from './trackingModel';
 import { parseCampaignDate } from './businessDays';
 import {
@@ -283,5 +284,73 @@ describe('criticalAlerts / isFullyTracked', () => {
     } as unknown as CampaignOperationalTracking;
     const rows = buildTrackingRows([c], [], [tracking], today);
     expect(isFullyTracked(rows[0]!)).toBe(true);
+  });
+});
+
+describe('ciclo de vida en el modelo de vista', () => {
+  // Campaña que, activa, dispararía alertas (proveedor vencido, sin link, etc.).
+  function riskyProvider(cancelled: boolean): CampaignOperationalTracking {
+    const c = campaign({
+      tipo: 'PROVEEDOR',
+      link: '',
+      fechaInicio: '2026-03-02',
+      fechaFin: '2026-03-20',
+    });
+    return {
+      campaignNameKey: campaignIdentity(c),
+      classification: 'provider',
+      lifecycleStatus: cancelled ? 'cancelled' : 'active',
+      liverpoolValidation: { completed: false },
+      csmProgramming: { completed: false },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+  }
+
+  const riskyCampaign = campaign({
+    tipo: 'PROVEEDOR',
+    link: '',
+    fechaInicio: '2026-03-02',
+    fechaFin: '2026-03-20',
+  });
+
+  it('el estado se refleja en la fila; legacy sin estado = active', () => {
+    const rows = buildTrackingRows([riskyCampaign], [], [], today);
+    expect(rows[0]!.lifecycleStatus).toBe('active');
+    expect(isOperationallyApplicable(rows[0]!)).toBe(true);
+  });
+
+  it('una cancelada no genera criticalAlerts y no es isFullyTracked', () => {
+    const rows = buildTrackingRows(
+      [riskyCampaign],
+      [],
+      [riskyProvider(true)],
+      today,
+    );
+    expect(rows[0]!.lifecycleStatus).toBe('cancelled');
+    expect(criticalAlerts(rows[0]!)).toEqual([]);
+    expect(isFullyTracked(rows[0]!)).toBe(false);
+    expect(isOperationallyApplicable(rows[0]!)).toBe(false);
+  });
+
+  it('una cancelada no tiene próximo vencimiento aplicable', () => {
+    const rows = buildTrackingRows(
+      [riskyCampaign],
+      [],
+      [riskyProvider(true)],
+      today,
+    );
+    expect(rows[0]!.nextDeadline).toBeNull();
+  });
+
+  it('la misma campaña activa SÍ genera alertas (contraste)', () => {
+    const rows = buildTrackingRows(
+      [riskyCampaign],
+      [],
+      [riskyProvider(false)],
+      today,
+    );
+    expect(criticalAlerts(rows[0]!).length).toBeGreaterThan(0);
+    expect(rows[0]!.nextDeadline).not.toBeNull();
   });
 });

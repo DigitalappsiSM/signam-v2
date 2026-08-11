@@ -12,12 +12,15 @@ import {
   updateClassification,
   markAllChecks,
   addComment,
+  cancelCampaignTracking,
+  reactivateCampaignTracking,
   TrackingError,
 } from '@/services/campaignOperationalTracking';
 import type {
   CampaignOperationalTracking,
   CheckKey,
   Classification,
+  TrackingLifecycleStatus,
 } from './types';
 import {
   todayCivil,
@@ -93,6 +96,20 @@ function formatCommentStamp(ms: number): string {
   return `${formatDdMmYyyy(d)} · ${hh}:${mm}`;
 }
 
+/** Descripción accesible de la cancelación (quién, cuándo y motivo si existe). */
+function cancellationInfo(row: TrackingRow): string {
+  const t = row.tracking;
+  if (!t) return 'Cancelada';
+  const who = t.lifecycleUpdatedByEmail || 'usuario desconocido';
+  const when = t.lifecycleUpdatedAt
+    ? formatDdMmYyyy(new Date(t.lifecycleUpdatedAt))
+    : '';
+  const base = `Cancelada por ${who}${when ? ` · ${when}` : ''}`;
+  return t.cancellationReason
+    ? `${base} · Motivo: ${t.cancellationReason}`
+    : base;
+}
+
 /** Texto de trazabilidad (quién/cuándo) para el tooltip de una casilla. */
 function checkTitle(row: TrackingRow, key: CheckKey, label: string): string {
   const c = row.tracking ? row.tracking[key] : null;
@@ -126,6 +143,16 @@ export function OperationalTrackingPage() {
   const [classFilter, setClassFilter] = useState<
     'all' | Classification | 'unknown'
   >('all');
+  // Filtro de ciclo de vida (Activas/Canceladas/Todas). Por defecto: Todas.
+  const [lifecycleFilter, setLifecycleFilter] = useState<
+    'all' | TrackingLifecycleStatus
+  >('all');
+  // Diálogo de transición (cancelar/reactivar) para una fila concreta.
+  const [dialog, setDialog] = useState<{
+    row: TrackingRow;
+    mode: 'cancel' | 'reactivate';
+  } | null>(null);
+  const [reasonDraft, setReasonDraft] = useState('');
   // Ventana por defecto: mes anterior + mes actual + mes siguiente.
   const defaultWindow = useMemo(() => defaultTrackingWindow(), []);
   const [desde, setDesde] = useState(defaultWindow.desde);
@@ -189,6 +216,8 @@ export function OperationalTrackingPage() {
       if (q && !normalize(r.campaign.name).includes(q)) return false;
       if (classFilter !== 'all' && r.classification !== classFilter)
         return false;
+      if (lifecycleFilter !== 'all' && r.lifecycleStatus !== lifecycleFilter)
+        return false;
       // Filtro temporal por intersección de vigencia con el rango elegido.
       // Sin extremos (Ver todo) no filtra por fecha. La fila enlazada por
       // `?campana=` se exime para honrar los deep links del Panel.
@@ -216,6 +245,7 @@ export function OperationalTrackingPage() {
     rows,
     search,
     classFilter,
+    lifecycleFilter,
     desde,
     hasta,
     perError,
@@ -385,6 +415,58 @@ export function OperationalTrackingPage() {
     }
   }
 
+  function openDialog(row: TrackingRow, mode: 'cancel' | 'reactivate') {
+    setReasonDraft('');
+    setActionError(null);
+    setDialog({ row, mode });
+  }
+
+  const dialogBusyKey = dialog ? `${dialog.row.identity}:lifecycle` : null;
+  const dialogBusy = dialogBusyKey ? busy.has(dialogBusyKey) : false;
+
+  async function confirmDialog() {
+    if (!dialog || !canWrite) return;
+    const { row, mode } = dialog;
+    const busyKey = `${row.identity}:lifecycle`;
+    if (busy.has(busyKey)) return; // bloquea dobles envíos
+    const classification: Classification =
+      row.classification === 'unknown' ? 'institutional' : row.classification;
+    setActionError(null);
+    setBusyKey(busyKey, true);
+    try {
+      const updated =
+        mode === 'cancel'
+          ? await cancelCampaignTracking({
+              campaignNameKey: row.identity,
+              campaignName: row.campaign.name,
+              reason: reasonDraft,
+              classification,
+              linkValid: row.linkStatus === 'valid',
+              actor,
+            })
+          : await reactivateCampaignTracking({
+              campaignNameKey: row.identity,
+              campaignName: row.campaign.name,
+              classification,
+              linkValid: row.linkStatus === 'valid',
+              actor,
+            });
+      patchTracking(updated);
+      setDialog(null);
+      setReasonDraft('');
+    } catch (e) {
+      setActionError(
+        e instanceof TrackingError
+          ? e.message
+          : mode === 'cancel'
+            ? `No se pudo cancelar "${row.campaign.name}".`
+            : `No se pudo reactivar "${row.campaign.name}".`,
+      );
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -446,6 +528,22 @@ export function OperationalTrackingPage() {
             <option value="institutional">Institucional</option>
             <option value="provider">Proveedor</option>
             <option value="unknown">Pendiente</option>
+          </select>
+        </label>
+        <label className="ot-filter">
+          <span className="text-muted">Estado operativo</span>
+          <select
+            aria-label="Estado operativo"
+            value={lifecycleFilter}
+            onChange={(e) =>
+              setLifecycleFilter(
+                e.target.value as 'all' | TrackingLifecycleStatus,
+              )
+            }
+          >
+            <option value="all">Todas</option>
+            <option value="active">Activas</option>
+            <option value="cancelled">Canceladas</option>
           </select>
         </label>
         <label className="campaign-date">
@@ -583,14 +681,43 @@ export function OperationalTrackingPage() {
                 const comments = r.tracking?.comments ?? [];
                 const isExpanded = expanded.has(r.identity);
                 const isFinished = r.timeframe === 'finished';
+                const cancelled = r.lifecycleStatus === 'cancelled';
                 const markAllBusy = busy.has(`${r.identity}:markall`);
                 const commentBusy = busy.has(`${r.identity}:comment`);
+                const lifecycleBusy = busy.has(`${r.identity}:lifecycle`);
                 return (
                   <Fragment key={r.campaign.id}>
                     <tr
-                      className={highlighted ? 'ot-row--highlight' : undefined}
+                      className={
+                        [
+                          highlighted ? 'ot-row--highlight' : '',
+                          cancelled ? 'ot-row--cancelled' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
                     >
-                      <td>{r.campaign.name}</td>
+                      <td>
+                        {cancelled ? (
+                          <div className="ot-campaign">
+                            <span className="ot-campaign__name">
+                              {r.campaign.name}
+                            </span>
+                            <span
+                              className="ot-badge ot-cancelled"
+                              title={cancellationInfo(r)}
+                            >
+                              <Icon name="ban" size={13} />
+                              Cancelada
+                            </span>
+                            <span className="ot-cancelled__meta text-muted">
+                              {cancellationInfo(r)}
+                            </span>
+                          </div>
+                        ) : (
+                          r.campaign.name
+                        )}
+                      </td>
                       <td>
                         <select
                           className="ot-class-select"
@@ -627,6 +754,20 @@ export function OperationalTrackingPage() {
                         {r.target} de {r.distinctStores}
                       </td>
                       {CHECK_COLUMNS.map((col) => {
+                        // Cancelada: no se muestran casillas (ni desmarcadas);
+                        // los cinco indicadores quedan como "No aplica".
+                        if (cancelled) {
+                          return (
+                            <td key={col.key} className="ot-check-cell">
+                              <span
+                                className="ot-na"
+                                title={`${col.label}: no aplica mientras la campaña está cancelada`}
+                              >
+                                No aplica
+                              </span>
+                            </td>
+                          );
+                        }
                         const done = isDone(checks, col.key);
                         const cellBusy = busy.has(`${r.identity}:${col.key}`);
                         return (
@@ -646,18 +787,29 @@ export function OperationalTrackingPage() {
                         );
                       })}
                       <td>
-                        <span
-                          className={`ot-badge ${STATUS_META[r.overall].cls}`}
-                        >
-                          <Icon name={STATUS_META[r.overall].icon} size={14} />
-                          {STATUS_META[r.overall].label}
-                        </span>
+                        {cancelled ? (
+                          <span className="ot-badge ot-na-badge">
+                            <Icon name="minus" size={14} />
+                            No aplica
+                          </span>
+                        ) : (
+                          <span
+                            className={`ot-badge ${STATUS_META[r.overall].cls}`}
+                          >
+                            <Icon
+                              name={STATUS_META[r.overall].icon}
+                              size={14}
+                            />
+                            {STATUS_META[r.overall].label}
+                          </span>
+                        )}
                       </td>
                       <td>
                         {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
                       </td>
                       <td className="ot-actions-cell">
-                        {isFinished && (
+                        {/* "Marcar todas" no aparece en campañas canceladas. */}
+                        {isFinished && !cancelled && (
                           <button
                             type="button"
                             className="btn btn-secondary ot-mark-all"
@@ -668,6 +820,28 @@ export function OperationalTrackingPage() {
                             Marcar todas
                           </button>
                         )}
+                        {canWrite &&
+                          (cancelled ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary ot-lifecycle-btn"
+                              disabled={lifecycleBusy}
+                              onClick={() => openDialog(r, 'reactivate')}
+                              title="Reactivar la campaña y recuperar sus indicadores"
+                            >
+                              Reactivar
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-secondary ot-lifecycle-btn"
+                              disabled={lifecycleBusy}
+                              onClick={() => openDialog(r, 'cancel')}
+                              title="Marcar la campaña como cancelada"
+                            >
+                              Cancelar
+                            </button>
+                          ))}
                         <button
                           type="button"
                           className="btn btn-secondary ot-comments-toggle"
@@ -753,6 +927,85 @@ export function OperationalTrackingPage() {
 
       {!canWrite && !loading && (
         <p className="text-muted">Solo lectura (rol sin permiso de edición).</p>
+      )}
+
+      {dialog && (
+        <div
+          className="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ot-lifecycle-title"
+        >
+          <div
+            className="modal__backdrop"
+            aria-hidden="true"
+            onClick={() => {
+              if (!dialogBusy) setDialog(null);
+            }}
+          />
+          <div className="modal__card">
+            <h2 className="modal__title" id="ot-lifecycle-title">
+              {dialog.mode === 'cancel'
+                ? `Cancelar “${dialog.row.campaign.name}”`
+                : `Reactivar “${dialog.row.campaign.name}”`}
+            </h2>
+            {dialog.mode === 'cancel' ? (
+              <>
+                <p style={{ marginTop: 0 }}>
+                  La campaña quedará <strong>cancelada</strong>: sus cinco
+                  indicadores se mostrarán como <strong>“No aplica”</strong> y
+                  no generará alertas ni vencimientos. Los valores actuales de
+                  los checks se conservan y reaparecerán si la reactivas.
+                </p>
+                <label className="ot-reason" htmlFor="ot-reason-input">
+                  <span className="text-muted">Motivo (opcional)</span>
+                  <textarea
+                    id="ot-reason-input"
+                    className="ot-comments__input"
+                    rows={3}
+                    placeholder="Escribe un motivo… (opcional)"
+                    value={reasonDraft}
+                    disabled={dialogBusy}
+                    onChange={(e) => setReasonDraft(e.target.value)}
+                  />
+                </label>
+              </>
+            ) : (
+              <p style={{ marginTop: 0 }}>
+                La campaña volverá a estar <strong>activa</strong>. Sus cinco
+                indicadores reaparecerán exactamente con los valores que tenían
+                antes de cancelar y se recalcularán sus alertas y vencimientos.
+              </p>
+            )}
+            <div className="modal__actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={dialogBusy}
+                onClick={() => setDialog(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={
+                  dialog.mode === 'cancel'
+                    ? 'btn btn-danger'
+                    : 'btn btn-primary'
+                }
+                disabled={dialogBusy}
+                aria-busy={dialogBusy}
+                onClick={() => void confirmDialog()}
+              >
+                {dialogBusy
+                  ? 'Guardando…'
+                  : dialog.mode === 'cancel'
+                    ? 'Confirmar cancelación'
+                    : 'Confirmar reactivación'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

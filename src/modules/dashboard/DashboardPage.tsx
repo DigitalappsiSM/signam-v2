@@ -163,7 +163,14 @@ export function DashboardPage() {
   );
 
   const view = useMemo(() => {
-    const active = rows.filter((r) => r.timeframe === 'active');
+    // Las campañas canceladas se excluyen por completo del resumen operativo
+    // (KPIs, alertas, vencimientos, inicios y terminadas con pendientes). Se
+    // filtran explícitamente ANTES de calcular las secciones para que una
+    // cancelada no acabe contada como "En curso sin atrasos" solo porque
+    // `criticalAlerts()` devuelva un arreglo vacío. Siguen participando en la
+    // sección de carga (que usa `campaigns`/`tracking`, no estas filas).
+    const applicable = rows.filter((r) => r.lifecycleStatus !== 'cancelled');
+    const active = applicable.filter((r) => r.timeframe === 'active');
     const withAlerts = active.filter((r) => criticalAlerts(r).length > 0);
     const full = active.filter(isFullyTracked);
     const overduePending = active.filter(
@@ -174,7 +181,7 @@ export function DashboardPage() {
     );
 
     // B. Alertas críticas (activas + terminadas con pendientes).
-    const alerts = rows
+    const alerts = applicable
       .map((r) => ({ row: r, alerts: criticalAlerts(r) }))
       .filter((x) => x.alerts.length > 0)
       .sort((a, b) => {
@@ -186,7 +193,7 @@ export function DashboardPage() {
       });
 
     // C. Próximos vencimientos (por vencer, no vencidos).
-    const upcomingDue = rows
+    const upcomingDue = applicable
       .filter(
         (r) =>
           r.startStatus === 'due-soon' ||
@@ -201,7 +208,7 @@ export function DashboardPage() {
       );
 
     // D. Próximos inicios (dentro de 7 días naturales).
-    const upcomingStarts = rows
+    const upcomingStarts = applicable
       .filter((r) => {
         if (r.timeframe !== 'upcoming') return false;
         const start = parseCampaignDate(r.campaign.fechaInicio);
@@ -215,7 +222,7 @@ export function DashboardPage() {
           (parseCampaignDate(b.campaign.fechaInicio)?.getTime() ?? 0),
       );
 
-    const finishedPending = rows.filter(
+    const finishedPending = applicable.filter(
       (r) => r.timeframe === 'finished' && criticalAlerts(r).length > 0,
     );
 

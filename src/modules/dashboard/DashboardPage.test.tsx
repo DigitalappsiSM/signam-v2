@@ -163,6 +163,26 @@ describe('DashboardPage — resumen operativo', () => {
       await screen.findByText(/No se pudo cargar el resumen operativo/i),
     ).toBeInTheDocument();
   });
+
+  it('una campaña cancelada NO aparece en las alertas del resumen operativo', async () => {
+    // VIEJA (proveedor, terminada, sin link) sería alerta crítica; cancelada,
+    // debe desaparecer por completo del resumen operativo superior.
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      {
+        campaignNameKey: campaignIdentity(VIEJA),
+        classification: 'provider',
+        lifecycleStatus: 'cancelled',
+      } as unknown as Awaited<
+        ReturnType<typeof listOperationalTracking>
+      >[number],
+    ]);
+    renderDash();
+    await screen.findByRole('heading', { name: /Módulos/i });
+    // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
+    expect(
+      screen.queryByRole('link', { name: 'VIEJA' }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe('DashboardPage — carga por tienda y soporte', () => {
