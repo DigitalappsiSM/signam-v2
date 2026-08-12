@@ -1077,7 +1077,10 @@ describe('CampaignsPage — contadores', () => {
   it('con filtro sin coincidencias los conteos visibles son 0', async () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
-    await userEvent.type(screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i), 'zzz');
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      'zzz',
+    );
     expect(
       await screen.findByText('0 de 2 campañas · 0 CSV · 0 incidencias'),
     ).toBeInTheDocument();
