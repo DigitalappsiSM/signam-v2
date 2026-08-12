@@ -50,13 +50,21 @@ jobs:
 
       # Despliega Hosting, Cloud Functions y las reglas/índices de Firestore.
       # El predeploy de `firebase.json` recompila las funciones con las
-      # dependencias instaladas en el paso anterior. Requiere que la cuenta de
-      # servicio tenga permiso para verificar/usar las APIs (rol "Editor" o
-      # "Service Usage Consumer") y desplegar funciones; ver docs/SETUP.md.
+      # dependencias instaladas en el paso anterior.
+      #
+      # `--force` evita el prompt interactivo (que en CI aborta) al configurar la
+      # política de limpieza de imágenes de Artifact Registry de las funciones.
+      #
+      # Requisito de permisos: la cuenta de servicio (FIREBASE_SERVICE_ACCOUNT)
+      # debe poder desplegar funciones gen 2 (Cloud Run) Y fijar su política IAM
+      # de invoker. Roles necesarios en el proyecto: Cloud Functions Admin
+      # (roles/cloudfunctions.admin), Cloud Run Admin (roles/run.admin) y Service
+      # Account User (roles/iam.serviceAccountUser). Con solo "developer" el
+      # deploy falla en "set the IAM Policy on the Service". Ver docs/SETUP.md.
       - name: Deploy (Hosting + Functions + reglas e índices de Firestore)
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only hosting,functions,firestore:rules,firestore:indexes
+          args: deploy --only hosting,functions,firestore:rules,firestore:indexes --force
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: signam-v2-prod
