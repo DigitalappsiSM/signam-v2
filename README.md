@@ -86,8 +86,8 @@ del cruce campaña ↔ catálogo, de dos formas:
   (`StoredCampaign`), sin mezclar campañas o _flights_ homónimos.
 - **Masiva**: junto a los filtros, el botón **“Exportar todas (N)”** (o
   **“Exportar filtradas (N)”** cuando hay filtros activos) exporta exactamente el
-  conjunto **visible** en la tabla — respeta la **búsqueda por nombre** y el
-  **periodo `Desde`/`Hasta`** (intersección inclusiva de vigencias). Se
+  conjunto **visible** en la tabla — respeta la **búsqueda por nombre o número
+  Ekon** y el **periodo `Desde`/`Hasta`** (intersección inclusiva de vigencias). Se
   deshabilita mientras genera, con periodo inválido o sin resultados.
 
 El libro tiene hasta tres hojas:
