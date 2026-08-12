@@ -18,6 +18,7 @@ import {
 } from './screenFilter';
 import { ScreenForm } from './ScreenForm';
 import { MasterImportModal } from './MasterImportModal';
+import { MasterExportModal } from './MasterExportModal';
 import type { Actor } from './screenFactory';
 import './CatalogPage.css';
 
@@ -38,6 +39,7 @@ export function CatalogPage() {
   const [form, setForm] = useState<FormState>({ mode: 'closed' });
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -140,6 +142,12 @@ export function CatalogPage() {
         description="Consulta, busca y administra las pantallas del catálogo Admira CSM. Los campos originales del maestro se conservan intactos."
         actions={
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setExporting(true)}
+            >
+              Exportar catálogo
+            </button>
             <button
               className="btn btn-secondary"
               onClick={() => setImporting(true)}
@@ -322,6 +330,13 @@ export function CatalogPage() {
           submitting={saving}
           onSubmit={handleSubmit}
           onCancel={() => setForm({ mode: 'closed' })}
+        />
+      )}
+
+      {exporting && (
+        <MasterExportModal
+          screens={screens}
+          onClose={() => setExporting(false)}
         />
       )}
 
