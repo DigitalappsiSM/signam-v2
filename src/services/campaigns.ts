@@ -3,6 +3,7 @@ import { getFirebase } from './firebase';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import {
   campaignKey,
+  campaignIdentity,
   campaignSignature,
   type CampaignDiff,
   type StoredCampaign,
@@ -25,13 +26,18 @@ function db() {
   return fb.db;
 }
 
-/** Lee todas las campañas guardadas. */
-export async function listCampaigns(): Promise<StoredCampaign[]> {
+/** Lee las campañas guardadas. Por defecto omite las bajas lógicas. */
+export async function listCampaigns(options?: {
+  includeInactive?: boolean;
+}): Promise<StoredCampaign[]> {
   const snapshot = await getDocs(collection(db(), COLLECTION));
-  return snapshot.docs.map((d) => ({
+  const campaigns = snapshot.docs.map((d) => ({
     id: d.id,
     ...(d.data() as Omit<StoredCampaign, 'id'>),
   }));
+  return options?.includeInactive
+    ? campaigns
+    : campaigns.filter((campaign) => campaign.active !== false);
 }
 
 function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
@@ -42,6 +48,9 @@ function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
     // por todos los datos (`campaignIdentity`), no aquí.
     nameKey: campaignKey(campaign.name),
     signature: campaignSignature(campaign),
+    active: true,
+    deactivatedAt: null,
+    deactivatedBy: null,
     updatedAt: now,
     updatedBy: actor.email,
   };
@@ -51,6 +60,8 @@ export interface ApplyResult {
   added: number;
   modified: number;
   removed: number;
+  /** IDs canónicos asignados a las altas de esta importación. */
+  addedCampaignIds: Record<string, string>;
 }
 
 /**
@@ -65,12 +76,13 @@ export async function applyCampaignChanges(
   const now = Date.now();
 
   type Op =
-    | { kind: 'set'; id?: string; campaign: ParsedCampaign; createdAt?: number }
-    | { kind: 'delete'; id: string };
+    | { kind: 'set'; id: string; campaign: ParsedCampaign; createdAt?: number }
+    | { kind: 'deactivate'; campaign: StoredCampaign };
 
   const ops: Op[] = [
     ...diff.added.map((campaign) => ({
       kind: 'set' as const,
+      id: doc(collection(database, COLLECTION)).id,
       campaign,
       createdAt: now,
     })),
@@ -79,19 +91,30 @@ export async function applyCampaignChanges(
       id: m.stored.id,
       campaign: m.campaign,
     })),
-    ...diff.removed.map((r) => ({ kind: 'delete' as const, id: r.id })),
+    ...diff.removed.map((campaign) => ({
+      kind: 'deactivate' as const,
+      campaign,
+    })),
   ];
 
   for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
     const batch = writeBatch(database);
     for (const op of ops.slice(i, i + BATCH_LIMIT)) {
-      if (op.kind === 'delete') {
-        batch.delete(doc(database, COLLECTION, op.id));
+      if (op.kind === 'deactivate') {
+        batch.set(
+          doc(database, COLLECTION, op.campaign.id),
+          {
+            active: false,
+            deactivatedAt: now,
+            deactivatedBy: actor.email,
+            updatedAt: now,
+            updatedBy: actor.email,
+          },
+          { merge: true },
+        );
         continue;
       }
-      const ref = op.id
-        ? doc(database, COLLECTION, op.id)
-        : doc(collection(database, COLLECTION));
+      const ref = doc(database, COLLECTION, op.id);
       const data = campaignDoc(op.campaign, actor, now);
       batch.set(
         ref,
@@ -106,5 +129,13 @@ export async function applyCampaignChanges(
     added: diff.added.length,
     modified: diff.modified.length,
     removed: diff.removed.length,
+    addedCampaignIds: Object.fromEntries(
+      ops
+        .filter(
+          (op): op is Extract<Op, { kind: 'set' }> =>
+            op.kind === 'set' && op.createdAt != null,
+        )
+        .map((op) => [campaignIdentity(op.campaign), op.id]),
+    ),
   };
 }

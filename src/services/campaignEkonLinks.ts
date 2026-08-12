@@ -4,10 +4,12 @@ import {
   doc,
   getDocs,
   runTransaction,
+  writeBatch,
 } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { campaignKeyId } from '@/modules/campaigns/ekon';
+import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 
 /**
  * Persistencia de la asociación entre una campaña Liverpool y su número de
@@ -18,8 +20,9 @@ import { campaignKeyId } from '@/modules/campaigns/ekon';
  * importación del calendario nunca la toca y esta nunca modifica la campaña
  * importada.
  *
- * - `campaignEkonLinks/{campaignKeyId}`: la asociación y sus metadatos. El ID se
- *   deriva determinísticamente del `nameKey` normalizado (ver `campaignKeyId`).
+ * - `campaignEkonLinks/{campaignId}`: una asociación por instancia estable de
+ *   campaña. Los documentos legacy basados en `nameKey` se migran copiando el
+ *   número actual a cada flight existente.
  *
  * Relación muchos-a-uno:
  * - una campaña tiene como máximo un número Ekon (documento único por campaña);
@@ -32,8 +35,10 @@ const LINKS = 'campaignEkonLinks';
 
 /** Documento de asociación campaña ↔ Ekon. */
 export interface CampaignEkonLink {
-  /** ID del documento (`campaignKeyId(nameKey)`). */
+  /** ID del documento. En el esquema actual coincide con `campaignId`. */
   id: string;
+  /** Identidad canónica de `campaigns/{campaignId}`; ausente en documentos legacy. */
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   ekonCampaignNumber: number;
@@ -59,6 +64,7 @@ export async function listEkonLinks(): Promise<CampaignEkonLink[]> {
 }
 
 export interface SaveEkonLinkInput {
+  campaignId: string;
   campaignNameKey: string;
   campaignName: string;
   ekonCampaignNumber: number;
@@ -78,8 +84,14 @@ export interface SaveEkonLinkInput {
  */
 export async function saveEkonLink(input: SaveEkonLinkInput): Promise<void> {
   const database = db();
-  const { campaignNameKey, campaignName, ekonCampaignNumber, actor } = input;
-  const linkId = campaignKeyId(campaignNameKey);
+  const {
+    campaignId,
+    campaignNameKey,
+    campaignName,
+    ekonCampaignNumber,
+    actor,
+  } = input;
+  const linkId = campaignId;
   const linkRef = doc(database, LINKS, linkId);
 
   await runTransaction(database, async (tx) => {
@@ -91,6 +103,7 @@ export async function saveEkonLink(input: SaveEkonLinkInput): Promise<void> {
       : null;
 
     tx.set(linkRef, {
+      campaignId,
       campaignNameKey,
       campaignName,
       ekonCampaignNumber,
@@ -103,7 +116,7 @@ export async function saveEkonLink(input: SaveEkonLinkInput): Promise<void> {
 }
 
 export interface UnlinkEkonInput {
-  campaignNameKey: string;
+  campaignId: string;
   actor: Actor;
 }
 
@@ -114,6 +127,88 @@ export interface UnlinkEkonInput {
  */
 export async function unlinkEkon(input: UnlinkEkonInput): Promise<void> {
   const database = db();
-  const linkId = campaignKeyId(input.campaignNameKey);
-  await deleteDoc(doc(database, LINKS, linkId));
+  await deleteDoc(doc(database, LINKS, input.campaignId));
+}
+
+/**
+ * Migra las asociaciones legacy (`document id = campaignKeyId(nameKey)`) al id
+ * estable de cada campaña. Si hay varios flights con el mismo nombre, todos
+ * reciben inicialmente el número actual; después pueden editarse por separado.
+ * La operación es idempotente y elimina el documento legacy solo cuando pudo
+ * copiarlo al menos a una campaña.
+ */
+export async function migrateLegacyEkonLinks(
+  campaigns: readonly StoredCampaign[],
+  links: readonly CampaignEkonLink[],
+): Promise<number> {
+  const database = db();
+  const currentIds = new Set(
+    links.filter((link) => link.campaignId).map((link) => link.campaignId!),
+  );
+  const legacy = links.filter((link) => !link.campaignId);
+  type Migration = {
+    legacy: CampaignEkonLink;
+    campaigns: StoredCampaign[];
+  };
+  const migrations: Migration[] = legacy
+    .map((link) => ({
+      legacy: link,
+      campaigns: campaigns.filter(
+        (campaign) => campaign.nameKey === link.campaignNameKey,
+      ),
+    }))
+    .filter((migration) => migration.campaigns.length > 0);
+
+  let writes = 0;
+  const ops: Array<
+    | { kind: 'copy'; link: CampaignEkonLink; campaign: StoredCampaign }
+    | { kind: 'delete'; id: string }
+  > = [];
+  for (const migration of migrations) {
+    for (const campaign of migration.campaigns) {
+      if (currentIds.has(campaign.id)) continue;
+      ops.push({ kind: 'copy', link: migration.legacy, campaign });
+      currentIds.add(campaign.id);
+      writes += 1;
+    }
+    ops.push({ kind: 'delete', id: migration.legacy.id });
+  }
+
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(database);
+    for (const op of ops.slice(i, i + 400)) {
+      if (op.kind === 'delete') {
+        batch.delete(doc(database, LINKS, op.id));
+        continue;
+      }
+      batch.set(doc(database, LINKS, op.campaign.id), {
+        campaignId: op.campaign.id,
+        campaignNameKey: op.campaign.nameKey,
+        campaignName: op.campaign.name,
+        ekonCampaignNumber: op.link.ekonCampaignNumber,
+        createdAt: op.link.createdAt,
+        createdBy: op.link.createdBy,
+        updatedAt: op.link.updatedAt,
+        updatedBy: op.link.updatedBy,
+      });
+    }
+    await batch.commit();
+  }
+  return writes;
+}
+
+/** Devuelve la asociación exacta de una instancia; fallback solo para legacy. */
+export function ekonNumberForCampaign(
+  campaign: StoredCampaign,
+  links: readonly CampaignEkonLink[],
+): number | null {
+  const exact = links.find((link) => link.campaignId === campaign.id);
+  if (exact) return exact.ekonCampaignNumber;
+  const legacyId = campaignKeyId(campaign.nameKey);
+  const legacy = links.find(
+    (link) =>
+      !link.campaignId &&
+      (link.id === legacyId || link.campaignNameKey === campaign.nameKey),
+  );
+  return legacy?.ekonCampaignNumber ?? null;
 }

@@ -133,7 +133,7 @@ para el masivo, siempre sanitizados.
 Cada campaña del seguimiento tiene un **estado de ciclo de vida** manual —
 **Activa** o **Cancelada**— que **solo** afecta al seguimiento operativo (no
 cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación). Vive en
-`campaignOperationalTracking/{campaignKeyId}` (campos `lifecycleStatus`,
+`campaignOperationalTracking/{campaignId}` (campos `lifecycleStatus`,
 `lifecycleUpdatedAt/By*` y `cancellationReason`); la importación del calendario
 **nunca** lo borra ni sobrescribe.
 
@@ -145,10 +145,9 @@ cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación). Vive
 - **Reactivar** (con confirmación): vuelve a **Activa**, limpia el motivo y los
   cinco checks reaparecen exactamente como estaban; se recalculan alertas y
   vencimientos con las reglas normales.
-- El estado **sobrevive a reimportaciones idénticas** (misma
-  `campaignIdentity`); si cambian fechas, link, tipo, vendedor, soportes o
-  tiendas y la identidad cambia, se trata como **otra** campaña y **empieza
-  activa** (no se hereda por nombre ni por `nameKey`).
+- El estado **sobrevive a cambios de la misma línea lógica** porque el
+  `campaign.id` se conserva aunque cambien fechas, link, tipo, vendedor,
+  soportes o tiendas. Los flights homónimos siguen siendo independientes.
 - Las canceladas **permanecen visibles** por defecto (filtro
   Todas/Activas/Canceladas, inicial **Todas**) con un badge inequívoco
   **“Cancelada”** (icono + texto). Los comentarios y la clasificación siguen

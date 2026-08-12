@@ -255,7 +255,7 @@ function classify(
   c: OccupancyCampaignInput,
   trackingByKey: Map<string, CampaignOperationalTracking>,
 ): OccupancyClassification {
-  const t = trackingByKey.get(c.nameKey);
+  const t = trackingByKey.get(c.id) ?? trackingByKey.get(c.nameKey);
   if (t) return t.classification;
   return classifyFromTipo(c.tipo);
 }
@@ -295,7 +295,8 @@ function resolveCampaign(
   const oc: OccupancyCampaign = {
     campaignId: c.id,
     campaignName: c.name,
-    campaignNameKey: c.nameKey,
+    // Las agregaciones y deep links deben distinguir flights homónimos.
+    campaignNameKey: c.id,
     classification,
     startDate: effStart,
     endDate: effEnd,
@@ -633,7 +634,9 @@ export function buildOccupancyDashboard(
 
   const idx = buildCatalogIndex(screens);
   const trackingByKey = new Map<string, CampaignOperationalTracking>();
-  for (const t of tracking) trackingByKey.set(t.campaignNameKey, t);
+  for (const t of tracking) {
+    trackingByKey.set(t.campaignId ?? t.campaignNameKey, t);
+  }
 
   const issues: OccupancyIssue[] = [];
   const periodCampaigns: PeriodCampaign[] = [];

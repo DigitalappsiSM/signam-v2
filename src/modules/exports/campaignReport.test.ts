@@ -85,11 +85,7 @@ describe('buildCampaignReport — Ekon', () => {
         },
       ],
     });
-    const report = buildCampaignReport(
-      [c],
-      screens,
-      ekon([['campaña a', 12345]]),
-    );
+    const report = buildCampaignReport([c], screens, ekon([[c.id, 12345]]));
     expect(report.rows).toHaveLength(2);
     expect(report.rows.every((r) => r.ekonNumber === 12345)).toBe(true);
   });

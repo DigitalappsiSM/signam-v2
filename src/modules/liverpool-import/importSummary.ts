@@ -11,7 +11,7 @@ export interface ImportSummary {
   added: number;
   /** Campañas con cambios (fechas/soportes/…). */
   modified: number;
-  /** Campañas que se eliminarán de la base. */
+  /** Campañas que se inactivarán (baja lógica). */
   removed: number;
   /** Campañas del calendario sin cambios respecto a la base. */
   unchanged: number;

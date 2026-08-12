@@ -237,7 +237,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
     await userEvent.click(bar);
     const dialog = await screen.findByRole('dialog');
     const link = within(dialog).getByRole('link', { name: 'BUEN FIN' });
-    expect(link).toHaveAttribute('href', '/seguimiento?campana=buen%20fin');
+    expect(link).toHaveAttribute('href', '/seguimiento?campana=id');
   });
 
   it('abre el detalle de una tienda', async () => {

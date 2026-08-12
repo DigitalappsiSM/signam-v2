@@ -51,6 +51,7 @@ export function parseEkonNumber(raw: string): EkonParseResult {
 
 /** Datos mínimos de una campaña que comparte un número Ekon (para el aviso). */
 export interface EkonNumberOwner {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
 }
@@ -66,20 +67,22 @@ export interface EkonNumberOwner {
  */
 export function otherCampaignsWithEkonNumber(
   links: readonly {
+    campaignId?: string;
     campaignNameKey: string;
     campaignName: string;
     ekonCampaignNumber: number;
   }[],
   ekonNumber: number,
-  currentNameKey: string,
+  currentCampaignId: string,
 ): EkonNumberOwner[] {
   return links
     .filter(
       (l) =>
         l.ekonCampaignNumber === ekonNumber &&
-        l.campaignNameKey !== currentNameKey,
+        (l.campaignId ?? l.campaignNameKey) !== currentCampaignId,
     )
     .map((l) => ({
+      campaignId: l.campaignId,
       campaignNameKey: l.campaignNameKey,
       campaignName: l.campaignName,
     }));
