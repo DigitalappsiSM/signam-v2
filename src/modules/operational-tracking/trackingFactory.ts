@@ -19,10 +19,9 @@ export const CANCELLED_CHECK_MESSAGE =
 /**
  * Construcción y transición puras del documento de seguimiento operativo.
  *
- * Reutiliza `campaignKeyId` (mismo algoritmo determinístico que la asociación
- * Ekon) para derivar el id desde el `nameKey`. Toda la lógica de reglas de
- * negocio de los checks (Validación Liverpool inicial, relación T Arranque / T
- * Completos, limpieza al desmarcar) vive aquí, sin Firestore ni UI.
+ * Los documentos actuales usan el `campaignId` canónico. `campaignKeyId` se
+ * conserva únicamente para compatibilidad con documentos legacy. Toda la lógica
+ * de reglas de negocio vive aquí, sin Firestore ni UI.
  */
 
 export interface TrackingActor {
@@ -51,6 +50,7 @@ function makeCheck(
 }
 
 export interface InitialTrackingParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   classification: Classification;
@@ -73,7 +73,8 @@ export function initialTracking(
   const institutional = params.classification === 'institutional';
   const validationDefault = institutional || params.linkValid;
   return {
-    id: campaignKeyId(params.campaignNameKey),
+    id: params.campaignId ?? campaignKeyId(params.campaignNameKey),
+    campaignId: params.campaignId,
     campaignNameKey: params.campaignNameKey,
     campaignName: params.campaignName,
     classification: params.classification,

@@ -7,7 +7,15 @@ import { parseCampaigns } from './campaignParse';
 import { readCalendarWorkbook } from './readCalendarWorkbook';
 import { listCampaigns, applyCampaignChanges } from '@/services/campaigns';
 import { campaignIdentity } from '@/modules/campaigns/campaignDiff';
-import { listOperationalTracking } from '@/services/campaignOperationalTracking';
+import {
+  initializeTrackingForImport,
+  listOperationalTracking,
+  migrateLegacyOperationalTracking,
+} from '@/services/campaignOperationalTracking';
+import {
+  listEkonLinks,
+  migrateLegacyEkonLinks,
+} from '@/services/campaignEkonLinks';
 import {
   listDateResolutions,
   saveDateResolutions,
@@ -30,6 +38,11 @@ vi.mock('@/services/campaigns', () => ({
 vi.mock('@/services/campaignOperationalTracking', () => ({
   listOperationalTracking: vi.fn(),
   initializeTrackingForImport: vi.fn(),
+  migrateLegacyOperationalTracking: vi.fn(),
+}));
+vi.mock('@/services/campaignEkonLinks', () => ({
+  listEkonLinks: vi.fn(),
+  migrateLegacyEkonLinks: vi.fn(),
 }));
 vi.mock('@/services/dateResolutions', () => ({
   listDateResolutions: vi.fn(),
@@ -86,6 +99,19 @@ beforeEach(() => {
   vi.mocked(analyzeCalendar).mockReturnValue(analysis as never);
   vi.mocked(listCampaigns).mockResolvedValue([]);
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
+  vi.mocked(listEkonLinks).mockResolvedValue([]);
+  vi.mocked(migrateLegacyEkonLinks).mockResolvedValue(0);
+  vi.mocked(migrateLegacyOperationalTracking).mockResolvedValue(0);
+  vi.mocked(applyCampaignChanges).mockResolvedValue({
+    added: 1,
+    modified: 0,
+    removed: 0,
+    addedCampaignIds: {},
+  });
+  vi.mocked(initializeTrackingForImport).mockResolvedValue({
+    created: 0,
+    reclassified: 0,
+  });
   vi.mocked(listDateResolutions).mockResolvedValue(new Map());
   vi.mocked(saveDateResolutions).mockResolvedValue(undefined);
 });

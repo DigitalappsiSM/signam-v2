@@ -21,6 +21,8 @@ import {
   diffCampaigns,
   dedupeIncoming,
   campaignIdentity,
+  type CampaignMatchPending,
+  type CampaignMatchSelections,
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import {
@@ -38,8 +40,14 @@ import { applyCampaignChanges, listCampaigns } from '@/services/campaigns';
 import {
   listOperationalTracking,
   initializeTrackingForImport,
+  migrateLegacyOperationalTracking,
   type ImportClassificationSelection,
 } from '@/services/campaignOperationalTracking';
+import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
+import {
+  listEkonLinks,
+  migrateLegacyEkonLinks,
+} from '@/services/campaignEkonLinks';
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import type { Classification } from '@/modules/operational-tracking/types';
@@ -101,6 +109,11 @@ export function ImportPage() {
   const [storedCampaigns, setStoredCampaigns] = useState<
     StoredCampaign[] | null
   >(null);
+  const [existingTracking, setExistingTracking] = useState<
+    CampaignOperationalTracking[]
+  >([]);
+  const [matchSelections, setMatchSelections] =
+    useState<CampaignMatchSelections>(new Map());
   // Memoria persistida de fechas ambiguas ya confirmadas (raw → resolución).
   const [dateMemory, setDateMemory] = useState<Map<string, DateResolution>>(
     new Map(),
@@ -126,6 +139,7 @@ export function ImportPage() {
     setError(null);
     setSaveNotice(null);
     setStoredCampaigns(null);
+    setMatchSelections(new Map());
     setPhase('analyzing');
     try {
       const data = await readCalendarWorkbook(file);
@@ -135,11 +149,12 @@ export function ImportPage() {
       setParsedList(parsed.campaigns);
       setDateChoices(new Map());
       const [stored, tracking, resolutions] = await Promise.all([
-        listCampaigns(),
+        listCampaigns({ includeInactive: true }),
         listOperationalTracking(),
         listDateResolutions(),
       ]);
       setStoredCampaigns(stored);
+      setExistingTracking(tracking);
       setDateMemory(resolutions);
       setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
       // El diff, la deduplicación, la clasificación y las fechas ambiguas se
@@ -166,8 +181,10 @@ export function ImportPage() {
 
   const diff = useMemo(
     () =>
-      storedCampaigns ? diffCampaigns(resolvedList, storedCampaigns) : null,
-    [resolvedList, storedCampaigns],
+      storedCampaigns
+        ? diffCampaigns(resolvedList, storedCampaigns, matchSelections)
+        : null,
+    [resolvedList, storedCampaigns, matchSelections],
   );
 
   // Fechas ambiguas (texto A/B con ambos ≤ 12) que NO están en la memoria: hay
@@ -211,14 +228,36 @@ export function ImportPage() {
     const out: { nameKey: string; name: string; tipo: string; link: string }[] =
       [];
     const seen = new Set<string>();
+    const matchedByIdentity = new Map(
+      (diff?.matched ?? []).map((match) => [
+        campaignIdentity(match.campaign),
+        match.stored,
+      ]),
+    );
+    const trackingCampaignIds = new Set(
+      existingTracking.flatMap((tracking) =>
+        tracking.campaignId ? [tracking.campaignId] : [],
+      ),
+    );
+    const legacyTrackingKeys = new Set(
+      existingTracking
+        .filter((tracking) => !tracking.campaignId)
+        .map((tracking) => tracking.campaignNameKey),
+    );
     for (const c of resolvedList) {
       const nameKey = campaignIdentity(c);
-      if (existingKeys.has(nameKey) || seen.has(nameKey)) continue;
+      const stored = matchedByIdentity.get(nameKey);
+      const hasTracking =
+        existingKeys.has(nameKey) ||
+        (stored != null &&
+          (trackingCampaignIds.has(stored.id) ||
+            legacyTrackingKeys.has(campaignIdentity(stored))));
+      if (hasTracking || seen.has(nameKey)) continue;
       seen.add(nameKey);
       out.push({ nameKey, name: c.name, tipo: c.tipo, link: c.link });
     }
     return out;
-  }, [resolvedList, existingKeys]);
+  }, [resolvedList, existingKeys, existingTracking, diff]);
 
   // Preselección de clasificación por identidad: agrega defaults para las
   // identidades nuevas sin pisar lo que el usuario ya haya elegido.
@@ -237,14 +276,17 @@ export function ImportPage() {
     });
   }, [resolvedList, existingKeys]);
 
-  const pendingCount = needClass.filter(
+  const pendingClassCount = needClass.filter(
     (k) => !selections.get(k.nameKey),
   ).length;
+  const pendingMatchCount = diff?.pendingMatches.length ?? 0;
+  const pendingCount = pendingClassCount + pendingMatchCount;
   // Hay trabajo si: cambios en campañas, clasificaciones nuevas, o **fechas
   // ambiguas por resolver** (aunque la fecha resuelta ya coincida con la BD, hay
   // que persistir la confirmación para no volver a preguntar).
   const hasWork =
     Boolean(diff?.hasChanges) ||
+    pendingMatchCount > 0 ||
     needClass.length > 0 ||
     ambiguousRows.length > 0;
   const canSave = hasWork && pendingCount === 0 && pendingDatesCount === 0;
@@ -257,6 +299,14 @@ export function ImportPage() {
 
   function setSelection(nameKey: string, value: ClassChoice) {
     setSelections((prev) => new Map(prev).set(nameKey, value));
+  }
+
+  function setMatchSelection(incomingIdentity: string, storedId: string) {
+    setMatchSelections((prev) => {
+      const next = new Map(prev);
+      next.set(incomingIdentity, storedId === '__new__' ? null : storedId);
+      return next;
+    });
   }
 
   function setDateChoice(raw: string, order: DateOrder) {
@@ -281,12 +331,36 @@ export function ImportPage() {
         await saveDateResolutions(newResolutions, actor);
       }
 
-      let res = { added: 0, modified: 0, removed: 0 };
+      if (storedCampaigns) {
+        const [links, tracking] = await Promise.all([
+          listEkonLinks(),
+          listOperationalTracking(),
+        ]);
+        await Promise.all([
+          migrateLegacyEkonLinks(storedCampaigns, links),
+          migrateLegacyOperationalTracking(storedCampaigns, tracking),
+        ]);
+      }
+
+      let res = {
+        added: 0,
+        modified: 0,
+        removed: 0,
+        addedCampaignIds: {} as Record<string, string>,
+      };
       if (diff && diff.hasChanges) {
         res = await applyCampaignChanges(diff, actor);
       }
+      const matchedIds = new Map(
+        (diff?.matched ?? []).map((match) => [
+          campaignIdentity(match.campaign),
+          match.stored.id,
+        ]),
+      );
       const sels: ImportClassificationSelection[] = needClass
         .map((k) => ({
+          campaignId:
+            matchedIds.get(k.nameKey) ?? res.addedCampaignIds[k.nameKey] ?? '',
           campaignNameKey: k.nameKey,
           campaignName: k.name,
           classification: selections.get(k.nameKey) as Classification,
@@ -295,23 +369,25 @@ export function ImportPage() {
         }))
         .filter(
           (s) =>
-            s.classification === 'institutional' ||
-            s.classification === 'provider',
+            s.campaignId !== '' &&
+            (s.classification === 'institutional' ||
+              s.classification === 'provider'),
         );
       const track = sels.length
         ? await initializeTrackingForImport(sels, actor)
         : { created: 0, reclassified: 0 };
 
       const [stored, tracking, resolutions] = await Promise.all([
-        listCampaigns(),
+        listCampaigns({ includeInactive: true }),
         listOperationalTracking(),
         listDateResolutions(),
       ]);
       setStoredCampaigns(stored);
+      setExistingTracking(tracking);
       setDateMemory(resolutions);
       setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
       setSaveNotice(
-        `Guardado: ${res.added} nuevas, ${res.removed} eliminadas. Seguimiento inicializado: ${track.created}.`,
+        `Guardado: ${res.added} nuevas, ${res.modified} actualizadas, ${res.removed} inactivadas. Seguimiento inicializado: ${track.created}.`,
       );
     } catch {
       setError('No se pudieron guardar los cambios de campañas.');
@@ -447,12 +523,26 @@ export function ImportPage() {
               />
             )}
 
+            {diff && diff.pendingMatches.length > 0 && (
+              <CampaignMatchPanel
+                items={diff.pendingMatches}
+                selectedStoredIds={
+                  new Set(
+                    [...matchSelections.values()].filter(
+                      (id): id is string => id !== null,
+                    ),
+                  )
+                }
+                onChange={setMatchSelection}
+              />
+            )}
+
             {needClass.length > 0 && (
               <ClassificationPanel
                 items={needClass}
                 selections={selections}
                 onChange={setSelection}
-                pendingCount={pendingCount}
+                pendingCount={pendingClassCount}
               />
             )}
 
@@ -486,13 +576,14 @@ export function ImportPage() {
 
             {diff && diff.removed.length > 0 && (
               <Section
-                title="Campañas eliminadas"
+                title="Campañas inactivadas"
                 chip={diff.removed.length}
                 tone="danger"
                 defaultOpen
               >
                 <p className="import__note" style={{ marginTop: 0 }}>
-                  Estas campañas se eliminarán de la base de datos al guardar.
+                  Estas campañas dejarán de mostrarse, pero conservarán su ID,
+                  Ekon y seguimiento para una posible reactivación.
                 </p>
                 <ul className="text-muted">
                   {diff.removed.slice(0, 100).map((c) => (
@@ -666,6 +757,91 @@ function issuesChip(errors: number, warnings: number): string {
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+function campaignMatchLabel(campaign: StoredCampaign): string {
+  return `${campaign.name} · ${formatCivilString(
+    campaign.fechaInicio,
+  )}–${formatCivilString(campaign.fechaFin)} · fila ${campaign.row}`;
+}
+
+/** Confirmación humana para homónimos o correcciones de nombre ambiguas. */
+function CampaignMatchPanel({
+  items,
+  selectedStoredIds,
+  onChange,
+}: {
+  items: CampaignMatchPending[];
+  selectedStoredIds: Set<string>;
+  onChange: (incomingIdentity: string, storedId: string) => void;
+}) {
+  return (
+    <Section
+      title="Campañas por emparejar"
+      chip={`${items.length} pendientes`}
+      tone="warning"
+      defaultOpen
+    >
+      <p className="import__note" style={{ marginTop: 0 }}>
+        SIGNAM encontró campañas homónimas o una posible corrección de nombre y
+        no puede asegurar cuál línea anterior corresponde. Elige la campaña que
+        conserva el mismo ID, Ekon y seguimiento, o indícala como nueva.
+      </p>
+      <div className="diagnosis__table-wrap">
+        <table className="catalog__table">
+          <thead>
+            <tr>
+              <th>Campaña entrante</th>
+              <th>Inicio / fin</th>
+              <th>Corresponde a</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.incomingIdentity}>
+                <td>
+                  {item.campaign.name}
+                  {item.reason === 'name-change' && (
+                    <span className="badge badge-warning">
+                      Cambio de nombre
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {formatCivilString(item.campaign.fechaInicio)} –{' '}
+                  {formatCivilString(item.campaign.fechaFin)}
+                </td>
+                <td>
+                  <select
+                    className="catalog__search"
+                    aria-label={`Emparejar ${item.campaign.name}`}
+                    defaultValue=""
+                    onChange={(event) =>
+                      onChange(item.incomingIdentity, event.target.value)
+                    }
+                  >
+                    <option value="" disabled>
+                      Selecciona…
+                    </option>
+                    {item.candidates.map((candidate) => (
+                      <option
+                        key={candidate.id}
+                        value={candidate.id}
+                        disabled={selectedStoredIds.has(candidate.id)}
+                      >
+                        {campaignMatchLabel(candidate)}
+                      </option>
+                    ))}
+                    <option value="__new__">Es una campaña nueva</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
 }
 
 function CampaignsSection({ result }: { result: CampaignParseResult }) {

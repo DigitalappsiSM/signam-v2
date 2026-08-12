@@ -59,10 +59,10 @@ service cloud.firestore {
 
     // Asociación manual campaña Liverpool ↔ número de campaña Ekon. Colección
     // separada de `campaigns`: la importación nunca la toca y sobrevive a
-    // reimportaciones. El ID es determinístico (base64url del nameKey). Un mismo
-    // número Ekon puede repetirse en varias campañas (muchos-a-uno); la UI avisa
-    // y pide confirmación antes de compartirlo.
-    match /campaignEkonLinks/{campaignKeyId} {
+    // reimportaciones. El documento usa el campaignId estable; un mismo número
+    // Ekon puede repetirse en varias campañas (muchos-a-uno), pero editar un
+    // flight no modifica a los demás.
+    match /campaignEkonLinks/{campaignId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isSignedIn();
     }
@@ -98,13 +98,17 @@ service cloud.firestore {
         && (data.cancellationReason == null
             || data.cancellationReason is string);
     }
-    match /campaignOperationalTracking/{campaignKeyId} {
+    function validCampaignReference(data) {
+      return !('campaignId' in data) || data.campaignId is string;
+    }
+    match /campaignOperationalTracking/{campaignId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.campaignNameKey is string
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
+        && validCampaignReference(request.resource.data)
         && validLifecycle(request.resource.data);
       allow update: if isSignedIn()
         && request.resource.data.classification in ['institutional', 'provider']
@@ -112,6 +116,9 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.createdByUid == resource.data.createdByUid
         && request.resource.data.createdByEmail == resource.data.createdByEmail
+        && validCampaignReference(request.resource.data)
+        && (!('campaignId' in resource.data)
+            || request.resource.data.campaignId == resource.data.campaignId)
         && validLifecycle(request.resource.data);
       allow delete: if false;
     }

@@ -6,6 +6,7 @@ import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import { campaignIdentity } from '@/modules/campaigns/campaignDiff';
 import {
   listOperationalTracking,
   updateCheck,
@@ -14,6 +15,7 @@ import {
   addComment,
   cancelCampaignTracking,
   reactivateCampaignTracking,
+  migrateLegacyOperationalTracking,
   TrackingError,
 } from '@/services/campaignOperationalTracking';
 import type {
@@ -168,11 +170,22 @@ export function OperationalTrackingPage() {
     setLoading(true);
     setError(null);
     try {
-      const [c, s, t] = await Promise.all([
+      const [c, s, initialTracking] = await Promise.all([
         listCampaigns(),
         listScreens(),
         listOperationalTracking(),
       ]);
+      let t = initialTracking;
+      try {
+        const migrated = await migrateLegacyOperationalTracking(
+          c,
+          initialTracking,
+        );
+        if (migrated > 0) t = await listOperationalTracking();
+      } catch {
+        // Compatibilidad: la lectura legacy sigue funcionando y la migración se
+        // reintentará en la próxima carga.
+      }
       c.sort((a, b) => a.name.localeCompare(b.name, 'es'));
       setCampaigns(c);
       setScreens(s);
@@ -203,7 +216,10 @@ export function OperationalTrackingPage() {
   const isDeepLinked = useCallback(
     (r: TrackingRow) =>
       !!highlightKey &&
-      (r.identity === highlightKey || r.campaign.nameKey === highlightKey),
+      (r.campaign.id === highlightKey ||
+        r.identity === highlightKey ||
+        campaignIdentity(r.campaign) === highlightKey ||
+        r.campaign.nameKey === highlightKey),
     [highlightKey],
   );
 
@@ -274,7 +290,11 @@ export function OperationalTrackingPage() {
 
   const patchTracking = useCallback((t: CampaignOperationalTracking) => {
     setTrackingList((prev) => [
-      ...prev.filter((x) => x.campaignNameKey !== t.campaignNameKey),
+      ...prev.filter(
+        (x) =>
+          (x.campaignId ?? x.campaignNameKey) !==
+          (t.campaignId ?? t.campaignNameKey),
+      ),
       t,
     ]);
   }, []);
@@ -304,6 +324,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await updateCheck({
+        campaignId: row.campaign.id,
         campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         key,
@@ -332,6 +353,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await updateClassification({
+        campaignId: row.campaign.id,
         campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         classification: value,
@@ -358,6 +380,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await markAllChecks({
+        campaignId: row.campaign.id,
         campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         classification,
@@ -397,6 +420,7 @@ export function OperationalTrackingPage() {
     setBusyKey(busyKey, true);
     try {
       const updated = await addComment({
+        campaignId: row.campaign.id,
         campaignNameKey: row.identity,
         campaignName: row.campaign.name,
         text,
@@ -437,6 +461,7 @@ export function OperationalTrackingPage() {
       const updated =
         mode === 'cancel'
           ? await cancelCampaignTracking({
+              campaignId: row.campaign.id,
               campaignNameKey: row.identity,
               campaignName: row.campaign.name,
               reason: reasonDraft,
@@ -445,6 +470,7 @@ export function OperationalTrackingPage() {
               actor,
             })
           : await reactivateCampaignTracking({
+              campaignId: row.campaign.id,
               campaignNameKey: row.identity,
               campaignName: row.campaign.name,
               classification,

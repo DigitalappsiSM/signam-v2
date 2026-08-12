@@ -15,6 +15,8 @@ import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import {
   listEkonLinks,
+  ekonNumberForCampaign,
+  migrateLegacyEkonLinks,
   saveEkonLink,
   unlinkEkon,
   type CampaignEkonLink,
@@ -149,11 +151,19 @@ export function CampaignsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [c, s, e] = await Promise.all([
+      const [c, s, initialLinks] = await Promise.all([
         listCampaigns(),
         listScreens(),
         listEkonLinks(),
       ]);
+      let e = initialLinks;
+      try {
+        const migrated = await migrateLegacyEkonLinks(c, initialLinks);
+        if (migrated > 0) e = await listEkonLinks();
+      } catch {
+        // La migración es idempotente y se reintentará en la próxima carga; no
+        // se bloquea la consulta por un fallo transitorio de escritura.
+      }
       c.sort((a, b) => a.name.localeCompare(b.name, 'es'));
       setCampaigns(c);
       setScreens(s);
@@ -209,12 +219,15 @@ export function CampaignsPage() {
     return m;
   }, [result]);
 
-  // Mapa nameKey → número Ekon asociado (cada campaña, a lo sumo un número).
+  // Mapa campaign.id → número Ekon (cada flight se edita por separado).
   const ekonByKey = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of ekonLinks) m.set(l.campaignNameKey, l.ekonCampaignNumber);
+    for (const campaign of campaigns) {
+      const number = ekonNumberForCampaign(campaign, ekonLinks);
+      if (number != null) m.set(campaign.id, number);
+    }
     return m;
-  }, [ekonLinks]);
+  }, [campaigns, ekonLinks]);
 
   // Mapa pantalla → número de tienda normalizado, para contar tiendas reales.
   const screenStore = useMemo(() => {
@@ -274,7 +287,7 @@ export function CampaignsPage() {
         tipo: (c) => c.tipo || '',
         inicio: (c) => parseCampaignDate(c.fechaInicio)?.getTime() ?? 0,
         fin: (c) => parseCampaignDate(c.fechaFin)?.getTime() ?? 0,
-        ekon: (c) => ekonByKey.get(c.nameKey) ?? 0,
+        ekon: (c) => ekonByKey.get(c.id) ?? 0,
         tiendas: (c) => storeCountByCampaign.get(c.name) ?? 0,
       }),
     [filtered, sort, ekonByKey, storeCountByCampaign],
@@ -370,7 +383,7 @@ export function CampaignsPage() {
         blob,
         individualReportFileName({
           campaignName: c.name,
-          ekonNumber: ekonByKey.get(c.nameKey) ?? null,
+          ekonNumber: ekonByKey.get(c.id) ?? null,
           startDate: c.fechaInicio,
           endDate: c.fechaFin,
         }),
@@ -592,7 +605,7 @@ export function CampaignsPage() {
               {sorted.map((c) => {
                 const cons = consByCampaign.get(c.name) ?? [];
                 const nIssues = (issuesByCampaign.get(c.name) ?? []).length;
-                const ekon = ekonByKey.get(c.nameKey);
+                const ekon = ekonByKey.get(c.id);
                 return (
                   <tr key={c.id}>
                     <td>{c.name}</td>
@@ -678,7 +691,7 @@ export function CampaignsPage() {
         <CampaignDetail
           campaign={detail}
           issues={issuesByCampaign.get(detail.name) ?? []}
-          ekonNumber={ekonByKey.get(detail.nameKey) ?? null}
+          ekonNumber={ekonByKey.get(detail.id) ?? null}
           ekonLinks={ekonLinks}
           actor={actor}
           onChanged={reloadEkon}
@@ -871,7 +884,7 @@ function EkonEditor({
     const others = otherCampaignsWithEkonNumber(
       ekonLinks,
       parsed.value,
-      campaign.nameKey,
+      campaign.id,
     );
     if (others.length > 0) {
       const names = others.map((o) => `• ${o.campaignName}`).join('\n');
@@ -890,6 +903,7 @@ function EkonEditor({
     setSaving(true);
     try {
       await saveEkonLink({
+        campaignId: campaign.id,
         campaignNameKey: campaign.nameKey,
         campaignName: campaign.name,
         ekonCampaignNumber: parsed.value,
@@ -914,7 +928,7 @@ function EkonEditor({
     }
     setSaving(true);
     try {
-      await unlinkEkon({ campaignNameKey: campaign.nameKey, actor });
+      await unlinkEkon({ campaignId: campaign.id, actor });
       await onChanged();
       setValue('');
       setStatus('Asociación eliminada.');

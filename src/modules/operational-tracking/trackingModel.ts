@@ -41,9 +41,9 @@ export type Timeframe = 'upcoming' | 'active' | 'finished';
 export interface TrackingRow {
   campaign: StoredCampaign;
   /**
-   * Identidad operativa (todos los datos): distingue dos "flights" homónimos.
-   * Es la llave del documento de seguimiento y del estado de la fila; el
-   * `campaign.nameKey` (nombre) se reserva para Ekon/CSV.
+   * Huella de vista (todos los datos): distingue dos "flights" homónimos y
+   * mantiene compatibilidad con deep links legacy. La llave persistente del
+   * seguimiento es `campaign.id`; `campaign.nameKey` se reserva para CSV.
    */
   identity: string;
   tracking: CampaignOperationalTracking | null;
@@ -104,8 +104,12 @@ export function buildTrackingRows(
   for (const s of screens) {
     screenStore.set(s.id, normalizeStore(s.original['Numero de Tienda']));
   }
-  const trackingByKey = new Map<string, CampaignOperationalTracking>();
-  for (const t of tracking) trackingByKey.set(t.campaignNameKey, t);
+  const trackingByCampaignId = new Map<string, CampaignOperationalTracking>();
+  const legacyTrackingByKey = new Map<string, CampaignOperationalTracking>();
+  for (const t of tracking) {
+    if (t.campaignId) trackingByCampaignId.set(t.campaignId, t);
+    else legacyTrackingByKey.set(t.campaignNameKey, t);
+  }
 
   // Una fila por identidad de campaña (todos los datos): dos "flights" del mismo
   // nombre son filas separadas. El conteo de tiendas se calcula **por campaña**
@@ -113,7 +117,10 @@ export function buildTrackingRows(
   // campaña con el mismo nombre; la consolidación/CSV global no se altera.
   return dedupeByIdentity(campaigns).map((campaign) => {
     const identity = campaignIdentity(campaign);
-    const t = trackingByKey.get(identity) ?? null;
+    const t =
+      trackingByCampaignId.get(campaign.id) ??
+      legacyTrackingByKey.get(identity) ??
+      null;
     const classification: Classification | 'unknown' = t
       ? t.classification
       : classifyFromTipo(campaign.tipo);

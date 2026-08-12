@@ -2,7 +2,7 @@
  * Tipos del seguimiento operativo de campañas.
  *
  * El seguimiento vive en una colección **independiente** de `campaigns`
- * (`campaignOperationalTracking/{campaignKeyId}`) y contiene solo datos
+ * (`campaignOperationalTracking/{campaignId}`) y contiene solo datos
  * operativos y su trazabilidad; nunca se mezcla con la campaña importada.
  */
 
@@ -46,8 +46,11 @@ export interface OperationalCheck {
 }
 
 export interface CampaignOperationalTracking {
-  /** ID del documento = `campaignKeyId(campaignNameKey)`. */
+  /** ID del documento. En el esquema actual coincide con `campaignId`. */
   id: string;
+  /** Referencia estable a `campaigns/{campaignId}`; ausente en documentos legacy. */
+  campaignId?: string;
+  /** Huella histórica usada por documentos legacy y para diagnóstico. */
   campaignNameKey: string;
   campaignName: string;
 

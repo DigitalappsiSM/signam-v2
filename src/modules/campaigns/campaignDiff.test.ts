@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   campaignSignature,
   campaignIdentity,
+  campaignKey,
   diffCampaigns,
   dedupeIncoming,
   describeChanges,
@@ -37,8 +38,7 @@ function stored(c: ParsedCampaign, id = 'id1'): StoredCampaign {
   return {
     ...c,
     id,
-    // La identidad (todos los datos) es la llave persistida, igual que en prod.
-    nameKey: campaignIdentity(c),
+    nameKey: campaignKey(c.name),
     signature: campaignSignature(c),
   };
 }
@@ -96,13 +96,13 @@ describe('diffCampaigns', () => {
     expect(diff.unchanged).toBe(1);
   });
 
-  it('un cambio de datos se refleja como alta + baja (identidad = todos los datos)', () => {
+  it('un cambio de datos conserva el id y se reporta como modificación', () => {
     const s = [stored(camp('Nike'))];
     const diff = diffCampaigns([camp('Nike', { fechaFin: '3/1/26' })], s);
-    // La versión nueva es alta; la anterior, baja. No hay "modificadas".
-    expect(diff.added).toHaveLength(1);
-    expect(diff.removed.map((c) => c.id)).toEqual(['id1']);
-    expect(diff.modified).toHaveLength(0);
+    expect(diff.added).toHaveLength(0);
+    expect(diff.removed).toHaveLength(0);
+    expect(diff.modified).toHaveLength(1);
+    expect(diff.modified[0]!.stored.id).toBe('id1');
   });
 
   it('detecta eliminadas (en BD, ya no en el calendario)', () => {
@@ -123,14 +123,74 @@ describe('diffCampaigns', () => {
     expect(campaignIdentity(jul)).not.toBe(campaignIdentity(ago));
   });
 
-  it('autolimpia solo documentos IDÉNTICOS en BD (misma identidad)', () => {
+  it('pide emparejamiento si hay documentos idénticos duplicados en BD', () => {
     const s = [
       stored(camp('Nike'), 'id1'),
       stored(camp('Nike'), 'id2'), // idéntico → misma identidad → redundante
     ];
     const diff = diffCampaigns([camp('Nike')], s);
-    expect(diff.removed.map((c) => c.id)).toEqual(['id2']);
+    expect(diff.pendingMatches).toHaveLength(1);
+    expect(diff.pendingMatches[0]!.candidates.map((c) => c.id)).toEqual([
+      'id1',
+      'id2',
+    ]);
+  });
+
+  it('dos flights homónimos conservan Ekon/seguimiento al cambiar solo uno', () => {
+    const may = stored(
+      camp('VENTA VERANO VECI', {
+        fechaInicio: '2026-05-01',
+        fechaFin: '2026-05-15',
+      }),
+      'flight-may',
+    );
+    const jun = stored(
+      camp('VENTA VERANO VECI', {
+        fechaInicio: '2026-06-01',
+        fechaFin: '2026-06-15',
+      }),
+      'flight-jun',
+    );
+    const correctedMay = camp('VENTA VERANO VECI', {
+      fechaInicio: '2026-05-02',
+      fechaFin: '2026-05-16',
+    });
+    const diff = diffCampaigns([correctedMay, jun], [may, jun]);
+    expect(diff.pendingMatches).toHaveLength(0);
+    expect(diff.modified).toHaveLength(1);
+    expect(diff.modified[0]!.stored.id).toBe('flight-may');
     expect(diff.unchanged).toBe(1);
+  });
+
+  it('pide al usuario emparejar si varios homónimos cambian a la vez', () => {
+    const oldA = stored(camp('X', { fechaInicio: '2026-01-01' }), 'a');
+    const oldB = stored(camp('X', { fechaInicio: '2026-02-01' }), 'b');
+    const newA = camp('X', { fechaInicio: '2026-01-02' });
+    const newB = camp('X', { fechaInicio: '2026-02-02' });
+    const pending = diffCampaigns([newA, newB], [oldA, oldB]);
+    expect(pending.pendingMatches).toHaveLength(2);
+
+    const resolved = diffCampaigns(
+      [newA, newB],
+      [oldA, oldB],
+      new Map([
+        [campaignIdentity(newA), 'a'],
+        [campaignIdentity(newB), 'b'],
+      ]),
+    );
+    expect(resolved.pendingMatches).toHaveLength(0);
+    expect(resolved.modified.map((m) => m.stored.id).sort()).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('un cambio de nombre requiere confirmación explícita', () => {
+    const old = stored(camp('NOMBRE ANTERIOR'), 'stable');
+    const renamed = camp('NOMBRE CORREGIDO');
+    const diff = diffCampaigns([renamed], [old]);
+    expect(diff.pendingMatches).toHaveLength(1);
+    expect(diff.pendingMatches[0]!.reason).toBe('name-change');
   });
 });
 

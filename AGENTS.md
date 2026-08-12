@@ -43,22 +43,18 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   `LIVERPOOL` (`RETAILERS_VALUE`).
 - **Asociación campaña ↔ Ekon**: relación muchos-a-uno (cada campaña tiene como
   máximo un número; un mismo número puede repetirse en varias campañas),
-  persistida en la colección separada `campaignEkonLinks/{campaignKeyId}`. No se
-  reserva la unicidad del número: al reutilizarlo, la UI avisa en qué otras
-  campañas ya está y pide confirmación (`otherCampaignsWithEkonNumber`). La
-  importación del calendario nunca toca esa colección y esta nunca modifica la
-  campaña importada. El `campaignKeyId` se deriva determinísticamente del
-  `nameKey` (no del ID aleatorio de `campaigns`).
+  persistida en `campaignEkonLinks/{campaignId}`. La identidad canónica es el
+  `id` existente del documento `campaigns`; `campaignIdentity` es solo una
+  huella de comparación y nunca una llave persistente. No se reserva la unicidad
+  del número: al reutilizarlo, la UI avisa y pide confirmación. Los enlaces
+  legacy basados en `nameKey` se copian una vez a cada flight existente y luego
+  cada flight se edita de forma independiente.
 - **Seguimiento operativo**: colección independiente
-  `campaignOperationalTracking/{campaignKeyId}`. La llave operativa se deriva de
-  `campaignIdentity(campaign)` (nombre **+ todos los datos**: vigencia, tipo,
-  vendido por, mes, link, soportes/tiendas), **no** del `nameKey`: el `id` del
-  documento es `campaignKeyId(campaignIdentity(...))` y el campo
-  `campaignNameKey` guarda esa identidad. Así, dos _flights_ homónimos con
-  distinta identidad tienen seguimientos independientes, y si cambia cualquier
-  dato que altere la identidad se considera **otra** campaña (empieza un
-  seguimiento nuevo; no se hereda por nombre ni por `nameKey`). Ekon, en cambio,
-  **sí** usa `campaignKeyId(nameKey)` (solo nombre) y no cambia. Contiene solo
+  `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
+  seguimientos independientes y una actualización de fechas, tiendas, soportes,
+  link u otros datos conserva el mismo `campaignId` y todo su historial. Los
+  documentos legacy basados en `campaignIdentity` se copian de forma idempotente
+  al `campaignId`. Contiene solo
   datos operativos; nunca se mezcla con `campaigns` y la importación no borra ni
   sobrescribe checks manuales ni el estado de ciclo de vida. Los
   indicadores se editan **inline como casillas** en la tabla (sin modal). Cinco
@@ -100,11 +96,17 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   las filas aplicables antes de calcular todas las secciones); (4) `updateCheck`
   y `markAllChecks` **rechazan** cambios sobre una cancelada (`TrackingError`);
   `updateClassification` y `addComment` siguen permitidos; (5) el estado
-  sobrevive a reimportaciones idénticas (misma `campaignIdentity`) y **no** se
-  transfiere si la identidad cambia; (6) `cancellationReason` vacío se persiste
+  sobrevive a actualizaciones de la misma línea lógica (mismo `campaignId`); (6)
+  `cancellationReason` vacío se persiste
   como `null` y se limpia al reactivar; al reactivar los checks reaparecen tal
   cual estaban. Las reglas de Firestore validan el enum y los tipos de estos
   campos; la lectura no los exige (compatibilidad legacy).
+- **Reimportación y emparejamiento**: coincidencias exactas usan
+  `campaignIdentity` como huella; una única campaña entrante y una única guardada
+  con el mismo nombre se actualizan conservando `campaign.id`. Si varios
+  homónimos cambian y no hay correspondencia inequívoca, SIGNAM bloquea el
+  guardado hasta que el usuario los empareje. Un cambio de nombre siempre pide
+  confirmación. Las ausentes se inactivan (`active:false`), no se borran.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

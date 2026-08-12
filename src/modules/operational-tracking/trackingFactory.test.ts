@@ -21,6 +21,7 @@ const actor2 = { uid: 'u2', email: 'c@d.mx' };
 function institutional() {
   return initialTracking(
     {
+      campaignId: 'campaign-buen-fin',
       campaignNameKey: 'buen fin',
       campaignName: 'BUEN FIN',
       classification: 'institutional',
@@ -33,9 +34,10 @@ function institutional() {
 }
 
 describe('initialTracking', () => {
-  it('reutiliza el mismo id determinístico que Ekon (campaignKeyId)', () => {
+  it('usa campaignId como id canónico y conserva campaignKeyId para legacy', () => {
     expect(campaignKeyId('buen fin')).toBe(ekonKeyId('buen fin'));
-    expect(institutional().id).toBe(ekonKeyId('buen fin'));
+    expect(institutional().id).toBe('campaign-buen-fin');
+    expect(institutional().campaignId).toBe('campaign-buen-fin');
   });
 
   it('institucional arranca con Validación Liverpool marcada (automatic)', () => {

@@ -1,4 +1,10 @@
-import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  runTransaction,
+  writeBatch,
+} from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import {
   addComment as addCommentPure,
@@ -17,11 +23,13 @@ import type {
   CheckKey,
   Classification,
 } from '@/modules/operational-tracking/types';
+import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
+import { campaignIdentity } from '@/modules/campaigns/campaignDiff';
 
 /**
  * Persistencia del seguimiento operativo en Cloud Firestore.
  *
- * Colección independiente (`campaignOperationalTracking/{campaignKeyId}`): la
+ * Colección independiente (`campaignOperationalTracking/{campaignId}`): la
  * importación del calendario nunca la borra ni sobrescribe checks manuales, y
  * esta colección nunca modifica la campaña importada. Las operaciones que tocan
  * más de un indicador (p. ej. marcar T Completos) usan transacción.
@@ -43,6 +51,13 @@ function db() {
   return fb.db;
 }
 
+function trackingDocumentId(ref: {
+  campaignId?: string;
+  campaignNameKey: string;
+}): string {
+  return ref.campaignId ?? campaignKeyId(ref.campaignNameKey);
+}
+
 /** Lee todos los documentos de seguimiento. */
 export async function listOperationalTracking(): Promise<
   CampaignOperationalTracking[]
@@ -58,6 +73,7 @@ export async function listOperationalTracking(): Promise<
 }
 
 export interface UpdateCheckParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   key: CheckKey;
@@ -79,7 +95,8 @@ export async function updateCheck(
   params: UpdateCheckParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
@@ -87,6 +104,7 @@ export async function updateCheck(
       ? (snap.data() as Omit<CampaignOperationalTracking, 'id'>)
       : initialTracking(
           {
+            campaignId: params.campaignId,
             campaignNameKey: params.campaignNameKey,
             campaignName: params.campaignName,
             classification: params.classification,
@@ -97,7 +115,7 @@ export async function updateCheck(
           now,
         );
     const current: CampaignOperationalTracking = normalizeTracking({
-      id: campaignKeyId(params.campaignNameKey),
+      id: documentId,
       ...base,
     });
     const result = applyCheckChange(
@@ -116,6 +134,7 @@ export async function updateCheck(
 }
 
 export interface MarkAllChecksParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   /** Clasificación con la que crear el documento si aún no existe. */
@@ -133,7 +152,8 @@ export async function markAllChecks(
   params: MarkAllChecksParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
@@ -141,6 +161,7 @@ export async function markAllChecks(
       ? (snap.data() as Omit<CampaignOperationalTracking, 'id'>)
       : initialTracking(
           {
+            campaignId: params.campaignId,
             campaignNameKey: params.campaignNameKey,
             campaignName: params.campaignName,
             classification: params.classification,
@@ -151,7 +172,7 @@ export async function markAllChecks(
           now,
         );
     const current: CampaignOperationalTracking = normalizeTracking({
-      id: campaignKeyId(params.campaignNameKey),
+      id: documentId,
       ...base,
     });
     const result = markAllComplete(current, params.actor, now);
@@ -164,6 +185,7 @@ export async function markAllChecks(
 }
 
 export interface CancelTrackingParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   /** Motivo opcional; texto vacío se persiste como `null`. */
@@ -185,17 +207,19 @@ export async function cancelCampaignTracking(
   params: CancelTrackingParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
     const base = snap.exists()
       ? normalizeTracking({
-          id: campaignKeyId(params.campaignNameKey),
+          id: documentId,
           ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
         })
       : initialTracking(
           {
+            campaignId: params.campaignId,
             campaignNameKey: params.campaignNameKey,
             campaignName: params.campaignName,
             classification: params.classification,
@@ -214,6 +238,7 @@ export async function cancelCampaignTracking(
 }
 
 export interface ReactivateTrackingParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   /** Clasificación con la que crear el documento si aún no existe. */
@@ -231,17 +256,19 @@ export async function reactivateCampaignTracking(
   params: ReactivateTrackingParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
     const base = snap.exists()
       ? normalizeTracking({
-          id: campaignKeyId(params.campaignNameKey),
+          id: documentId,
           ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
         })
       : initialTracking(
           {
+            campaignId: params.campaignId,
             campaignNameKey: params.campaignNameKey,
             campaignName: params.campaignName,
             classification: params.classification,
@@ -260,6 +287,7 @@ export async function reactivateCampaignTracking(
 }
 
 export interface AddCommentParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   text: string;
@@ -278,7 +306,8 @@ export async function addComment(
   params: AddCommentParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
@@ -286,6 +315,7 @@ export async function addComment(
       ? (snap.data() as Omit<CampaignOperationalTracking, 'id'>)
       : initialTracking(
           {
+            campaignId: params.campaignId,
             campaignNameKey: params.campaignNameKey,
             campaignName: params.campaignName,
             classification: params.classification,
@@ -296,7 +326,7 @@ export async function addComment(
           now,
         );
     const current: CampaignOperationalTracking = normalizeTracking({
-      id: campaignKeyId(params.campaignNameKey),
+      id: documentId,
       ...base,
     });
     const commentId =
@@ -318,6 +348,7 @@ export async function addComment(
 }
 
 export interface UpdateClassificationParams {
+  campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
   classification: Classification;
@@ -333,14 +364,15 @@ export async function updateClassification(
   params: UpdateClassificationParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
-  const ref = doc(database, COLLECTION, campaignKeyId(params.campaignNameKey));
+  const documentId = trackingDocumentId(params);
+  const ref = doc(database, COLLECTION, documentId);
   return runTransaction(database, async (tx) => {
     const snap = await tx.get(ref);
     const now = Date.now();
     let tracking: CampaignOperationalTracking;
     if (snap.exists()) {
       const base: CampaignOperationalTracking = normalizeTracking({
-        id: campaignKeyId(params.campaignNameKey),
+        id: documentId,
         ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
       });
       tracking = setClassification(
@@ -353,6 +385,7 @@ export async function updateClassification(
     } else {
       tracking = initialTracking(
         {
+          campaignId: params.campaignId,
           campaignNameKey: params.campaignNameKey,
           campaignName: params.campaignName,
           classification: params.classification,
@@ -371,6 +404,7 @@ export async function updateClassification(
 }
 
 export interface ImportClassificationSelection {
+  campaignId: string;
   campaignNameKey: string;
   campaignName: string;
   classification: Classification;
@@ -397,7 +431,8 @@ export async function initializeTrackingForImport(
   let reclassified = 0;
 
   for (const sel of selections) {
-    const ref = doc(database, COLLECTION, campaignKeyId(sel.campaignNameKey));
+    const documentId = trackingDocumentId(sel);
+    const ref = doc(database, COLLECTION, documentId);
     // Una transacción por campaña (verifica existencia sin sobrescribir).
     const outcome = await runTransaction(database, async (tx) => {
       const snap = await tx.get(ref);
@@ -405,6 +440,7 @@ export async function initializeTrackingForImport(
       if (!snap.exists()) {
         const tracking = initialTracking(
           {
+            campaignId: sel.campaignId,
             campaignNameKey: sel.campaignNameKey,
             campaignName: sel.campaignName,
             classification: sel.classification,
@@ -422,7 +458,7 @@ export async function initializeTrackingForImport(
       // Normaliza el ciclo de vida (legacy → active) sin cambiarlo: la
       // importación nunca altera `lifecycleStatus` ni el motivo de cancelación.
       const base: CampaignOperationalTracking = normalizeTracking({
-        id: campaignKeyId(sel.campaignNameKey),
+        id: documentId,
         ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
       });
       if (
@@ -448,4 +484,53 @@ export async function initializeTrackingForImport(
   }
 
   return { created, reclassified };
+}
+
+/**
+ * Copia seguimientos legacy, cuya llave era `campaignIdentity`, al `campaign.id`
+ * estable. El documento anterior se conserva como historial (las reglas no
+ * permiten borrarlo); todas las lecturas actuales priorizan `campaignId`.
+ * Idempotente: nunca sobrescribe un seguimiento ya migrado.
+ */
+export async function migrateLegacyOperationalTracking(
+  campaigns: readonly StoredCampaign[],
+  tracking: readonly CampaignOperationalTracking[],
+): Promise<number> {
+  const database = db();
+  const currentCampaignIds = new Set(
+    tracking.filter((item) => item.campaignId).map((item) => item.campaignId!),
+  );
+  const legacyByIdentity = new Map<string, CampaignOperationalTracking>();
+  for (const item of tracking) {
+    if (!item.campaignId) legacyByIdentity.set(item.campaignNameKey, item);
+  }
+
+  const copies = campaigns
+    .map((campaign) => ({
+      campaign,
+      legacy: legacyByIdentity.get(campaignIdentity(campaign)),
+    }))
+    .filter(
+      (
+        item,
+      ): item is {
+        campaign: StoredCampaign;
+        legacy: CampaignOperationalTracking;
+      } => Boolean(item.legacy) && !currentCampaignIds.has(item.campaign.id),
+    );
+
+  for (let i = 0; i < copies.length; i += 400) {
+    const batch = writeBatch(database);
+    for (const { campaign, legacy } of copies.slice(i, i + 400)) {
+      const { id: _legacyId, ...data } = legacy;
+      void _legacyId;
+      batch.set(doc(database, COLLECTION, campaign.id), {
+        ...data,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+      });
+    }
+    await batch.commit();
+  }
+  return copies.length;
 }

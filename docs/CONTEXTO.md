@@ -188,22 +188,20 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   datos y se muestra un panel de **cambios** (nuevas / modificadas / eliminadas
   / sin cambios) con el detalle (vigencias, link, tiendas por soporte, etc.).
   **Solo se escribe tras aceptar**; si no hay cambios, no se reescribe nada.
-- **Dos llaves, dos propósitos.** El `nameKey` persistido es el **nombre**
-  normalizado (`campaignKey`), llave **estable** de la asociación Ekon y del
-  agrupado del CSV. Aparte, `campaignIdentity(c)` = nombre **+ todos los datos**
-  (vigencia, tipo, vendido por, mes, link, soportes/tiendas → `nombre#<hash>`)
-  es la **identidad operativa**: distingue dos _flights_ homónimos (mismo
-  nombre, distinta vigencia/tiendas).
-  - **En Seguimiento**: una fila **por identidad** (`TrackingRow.identity`), con
-    su propio documento de seguimiento (checks/bitácora) y su **conteo de tiendas
-    por campaña** (consolidando cada una por separado). Así, dos _flights_ de
-    “HIPER X” son dos filas independientes.
+- **ID canónico y huella.** `campaign.id` es la identidad persistente de cada
+  flight. `campaignIdentity(c)` = nombre + todos los datos sigue existiendo como
+  **huella de comparación** (`nombre#<hash>`), no como llave de Ekon o
+  seguimiento. `nameKey` conserva el nombre normalizado para el agrupado CSV.
+  - **En Seguimiento**: cada `campaign.id` tiene su documento independiente y
+    su conteo de tiendas. Cambiar fechas, link, soportes o tiendas conserva todo
+    el seguimiento de esa línea lógica.
   - **En importación**: `dedupeIncoming` colapsa **solo filas idénticas**;
-    `diffCampaigns` compara por identidad calculada (dos _flights_ = dos altas;
-    un cambio de datos = alta + baja; autolimpia solo documentos idénticos).
-  - **Ekon y CSV no cambian** (siguen por nombre): dos _flights_ comparten
-    número Ekon y export CSV agrupado por `Campaña + RESOLUCION`. La
-    consolidación/CSV no se altera.
+    `diffCampaigns` usa la huella para igualdad exacta, conserva el ID en cambios
+    inequívocos y pide al usuario emparejar homónimos ambiguos. Un cambio de
+    nombre siempre requiere confirmación. Las ausentes se inactivan.
+  - **Ekon** se guarda por `campaign.id`: dos flights pueden compartir número,
+    pero editar uno no modifica al otro. **CSV** sigue agrupado por
+    `Campaña + RESOLUCION`; su consolidación no cambia.
   - **Descargas deduplicadas**: como la llave es `Campaña + RESOLUCION`, varios
     _flights_ homónimos se **unen** en una única consolidación por resolución
     (las pantallas se acumulan globalmente y se deduplican por `screen.id`). Se
@@ -216,7 +214,7 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   (Nuevas · Modificadas · Eliminadas · Pendientes · Errores) y el botón
   **Aceptar y guardar cambios**. El resto es un **acordeón** de secciones
   colapsables (`Errores y advertencias`, `Clasificación operativa`, `Campañas
-  modificadas`, `Campañas eliminadas`, `Campañas nuevas`, `Campañas detectadas`,
+  modificadas`, `Campañas inactivadas`, `Campañas nuevas`, `Campañas detectadas`,
   `Diagnóstico del archivo`); cada una muestra su cifra en el encabezado y se
   expande bajo demanda. Lo **crítico** abre por defecto: errores/advertencias,
   clasificaciones pendientes, y campañas modificadas/eliminadas. Hay un control
@@ -296,18 +294,13 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 
 - Sección independiente (no columnas nuevas en Campañas) con el estado operativo
   de cada campaña. Persistencia **separada** en
-  `campaignOperationalTracking/{campaignKeyId}`: la importación **nunca** borra
+  `campaignOperationalTracking/{campaignId}`: la importación **nunca** borra
   ni sobrescribe checks manuales ni el estado de ciclo de vida, y el seguimiento
-  **nunca** modifica la campaña importada. La llave operativa se deriva de
-  `campaignIdentity(campaign)` (nombre **+ todos los datos**: vigencia, tipo,
-  vendido por, mes, link, soportes/tiendas): el `id` del documento es
-  `campaignKeyId(campaignIdentity(...))` y el campo `campaignNameKey` guarda esa
-  identidad. Así, dos _flights_ homónimos tienen seguimientos independientes; si
-  cambia cualquier dato que altere la identidad, es **otra** campaña y **empieza
-  un seguimiento nuevo** (no se hereda por nombre ni por `nameKey`). (Ekon sí usa
-  `campaignKeyId(nameKey)`, solo el nombre, y no cambia; el texto anterior que
-  decía que el seguimiento se derivaba del `nameKey` quedó corregido aquí para
-  reflejar el comportamiento real por identidad completa.)
+  **nunca** modifica la campaña importada. La llave operativa es el
+  `campaign.id`; por eso dos flights homónimos tienen seguimientos separados y
+  una corrección de datos conserva checks, comentarios, clasificación y ciclo de
+  vida. Los documentos legacy basados en `campaignIdentity` se copian de forma
+  idempotente al ID canónico.
 - **Edición inline**: los indicadores se marcan **directamente como casillas en
   la tabla** de `/seguimiento` (sin abrir un modal). Cada casilla guarda al
   instante (quién/cuándo se ve en su tooltip). La clasificación se corrige con un
@@ -418,9 +411,9 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
     como `active` (`normalizeTracking`, aplicada en **lecturas** y **dentro de
     las transacciones**); no requiere migración manual. Las reglas de Firestore
     validan el enum y los tipos de los metadatos; la lectura no los exige.
-  - **Reimportaciones**: reimportar una identidad idéntica conserva `cancelled`;
-    `initializeTrackingForImport` no cambia `lifecycleStatus`, el motivo ni los
-    metadatos de transición. Una nueva `campaignIdentity` empieza `active`.
+  - **Reimportaciones**: actualizar una línea con el mismo `campaign.id` conserva
+    `cancelled`; `initializeTrackingForImport` no cambia `lifecycleStatus`, el
+    motivo ni los metadatos de transición.
 - **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.

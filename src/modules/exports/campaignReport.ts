@@ -150,7 +150,7 @@ export function buildCampaignReport(
   const issues: CampaignReportIssue[] = [];
 
   for (const campaign of campaigns) {
-    const ekonNumber = ekonByKey.get(campaign.nameKey) ?? null;
+    const ekonNumber = ekonByKey.get(campaign.id) ?? null;
     const match = matchCampaignScreens(campaign, index);
 
     // Filas del desglose (deduplicadas por configuración dentro de la campaña).

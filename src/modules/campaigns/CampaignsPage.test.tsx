@@ -344,6 +344,72 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
     );
     expect(saveEkonLink).not.toHaveBeenCalled();
   });
+
+  it('edita solo el flight seleccionado aunque otro homónimo comparta Ekon', async () => {
+    const may = campaign({
+      id: 'flight-may',
+      name: 'VENTA VERANO VECI',
+      nameKey: 'venta verano veci',
+      fechaInicio: '2026-05-01',
+      fechaFin: '2026-05-15',
+    });
+    const jun = campaign({
+      id: 'flight-jun',
+      name: 'VENTA VERANO VECI',
+      nameKey: 'venta verano veci',
+      fechaInicio: '2026-06-01',
+      fechaFin: '2026-06-15',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([may, jun]);
+    vi.mocked(listEkonLinks).mockResolvedValue([
+      {
+        id: may.id,
+        campaignId: may.id,
+        campaignNameKey: may.nameKey,
+        campaignName: may.name,
+        ekonCampaignNumber: 25348,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+      {
+        id: jun.id,
+        campaignId: jun.id,
+        campaignNameKey: jun.nameKey,
+        campaignName: jun.name,
+        ekonCampaignNumber: 25348,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+    ]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<CampaignsPage />);
+    const names = await screen.findAllByText('VENTA VERANO VECI');
+    const mayRow = names
+      .map((node) => node.closest('tr'))
+      .find((row) => row?.textContent?.includes('01/05/2026'))!;
+    await userEvent.click(within(mayRow).getByTitle(/Ver detalle/i));
+    const input = screen.getByLabelText(/# campaña Ekon/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, '99999');
+    await userEvent.click(screen.getByRole('button', { name: /Guardar/i }));
+
+    await waitFor(() => expect(saveEkonLink).toHaveBeenCalledTimes(1));
+    expect(saveEkonLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignId: 'flight-may',
+        ekonCampaignNumber: 99999,
+      }),
+    );
+    expect(saveEkonLink).not.toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: 'flight-jun' }),
+    );
+    confirmSpy.mockRestore();
+  });
 });
 
 describe('CampaignsPage — menú de descargas', () => {
