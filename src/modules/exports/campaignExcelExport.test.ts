@@ -105,15 +105,55 @@ describe('buildCampaignReportWorkbook', () => {
     expect(sheet.autoFilter).toBeTruthy();
   });
 
-  it('formatea las fechas como dd/mm/aaaa', async () => {
+  it('exporta las fechas como fecha real con formato dd/mm/aaaa', async () => {
     const report: CampaignReport = {
       rows: [row({ startDate: '2026-05-01', endDate: '2026-05-31' })],
       issues: [],
     };
     const wb = await reload(report);
     const sheet = wb.getWorksheet('Desglose')!;
-    expect(sheet.getCell('C2').value).toBe('01/05/2026');
-    expect(sheet.getCell('D2').value).toBe('31/05/2026');
+    const start = sheet.getCell('C2');
+    const end = sheet.getCell('D2');
+    // Fecha real (Date), no texto, para que Excel ordene y filtre por fecha.
+    expect(start.value).toBeInstanceOf(Date);
+    expect(end.value).toBeInstanceOf(Date);
+    // Sin desfase de zona horaria: se conserva la fecha civil en UTC.
+    expect((start.value as Date).toISOString()).toBe(
+      '2026-05-01T00:00:00.000Z',
+    );
+    expect((end.value as Date).toISOString()).toBe('2026-05-31T00:00:00.000Z');
+    // Formato visible dd/mm/aaaa.
+    expect(start.numFmt).toBe('dd/mm/yyyy');
+    expect(end.numFmt).toBe('dd/mm/yyyy');
+  });
+
+  it('acepta el formato día-primero de Liverpool como fecha real', async () => {
+    const report: CampaignReport = {
+      rows: [row({ startDate: '1/5/26', endDate: '31/5/26' })],
+      issues: [],
+    };
+    const wb = await reload(report);
+    const sheet = wb.getWorksheet('Desglose')!;
+    expect((sheet.getCell('C2').value as Date).toISOString()).toBe(
+      '2026-05-01T00:00:00.000Z',
+    );
+    expect((sheet.getCell('D2').value as Date).toISOString()).toBe(
+      '2026-05-31T00:00:00.000Z',
+    );
+  });
+
+  it('conserva como texto una fecha no interpretable y deja vacía la ausente', async () => {
+    const report: CampaignReport = {
+      rows: [row({ startDate: 'por confirmar', endDate: '' })],
+      issues: [],
+    };
+    const wb = await reload(report);
+    const sheet = wb.getWorksheet('Desglose')!;
+    // No parseable: se reporta el texto original, no se corrige en silencio.
+    expect(sheet.getCell('C2').value).toBe('por confirmar');
+    // Vacía: celda en blanco.
+    const end = sheet.getCell('D2').value;
+    expect(end == null || end === '').toBe(true);
   });
 
   it('crea la hoja Incidencias solo cuando hay incidencias', async () => {
