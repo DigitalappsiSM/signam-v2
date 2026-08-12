@@ -120,7 +120,8 @@ function PptIcon() {
  * Módulo Campañas (vista consolidada): lista las campañas guardadas y, por cada
  * una, permite exportar el PDF de errores, ver el detalle (soportes + tiendas +
  * estado), descargar sus CSV y asociar manualmente su número de campaña Ekon.
- * Ofrece además filtros por nombre y por periodo (Desde/Hasta).
+ * Ofrece además búsqueda por nombre o número Ekon y filtros por periodo
+ * (Desde/Hasta).
  */
 export function CampaignsPage() {
   const { user } = useAuth();
@@ -274,10 +275,15 @@ export function CampaignsPage() {
     const d = parseCampaignDate(desde);
     const h = parseCampaignDate(hasta);
     return campaigns.filter((c) => {
-      if (q && !normalize(c.name).includes(q)) return false;
+      const ekon = ekonByKey.get(c.id);
+      const matchesSearch =
+        !q ||
+        normalize(c.name).includes(q) ||
+        (ekon != null && String(ekon).includes(q));
+      if (!matchesSearch) return false;
       return campaignIntersectsPeriod(c.fechaInicio, c.fechaFin, d, h);
     });
-  }, [campaigns, search, desde, hasta, perError]);
+  }, [campaigns, ekonByKey, search, desde, hasta, perError]);
 
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(
@@ -459,7 +465,7 @@ export function CampaignsPage() {
         <input
           className="catalog__search"
           type="search"
-          placeholder="Buscar campaña…"
+          placeholder="Buscar por campaña o # Ekon…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -568,6 +574,12 @@ export function CampaignsPage() {
                   onSort={onSort}
                 />
                 <SortableTh
+                  label="# campaña Ekon"
+                  sortKey="ekon"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
                   label="Tipo de campaña"
                   sortKey="tipo"
                   sort={sort}
@@ -587,12 +599,6 @@ export function CampaignsPage() {
                 />
                 <th>Contenido</th>
                 <SortableTh
-                  label="# campaña Ekon"
-                  sortKey="ekon"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
                   label="Tiendas"
                   sortKey="tiendas"
                   sort={sort}
@@ -609,6 +615,7 @@ export function CampaignsPage() {
                 return (
                   <tr key={c.id}>
                     <td>{c.name}</td>
+                    <td>{ekon ?? '—'}</td>
                     <td>{c.tipo || '—'}</td>
                     <td>{formatCivilString(c.fechaInicio)}</td>
                     <td>{formatCivilString(c.fechaFin)}</td>
@@ -630,7 +637,6 @@ export function CampaignsPage() {
                         <span className="text-muted">Link pendiente</span>
                       )}
                     </td>
-                    <td>{ekon ?? '—'}</td>
                     <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
                     <td>
                       <div className="campaign-actions">

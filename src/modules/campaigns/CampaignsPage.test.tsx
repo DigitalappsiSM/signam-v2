@@ -234,6 +234,110 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
     expect(within(rowB).getAllByText('—').length).toBeGreaterThan(0);
   });
 
+  it('filtra por el número Ekon completo o parcial', async () => {
+    render(<CampaignsPage />);
+    const searchInput = await screen.findByPlaceholderText(
+      /Buscar por campaña o # Ekon/i,
+    );
+
+    await userEvent.type(searchInput, '77');
+    expect(screen.getByText('BUEN FIN')).toBeInTheDocument();
+    expect(screen.queryByText('REGRESO A CLASES')).not.toBeInTheDocument();
+
+    await userEvent.clear(searchInput);
+    await userEvent.type(searchInput, 'regreso');
+    expect(screen.queryByText('BUEN FIN')).not.toBeInTheDocument();
+    expect(screen.getByText('REGRESO A CLASES')).toBeInTheDocument();
+  });
+
+  it('muestra todas las campañas que comparten el número Ekon buscado', async () => {
+    vi.mocked(listEkonLinks).mockResolvedValue([
+      {
+        id: 'a',
+        campaignId: 'a',
+        campaignNameKey: A.nameKey,
+        campaignName: A.name,
+        ekonCampaignNumber: 777,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+      {
+        id: 'b',
+        campaignId: 'b',
+        campaignNameKey: B.nameKey,
+        campaignName: B.name,
+        ekonCampaignNumber: 777,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await userEvent.type(
+      await screen.findByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      '777',
+    );
+
+    expect(screen.getByText('BUEN FIN')).toBeInTheDocument();
+    expect(screen.getByText('REGRESO A CLASES')).toBeInTheDocument();
+  });
+
+  it('distingue flights homónimos por campaign.id al buscar su Ekon', async () => {
+    const firstFlight = campaign({
+      id: 'flight-1',
+      name: 'HIPER X',
+      nameKey: 'hiper x',
+      fechaInicio: '2026-08-01',
+      fechaFin: '2026-08-07',
+    });
+    const secondFlight = campaign({
+      id: 'flight-2',
+      name: 'HIPER X',
+      nameKey: 'hiper x',
+      fechaInicio: '2026-08-08',
+      fechaFin: '2026-08-14',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([firstFlight, secondFlight]);
+    vi.mocked(listEkonLinks).mockResolvedValue([
+      {
+        id: 'flight-1',
+        campaignId: 'flight-1',
+        campaignNameKey: 'hiper x',
+        campaignName: 'HIPER X',
+        ekonCampaignNumber: 1001,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+      {
+        id: 'flight-2',
+        campaignId: 'flight-2',
+        campaignNameKey: 'hiper x',
+        campaignName: 'HIPER X',
+        ekonCampaignNumber: 2002,
+        createdAt: 1,
+        createdBy: 'x',
+        updatedAt: 1,
+        updatedBy: 'x',
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await userEvent.type(
+      await screen.findByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      '2002',
+    );
+
+    expect(screen.getAllByText('HIPER X')).toHaveLength(1);
+    expect(screen.getByText('08/08/2026')).toBeInTheDocument();
+    expect(screen.queryByText('01/08/2026')).not.toBeInTheDocument();
+  });
+
   it('combina búsqueda por nombre y filtro por periodo', async () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
@@ -248,7 +352,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
 
     // Búsqueda que no coincide con lo que queda en el periodo → sin resultados.
     await userEvent.type(
-      screen.getByPlaceholderText(/Buscar campaña/i),
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
       'buen',
     );
     expect(
@@ -671,7 +775,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
     await userEvent.type(
-      screen.getByPlaceholderText('Buscar campaña…'),
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
       'BUEN',
     );
     const btn = await screen.findByRole('button', {
@@ -686,6 +790,25 @@ describe('CampaignsPage — exportación masiva Excel', () => {
     const arg = calls[calls.length - 1]![0];
     expect(arg).toHaveLength(1);
     expect(arg[0]!.name).toBe('BUEN FIN');
+  });
+
+  it('exporta exactamente las campañas filtradas por número Ekon', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      '777',
+    );
+    const btn = await screen.findByRole('button', {
+      name: 'Exportar filtradas (1)',
+    });
+    await userEvent.click(btn);
+    await waitFor(() =>
+      expect(buildCampaignReportBlob).toHaveBeenCalledTimes(1),
+    );
+    const calls = vi.mocked(buildCampaignReport).mock.calls;
+    const arg = calls[calls.length - 1]![0];
+    expect(arg.map((c) => c.id)).toEqual(['a']);
   });
 
   it('el periodo Desde/Hasta afecta el conjunto exportado', async () => {
@@ -717,7 +840,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
     await userEvent.type(
-      screen.getByPlaceholderText('Buscar campaña…'),
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
       'NO EXISTE',
     );
     await waitFor(() => expect(bulkBtn()).toBeDisabled());
@@ -943,7 +1066,7 @@ describe('CampaignsPage — contadores', () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
     await userEvent.type(
-      screen.getByPlaceholderText(/Buscar campaña/i),
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
       'buen',
     );
     expect(
@@ -954,7 +1077,10 @@ describe('CampaignsPage — contadores', () => {
   it('con filtro sin coincidencias los conteos visibles son 0', async () => {
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');
-    await userEvent.type(screen.getByPlaceholderText(/Buscar campaña/i), 'zzz');
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      'zzz',
+    );
     expect(
       await screen.findByText('0 de 2 campañas · 0 CSV · 0 incidencias'),
     ).toBeInTheDocument();
