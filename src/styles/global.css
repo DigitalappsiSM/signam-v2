@@ -410,6 +410,18 @@ button {
   border-color: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
 }
 
+.badge-success {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success-fg);
+  border-color: color-mix(in srgb, var(--color-success) 34%, transparent);
+}
+
+.badge-danger {
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  color: var(--color-danger-fg);
+  border-color: color-mix(in srgb, var(--color-danger) 34%, transparent);
+}
+
 .text-muted {
   color: var(--color-text-muted);
 }

@@ -6,7 +6,9 @@ import { LoginPage } from '@/modules/auth/LoginPage';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { ImportPage } from '@/modules/liverpool-import/ImportPage';
 import { CatalogPage } from '@/modules/admira-catalog/CatalogPage';
+import { EkonImportPage } from '@/modules/ekon-import/EkonImportPage';
 import { CampaignsPage } from '@/modules/campaigns/CampaignsPage';
+import { ReconciliationPage } from '@/modules/reconciliation/ReconciliationPage';
 import { OperationalTrackingPage } from '@/modules/operational-tracking/OperationalTrackingPage';
 import { LowOccupancyPage } from '@/modules/low-occupancy/LowOccupancyPage';
 import { AuditPage } from '@/modules/audit/AuditPage';
@@ -46,7 +48,9 @@ export function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/importar" element={<ImportPage />} />
         <Route path="/catalogo" element={<CatalogPage />} />
+        <Route path="/importar-ekon" element={<EkonImportPage />} />
         <Route path="/campanas" element={<CampaignsPage />} />
+        <Route path="/conciliacion" element={<ReconciliationPage />} />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
         <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
         <Route path="/usuarios" element={<UsersPage />} />

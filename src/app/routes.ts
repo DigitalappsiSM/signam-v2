@@ -66,12 +66,30 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Datos',
   },
   {
+    path: '/importar-ekon',
+    label: 'Importación Ekon',
+    icon: 'calendar',
+    description:
+      'Importa la extracción Ekon, confirma periodos y revisa el diff por lote.',
+    group: 'Datos',
+    permission: 'ekon.import',
+  },
+  {
     path: '/campanas',
     label: 'Campañas',
     icon: 'megaphone',
     description:
       'Campañas guardadas, detalle, CSV de Admira y reporte de errores.',
     group: 'Campañas',
+  },
+  {
+    path: '/conciliacion',
+    label: 'Conciliación',
+    icon: 'activity',
+    description:
+      'Compara campañas Liverpool vinculadas con sus asignaciones Ekon vigentes.',
+    group: 'Campañas',
+    permission: 'reconciliation.read',
   },
   {
     path: '/usuarios',

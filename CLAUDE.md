@@ -61,11 +61,17 @@ Layered so that domain rules stay framework-free and independently testable:
   pure helpers + tests). Business logic lives in plain `.ts` modules next to the page (e.g.
   `consolidation/consolidate.ts`, `liverpool-import/campaignParse.ts`, `operational-tracking/businessDays.ts`)
   so it is unit-testable without rendering. Modules: `dashboard`, `liverpool-import`, `admira-catalog`,
-  `campaigns`, `consolidation`, `low-occupancy`, `operational-tracking`, `exports`, `audit`, `auth`, `users`.
+  `ekon-import`, `campaigns`, `consolidation`, `reconciliation`, `low-occupancy`, `operational-tracking`,
+  `exports`, `audit`, `auth`, `users`.
+- **`src/domain/ekon/`** — Pure Ekon integration domain (parser, normalization, periods, stable identity,
+  diff/states, campaign-type Ratio classification, circuit↔support mapping, reconciliation, CSV fallback).
+  Imported via `@/domain/ekon` (kept out of the main `@/domain` barrel to avoid name clashes). See the
+  **Integración Ekon** section of `AGENTS.md` before changing it.
 - **`src/services/`** — External adapters (Firebase, environment). `firebase.ts` initializes lazily and only
   if `VITE_FIREBASE_*` env vars are present; without config the app boots in **degraded mode** (UI works, panel
   reports missing config — never invent credentials). One service file per Firestore collection
-  (`campaigns.ts`, `screens.ts`, `campaignEkonLinks.ts`, `campaignOperationalTracking.ts`, etc.).
+  (`campaigns.ts`, `screens.ts`, `campaignEkonLinks.ts`, `campaignOperationalTracking.ts`,
+  `ekonImports.ts`, `ekonAssignments.ts`, `ekonRevisions.ts`, etc.).
 - **`src/app/`** — App composition: routing (`App.tsx`), route/nav metadata (`routes.ts`), UI permission
   matrix (`permissions.ts`), theme (`theme.ts`), and `providers/AuthProvider.tsx`.
 - **`functions/src/`** — Cloud Functions grouped by concern (`imports`, `consolidation`, `exports`, `users`,

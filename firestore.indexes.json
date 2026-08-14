@@ -31,6 +31,14 @@
         { "fieldPath": "entity", "order": "ASCENDING" },
         { "fieldPath": "at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "ekonAssignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaignNumber", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

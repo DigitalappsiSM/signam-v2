@@ -17,6 +17,36 @@ Aplicación web para operar el flujo de programación de pantallas entre
 9. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
    proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
 10. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
+11. **Importación Ekon** y **Conciliación** Ekon–Liverpool (ver abajo).
+
+## Integración Ekon (Importación y Conciliación)
+
+Integración híbrida Ekon–Liverpool en colecciones **separadas** que nunca tocan
+Liverpool, el Master ni el seguimiento operativo.
+
+- **Importación Ekon** (`/importar-ekon`): sube la extracción Ekon (hoja "Datos
+  Tienda", 30 columnas), valida encabezados y filas, **detecta y confirma los
+  periodos** realmente presentes, muestra una **vista previa del diff** contra la
+  última importación y persiste por lotes idempotentes. Estados de asignación:
+  `Nueva`, `Sin cambios`, `Modificada`, `No incluida`, `Restaurada`, `Conflicto`;
+  las ausencias solo cuentan dentro del alcance confirmado y nada se borra (se
+  conserva historial en `ekonRevisions`).
+- **Conciliación** (`/conciliacion`): para cada campaña Liverpool con **vínculo
+  manual** Ekon (`campaignEkonLinks`, muchos-a-uno), compara número, tipo/Ratio,
+  cobertura de periodos vs fechas exactas Liverpool, circuito↔soporte (mapeo
+  autorizado) y tiendas por número (solo determinantes físicos; el determinante
+  `0` = Centro Administrativo no aplica). Explica diferencias **sin modificar
+  fuentes**.
+- **Fallback CSV** (solo `MEGA MUPI DIGITAL` y `BANNER DIGITAL`): cuando el
+  soporte **no** viene marcado en Liverpool pero Ekon indica que debe existir, se
+  sintetiza reutilizando el flujo de consolidación normal (mismos encabezados,
+  columna guarda, BOM, escape y llave `Campaña + RESOLUCION`). Si Liverpool marca
+  el soporte, se usa el flujo Liverpool y no hay fallback. Detalle completo en
+  [`AGENTS.md`](./AGENTS.md).
+
+**Ratio 1 / Ratio 3 de Ekon** (por tipo de campaña) es **distinta** del cálculo
+de baja ocupación (mismo nombre, lógica separada); esta integración no modifica
+el módulo de baja ocupación.
 
 ## Alertas de baja ocupación
 
@@ -270,14 +300,17 @@ src/
 │   ├── dashboard/
 │   ├── liverpool-import/
 │   ├── admira-catalog/
+│   ├── ekon-import/     # Importación Ekon (flujo por etapas + diff)
 │   ├── campaigns/
-│   ├── consolidation/
+│   ├── consolidation/   # (incluye ekonFallback: soportes sintéticos)
+│   ├── reconciliation/  # Conciliación Ekon ↔ Liverpool
 │   ├── low-occupancy/   # Alertas de baja ocupación (Ratio 1 / Ratio 3)
 │   ├── operational-tracking/
 │   ├── exports/
 │   └── audit/
 ├── domain/         # Modelos y lógica pura (sin dependencias de framework)
-├── services/       # Adaptadores externos (Firebase, entorno)
+│   └── ekon/       # Dominio Ekon: parser, identidad, diff, mapeo, conciliación
+├── services/       # Adaptadores externos (Firebase, entorno; ekon*.ts)
 ├── styles/         # Estilos globales
 └── tests/          # Pruebas de integración de la app
 
@@ -337,8 +370,27 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 | Leer catálogo               |   ✓   |    ✓     |   ✓    |
 | Editar / inactivar catálogo |   ✓   |          |        |
 | Importar calendarios        |   ✓   |    ✓     |        |
+| Importar Ekon               |   ✓   |    ✓     |        |
+| Ver conciliación            |   ✓   |    ✓     |   ✓    |
 | Exportar CSV                |   ✓   |    ✓     |        |
 | Administrar usuarios        |   ✓   |          |        |
+
+### Colecciones e índices Ekon
+
+Colecciones nuevas (reglas en `firestore.rules`): `ekonImportBatches`
+(con subcolección `rowChunks` para el snapshot de filas), `ekonAssignments`
+(asignaciones vigentes; id = huella estable) y `ekonRevisions` (historial
+append-only). La asociación manual reutiliza `campaignEkonLinks`.
+
+Índice que **debe desplegarse** (`firestore.indexes.json`): `ekonAssignments`
+compuesto por `campaignNumber` (ASC) + `active` (ASC), usado por la conciliación
+y el fallback para leer las asignaciones vigentes de un número Ekon. El resto de
+consultas Ekon son de un solo campo (auto-indexadas).
+
+```bash
+firebase deploy --only firestore:indexes   # despliega el índice compuesto
+firebase deploy --only firestore:rules      # despliega las reglas nuevas
+```
 
 ### Emuladores
 
@@ -349,6 +401,25 @@ npm run emulators
 
 Puertos: Auth `9099`, Firestore `8080`, Storage `9199`, Functions `5001`,
 Hosting `5000`, UI habilitada.
+
+**Prueba manual de la integración Ekon con el Emulator Suite:**
+
+1. `npm run emulators` y `npm run dev` (con `VITE_USE_FIREBASE_EMULATORS=true`).
+2. Inicia sesión y ve a **Importación Ekon** (`/importar-ekon`).
+3. Sube una extracción Ekon `.xlsx` (hoja "Datos Tienda"). Revisa el alcance
+   detectado, **confirma los periodos** y la **vista previa del diff**; confirma
+   la importación. En Firestore Emulator UI verás el lote `completed` en
+   `ekonImportBatches` (+ `rowChunks`), las `ekonAssignments` y `ekonRevisions`.
+4. Reimporta el **mismo archivo y alcance**: la app avisa que ya se importó y no
+   duplica (idempotencia por `contentHash`).
+5. En **Campañas**, vincula manualmente una campaña a un número Ekon. Ve a
+   **Conciliación** (`/conciliacion`) y verifica número, Ratio, cobertura de
+   periodos, circuito↔soporte y tiendas; el determinante `0` aparece como
+   "Centro Administrativo / tiendas no aplican".
+6. Para el fallback CSV, deja una campaña vinculada **sin** marcar `MEGA MUPI
+   DIGITAL`/`BANNER DIGITAL` en Liverpool pero con esos circuitos en Ekon y con
+   tiendas operativas: la consolidación genera esos soportes reutilizando el CSV
+   Admira normal.
 
 ## Integración continua
 

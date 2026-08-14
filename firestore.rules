@@ -123,6 +123,47 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- Integración Ekon (colecciones separadas de Liverpool/Master) ---
+    //
+    // FASE ACTUAL (pre-lanzamiento): cualquier usuario autenticado puede leer y
+    // escribir, como el resto de colecciones de trabajo. El control por ROL
+    // (ekon.import a admin/operator, ver permissions.ts) se aplicará antes de
+    // liberar, sustituyendo `isSignedIn()` por la comprobación de rol. Estas
+    // colecciones NUNCA modifican `campaigns`, el catálogo ni el seguimiento.
+
+    // Lotes de importación Ekon y su snapshot de filas (subcolección rowChunks).
+    // El estado de lote (parsing/pending_confirmation/processing/completed/failed)
+    // vive en el documento; conciliación y fallback consumen solo completados.
+    match /ekonImportBatches/{batchId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.status in
+           ['parsing', 'pending_confirmation', 'processing', 'completed', 'failed'];
+      // Sin borrado físico desde el cliente (conserva historial auditable).
+      allow delete: if false;
+
+      match /rowChunks/{chunkId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn();
+        allow delete: if false;
+      }
+    }
+
+    // Asignaciones Ekon vigentes (id = huella estable de la asignación). Las
+    // ausentes se conservan con active:false (No incluida); no se borran.
+    match /ekonAssignments/{assignmentId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // Historial de revisiones de asignaciones Ekon: append-only e inmutable.
+    match /ekonRevisions/{revisionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
     // Validaciones de importación: creadas por quien importa; inmutables luego.
     match /importValidations/{importId} {
       allow read: if isSignedIn();
