@@ -41,8 +41,16 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
 
 const BATCHES = 'ekonImportBatches';
 const ROW_CHUNKS = 'rowChunks';
-const ROWS_PER_CHUNK = 300;
-const CHUNK_LIMIT = 400;
+// Filas por documento de chunk: se mantiene muy por debajo del límite de 1 MiB
+// por documento de Firestore incluso con filas de texto largas.
+const ROWS_PER_CHUNK = 150;
+// Máximo de operaciones por commit (límite de Firestore: 500).
+const MAX_OPS_PER_COMMIT = 400;
+// Presupuesto de bytes por commit, con margen bajo el límite de 10 MiB por
+// petición de escritura. La escritura de un archivo de un año completo puede
+// superar ese límite si se envía en un solo commit, así que se segmenta por
+// tamaño estimado además de por número de operaciones.
+const MAX_BYTES_PER_COMMIT = 8 * 1024 * 1024;
 
 function db() {
   const fb = getFirebase();
@@ -138,33 +146,53 @@ export async function createPendingBatch(
   first.set(ref, metadata);
   await first.commit();
 
-  // Snapshot de filas en chunks para respetar el límite de tamaño de documento.
+  // Snapshot de filas en chunks. Cada chunk es un documento; los commits se
+  // segmentan por número de operaciones Y por tamaño estimado, para no exceder
+  // ni el límite de 500 escrituras ni el de 10 MiB por petición.
   const chunks: EkonRawRow[][] = [];
   for (let i = 0; i < input.rows.length; i += ROWS_PER_CHUNK) {
     chunks.push(input.rows.slice(i, i + ROWS_PER_CHUNK));
   }
-  for (let i = 0; i < chunks.length; i += CHUNK_LIMIT) {
-    const batch = writeBatch(database);
-    for (let j = 0; j < chunks.slice(i, i + CHUNK_LIMIT).length; j += 1) {
-      const index = i + j;
-      batch.set(
-        doc(
-          database,
-          BATCHES,
-          ref.id,
-          ROW_CHUNKS,
-          String(index).padStart(5, '0'),
-        ),
-        {
-          index,
-          rows: chunks[index],
-        },
-      );
+
+  let batch = writeBatch(database);
+  let opsInBatch = 0;
+  let bytesInBatch = 0;
+  for (let index = 0; index < chunks.length; index += 1) {
+    const payload = { index, rows: chunks[index]! };
+    const bytes = estimateBytes(payload);
+    // Si agregar este chunk excede el presupuesto del commit, se cierra el
+    // commit actual y se abre uno nuevo (salvo que el batch esté vacío).
+    if (
+      opsInBatch > 0 &&
+      (opsInBatch + 1 > MAX_OPS_PER_COMMIT ||
+        bytesInBatch + bytes > MAX_BYTES_PER_COMMIT)
+    ) {
+      await batch.commit();
+      batch = writeBatch(database);
+      opsInBatch = 0;
+      bytesInBatch = 0;
     }
-    await batch.commit();
+    batch.set(
+      doc(
+        database,
+        BATCHES,
+        ref.id,
+        ROW_CHUNKS,
+        String(index).padStart(5, '0'),
+      ),
+      payload,
+    );
+    opsInBatch += 1;
+    bytesInBatch += bytes;
   }
+  if (opsInBatch > 0) await batch.commit();
 
   return ref.id;
+}
+
+/** Estima los bytes UTF-8 de un objeto serializado (para segmentar commits). */
+function estimateBytes(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
 export interface ActivateBatchInput {

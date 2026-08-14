@@ -136,9 +136,15 @@ export function EkonImportPage() {
       setBatches(await listBatches());
       setPrevious(await listAllAssignments());
       setPhase('done');
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const hint = /permission|insufficient|PERMISSION_DENIED/i.test(detail)
+        ? ' Parece un problema de permisos: verifica que las reglas de Firestore de las colecciones Ekon estén desplegadas.'
+        : /index/i.test(detail)
+          ? ' Falta un índice de Firestore: despliega firestore.indexes.json.'
+          : '';
       setError(
-        'No se pudo completar la importación. El lote no quedó como completado.',
+        `No se pudo completar la importación. El lote no quedó como completado. Detalle: ${detail}.${hint}`,
       );
       setPhase('review');
     }
