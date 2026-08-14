@@ -114,6 +114,53 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
   filas de CSV; una campaña que las solicite produce una incidencia explícita.
+
+## Integración Ekon (no romper sin decisión documentada)
+
+Dominio puro en `src/domain/ekon`, servicios en `src/services/ekon*.ts`, módulos
+`src/modules/ekon-import` y `src/modules/reconciliation`. Colecciones nuevas y
+**separadas**: nunca modifican `campaigns`, el catálogo Admira ni el seguimiento.
+
+- **Autoridad entre fuentes**: Ekon es autoritativo del número de campaña,
+  producto, tipo, periodos ERP y artículo/circuito; **Liverpool** manda en fechas
+  exactas, tiendas operativas y soportes solicitados; el **Master Admira** resuelve
+  las pantallas físicas. La conciliación **compara**, nunca corrige ni mueve
+  asociaciones.
+- **Identidad estable de asignación**: `Año + Campaña + Línea campaña +
+  Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
+  (21 327 filas → 21 317 llaves; 10 colisiones son la misma asignación con solo
+  `Importe neto` distinto; **0** llaves multi-periodo). Un cambio de periodo es
+  **modificación** de la misma asignación, no alta+baja. **No** incluir periodo,
+  fechas, importe ni factura en la identidad (van al fingerprint).
+- **Estados**: `Nueva`, `Sin cambios`, `Modificada`, `No incluida`, `Restaurada`,
+  `Conflicto` (`diff.ts`). `No incluida` solo dentro del **alcance de periodos
+  confirmado**; fuera del alcance, intacta. Nunca se borra: se marca inactiva y se
+  conserva historial (`ekonRevisions`).
+- **Tipos de campaña Ekon → Ratio** (`campaignType.ts`, **distinto** de baja
+  ocupación): Institucionales/Liverpesos = Ratio 3 sin testigos; Liverpool/General
+  = Ratio 1 con testigos. Campaña mixta con ≥1 línea Ratio 1 → Ratio 1 global. No
+  toca el módulo de baja ocupación ni el seguimiento.
+- **Determinante `0` = Centro Administrativo**: no es tienda, no se concilia como
+  tienda, no genera incidencia de tienda faltante, nunca se programa. Solo las
+  filas con determinante real `0` quedan fuera de la conciliación de tienda.
+- **Mapeo circuito Ekon ↔ soporte Liverpool** (`supportMapping.ts`): tabla cerrada
+  y probada; alias `MEGA MUPI DIGITAL → MEGA MUPI`. La conciliación acepta
+  cualquiera de los soportes permitidos del circuito (sin igualdad literal).
+- **Fallback CSV** (`fallbackCsv.ts` + `modules/consolidation/ekonFallback.ts`):
+  solo `MEGA MUPI DIGITAL` (desde `MEGA MUPI`) y `BANNER DIGITAL` (desde
+  `ESPECTACULAR IN STORE`). Precedencia: si Liverpool marca el soporte, se usa el
+  flujo Liverpool y **no** hay fallback (nunca ambos). Requiere vínculo manual
+  Ekon y lote completado; solo asignaciones vigentes. Conserva fechas y universo
+  de tiendas Liverpool; el Master resuelve pantallas por `Numero de Tienda` +
+  `NORMALIZACION LIVERPOOL`. Sin tiendas operativas → **bloquea**, nunca expande a
+  todas. El CSV conserva encabezados, columna guarda, BOM, escape y llave
+  `Campaña + RESOLUCION` (reutiliza `consolidate`).
+- **Asociación campaña ↔ Ekon**: sigue siendo **manual y muchos-a-uno** en
+  `campaignEkonLinks`; la importación Ekon nunca la crea ni la mueve. Un cambio de
+  número Ekon no reasocia campañas automáticamente.
+- **Idempotencia**: `contentHash` del contenido normalizado; reimportar el mismo
+  archivo y alcance no duplica. Un fallo a mitad deja el lote sin `completed` y es
+  reintentable (el diff se recalcula sobre el estado vigente).
 - Eliminación física de pantallas: existe en el catálogo (`deleteScreen`) para
   limpiar registros de prueba o cargados por error. **Inactivar es la acción
   preferida** (conserva historial); no se deben eliminar pantallas ya

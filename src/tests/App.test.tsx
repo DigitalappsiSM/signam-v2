@@ -128,4 +128,44 @@ describe('App — con sesión activa', () => {
       nav.queryByRole('link', { name: /Usuarios y permisos/i }),
     ).not.toBeInTheDocument();
   });
+
+  it('muestra "Importación Ekon" y "Conciliación" a admin/operator', () => {
+    signIn();
+    authState.user!.role = 'operator';
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
+    expect(
+      nav.getByRole('link', { name: /Importación Ekon/i }),
+    ).toBeInTheDocument();
+    expect(
+      nav.getByRole('link', { name: /Conciliación/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('oculta "Importación Ekon" a viewer pero conserva "Conciliación"', () => {
+    signIn();
+    authState.user!.role = 'viewer';
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
+    expect(
+      nav.queryByRole('link', { name: /Importación Ekon/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      nav.getByRole('link', { name: /Conciliación/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('la Importación Ekon arranca en modo degradado (sin Firebase)', () => {
+    signIn();
+    authState.configured = false;
+    // Sin configuración, App muestra el aviso global; la ruta Ekon no rompe.
+    renderAt('/importar-ekon');
+    expect(
+      screen.getByRole('heading', { name: /Firebase no está configurado/i }),
+    ).toBeInTheDocument();
+  });
 });
