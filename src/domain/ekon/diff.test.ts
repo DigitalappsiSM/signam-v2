@@ -38,8 +38,13 @@ describe('diff de asignaciones Ekon', () => {
       1000,
     );
     expect(res.counts.nueva).toBe(2);
-    expect(res.revisions.every((r) => r.event === 'created')).toBe(true);
+    // La creación se registra en la asignación (firstBatchId); no se emiten
+    // revisiones "created" en la primera importación (evita miles de docs).
+    expect(res.revisions).toHaveLength(0);
     expect(res.nextAssignments.every((a) => a.active)).toBe(true);
+    expect(res.nextAssignments.every((a) => a.firstBatchId === 'b1')).toBe(
+      true,
+    );
   });
 
   it('reimportación idéntica: Sin cambios y sin nuevas revisiones', () => {

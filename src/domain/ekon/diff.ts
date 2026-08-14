@@ -214,7 +214,11 @@ export function diffAssignments(
 
     if (!prev) {
       const stored = toStored(inc, {}, batchId, now);
-      record('nueva', stored, null, 'created', [], null, true);
+      // La creación queda registrada en la propia asignación (`firstBatchId`);
+      // no se emite una revisión "created" para no generar decenas de miles de
+      // documentos de historial en la primera importación de un año completo.
+      // Las revisiones solo capturan CAMBIOS posteriores.
+      record('nueva', stored, null, 'created', [], null, false);
       continue;
     }
 
