@@ -1,14 +1,8 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  where,
-  writeBatch,
-} from 'firebase/firestore';
+import { collection, doc, getDocs, query, where } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import { safeDocId } from '@/domain/ekon';
 import type { StoredEkonAssignment } from '@/domain/ekon';
+import { writeInChunks } from './batchWrite';
 
 /**
  * Persistencia de las asignaciones Ekon vigentes (colección `ekonAssignments`).
@@ -20,7 +14,6 @@ import type { StoredEkonAssignment } from '@/domain/ekon';
  */
 
 const COLLECTION = 'ekonAssignments';
-const BATCH_LIMIT = 400;
 
 /**
  * Documento persistido: la asignación más un espejo ASCII del número Ekon
@@ -69,18 +62,10 @@ export async function upsertAssignments(
   assignments: readonly StoredEkonAssignment[],
 ): Promise<number> {
   const database = db();
-  let written = 0;
-  for (let i = 0; i < assignments.length; i += BATCH_LIMIT) {
-    const batch = writeBatch(database);
-    for (const assignment of assignments.slice(i, i + BATCH_LIMIT)) {
-      const docData: EkonAssignmentDoc = {
-        ...assignment,
-        campaignNumber: assignment.campaña,
-      };
-      batch.set(doc(database, COLLECTION, safeDocId(assignment.key)), docData);
-      written += 1;
-    }
-    await batch.commit();
-  }
-  return written;
+  return writeInChunks(
+    database,
+    assignments,
+    (a) => doc(database, COLLECTION, safeDocId(a.key)),
+    (a): EkonAssignmentDoc => ({ ...a, campaignNumber: a.campaña }),
+  );
 }

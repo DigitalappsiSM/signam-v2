@@ -5,9 +5,9 @@ import {
   getDocs,
   orderBy,
   query,
+  setDoc,
   updateDoc,
   where,
-  writeBatch,
 } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import {
@@ -17,7 +17,6 @@ import {
   type EkonImportBatch,
   type EkonBatchTotals,
   type EkonPeriod,
-  type EkonRawRow,
   type StoredEkonAssignment,
 } from '@/domain/ekon';
 import { listAllAssignments, upsertAssignments } from './ekonAssignments';
@@ -29,28 +28,25 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
  *
  * Flujo por etapas con estados de lote (`parsing` → `pending_confirmation` →
  * `processing` → `completed` | `failed`):
- * - `createPendingBatch`: guarda metadatos + snapshot de filas (en chunks) sin
- *   tocar el estado vigente. Reimportar el mismo contenido no duplica (hash).
+ * - `createPendingBatch`: guarda los metadatos del lote (nombre, hash, periodos,
+ *   cobertura, totales) sin tocar el estado vigente. Reimportar el mismo
+ *   contenido no duplica (hash).
  * - `activateBatch`: calcula el diff contra las asignaciones vigentes, escribe
  *   solo lo cambiado y las revisiones, y marca `completed`. Idempotente y
  *   reintentable: un fallo a mitad deja el lote sin `completed`, y reejecutar
  *   recalcula el diff sobre el estado actual.
  *
+ * Decisión técnica: NO se persiste el snapshot crudo de las ~21 mil filas del
+ * archivo en Firestore. Escribir el archivo completo (≈11 MiB normalizados)
+ * superaba el límite de tamaño de escritura y hacía frágil la importación. La
+ * trazabilidad se conserva con los metadatos del lote (nombre, hash, totales,
+ * periodos), las asignaciones vigentes y el historial de revisiones; el archivo
+ * de origen sigue siendo el registro crudo definitivo.
+ *
  * Conciliación y fallback consumen SOLO lotes completados.
  */
 
 const BATCHES = 'ekonImportBatches';
-const ROW_CHUNKS = 'rowChunks';
-// Filas por documento de chunk: se mantiene muy por debajo del límite de 1 MiB
-// por documento de Firestore incluso con filas de texto largas.
-const ROWS_PER_CHUNK = 150;
-// Máximo de operaciones por commit (límite de Firestore: 500).
-const MAX_OPS_PER_COMMIT = 400;
-// Presupuesto de bytes por commit, con margen bajo el límite de 10 MiB por
-// petición de escritura. La escritura de un archivo de un año completo puede
-// superar ese límite si se envía en un solo commit, así que se segmenta por
-// tamaño estimado además de por número de operaciones.
-const MAX_BYTES_PER_COMMIT = 8 * 1024 * 1024;
 
 function db() {
   const fb = getFirebase();
@@ -108,7 +104,8 @@ export async function findCompletedBatchByHash(
 export interface CreatePendingBatchInput {
   fileName: string;
   contentHash: string;
-  rows: readonly EkonRawRow[];
+  /** Total de filas leídas (solo para los totales; las filas no se persisten). */
+  rowCount: number;
   detectedPeriods: readonly EkonPeriod[];
   coverage: { min: string | null; max: string | null };
   warnings: readonly string[];
@@ -116,8 +113,9 @@ export interface CreatePendingBatchInput {
 }
 
 /**
- * Crea un lote en estado `pending_confirmation` con el snapshot de filas. No
- * toca el estado vigente hasta que se active. Devuelve el id del lote.
+ * Crea un lote en estado `pending_confirmation` con sus metadatos. No toca el
+ * estado vigente hasta que se active. Devuelve el id del lote. Es una sola
+ * escritura pequeña (no persiste el archivo crudo, ver nota del módulo).
  */
 export async function createPendingBatch(
   input: CreatePendingBatchInput,
@@ -138,61 +136,12 @@ export async function createPendingBatch(
     detectedPeriods: input.detectedPeriods.slice(),
     confirmedPeriodIds: [],
     coverage: input.coverage,
-    totals: emptyTotals(input.rows.length),
+    totals: emptyTotals(input.rowCount),
     warnings: input.warnings.slice(),
     schemaVersion: EKON_SCHEMA_VERSION,
   };
-  const first = writeBatch(database);
-  first.set(ref, metadata);
-  await first.commit();
-
-  // Snapshot de filas en chunks. Cada chunk es un documento; los commits se
-  // segmentan por número de operaciones Y por tamaño estimado, para no exceder
-  // ni el límite de 500 escrituras ni el de 10 MiB por petición.
-  const chunks: EkonRawRow[][] = [];
-  for (let i = 0; i < input.rows.length; i += ROWS_PER_CHUNK) {
-    chunks.push(input.rows.slice(i, i + ROWS_PER_CHUNK));
-  }
-
-  let batch = writeBatch(database);
-  let opsInBatch = 0;
-  let bytesInBatch = 0;
-  for (let index = 0; index < chunks.length; index += 1) {
-    const payload = { index, rows: chunks[index]! };
-    const bytes = estimateBytes(payload);
-    // Si agregar este chunk excede el presupuesto del commit, se cierra el
-    // commit actual y se abre uno nuevo (salvo que el batch esté vacío).
-    if (
-      opsInBatch > 0 &&
-      (opsInBatch + 1 > MAX_OPS_PER_COMMIT ||
-        bytesInBatch + bytes > MAX_BYTES_PER_COMMIT)
-    ) {
-      await batch.commit();
-      batch = writeBatch(database);
-      opsInBatch = 0;
-      bytesInBatch = 0;
-    }
-    batch.set(
-      doc(
-        database,
-        BATCHES,
-        ref.id,
-        ROW_CHUNKS,
-        String(index).padStart(5, '0'),
-      ),
-      payload,
-    );
-    opsInBatch += 1;
-    bytesInBatch += bytes;
-  }
-  if (opsInBatch > 0) await batch.commit();
-
+  await setDoc(ref, metadata);
   return ref.id;
-}
-
-/** Estima los bytes UTF-8 de un objeto serializado (para segmentar commits). */
-function estimateBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
 export interface ActivateBatchInput {
@@ -292,16 +241,6 @@ function emptyTotals(totalRows: number): EkonBatchTotals {
     restauradas: 0,
     conflictos: 0,
   };
-}
-
-/** Lee el snapshot de filas de un lote (reensamblando los chunks). */
-export async function readBatchRows(batchId: string): Promise<EkonRawRow[]> {
-  const snapshot = await getDocs(
-    query(collection(db(), BATCHES, batchId, ROW_CHUNKS), orderBy('index')),
-  );
-  return snapshot.docs.flatMap(
-    (d) => (d.data() as { rows: EkonRawRow[] }).rows,
-  );
 }
 
 /** Lee un lote por id. */

@@ -109,7 +109,7 @@ export function EkonImportPage() {
       const batchId = await createPendingBatch({
         fileName,
         contentHash: analysis.contentHash,
-        rows: analysis.parse.rows,
+        rowCount: analysis.parse.totalRows,
         detectedPeriods: analysis.periods.periods,
         coverage: analysis.periods.coverage,
         warnings: buildWarnings(analysis),

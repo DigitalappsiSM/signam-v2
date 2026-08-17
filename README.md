@@ -378,9 +378,12 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 ### Colecciones e índices Ekon
 
 Colecciones nuevas (reglas en `firestore.rules`): `ekonImportBatches`
-(con subcolección `rowChunks` para el snapshot de filas), `ekonAssignments`
+(metadatos del lote: nombre, hash, periodos, totales), `ekonAssignments`
 (asignaciones vigentes; id = huella estable) y `ekonRevisions` (historial
-append-only). La asociación manual reutiliza `campaignEkonLinks`.
+append-only). La asociación manual reutiliza `campaignEkonLinks`. El archivo
+crudo **no** se persiste en Firestore (superaba el límite de tamaño de
+escritura); la trazabilidad queda en los metadatos del lote, las asignaciones y
+las revisiones.
 
 Índice que **debe desplegarse** (`firestore.indexes.json`): `ekonAssignments`
 compuesto por `campaignNumber` (ASC) + `active` (ASC), usado por la conciliación
@@ -409,7 +412,7 @@ Hosting `5000`, UI habilitada.
 3. Sube una extracción Ekon `.xlsx` (hoja "Datos Tienda"). Revisa el alcance
    detectado, **confirma los periodos** y la **vista previa del diff**; confirma
    la importación. En Firestore Emulator UI verás el lote `completed` en
-   `ekonImportBatches` (+ `rowChunks`), las `ekonAssignments` y `ekonRevisions`.
+   `ekonImportBatches`, las `ekonAssignments` y `ekonRevisions`.
 4. Reimporta el **mismo archivo y alcance**: la app avisa que ya se importó y no
    duplica (idempotencia por `contentHash`).
 5. En **Campañas**, vincula manualmente una campaña a un número Ekon. Ve a

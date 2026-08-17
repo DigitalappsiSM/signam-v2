@@ -1,14 +1,8 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  where,
-  writeBatch,
-} from 'firebase/firestore';
+import { collection, doc, getDocs, query, where } from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import type { EkonRevisionPlan } from '@/domain/ekon';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
+import { writeInChunks } from './batchWrite';
 
 /**
  * Historial de revisiones de asignaciones Ekon (colección `ekonRevisions`).
@@ -18,7 +12,6 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
  */
 
 const COLLECTION = 'ekonRevisions';
-const BATCH_LIMIT = 400;
 
 function db() {
   const fb = getFirebase();
@@ -26,7 +19,7 @@ function db() {
   return fb.db;
 }
 
-/** Agrega las revisiones de un lote en escrituras segmentadas. */
+/** Agrega las revisiones de un lote en escrituras segmentadas (ops + bytes). */
 export async function appendRevisions(
   plans: readonly EkonRevisionPlan[],
   batchId: string,
@@ -34,27 +27,22 @@ export async function appendRevisions(
   now = Date.now(),
 ): Promise<number> {
   const database = db();
-  let written = 0;
-  for (let i = 0; i < plans.length; i += BATCH_LIMIT) {
-    const batch = writeBatch(database);
-    for (const plan of plans.slice(i, i + BATCH_LIMIT)) {
-      const ref = doc(collection(database, COLLECTION));
-      batch.set(ref, {
-        key: plan.key,
-        batchId,
-        event: plan.event,
-        before: plan.before,
-        after: plan.after,
-        changedFields: plan.changedFields,
-        at: now,
-        byUid: actor.uid,
-        byEmail: actor.email,
-      });
-      written += 1;
-    }
-    await batch.commit();
-  }
-  return written;
+  return writeInChunks(
+    database,
+    plans,
+    () => doc(collection(database, COLLECTION)),
+    (plan) => ({
+      key: plan.key,
+      batchId,
+      event: plan.event,
+      before: plan.before,
+      after: plan.after,
+      changedFields: plan.changedFields,
+      at: now,
+      byUid: actor.uid,
+      byEmail: actor.email,
+    }),
+  );
 }
 
 /** Lee el historial de una asignación por su llave estable (para el detalle). */
