@@ -131,9 +131,10 @@ service cloud.firestore {
     // liberar, sustituyendo `isSignedIn()` por la comprobación de rol. Estas
     // colecciones NUNCA modifican `campaigns`, el catálogo ni el seguimiento.
 
-    // Lotes de importación Ekon y su snapshot de filas (subcolección rowChunks).
+    // Lotes de importación Ekon (metadatos: nombre, hash, periodos, totales).
     // El estado de lote (parsing/pending_confirmation/processing/completed/failed)
     // vive en el documento; conciliación y fallback consumen solo completados.
+    // No se persiste el archivo crudo en Firestore (ver ekonImports.ts).
     match /ekonImportBatches/{batchId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn()
@@ -141,12 +142,6 @@ service cloud.firestore {
            ['parsing', 'pending_confirmation', 'processing', 'completed', 'failed'];
       // Sin borrado físico desde el cliente (conserva historial auditable).
       allow delete: if false;
-
-      match /rowChunks/{chunkId} {
-        allow read: if isSignedIn();
-        allow create, update: if isSignedIn();
-        allow delete: if false;
-      }
     }
 
     // Asignaciones Ekon vigentes (id = huella estable de la asignación). Las
