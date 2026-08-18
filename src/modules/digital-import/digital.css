@@ -1,0 +1,72 @@
+.digital-card {
+  padding: 1rem;
+  margin: 1rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.digital-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+.digital-grid .digital-card {
+  display: flex;
+  flex-direction: column;
+}
+.digital-grid strong {
+  font-size: 1.8rem;
+}
+.digital-steps {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.digital-field {
+  display: grid;
+  gap: 0.5rem;
+}
+.digital-conflict {
+  padding: 0.75rem;
+  border-left: 4px solid #d4145a;
+  margin: 0.75rem 0;
+}
+.digital-table-wrap {
+  overflow: auto;
+}
+.digital-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.digital-table th,
+.digital-table td {
+  padding: 0.55rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  text-align: left;
+}
+.digital-filters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.digital-filters input,
+.digital-filters select {
+  padding: 0.55rem;
+}
+.digital-checks {
+  display: flex;
+  gap: 0.7rem;
+}
+.digital-bars {
+  display: grid;
+  gap: 0.6rem;
+}
+.digital-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.65rem;
+  background: var(--color-surface);
+  border-radius: 8px;
+}

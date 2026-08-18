@@ -26,7 +26,7 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 - **Consolidación**: la llave es `Campaña + RESOLUCION`. No separar por circuito,
   soporte, `ARTICULOS` ni `TIPO DE PASES`.
 - **Nombre de campaña Admira**: `<Campaña>_ <ARTICULOS>` (espacio tras `_`),
-  varios artículos con ` + `, deduplicando en orden de aparición.
+  varios artículos con `+`, deduplicando en orden de aparición.
 - **`TIPO DE PASES`**: informativo, va en cada fila del CSV; no divide campañas
   ni forma parte del nombre.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
@@ -127,7 +127,7 @@ Dominio puro en `src/domain/ekon`, servicios en `src/services/ekon*.ts`, módulo
   las pantallas físicas. La conciliación **compara**, nunca corrige ni mueve
   asociaciones.
 - **Identidad estable de asignación**: `Año + Campaña + Línea campaña +
-  Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
+Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   (21 327 filas → 21 317 llaves; 10 colisiones son la misma asignación con solo
   `Importe neto` distinto; **0** llaves multi-periodo). Un cambio de periodo es
   **modificación** de la misma asignación, no alta+baja. **No** incluir periodo,
@@ -165,6 +165,26 @@ Dominio puro en `src/domain/ekon`, servicios en `src/services/ekon*.ts`, módulo
   limpiar registros de prueba o cargados por error. **Inactivar es la acción
   preferida** (conserva historial); no se deben eliminar pantallas ya
   referenciadas por exportaciones. Antes de liberar se restringirá a admin.
+
+## Operación Digital multirretailer
+
+- La Comer y Chedraui con `COPETE DIGITAL` viven exclusivamente en las ocho
+  colecciones `digital*` y en Storage bajo `digital-imports/`. Una importación
+  digital nunca escribe en `campaigns`, `screens`, `campaignEkonLinks`,
+  consolidaciones, `csvExports` ni seguimiento Liverpool.
+- El alcance se decide por coincidencia exacta normalizada contra perfiles
+  activos del catálogo. No se buscan palabras en creatividad u observaciones.
+- La identidad de fila es año + campaña + línea + retailer + soporte +
+  creatividad + periodo. La identidad operativa omite la línea. Los originales
+  conservan las 39 columnas y su orden.
+- `Tipo Fijación` es autoritativo: Fijación → `fixation`, Revisión →
+  `continuous`; desconocidos bloquean. Los conflictos y duplicados requieren
+  confirmación y nunca se suman automáticamente.
+- El seguimiento digital tiene exactamente tres checks (link, validación de
+  cadena y programación CMS). No usa testigos, objetivos, días hábiles, Admira,
+  PPT, CSV/ZIP ni los reportes Excel Liverpool.
+- Las ausencias solo se inactivan dentro de catorcenas confirmadas. Nunca hay
+  borrado físico y una reimportación conserva checks, comentarios y cancelación.
 
 ## Comandos
 

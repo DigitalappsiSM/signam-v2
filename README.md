@@ -18,6 +18,41 @@ Aplicación web para operar el flujo de programación de pantallas entre
    proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
 10. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
 11. **Importación Ekon** y **Conciliación** Ekon–Liverpool (ver abajo).
+12. **Operación Digital multirretailer** para La Comer y Chedraui, aislada de
+    Liverpool/Admira (ver abajo).
+
+## Operación Digital multirretailer
+
+Las rutas `/importar-digital`, `/operacion-digital` y `/catalogo-digital`
+implementan la extracción EKON **Seguimiento Campañas** para `CHEDRAUI` y
+`LA COMER`, inicialmente solo con `COPETE DIGITAL` y catorcenas confirmadas.
+El importador valida las 39 columnas, fechas civiles y Tipo Fijación, enseña lo
+ignorado por catálogo y obliga a resolver duplicados exactos o conflictos antes
+de persistir. El original se conserva inmutable en
+`digital-imports/{batchId}/{archivo}`.
+
+El seguimiento muestra únicamente Link de descarga, Validación de cadena y
+Programación CMS. Las cancelaciones son reversibles y conservan checks y
+comentarios. El panel agrega una sección independiente de métricas digitales y
+el Excel propio genera `Resumen catorcena`, `Detalle EKON`, `Incidencias` y
+`Metadatos` sin imágenes.
+
+### Aislamiento
+
+Este dominio no utiliza `campaigns`, `screens`, `campaignEkonLinks`, Admira,
+conciliación Liverpool, baja ocupación, PPT, CSV/ZIP ni el Excel Liverpool. Sus
+colecciones exclusivas son `digitalSupportCatalog`, `digitalImportBatches`,
+`digitalPlacementRows`, `digitalOperationalItems`,
+`digitalOperationalTracking`, `digitalImportResolutions`,
+`digitalPlacementRevisions` y `digitalReportExports`. Las reglas prohíben el
+borrado físico; perfiles solo los administra admin, lectura está disponible a
+usuarios autenticados e importación/seguimiento/exportación a admin/operator.
+
+**Prueba manual:** inicializa los dos perfiles desde el catálogo, sube
+`importacion general.xlsx` sin versionarlo, confirma C17/C18 y el duplicado de
+las filas Excel 176/177 con “Conservar una”. El smoke test esperado del archivo
+de referencia es 1,986 filas fuente, 49 en alcance, 13 campañas, 21 fijaciones,
+28 revisiones y 48 filas aceptadas tras colapsar ese duplicado.
 
 ## Integración Ekon (Importación y Conciliación)
 
@@ -420,7 +455,7 @@ Hosting `5000`, UI habilitada.
    periodos, circuito↔soporte y tiendas; el determinante `0` aparece como
    "Centro Administrativo / tiendas no aplican".
 6. Para el fallback CSV, deja una campaña vinculada **sin** marcar `MEGA MUPI
-   DIGITAL`/`BANNER DIGITAL` en Liverpool pero con esos circuitos en Ekon y con
+DIGITAL`/`BANNER DIGITAL` en Liverpool pero con esos circuitos en Ekon y con
    tiendas operativas: la consolidación genera esos soportes reutilizando el CSV
    Admira normal.
 

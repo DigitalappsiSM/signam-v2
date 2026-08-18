@@ -23,6 +23,67 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && request.auth.token.get('role', '') == 'admin';
     }
+    function isOperator() {
+      return isSignedIn() && request.auth.token.get('role', '') == 'operator';
+    }
+    function canOperateDigital() { return isAdmin() || isOperator(); }
+    function validDigitalLifecycle(data) {
+      return data.lifecycleStatus in ['active', 'cancelled']
+        && (data.cancellationReason == null || data.cancellationReason is string);
+    }
+
+    // Operación Digital Signage multirretailer. Estas colecciones son un límite
+    // explícito: ninguna regla ni escritura reutiliza campaigns/screens/Admira.
+    match /digitalSupportCatalog/{profileId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && request.resource.data.sourceSchema == 'ekon-campaign-tracking-v1'
+        && request.resource.data.active is bool;
+      allow update: if isAdmin() && request.resource.data.sourceSchema == resource.data.sourceSchema
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+    match /digitalImportBatches/{batchId} {
+      allow read: if isSignedIn();
+      allow create, update: if canOperateDigital() && request.resource.data.status in
+        ['analyzing','pending-scope','pending-resolutions','processing','completed','failed']
+        && request.resource.data.sourceSchema == 'ekon-campaign-tracking-v1';
+      allow delete: if false;
+    }
+    match /digitalPlacementRows/{rowId} {
+      allow read: if isSignedIn();
+      allow create: if canOperateDigital() && request.resource.data.recordKey is string;
+      allow update: if canOperateDigital()
+        && request.resource.data.recordKey == resource.data.recordKey
+        && request.resource.data.firstBatchId == resource.data.firstBatchId;
+      allow delete: if false;
+    }
+    match /digitalOperationalItems/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if canOperateDigital() && request.resource.data.source == 'ekon-campaign-tracking';
+      allow update: if canOperateDigital()
+        && request.resource.data.operationalKey == resource.data.operationalKey
+        && request.resource.data.firstBatchId == resource.data.firstBatchId;
+      allow delete: if false;
+    }
+    match /digitalOperationalTracking/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if canOperateDigital() && request.resource.data.operationalItemId == itemId
+        && validDigitalLifecycle(request.resource.data);
+      allow update: if canOperateDigital()
+        && request.resource.data.operationalItemId == resource.data.operationalItemId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validDigitalLifecycle(request.resource.data);
+      allow delete: if false;
+    }
+    match /digitalImportResolutions/{resolutionId} {
+      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+    }
+    match /digitalPlacementRevisions/{revisionId} {
+      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+    }
+    match /digitalReportExports/{exportId} {
+      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+    }
 
     // --- Preparado para el control por rol (aún no aplicado en esta fase) ---
     function userRole() {

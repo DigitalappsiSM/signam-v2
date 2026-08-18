@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "digitalOperationalItems",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "periodId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "screens",
       "queryScope": "COLLECTION",
       "fields": [
