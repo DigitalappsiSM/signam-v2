@@ -31,7 +31,10 @@ export function toReconInput(campaign: StoredCampaign): ReconCampaignInput {
     fechaFin: campaign.fechaFin,
     supports: campaign.supports.map((s) => ({
       support: s.support,
-      stores: s.stores.map((store) => ({ numero: store.numero })),
+      stores: s.stores.map((store) => ({
+        numero: store.numero,
+        nombre: store.nombre,
+      })),
     })),
   };
 }
@@ -106,9 +109,25 @@ export function summarizeReconciliation(rows: readonly ReconciliationRow[]): {
   for (const row of rows) {
     const s = row.result.status;
     if (s === 'conciliada' || s === 'centro-administrativo') conciliadas += 1;
-    else if (s === 'conciliada-con-advertencias' || s === 'diferencia-tiendas')
-      advertencias += 1;
+    else if (s === 'conciliada-con-advertencias') advertencias += 1;
     else error += 1;
   }
   return { conciliadas, advertencias, error };
+}
+
+/** Número de incidencias accionables evitando contar dos veces los resúmenes de tiendas. */
+export function reconciliationIncidentCount(row: ReconciliationRow): number {
+  const storeIncidents = row.result.stores.details.filter(
+    (store) => store.status !== 'matched',
+  ).length;
+  const nonStoreIssues = row.result.issues.filter(
+    (issue) =>
+      issue.code !== 'diferencia-tiendas' &&
+      issue.code !== 'diferencia-tienda-soporte',
+  ).length;
+  return storeIncidents + nonStoreIssues;
+}
+
+export function hasReconciliationIncidents(row: ReconciliationRow): boolean {
+  return reconciliationIncidentCount(row) > 0;
 }

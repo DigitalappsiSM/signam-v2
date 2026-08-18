@@ -60,6 +60,7 @@ describe('conciliación Ekon ↔ Liverpool', () => {
     ]);
     const res = reconcileCampaign(
       campaign({
+        fechaFin: '2026-08-03',
         supports: [{ support: 'BANNER DIGITAL', stores: [{ numero: '10' }] }],
       }),
       '30001',
@@ -119,5 +120,104 @@ describe('conciliación Ekon ↔ Liverpool', () => {
     expect(res.administrativeScope).toBe(false);
     expect(res.stores.applies).toBe(true);
     expect(res.stores.common).toContain('10');
+  });
+
+  it('compara todas las tiendas Liverpool aunque su soporte sea incompatible', () => {
+    const assignments = assignmentsFromSpecs([
+      {
+        ...P32,
+        Artículo: 'MEGA MUPI DIGITAL',
+        Determinante: '10',
+      },
+    ]);
+    const res = reconcileCampaign(
+      campaign({
+        supports: [
+          { support: 'MEGA MUPI DIGITAL', stores: [{ numero: '10' }] },
+          { support: 'BANNER DIGITAL', stores: [{ numero: '20' }] },
+        ],
+      }),
+      '30001',
+      assignments,
+    );
+    expect(res.stores.liverpoolOnly).toEqual(['20']);
+    expect(res.stores.details.find((s) => s.storeNumber === '20')?.status).toBe(
+      'liverpool-only',
+    );
+  });
+
+  it('bloquea si el número coincide pero el soporte/circuito no corresponde en esa tienda', () => {
+    const assignments = assignmentsFromSpecs([
+      {
+        ...P32,
+        Artículo: 'MEGA MUPI DIGITAL',
+        Determinante: '10',
+      },
+    ]);
+    const res = reconcileCampaign(
+      campaign({
+        fechaFin: '2026-08-03',
+        supports: [{ support: 'BANNER DIGITAL', stores: [{ numero: '10' }] }],
+      }),
+      '30001',
+      assignments,
+    );
+    const detail = res.stores.details[0]!;
+    expect(detail.status).toBe('support-mismatch');
+    expect(detail.liverpool.unmatchedSupports).toEqual(['BANNER DIGITAL']);
+    expect(detail.ekon.unmatchedCircuits).toEqual(['MEGA MUPI']);
+    expect(res.status).toBe('circuito-no-compatible');
+  });
+
+  it('exige cobertura compatible en ambos sentidos por tienda', () => {
+    const assignments = assignmentsFromSpecs([
+      {
+        ...P32,
+        Artículo: 'VIDEOWALL',
+        Determinante: '10',
+      },
+    ]);
+    const res = reconcileCampaign(
+      campaign({
+        supports: [
+          { support: 'VIDEO WALL CRIUS', stores: [{ numero: '10' }] },
+          { support: 'BANNER DIGITAL', stores: [{ numero: '10' }] },
+        ],
+      }),
+      '30001',
+      assignments,
+    );
+    const detail = res.stores.details[0]!;
+    expect(detail.status).toBe('support-mismatch');
+    expect(detail.liverpool.unmatchedSupports).toEqual(['BANNER DIGITAL']);
+    expect(detail.ekon.unmatchedCircuits).toEqual([]);
+  });
+
+  it('la cobertura parcial es un estado bloqueante propio', () => {
+    const assignments = assignmentsFromSpecs([
+      { ...P32, Artículo: 'MEGA MUPI DIGITAL', Determinante: '10' },
+    ]);
+    const res = reconcileCampaign(
+      campaign({ fechaInicio: '2026-07-28', fechaFin: '2026-08-10' }),
+      '30001',
+      assignments,
+    );
+    expect(res.coverage).toBe('partial');
+    expect(res.status).toBe('periodo-parcial');
+  });
+
+  it('un conflicto pendiente bloquea sin usarse como tienda ni simular alcance administrativo', () => {
+    const [assignment] = assignmentsFromSpecs([
+      { ...P32, Artículo: 'MEGA MUPI DIGITAL', Determinante: '10' },
+    ]);
+    const res = reconcileCampaign(campaign(), '30001', [
+      { ...assignment!, conflict: 'Periodo ambiguo.' },
+    ]);
+    expect(res.status).toBe('cambio-pendiente');
+    expect(res.pendingConflicts).toBe(1);
+    expect(res.administrativeScope).toBe(false);
+    expect(res.stores.applies).toBe(true);
+    expect(res.stores.liverpoolOnly).toEqual(['10']);
+    expect(res.ratio).toBeNull();
   });
 });

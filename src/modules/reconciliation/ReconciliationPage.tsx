@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { isFirebaseConfigured } from '@/services/firebase';
-import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { listCampaigns } from '@/services/campaigns';
 import {
   listEkonLinks,
   ekonNumberForCampaign,
 } from '@/services/campaignEkonLinks';
-import { listActiveAssignmentsByEkonNumber } from '@/services/ekonAssignments';
+import { listReconciliationAssignmentsByEkonNumber } from '@/services/ekonAssignments';
 import { hasCompletedBatch as hasCompletedBatchQuery } from '@/services/ekonImports';
 import {
   reconciliationStatusLabel,
@@ -18,9 +16,13 @@ import {
 import {
   buildReconciliationRows,
   filterReconciliationRows,
+  hasReconciliationIncidents,
+  reconciliationIncidentCount,
   summarizeReconciliation,
   type ReconciliationRow,
 } from './reconciliationView';
+import { ReconciliationDetailModal } from './ReconciliationDetailModal';
+import './ReconciliationPage.css';
 
 /** Conciliación Ekon ↔ Liverpool para campañas con vínculo manual. */
 export function ReconciliationPage() {
@@ -56,7 +58,7 @@ export function ReconciliationPage() {
         const byNumber = new Map<string, EkonAssignment[]>();
         await Promise.all(
           [...numbers].map(async (n) => {
-            byNumber.set(n, await listActiveAssignmentsByEkonNumber(n));
+            byNumber.set(n, await listReconciliationAssignmentsByEkonNumber(n));
           }),
         );
         if (cancelled) return;
@@ -75,10 +77,22 @@ export function ReconciliationPage() {
   }, [configured]);
 
   const filtered = useMemo(
-    () => filterReconciliationRows(rows, { text, status, onlyIssues }),
+    () =>
+      filterReconciliationRows(rows, { text, status, onlyIssues }).sort(
+        (a, b) =>
+          Number(hasReconciliationIncidents(b)) -
+          Number(hasReconciliationIncidents(a)),
+      ),
     [rows, text, status, onlyIssues],
   );
   const summary = useMemo(() => summarizeReconciliation(rows), [rows]);
+  const issueRows = useMemo(
+    () => filtered.filter(hasReconciliationIncidents),
+    [filtered],
+  );
+  const detailIssueIndex = detail
+    ? issueRows.findIndex((row) => row.campaign.id === detail.campaign.id)
+    : -1;
 
   return (
     <>
@@ -121,7 +135,7 @@ export function ReconciliationPage() {
                 <dd>{summary.advertencias}</dd>
               </div>
               <div>
-                <dt>Con error</dt>
+                <dt>Bloqueadas</dt>
                 <dd>{summary.error}</dd>
               </div>
               <div>
@@ -162,6 +176,7 @@ export function ReconciliationPage() {
               </option>
               <option value="sin-campana-ekon">Sin campaña Ekon</option>
               <option value="periodo-no-cubierto">Periodo no cubierto</option>
+              <option value="periodo-parcial">Periodo parcial</option>
               <option value="circuito-no-compatible">
                 Circuito no compatible
               </option>
@@ -226,14 +241,16 @@ export function ReconciliationPage() {
                         <td>
                           {row.result.administrativeScope
                             ? 'No aplica'
-                            : `${row.result.stores.common.length} ✓ / ${row.result.stores.ekonOnly.length + row.result.stores.liverpoolOnly.length} Δ`}
+                            : storeSummary(row)}
                         </td>
                         <td>
                           <button
                             className="btn btn-secondary"
                             onClick={() => setDetail(row)}
                           >
-                            Ver
+                            {reconciliationIncidentCount(row) > 0
+                              ? `Revisar ${reconciliationIncidentCount(row)} incidencia${reconciliationIncidentCount(row) === 1 ? '' : 's'}`
+                              : 'Ver detalle'}
                           </button>
                         </td>
                       </tr>
@@ -245,7 +262,25 @@ export function ReconciliationPage() {
           )}
 
           {detail && (
-            <DetailPanel row={detail} onClose={() => setDetail(null)} />
+            <ReconciliationDetailModal
+              row={detail}
+              onClose={() => setDetail(null)}
+              hasPrevious={detailIssueIndex > 0}
+              hasNext={
+                detailIssueIndex >= 0 && detailIssueIndex < issueRows.length - 1
+              }
+              onPrevious={() => {
+                if (detailIssueIndex > 0)
+                  setDetail(issueRows[detailIssueIndex - 1]!);
+              }}
+              onNext={() => {
+                if (
+                  detailIssueIndex >= 0 &&
+                  detailIssueIndex < issueRows.length - 1
+                )
+                  setDetail(issueRows[detailIssueIndex + 1]!);
+              }}
+            />
           )}
         </>
       )}
@@ -256,11 +291,7 @@ export function ReconciliationPage() {
 function statusTone(status: ReconciliationStatus): string {
   if (status === 'conciliada' || status === 'centro-administrativo')
     return 'badge-success';
-  if (
-    status === 'conciliada-con-advertencias' ||
-    status === 'diferencia-tiendas'
-  )
-    return 'badge-warning';
+  if (status === 'conciliada-con-advertencias') return 'badge-warning';
   return 'badge-danger';
 }
 
@@ -277,100 +308,16 @@ function coverageLabel(coverage: string): string {
   }
 }
 
-function DetailPanel({
-  row,
-  onClose,
-}: {
-  row: ReconciliationRow;
-  onClose: () => void;
-}) {
-  const r = row.result;
-  return (
-    <div className="card" style={{ marginTop: '1.25rem' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <h2 style={{ margin: 0 }}>{row.campaign.name}</h2>
-        <button className="btn btn-secondary" onClick={onClose}>
-          Cerrar
-        </button>
-      </div>
-      <p className="import__note">
-        <strong>Número Ekon:</strong> {row.ekonNumber} ·{' '}
-        <strong>Estado:</strong> {reconciliationStatusLabel(r.status)} ·{' '}
-        <Link to="/campanas">Ir a la campaña</Link>
-      </p>
-
-      {r.administrativeScope && (
-        <p className="badge badge-info">
-          Alcance administrativo: Centro Administrativo · Conciliación de
-          tiendas: No aplica
-        </p>
-      )}
-
-      <div className="diagnosis__table-wrap">
-        <table className="catalog__table">
-          <tbody>
-            <tr>
-              <th>Fechas Liverpool</th>
-              <td>
-                {formatCivilString(row.campaign.fechaInicio)} –{' '}
-                {formatCivilString(row.campaign.fechaFin)}
-              </td>
-            </tr>
-            <tr>
-              <th>Cobertura Ekon</th>
-              <td>{coverageLabel(r.coverage)}</td>
-            </tr>
-            <tr>
-              <th>Ratio / testigos</th>
-              <td>
-                {r.ratio ? r.ratio.toUpperCase() : '—'} ·{' '}
-                {r.requiresTestigos ? 'Requiere testigos' : 'Sin testigos'}
-              </td>
-            </tr>
-            <tr>
-              <th>Productos</th>
-              <td>{r.productos.join(' · ') || '—'}</td>
-            </tr>
-            <tr>
-              <th>Circuitos</th>
-              <td>
-                {r.circuitMatches
-                  .map(
-                    (c) =>
-                      `${c.circuito}${c.compatible ? ` ✓ (${c.supports.join(', ')})` : ' ✗'}`,
-                  )
-                  .join(' · ') || '—'}
-              </td>
-            </tr>
-            {r.stores.applies && (
-              <tr>
-                <th>Tiendas</th>
-                <td>
-                  Comunes: {r.stores.common.join(', ') || '—'}
-                  <br />
-                  Solo Ekon: {r.stores.ekonOnly.join(', ') || '—'}
-                  <br />
-                  Solo Liverpool: {r.stores.liverpoolOnly.join(', ') || '—'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {r.issues.length > 0 && (
-        <ul className="text-muted">
-          {r.issues.map((issue, i) => (
-            <li key={i}>{issue.message}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+function storeSummary(row: ReconciliationRow): string {
+  if (!row.result.ekonExists) return 'Sin datos Ekon';
+  if (!row.result.stores.applies) return 'Sin tiendas conciliables';
+  const details = row.result.stores.details;
+  const count = (status: string) =>
+    details.filter((store) => store.status === status).length;
+  return [
+    `${count('matched')} conciliadas`,
+    `${count('liverpool-only')} solo Liverpool`,
+    `${count('ekon-only')} solo Ekon`,
+    `${count('support-mismatch')} incompatibles`,
+  ].join(' · ');
 }
