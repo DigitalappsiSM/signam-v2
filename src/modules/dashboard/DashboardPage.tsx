@@ -25,6 +25,7 @@ import {
   formatDdMmYyyy,
   formatCivilString,
 } from '@/modules/operational-tracking/businessDays';
+import { DigitalDashboardPanel } from '@/modules/digital-dashboard/DigitalDashboardPanel';
 import {
   buildOccupancyDashboard,
   presetRange,
@@ -585,6 +586,8 @@ export function DashboardPage() {
           onClose={() => setSelection(null)}
         />
       )}
+
+      <DigitalDashboardPanel />
 
       <h2 style={{ fontSize: '1.1rem', margin: '1.5rem 0 0.75rem' }}>
         Módulos
