@@ -56,31 +56,38 @@ export function OccupancyExportGroups({
         return (
           <article key={g.key} className="occ-group card">
             <header className="occ-group__head">
-              <h3 className="occ-group__title">
-                {g.normalization} · {g.resolution || 'sin resolución'}
-              </h3>
-              {cmp && (
-                <span className="occ-group__diff">
-                  <ComparisonBadge status={cmp.overall} />
-                  <span className="text-muted occ-group__vs">
-                    vs {comparedLabel}
+              <div className="occ-group__heading">
+                <h3 className="occ-group__title">
+                  {g.normalization} · {g.resolution || 'sin resolución'}
+                </h3>
+                {cmp && (
+                  <span className="occ-group__diff">
+                    <ComparisonBadge status={cmp.overall} />
+                    <span className="text-muted occ-group__vs">
+                      vs {comparedLabel}
+                    </span>
                   </span>
-                </span>
+                )}
+              </div>
+              {cmp?.hasChanges && (
+                <button
+                  className="occ-group__changes-link"
+                  onClick={() => onViewChanges(cmp)}
+                >
+                  Ver cambios del día
+                </button>
               )}
             </header>
             <ul className="occ-group__rows">
-              <li>
-                <span>
-                  <span className="occ-ratio occ-ratio--r1">Ratio 1</span>{' '}
-                  {g.ratio1Units.length} centros · {pantallasOf(g.ratio1Units)}{' '}
-                  pantallas
-                  {cmp && (
-                    <>
-                      {' '}
-                      <ComparisonBadge status={cmp.ratio1.status} small />
-                    </>
-                  )}
-                </span>
+              <li className="occ-group__row">
+                <div className="occ-group__row-info">
+                  <span className="occ-ratio occ-ratio--r1">Ratio 1</span>
+                  <span className="occ-group__row-count">
+                    {g.ratio1Units.length} centros ·{' '}
+                    {pantallasOf(g.ratio1Units)} pantallas
+                  </span>
+                  {cmp && <ComparisonBadge status={cmp.ratio1.status} small />}
+                </div>
                 {canExport ? (
                   <button
                     className="btn btn-secondary"
@@ -93,18 +100,15 @@ export function OccupancyExportGroups({
                   <span className="text-muted">Sin permiso de exportación</span>
                 )}
               </li>
-              <li>
-                <span>
-                  <span className="occ-ratio occ-ratio--r3">Ratio 3</span>{' '}
-                  {g.ratio3Units.length} centros · {pantallasOf(g.ratio3Units)}{' '}
-                  pantallas
-                  {cmp && (
-                    <>
-                      {' '}
-                      <ComparisonBadge status={cmp.ratio3.status} small />
-                    </>
-                  )}
-                </span>
+              <li className="occ-group__row">
+                <div className="occ-group__row-info">
+                  <span className="occ-ratio occ-ratio--r3">Ratio 3</span>
+                  <span className="occ-group__row-count">
+                    {g.ratio3Units.length} centros ·{' '}
+                    {pantallasOf(g.ratio3Units)} pantallas
+                  </span>
+                  {cmp && <ComparisonBadge status={cmp.ratio3.status} small />}
+                </div>
                 {canExport ? (
                   <button
                     className="btn btn-secondary"
@@ -117,20 +121,17 @@ export function OccupancyExportGroups({
                   <span className="text-muted">Sin permiso de exportación</span>
                 )}
               </li>
-              <li>
-                <span>
+              <li className="occ-group__row">
+                <div className="occ-group__row-info">
                   <span className="occ-badge occ-badge--sin-ocupacion">
                     Sin proveedores
-                  </span>{' '}
-                  {g.zeroUnits.length} centros · {pantallasOf(g.zeroUnits)}{' '}
-                  pantallas
-                  {cmp && (
-                    <>
-                      {' '}
-                      <ComparisonBadge status={cmp.zero.status} small />
-                    </>
-                  )}
-                </span>
+                  </span>
+                  <span className="occ-group__row-count">
+                    {g.zeroUnits.length} centros · {pantallasOf(g.zeroUnits)}{' '}
+                    pantallas
+                  </span>
+                  {cmp && <ComparisonBadge status={cmp.zero.status} small />}
+                </div>
                 <button
                   className="btn btn-secondary"
                   disabled={g.zeroUnits.length === 0}
@@ -140,14 +141,6 @@ export function OccupancyExportGroups({
                 </button>
               </li>
             </ul>
-            {cmp?.hasChanges && (
-              <button
-                className="btn btn-secondary occ-group__changes"
-                onClick={() => onViewChanges(cmp)}
-              >
-                Ver cambios del día
-              </button>
-            )}
           </article>
         );
       })}
