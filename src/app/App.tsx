@@ -14,6 +14,9 @@ import { LowOccupancyPage } from '@/modules/low-occupancy/LowOccupancyPage';
 import { AuditPage } from '@/modules/audit/AuditPage';
 import { UsersPage } from '@/modules/users/UsersPage';
 import { NotFoundPage } from '@/modules/NotFoundPage';
+import { DigitalImportPage } from '@/modules/digital-import/DigitalImportPage';
+import { DigitalOperationsPage } from '@/modules/digital-operations/DigitalOperationsPage';
+import { DigitalCatalogPage } from '@/modules/digital-operations/DigitalCatalogPage';
 
 /**
  * Componente raíz. Controla el acceso:
@@ -49,6 +52,9 @@ export function App() {
         <Route path="/importar" element={<ImportPage />} />
         <Route path="/catalogo" element={<CatalogPage />} />
         <Route path="/importar-ekon" element={<EkonImportPage />} />
+        <Route path="/importar-digital" element={<DigitalImportPage />} />
+        <Route path="/operacion-digital" element={<DigitalOperationsPage />} />
+        <Route path="/catalogo-digital" element={<DigitalCatalogPage />} />
         <Route path="/campanas" element={<CampaignsPage />} />
         <Route path="/conciliacion" element={<ReconciliationPage />} />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />

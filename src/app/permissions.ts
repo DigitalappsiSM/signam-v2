@@ -16,6 +16,11 @@ export type Permission =
   | 'export.occupancyCsv'
   | 'tracking.read'
   | 'tracking.write'
+  | 'digitalOperations.read'
+  | 'digitalOperations.import'
+  | 'digitalOperations.track'
+  | 'digitalOperations.export'
+  | 'digitalCatalog.manage'
   | 'users.manage';
 
 // `export.occupancyCsv` lo tienen TODOS los roles a propósito: los CSV de las
@@ -35,6 +40,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
+    'digitalOperations.read',
+    'digitalOperations.import',
+    'digitalOperations.track',
+    'digitalOperations.export',
+    'digitalCatalog.manage',
     'users.manage',
   ],
   operator: [
@@ -46,12 +56,17 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
+    'digitalOperations.read',
+    'digitalOperations.import',
+    'digitalOperations.track',
+    'digitalOperations.export',
   ],
   viewer: [
     'catalog.read',
     'reconciliation.read',
     'export.occupancyCsv',
     'tracking.read',
+    'digitalOperations.read',
   ],
 };
 

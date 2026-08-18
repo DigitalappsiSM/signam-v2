@@ -35,6 +35,16 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    // Originales del flujo multirretailer, aislados de imports Liverpool.
+    // Inmutables después de crearse para preservar la auditoría.
+    match /digital-imports/{batchId}/{fileName} {
+      allow read: if canRead();
+      allow create: if canWriteImports()
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      allow update, delete: if false;
+    }
+
     // Exportaciones (CSV y ZIP). Escritas por Cloud Functions.
     match /exports/{exportId}/{fileName} {
       allow read: if canRead();
