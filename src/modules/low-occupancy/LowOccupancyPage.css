@@ -5,7 +5,18 @@
   gap: 1rem;
   flex-wrap: wrap;
   align-items: center;
+  padding: 0.9rem 1.1rem;
   margin-bottom: 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.occ-controls .campaign-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .occ-section-title {
@@ -17,31 +28,102 @@
   margin: 0.5rem 0;
 }
 
-/* Resumen en tarjetas. */
+/* ── Resumen: titular + barra de distribución + leyenda ──────────────── */
 .occ-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.occ-summary__card {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.9rem 1rem;
-  border-radius: var(--radius);
+  gap: 1rem;
+  padding: 1.1rem 1.3rem;
+  margin-bottom: 0.5rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left-width: 4px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-card);
+}
+
+.occ-summary__hero {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.occ-summary__hero-value {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-danger-fg);
+}
+
+.occ-summary__hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.occ-summary__hero-label {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.occ-summary__hero-sub {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+/* Barra de distribución (decorativa: la lectura accesible va en el
+   aria-label del contenedor y se repite en texto en la leyenda). */
+.occ-summary__bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+
+.occ-summary__bar-segment {
+  height: 100%;
+  min-width: 3px;
+}
+
+.occ-summary__bar-segment--zero {
+  background: var(--color-danger);
+}
+.occ-summary__bar-segment--one {
+  background: color-mix(in srgb, var(--color-danger) 65%, var(--color-warning));
+}
+.occ-summary__bar-segment--two {
+  background: var(--color-warning);
+}
+.occ-summary__bar-segment--ok {
+  background: var(--color-success);
+}
+
+/* Leyenda: cifras exactas en formato compacto (chip por indicador). */
+.occ-summary__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.occ-summary__stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .occ-summary__value {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -50,23 +132,16 @@
   color: var(--color-text-muted);
 }
 
-.occ-summary__card--zero {
-  border-left-color: var(--color-danger);
+.occ-summary__stat--zero .occ-summary__value {
+  color: var(--color-danger-fg);
 }
-.occ-summary__card--one {
-  border-left-color: var(--color-warning);
+.occ-summary__stat--one .occ-summary__value,
+.occ-summary__stat--two .occ-summary__value,
+.occ-summary__stat--warn .occ-summary__value {
+  color: var(--color-warning-fg);
 }
-.occ-summary__card--two {
-  border-left-color: var(--color-warning);
-}
-.occ-summary__card--ok {
-  border-left-color: var(--color-success);
-}
-.occ-summary__card--warn {
-  border-left-color: var(--color-warning);
-}
-.occ-summary__card--total {
-  border-left-color: var(--color-accent);
+.occ-summary__stat--ok .occ-summary__value {
+  color: var(--color-success-fg);
 }
 
 /* Filtros. */
@@ -75,7 +150,12 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
+  padding: 0.75rem 0.9rem;
   margin-bottom: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
 }
 
 .occ-filter select {
@@ -176,7 +256,7 @@
 }
 
 .occ-group__title {
-  margin: 0 0 0.6rem;
+  margin: 0;
   font-size: 0.95rem;
 }
 
@@ -189,25 +269,47 @@
   gap: 0.5rem;
 }
 
-.occ-group__rows li {
+.occ-group__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.occ-group__row-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.occ-group__row-count {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 .occ-group__rows .btn {
   white-space: nowrap;
 }
 
-/* Encabezado de la tarjeta con el estado de comparación. */
+/* Encabezado de la tarjeta: título + estado de comparación a la izquierda,
+   acceso al detalle de cambios a la derecha. */
 .occ-group__head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.occ-group__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .occ-group__diff {
@@ -221,9 +323,18 @@
   white-space: nowrap;
 }
 
-.occ-group__changes {
-  margin-top: 0.75rem;
-  width: 100%;
+.occ-group__changes-link {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.15rem 0;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.occ-group__changes-link:hover {
+  text-decoration: underline;
 }
 
 /* Distintivo del estado de comparación (nunca solo color: símbolo + texto). */
