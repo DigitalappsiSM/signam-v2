@@ -320,9 +320,13 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   **"No aplica"** (sin casilla editable) y no generan estados, vencimientos ni
   alertas. La regla vive en el dominio (`applyCheckChange` rechaza esos cambios y
   `markAllComplete` no los toca), no solo en la interfaz. Los valores históricos
-  se conservan y **reaparecen** si la campaña vuelve a Proveedor. Con la
-  clasificación **pendiente** los testigos muestran **"Clasifica primero"** (nunca
-  se asume Proveedor).
+  se conservan y **reaparecen** si la campaña vuelve a Proveedor. Los testigos
+  **solo aplican a Proveedor**: con la clasificación **pendiente** no se asume
+  ningún régimen (no generan vencimientos ni alertas de testigo) y la tabla
+  muestra **"Clasifica primero"** hasta que el usuario clasifique (tampoco se
+  ofrece "Marcar…"). Una campaña **terminada** con indicadores **aplicables**
+  pendientes (p. ej. Institucional sin CSM) sigue señalándose como *terminada con
+  pendientes* en el Dashboard aunque los testigos no apliquen.
 - **Marcar todas / Marcar aplicables** (campañas terminadas): en las filas cuya
   `fechaFin` ya pasó (periodo **Terminada**) aparece un botón que marca de una vez
   los indicadores (`source: manual`, con quién/cuándo). En **Proveedor** se llama
@@ -356,7 +360,8 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   se muestra estado `Fecha inválida` (no una alerta de vencimiento) y el check
   sigue editable.
 - **Estados y alertas** con icono + texto (no solo color): `not-applicable`
-  (testigos de Institucional; neutro, se ordena al final), `upcoming`,
+  (testigos de Institucional **o** clasificación pendiente; neutro, se ordena al
+  final), `upcoming`,
   `on-track`, `due-soon` (2 días hábiles T Arranque / 5 naturales T Completos),
   `due-today`, `overdue`, `completed-on-time`, `completed-late`, `invalid-date`.
 - El **Dashboard** deriva (no persiste) el resumen operativo: activas,

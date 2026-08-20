@@ -254,6 +254,7 @@ describe('OperationalTrackingPage', () => {
       id: 'f',
       name: 'TERMINADA',
       nameKey: 'terminada',
+      tipo: 'PROVEEDOR',
       fechaInicio: dayOffset(-40),
       fechaFin: dayOffset(-30),
     });
@@ -261,6 +262,7 @@ describe('OperationalTrackingPage', () => {
       id: 'u2',
       name: 'FUTURA',
       nameKey: 'futura',
+      tipo: 'PROVEEDOR',
       fechaInicio: dayOffset(30),
       fechaFin: dayOffset(40),
     });
@@ -420,6 +422,23 @@ describe('OperationalTrackingPage — testigos no aplican a institucional', () =
     expect(
       within(row).getByLabelText('T Completos de PROVE'),
     ).toBeInTheDocument();
+  });
+
+  it('una campaña pendiente terminada no ofrece marcar hasta clasificar', async () => {
+    const FIN = campaign({
+      id: 'f',
+      name: 'PENDIENTE FIN',
+      nameKey: 'pendiente fin',
+      tipo: 'Digital', // clasificación desconocida
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('PENDIENTE FIN')).closest('tr')!;
+    expect(
+      within(row).queryByRole('button', { name: /^Marcar/ }),
+    ).not.toBeInTheDocument();
   });
 });
 

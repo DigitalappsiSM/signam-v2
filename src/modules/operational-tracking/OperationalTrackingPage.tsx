@@ -882,8 +882,10 @@ export function OperationalTrackingPage() {
                         {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
                       </td>
                       <td className="ot-actions-cell">
-                        {/* "Marcar todas" no aparece en campañas canceladas. */}
-                        {isFinished && !cancelled && (
+                        {/* "Marcar todas/aplicables" no aparece en canceladas ni
+                            mientras la clasificación esté pendiente (no se asume
+                            un régimen: primero hay que clasificar). */}
+                        {isFinished && !cancelled && !pending && (
                           <button
                             type="button"
                             className="btn btn-secondary ot-mark-all"

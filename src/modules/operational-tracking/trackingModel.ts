@@ -138,11 +138,12 @@ export function buildTrackingRows(
     }
     const distinctStores = stores.size;
 
-    // Los testigos (T Arranque / T Completos) NO aplican a las campañas
-    // Institucional: no requieren testigos de arranque ni completos y, por tanto,
-    // no generan estados, vencimientos ni alertas. Se deriva de la clasificación
-    // efectiva para no depender de las casillas de la interfaz.
-    const witnessesApplicable = classification !== 'institutional';
+    // Los testigos (T Arranque / T Completos) sólo aplican a **Proveedor**. Las
+    // campañas Institucional no los requieren, y las de clasificación **pendiente**
+    // no asumen ningún régimen hasta que el usuario clasifique: en ambos casos los
+    // testigos quedan como `not-applicable` (sin estados, vencimientos ni alertas).
+    // Se deriva de la clasificación efectiva, no de las casillas de la interfaz.
+    const witnessesApplicable = classification === 'provider';
 
     const start = t?.witnessStart ?? null;
     const complete = t?.witnessComplete ?? null;
@@ -248,7 +249,8 @@ export type AlertKind =
   | 'invalid-date'
   | 'active-no-csm'
   | 'provider-no-validation'
-  | 'classification-pending';
+  | 'classification-pending'
+  | 'finished-pending';
 
 export interface RowAlert {
   kind: AlertKind;
@@ -289,6 +291,24 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   }
   if (row.timeframe === 'active' && !c.csm) {
     out.push({ kind: 'active-no-csm', label: 'Activa sin Programación CSM' });
+  }
+  // Una campaña **terminada** debe tener completos sus indicadores APLICABLES.
+  // Antes, la señal de "terminada con pendientes" venía del vencimiento de los
+  // testigos; para Institucional ya no aplican, así que se detecta directamente
+  // por los indicadores aplicables incompletos (Link/Validación/CSM; para
+  // Proveedor incluye además los testigos vía `effectiveChecks`). Se omite cuando
+  // ya hay un testigo vencido (Proveedor) para no duplicar la alerta, y cuando la
+  // clasificación está pendiente (ya la señala `classification-pending`).
+  const applicableComplete =
+    c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
+  if (
+    row.timeframe === 'finished' &&
+    row.classification !== 'unknown' &&
+    !applicableComplete &&
+    row.startStatus !== 'overdue' &&
+    row.completeStatus !== 'overdue'
+  ) {
+    out.push({ kind: 'finished-pending', label: 'Terminada con pendientes' });
   }
   if (row.classification === 'provider' && !c.liverpool) {
     out.push({

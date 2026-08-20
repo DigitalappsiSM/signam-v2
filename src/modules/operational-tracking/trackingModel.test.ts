@@ -132,10 +132,17 @@ describe('buildTrackingRows', () => {
   });
 
   it('el estado general toma el más urgente de los dos testigos', () => {
-    // Campaña activa sin seguimiento: T Arranque ya vencido (límite 03-06),
-    // T Completos en tiempo (fin 03-20) → overall = overdue.
+    // Proveedor activo sin seguimiento (los testigos solo aplican a Proveedor):
+    // T Arranque ya vencido (límite 03-06), T Completos en tiempo (fin 03-20) →
+    // overall = overdue.
     const rows = buildTrackingRows(
-      [campaign({ fechaInicio: '2026-03-02', fechaFin: '2026-03-20' })],
+      [
+        campaign({
+          tipo: 'PROVEEDOR',
+          fechaInicio: '2026-03-02',
+          fechaFin: '2026-03-20',
+        }),
+      ],
       [],
       [],
       today,
@@ -339,6 +346,65 @@ describe('testigos no aplicables para institucional', () => {
     const rows = buildTrackingRows([prov], [], [], today);
     expect(rows[0]!.startStatus).toBe('overdue');
     expect(rows[0]!.nextDeadline).not.toBeNull();
+  });
+});
+
+describe('testigos pendientes de clasificar (unknown)', () => {
+  const unk = campaign({
+    tipo: '', // clasificación desconocida
+    link: 'https://x.com/a.zip',
+    fechaInicio: '2026-03-02',
+    fechaFin: '2026-03-20',
+  });
+
+  it('no computa vencimientos de testigos hasta clasificar', () => {
+    const rows = buildTrackingRows([unk], [], [], today);
+    expect(rows[0]!.classification).toBe('unknown');
+    expect(rows[0]!.startStatus).toBe('not-applicable');
+    expect(rows[0]!.completeStatus).toBe('not-applicable');
+    expect(rows[0]!.nextDeadline).toBeNull();
+  });
+
+  it('no genera alertas de testigo vencido, pero sí clasificación pendiente', () => {
+    const kinds = criticalAlerts(
+      buildTrackingRows([unk], [], [], today)[0]!,
+    ).map((a) => a.kind);
+    expect(kinds).not.toContain('start-overdue');
+    expect(kinds).not.toContain('complete-overdue');
+    expect(kinds).toContain('classification-pending');
+  });
+});
+
+describe('terminadas con pendientes (indicadores aplicables)', () => {
+  // Terminada respecto a `today` (2026-03-10).
+  const inst = campaign({
+    tipo: 'INSTITUCIONAL',
+    link: 'https://x.com/a.zip',
+    fechaInicio: '2026-01-02',
+    fechaFin: '2026-02-01',
+  });
+
+  it('institucional terminada con CSM pendiente genera finished-pending', () => {
+    const rows = buildTrackingRows([inst], [], [], today);
+    expect(rows[0]!.timeframe).toBe('finished');
+    expect(criticalAlerts(rows[0]!).map((a) => a.kind)).toContain(
+      'finished-pending',
+    );
+  });
+
+  it('institucional terminada con sus aplicables completos no queda pendiente', () => {
+    const tracking = {
+      campaignNameKey: campaignIdentity(inst),
+      classification: 'institutional',
+      linkDownload: { completed: true, source: 'automatic' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: true },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+    const rows = buildTrackingRows([inst], [], [tracking], today);
+    expect(criticalAlerts(rows[0]!)).toEqual([]);
+    expect(isFullyTracked(rows[0]!)).toBe(true);
   });
 });
 
