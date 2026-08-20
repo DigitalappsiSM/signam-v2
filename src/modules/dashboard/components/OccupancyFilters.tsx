@@ -37,7 +37,11 @@ export function OccupancyFilters({
   storeOptions: { number: string; name: string }[];
 }) {
   return (
-    <div className="occ-filters" role="group" aria-label="Filtros de carga">
+    <div
+      className="occ-filters"
+      role="group"
+      aria-label="Filtros del panel (afectan todas las secciones)"
+    >
       <label className="occ-field">
         <span>Periodo</span>
         <select
