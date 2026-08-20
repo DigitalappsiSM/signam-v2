@@ -54,6 +54,24 @@ export async function listActiveAssignmentsByEkonNumber(
 }
 
 /**
+ * Lee las asignaciones que explican una conciliación: vigentes más conflictos
+ * pendientes. Las `No incluida` permanecen fuera; un conflicto se entrega al
+ * motor solo para bloquear y explicar el resultado, nunca como dato válido.
+ */
+export async function listReconciliationAssignmentsByEkonNumber(
+  ekonNumber: string,
+): Promise<StoredEkonAssignment[]> {
+  const q = query(
+    collection(db(), COLLECTION),
+    where('campaignNumber', '==', String(ekonNumber)),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs
+    .map((d) => d.data() as StoredEkonAssignment)
+    .filter((a) => a.active || Boolean(a.conflict));
+}
+
+/**
  * Escribe (upsert) el conjunto de asignaciones en lotes segmentados por debajo
  * del límite de Firestore. Idempotente por `safeDocId(key)`. Reintentable: si
  * falla a mitad, reejecutar recalcula el diff y reaplica solo lo pendiente.

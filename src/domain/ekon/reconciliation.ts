@@ -18,7 +18,10 @@ export interface ReconCampaignInput {
   /** Fecha civil `AAAA-MM-DD` (o texto vacío si no hay). */
   fechaInicio: string;
   fechaFin: string;
-  supports: { support: string; stores: { numero: string }[] }[];
+  supports: {
+    support: string;
+    stores: { numero: string; nombre?: string }[];
+  }[];
 }
 
 /** Cobertura de las fechas Liverpool por los periodos Ekon vigentes. */
@@ -30,6 +33,7 @@ export type ReconciliationStatus =
   | 'conciliada-con-advertencias'
   | 'sin-campana-ekon'
   | 'periodo-no-cubierto'
+  | 'periodo-parcial'
   | 'circuito-no-compatible'
   | 'diferencia-tiendas'
   | 'centro-administrativo'
@@ -44,8 +48,30 @@ export interface ReconciliationIssue {
     | 'circuito-no-compatible'
     | 'soporte-liverpool-sin-circuito'
     | 'diferencia-tiendas'
+    | 'diferencia-tienda-soporte'
     | 'conflicto-pendiente';
   message: string;
+}
+
+export type StoreReconciliationStatus =
+  'matched' | 'liverpool-only' | 'ekon-only' | 'support-mismatch';
+
+/** Comparación operativa de una tienda y su cobertura de soportes/circuitos. */
+export interface StoreReconciliationDetail {
+  storeNumber: string;
+  status: StoreReconciliationStatus;
+  liverpool: {
+    present: boolean;
+    names: string[];
+    supports: string[];
+    unmatchedSupports: string[];
+  };
+  ekon: {
+    present: boolean;
+    names: string[];
+    circuits: string[];
+    unmatchedCircuits: string[];
+  };
 }
 
 export interface ReconciliationResult {
@@ -66,11 +92,18 @@ export interface ReconciliationResult {
     compatible: boolean;
     supports: string[];
   }[];
+  /** Soportes Liverpool presentes y los circuitos Ekon compatibles. */
+  supportMatches: {
+    support: string;
+    compatible: boolean;
+    circuits: string[];
+  }[];
   stores: {
     applies: boolean;
     ekonOnly: string[];
     liverpoolOnly: string[];
     common: string[];
+    details: StoreReconciliationDetail[];
   };
   issues: ReconciliationIssue[];
   /** Estados por asignación relevantes (conflictos/cambios) presentes. */
@@ -144,7 +177,14 @@ export function reconcileCampaign(
       coverage: 'unknown',
       administrativeScope: false,
       circuitMatches: [],
-      stores: { applies: false, ekonOnly: [], liverpoolOnly: [], common: [] },
+      supportMatches: [],
+      stores: {
+        applies: false,
+        ekonOnly: [],
+        liverpoolOnly: [],
+        common: [],
+        details: [],
+      },
       issues,
       pendingConflicts: 0,
     };
@@ -158,15 +198,17 @@ export function reconcileCampaign(
     });
   }
 
+  // Los conflictos se reportan, pero nunca participan como datos válidos en la
+  // cobertura, circuitos o tiendas de la conciliación.
+  const comparable = assignments.filter((a) => !a.conflict);
+
   const productos = [
-    ...new Set(assignments.map((a) => a.producto).filter(Boolean)),
+    ...new Set(comparable.map((a) => a.producto).filter(Boolean)),
   ];
-  const classification = classifyCampaign(
-    assignments.map((a) => a.tipoCampaña),
-  );
+  const classification = classifyCampaign(comparable.map((a) => a.tipoCampaña));
 
   // Cobertura de periodos (fechas exactas Liverpool vs periodos Ekon).
-  const intervals = assignments
+  const intervals = comparable
     .filter((a) => a.inicioPeriodo && a.finPeriodo)
     .map((a) => ({ inicio: a.inicioPeriodo!, fin: a.finPeriodo! }));
   const coverage = coverageOf(
@@ -188,7 +230,9 @@ export function reconcileCampaign(
 
   // Circuitos Ekon vs soportes Liverpool (mapeo autorizado).
   const liverpoolSupports = campaign.supports.map((s) => s.support);
-  const circuits = [...new Set(assignments.map((a) => a.articulo))];
+  const circuits = [
+    ...new Set(comparable.map((a) => a.circuito || a.articulo)),
+  ];
   const circuitMatches = circuits.map((circuito) => {
     const compatible = liverpoolSupports.filter((s) =>
       isCompatibleSupport(circuito, s),
@@ -200,7 +244,7 @@ export function reconcileCampaign(
     };
   });
   const anyIncompatible = circuitMatches.some((c) => !c.compatible);
-  if (anyIncompatible) {
+  if (circuitMatches.some((c) => !c.compatible)) {
     issues.push({
       code: 'circuito-no-compatible',
       message:
@@ -208,40 +252,130 @@ export function reconcileCampaign(
     });
   }
 
+  const supportMatches = [...new Set(liverpoolSupports)].map((support) => {
+    const compatible = circuits.filter((c) => isCompatibleSupport(c, support));
+    return {
+      support,
+      compatible: compatible.length > 0,
+      circuits: compatible,
+    };
+  });
+  const anyUnsupportedLiverpool = supportMatches.some((s) => !s.compatible);
+  if (anyUnsupportedLiverpool) {
+    issues.push({
+      code: 'soporte-liverpool-sin-circuito',
+      message:
+        'Al menos un soporte Liverpool no tiene circuito Ekon compatible en la campaña.',
+    });
+  }
+
   // Tiendas: solo determinantes físicos (excluye Centro Administrativo = 0).
-  const physical = assignments.filter((a) => !a.centroAdministrativo);
-  const administrativeScope = physical.length === 0;
+  const physical = comparable.filter((a) => !a.centroAdministrativo);
+  const administrativeScope = comparable.length > 0 && physical.length === 0;
   let stores = {
     applies: false,
     ekonOnly: [] as string[],
     liverpoolOnly: [] as string[],
     common: [] as string[],
+    details: [] as StoreReconciliationDetail[],
   };
   if (!administrativeScope) {
-    const ekonStores = new Set(physical.map((a) => a.determinanteKey));
-    // Tiendas Liverpool de soportes compatibles con algún circuito Ekon.
-    const liverpoolStores = new Set<string>();
+    const ekonByStore = new Map<
+      string,
+      { names: Set<string>; circuits: Set<string> }
+    >();
+    for (const assignment of physical) {
+      const current = ekonByStore.get(assignment.determinanteKey) ?? {
+        names: new Set<string>(),
+        circuits: new Set<string>(),
+      };
+      if (assignment.tienda) current.names.add(assignment.tienda);
+      current.circuits.add(assignment.circuito || assignment.articulo);
+      ekonByStore.set(assignment.determinanteKey, current);
+    }
+
+    // Se incluyen TODOS los soportes y tiendas Liverpool. La compatibilidad se
+    // evalúa después, por tienda, para no ocultar un doble problema.
+    const liverpoolByStore = new Map<
+      string,
+      { names: Set<string>; supports: Set<string> }
+    >();
     for (const support of campaign.supports) {
-      const compatible = circuits.some((c) =>
-        isCompatibleSupport(c, support.support),
-      );
-      if (!compatible) continue;
       for (const store of support.stores) {
-        liverpoolStores.add(normalizeStoreNumber(store.numero));
+        const number = normalizeStoreNumber(store.numero);
+        const current = liverpoolByStore.get(number) ?? {
+          names: new Set<string>(),
+          supports: new Set<string>(),
+        };
+        if (store.nombre) current.names.add(store.nombre);
+        current.supports.add(support.support);
+        liverpoolByStore.set(number, current);
       }
     }
-    const ekonOnly = [...ekonStores]
-      .filter((s) => !liverpoolStores.has(s))
-      .sort();
-    const liverpoolOnly = [...liverpoolStores]
-      .filter((s) => !ekonStores.has(s))
-      .sort();
-    const common = [...ekonStores].filter((s) => liverpoolStores.has(s)).sort();
-    stores = { applies: true, ekonOnly, liverpoolOnly, common };
+
+    const storeNumbers = [
+      ...new Set([...liverpoolByStore.keys(), ...ekonByStore.keys()]),
+    ].sort(compareStoreNumbers);
+    const details = storeNumbers.map<StoreReconciliationDetail>((number) => {
+      const liverpool = liverpoolByStore.get(number);
+      const ekon = ekonByStore.get(number);
+      const supports = [...(liverpool?.supports ?? [])].sort();
+      const ekonCircuits = [...(ekon?.circuits ?? [])].sort();
+      const unmatchedSupports = supports.filter(
+        (support) =>
+          !ekonCircuits.some((circuit) =>
+            isCompatibleSupport(circuit, support),
+          ),
+      );
+      const unmatchedCircuits = ekonCircuits.filter(
+        (circuit) =>
+          !supports.some((support) => isCompatibleSupport(circuit, support)),
+      );
+      let status: StoreReconciliationStatus = 'matched';
+      if (!ekon) status = 'liverpool-only';
+      else if (!liverpool) status = 'ekon-only';
+      else if (unmatchedSupports.length > 0 || unmatchedCircuits.length > 0)
+        status = 'support-mismatch';
+      return {
+        storeNumber: number,
+        status,
+        liverpool: {
+          present: Boolean(liverpool),
+          names: [...(liverpool?.names ?? [])].sort(),
+          supports,
+          unmatchedSupports,
+        },
+        ekon: {
+          present: Boolean(ekon),
+          names: [...(ekon?.names ?? [])].sort(),
+          circuits: ekonCircuits,
+          unmatchedCircuits,
+        },
+      };
+    });
+    const ekonOnly = details
+      .filter((d) => d.status === 'ekon-only')
+      .map((d) => d.storeNumber);
+    const liverpoolOnly = details
+      .filter((d) => d.status === 'liverpool-only')
+      .map((d) => d.storeNumber);
+    const common = details
+      .filter((d) => d.liverpool.present && d.ekon.present)
+      .map((d) => d.storeNumber);
+    stores = { applies: true, ekonOnly, liverpoolOnly, common, details };
     if (ekonOnly.length > 0 || liverpoolOnly.length > 0) {
       issues.push({
         code: 'diferencia-tiendas',
         message: `Diferencias de tiendas: ${ekonOnly.length} solo Ekon, ${liverpoolOnly.length} solo Liverpool.`,
+      });
+    }
+    const supportMismatches = details.filter(
+      (d) => d.status === 'support-mismatch',
+    );
+    if (supportMismatches.length > 0) {
+      issues.push({
+        code: 'diferencia-tienda-soporte',
+        message: `${supportMismatches.length} tienda(s) tienen soportes o circuitos sin correspondencia compatible.`,
       });
     }
   }
@@ -252,20 +386,22 @@ export function reconcileCampaign(
     status: deriveStatus({
       administrativeScope,
       coverage,
-      anyIncompatible,
+      anyIncompatible: anyIncompatible || anyUnsupportedLiverpool,
       storeDiff:
         stores.applies &&
-        (stores.ekonOnly.length > 0 || stores.liverpoolOnly.length > 0),
+        stores.details.some((store) => store.status !== 'matched'),
       pendingConflicts,
       anyWarning: issues.length > 0,
     }),
     ekonExists: true,
     productos,
-    ratio: classification.ratio,
-    requiresTestigos: classification.requiresTestigos,
+    ratio: comparable.length > 0 ? classification.ratio : null,
+    requiresTestigos:
+      comparable.length > 0 ? classification.requiresTestigos : false,
     coverage,
     administrativeScope,
     circuitMatches,
+    supportMatches,
     stores,
     issues,
     pendingConflicts,
@@ -282,6 +418,7 @@ function deriveStatus(flags: {
 }): ReconciliationStatus {
   if (flags.pendingConflicts > 0) return 'cambio-pendiente';
   if (flags.coverage === 'uncovered') return 'periodo-no-cubierto';
+  if (flags.coverage === 'partial') return 'periodo-parcial';
   if (flags.anyIncompatible) return 'circuito-no-compatible';
   if (flags.storeDiff) return 'diferencia-tiendas';
   if (flags.administrativeScope && !flags.anyWarning)
@@ -303,6 +440,8 @@ export function reconciliationStatusLabel(
       return 'Sin campaña Ekon encontrada';
     case 'periodo-no-cubierto':
       return 'Periodo no cubierto';
+    case 'periodo-parcial':
+      return 'Periodo cubierto parcialmente';
     case 'circuito-no-compatible':
       return 'Circuito no compatible';
     case 'diferencia-tiendas':
@@ -312,4 +451,8 @@ export function reconciliationStatusLabel(
     case 'cambio-pendiente':
       return 'Cambio pendiente de revisión';
   }
+}
+
+function compareStoreNumbers(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }

@@ -70,8 +70,11 @@ Liverpool, el Master ni el seguimiento operativo.
   manual** Ekon (`campaignEkonLinks`, muchos-a-uno), compara número, tipo/Ratio,
   cobertura de periodos vs fechas exactas Liverpool, circuito↔soporte (mapeo
   autorizado) y tiendas por número (solo determinantes físicos; el determinante
-  `0` = Centro Administrativo no aplica). Explica diferencias **sin modificar
-  fuentes**.
+  `0` = Centro Administrativo no aplica). La cobertura operativa exige que, en
+  cada tienda, todos los soportes Liverpool tengan circuito Ekon compatible y
+  viceversa; cualquier diferencia bloquea la conciliación. El detalle se revisa
+  en un modal con filtros, copia tabulada y navegación entre campañas con
+  incidencias, siempre **sin modificar fuentes**.
 - **Fallback CSV** (solo `MEGA MUPI DIGITAL` y `BANNER DIGITAL`): cuando el
   soporte **no** viene marcado en Liverpool pero Ekon indica que debe existir, se
   sintetiza reutilizando el flujo de consolidación normal (mismos encabezados,
@@ -460,8 +463,10 @@ Hosting `5000`, UI habilitada.
    duplica (idempotencia por `contentHash`).
 5. En **Campañas**, vincula manualmente una campaña a un número Ekon. Ve a
    **Conciliación** (`/conciliacion`) y verifica número, Ratio, cobertura de
-   periodos, circuito↔soporte y tiendas; el determinante `0` aparece como
-   "Centro Administrativo / tiendas no aplican".
+   periodos y cada combinación tienda↔soporte/circuito. Abre el modal, alterna
+   entre diferencias/todas, copia las incidencias y navega a la campaña anterior
+   o siguiente con problemas; el determinante `0` aparece como "Centro
+   Administrativo / tiendas no aplican".
 6. Para el fallback CSV, deja una campaña vinculada **sin** marcar `MEGA MUPI
 DIGITAL`/`BANNER DIGITAL` en Liverpool pero con esos circuitos en Ekon y con
    tiendas operativas: la consolidación genera esos soportes reutilizando el CSV
