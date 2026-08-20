@@ -231,6 +231,14 @@ persiste métricas en Firestore ni reejecuta la consolidación CSV. **Las campa�
 canceladas siguen contando aquí**: solo se excluyen del resumen operativo
 superior, no de la carga.
 
+La vista prioriza la lectura ejecutiva con tarjetas KPI, semáforos textuales,
+gráfica principal, estado operativo, acciones rápidas y paneles de atención. Los
+tonos no usan umbrales arbitrarios: **verde** = al día/sin incidencias,
+**amarillo** = revisión o vencimiento próximo, **rojo** = vencido o terminado
+con pendientes, **azul** = dato informativo y **gris** = neutral/no aplicable.
+Liverpool y la operación Digital multirretailer se muestran en secciones
+separadas y nunca combinan sus métricas.
+
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.
 - **Complementarias:** campañas distintas, **días-campaña**, tiendas/soportes

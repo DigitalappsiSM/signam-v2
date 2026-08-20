@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { NAV_ROUTES } from '@/app/routes';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
@@ -49,8 +49,16 @@ import { OccupancyDetailPanel } from './components/OccupancyDetailPanel';
 import { DailyLoadChart } from './components/DailyLoadChart';
 import { ClassificationDonut } from './components/ClassificationDonut';
 import { useTheme } from '@/app/theme';
-import '@/modules/operational-tracking/OperationalTrackingPage.css';
 import './DashboardPage.css';
+
+type DashboardTone = 'info' | 'success' | 'warning' | 'danger';
+
+const QUICK_ACTION_PATHS = [
+  '/seguimiento',
+  '/importar',
+  '/conciliacion',
+  '/campanas',
+] as const;
 
 function trackingLink(row: TrackingRow): string {
   // Enlaza por identidad para resaltar el "flight" correcto en Seguimiento.
@@ -59,6 +67,12 @@ function trackingLink(row: TrackingRow): string {
 
 function isoDay(d: Date | null): string {
   return d ? formatDdMmYyyy(d) : '—';
+}
+
+function rangeLabel(range: DateRange): string {
+  const start = formatDdMmYyyy(range.start);
+  const end = formatDdMmYyyy(range.end);
+  return start === end ? start : `${start} — ${end}`;
 }
 
 type Selection =
@@ -120,6 +134,9 @@ function selectionToDetail(sel: Selection): DetailData {
 /** Panel inicial: resumen operativo, alertas y puntos de entrada a los módulos. */
 export function DashboardPage() {
   const modules = NAV_ROUTES.filter((r) => r.path !== '/');
+  const quickActions = QUICK_ACTION_PATHS.map((path) =>
+    NAV_ROUTES.find((route) => route.path === path),
+  ).filter((route): route is (typeof NAV_ROUTES)[number] => Boolean(route));
   const { theme } = useTheme();
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
@@ -240,6 +257,47 @@ export function DashboardPage() {
     };
   }, [rows, today]);
 
+  const operationalHealth = useMemo(() => {
+    const measuredIds = new Set(view.active.map((row) => row.campaign.id));
+    const alertIds = new Set(
+      view.alerts.map(({ row }) => {
+        measuredIds.add(row.campaign.id);
+        return row.campaign.id;
+      }),
+    );
+    const score = measuredIds.size
+      ? Math.round(
+          ((measuredIds.size - alertIds.size) / measuredIds.size) * 100,
+        )
+      : 100;
+
+    if (view.overduePending.length > 0 || view.finishedPending.length > 0) {
+      return {
+        score,
+        tone: 'danger' as const,
+        label: 'Atención inmediata',
+        detail: `${view.overduePending.length + view.finishedPending.length} campañas vencidas o terminadas con pendientes`,
+      };
+    }
+    if (view.alerts.length > 0 || view.upcomingDue.length > 0) {
+      return {
+        score,
+        tone: 'warning' as const,
+        label: 'Revisión necesaria',
+        detail: `${view.alerts.length} con alertas y ${view.upcomingDue.length} próximas a vencer`,
+      };
+    }
+    return {
+      score,
+      tone: 'success' as const,
+      label: 'Operación al día',
+      detail:
+        view.active.length > 0
+          ? 'Sin alertas críticas ni vencimientos operativos'
+          : 'Sin campañas activas con obligaciones pendientes',
+    };
+  }, [view]);
+
   // --- Carga operativa (ocupación) -----------------------------------------
   const [params, setParams] = useSearchParams();
   const filters: OccupancyFilterValues = {
@@ -345,7 +403,27 @@ export function DashboardPage() {
     <>
       <PageHeader
         title="Panel SIGNAM V2"
-        description="Resumen operativo de campañas: estados, alertas críticas y próximos vencimientos."
+        description="Estado operativo, prioridades y carga de campañas en una sola vista."
+        actions={
+          <div className="dashboard-refresh">
+            {loadedAt && (
+              <span className="dashboard-refresh__time">
+                Actualizado {formatDdMmYyyy(loadedAt)}{' '}
+                {String(loadedAt.getHours()).padStart(2, '0')}:
+                {String(loadedAt.getMinutes()).padStart(2, '0')}
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void load()}
+              disabled={refreshing}
+              aria-busy={refreshing}
+            >
+              {refreshing ? 'Actualizando…' : 'Actualizar'}
+            </button>
+          </div>
+        }
       />
 
       {loading && !loadedOnce && (
@@ -361,219 +439,329 @@ export function DashboardPage() {
         </div>
       )}
 
-      {loadedOnce && campaigns.length > 0 && (
+      {loadedOnce && (
         <>
           <section
             className="dash-summary"
             aria-label="Resumen de campañas activas"
           >
-            <SummaryTile label="Activas" value={view.active.length} />
             <SummaryTile
+              icon="activity"
+              label="Campañas activas"
+              status="En ejecución"
+              tone="info"
+              value={view.active.length}
+            />
+            <SummaryTile
+              icon="check-circle"
               label="Seguimiento completo"
+              status="Completas"
+              tone="success"
               value={view.full.length}
             />
             <SummaryTile
+              icon="clock"
               label="En curso sin atrasos"
+              status="Al día"
+              tone="success"
               value={view.onTrack.length}
             />
             <SummaryTile
+              icon="alert-triangle"
               label="Con alertas"
+              status={view.withAlerts.length > 0 ? 'Revisión' : 'Sin alertas'}
+              tone={view.withAlerts.length > 0 ? 'warning' : 'success'}
               value={view.withAlerts.length}
-              tone="warn"
             />
             <SummaryTile
+              icon="bell"
               label="Vencidas con pendientes"
-              value={view.overduePending.length}
-              tone="danger"
+              status={
+                view.overduePending.length + view.finishedPending.length > 0
+                  ? 'Urgente'
+                  : 'Sin vencidas'
+              }
+              tone={
+                view.overduePending.length + view.finishedPending.length > 0
+                  ? 'danger'
+                  : 'success'
+              }
+              value={view.overduePending.length + view.finishedPending.length}
             />
           </section>
 
-          <div className="dash-grid">
-            <AlertList
-              title="Alertas críticas"
-              empty="Sin alertas críticas."
-              items={view.alerts.map((a) => ({
-                row: a.row,
-                text: a.alerts.map((x) => x.label).join(' · '),
-              }))}
-            />
-            <AlertList
-              title="Próximos vencimientos"
-              empty="Nada por vencer pronto."
-              items={view.upcomingDue.map((r) => ({
-                row: r,
-                text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
-              }))}
-            />
-            <AlertList
-              title="Próximos inicios (7 días)"
-              empty="Sin inicios próximos."
-              items={view.upcomingStarts.map((r) => {
-                const c = effectiveChecks(r);
-                const pend: string[] = [];
-                if (r.linkStatus !== 'valid') pend.push('link');
-                if (!c.liverpool) pend.push('validación');
-                if (!c.csm) pend.push('CSM');
-                return {
-                  row: r,
-                  text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
-                    pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
-                  }`,
-                };
-              })}
-            />
-            <AlertList
-              title="Terminadas con pendientes"
-              empty="Ninguna terminada con obligaciones pendientes."
-              items={view.finishedPending.map((r) => ({
-                row: r,
-                text: criticalAlerts(r)
-                  .map((x) => x.label)
-                  .join(' · '),
-              }))}
-            />
-          </div>
-        </>
-      )}
-
-      {loadedOnce && (
-        <section
-          className="occ-section"
-          aria-label="Carga por tienda y soporte"
-        >
-          <div className="occ-section__head">
-            <h2 className="occ-section__title">Carga por tienda y soporte</h2>
-            <div
-              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
+          <div className="dashboard-overview">
+            <section
+              className="dashboard-panel dashboard-panel--chart"
+              aria-labelledby="dashboard-load-title"
             >
-              {loadedAt && (
-                <span className="occ-updated">
-                  Actualizado {formatDdMmYyyy(loadedAt)}{' '}
-                  {String(loadedAt.getHours()).padStart(2, '0')}:
-                  {String(loadedAt.getMinutes()).padStart(2, '0')}
+              <div className="dashboard-panel__head">
+                <div>
+                  <span className="dashboard-eyebrow">Liverpool</span>
+                  <h2 id="dashboard-load-title">Carga diaria</h2>
+                  <p>Campañas simultáneas · {rangeLabel(range)}</p>
+                </div>
+                <span className="dashboard-stat-pill">
+                  Pico {occupancy.totals.peakConcurrentCampaigns}
                 </span>
-              )}
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => void load()}
-                disabled={refreshing}
-                aria-busy={refreshing}
-              >
-                {refreshing ? 'Actualizando…' : 'Actualizar'}
-              </button>
-            </div>
-          </div>
-          <p className="text-muted" style={{ margin: '0 0 0.25rem' }}>
-            Carga operativa medida como{' '}
-            <strong>pico de campañas simultáneas</strong> en el periodo. No
-            representa un porcentaje de capacidad (aún no se modela capacidad
-            máxima por pantalla).
-          </p>
-
-          <OccupancyFilters
-            values={filters}
-            onChange={patchFilters}
-            supportOptions={supportOptions}
-            storeOptions={storeOptions}
-          />
-
-          {campaigns.length === 0 ? (
-            <p className="occ-empty">
-              Aún no hay campañas. Importa el calendario para ver la carga.
-            </p>
-          ) : occupancy.totals.distinctCampaigns === 0 ? (
-            <p className="occ-empty">
-              Sin campañas en el periodo o filtros seleccionados.
-            </p>
-          ) : (
-            <>
-              <div className="occ-cards">
-                <OccCard
-                  label="Tienda con mayor carga"
-                  value={occupancy.stores[0]?.storeName ?? '—'}
-                  sub={
-                    occupancy.stores[0]
-                      ? `Pico ${occupancy.stores[0].peakConcurrentCampaigns} simultáneas`
-                      : undefined
-                  }
-                />
-                <OccCard
-                  label="Soporte con mayor carga"
-                  value={occupancy.supports[0]?.supportName ?? '—'}
-                  sub={
-                    occupancy.supports[0]
-                      ? `Pico ${occupancy.supports[0].peakConcurrentCampaigns} simultáneas`
-                      : undefined
-                  }
-                />
-                <OccCard
-                  label="Campañas activas en el periodo"
-                  value={occupancy.totals.distinctCampaigns}
-                  sub={`Pico global ${occupancy.totals.peakConcurrentCampaigns}`}
-                />
-                <OccCard
-                  label="Tiendas utilizadas"
-                  value={occupancy.totals.distinctStores}
-                />
-                <OccCard
-                  label="Soportes utilizados"
-                  value={occupancy.totals.distinctSupports}
-                />
               </div>
 
-              <div className="occ-visuals">
-                <section
-                  className="occ-panel"
-                  aria-label="Campañas simultáneas por día"
+              <OccupancyFilters
+                values={filters}
+                onChange={patchFilters}
+                supportOptions={supportOptions}
+                storeOptions={storeOptions}
+              />
+
+              {campaigns.length === 0 ? (
+                <div className="dashboard-chart-empty">
+                  Importa el calendario para visualizar la carga diaria.
+                </div>
+              ) : occupancy.totals.distinctCampaigns === 0 ? (
+                <div className="dashboard-chart-empty">
+                  Sin campañas en el periodo o filtros seleccionados.
+                </div>
+              ) : (
+                <DailyLoadChart series={occupancy.series} theme={theme} />
+              )}
+            </section>
+
+            <aside className="dashboard-rail" aria-label="Estado y acciones">
+              <section
+                className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
+                aria-label={`Estado operativo: ${operationalHealth.label}`}
+              >
+                <div className="dashboard-health__head">
+                  <div>
+                    <span className="dashboard-eyebrow">Estado operativo</span>
+                    <h2>{operationalHealth.label}</h2>
+                  </div>
+                  <span className="dashboard-health__score">
+                    {operationalHealth.score}%
+                  </span>
+                </div>
+                <progress
+                  className="dashboard-health__progress"
+                  max={100}
+                  value={operationalHealth.score}
+                  aria-label="Campañas consideradas sin alertas críticas"
                 >
-                  <h3 className="occ-chart__title">
-                    Carga diaria (campañas simultáneas)
-                  </h3>
-                  <DailyLoadChart series={occupancy.series} theme={theme} />
-                </section>
-                <section
-                  className="occ-panel occ-panel--narrow"
-                  aria-label="Campañas por clasificación"
-                >
-                  <h3 className="occ-chart__title">Mezcla por clasificación</h3>
+                  {operationalHealth.score}%
+                </progress>
+                <p>{operationalHealth.detail}</p>
+              </section>
+
+              <section
+                className="dashboard-panel dashboard-classification"
+                aria-labelledby="dashboard-classification-title"
+              >
+                <div className="dashboard-panel__head dashboard-panel__head--compact">
+                  <div>
+                    <span className="dashboard-eyebrow">Distribución</span>
+                    <h2 id="dashboard-classification-title">
+                      Mezcla por clasificación
+                    </h2>
+                  </div>
+                </div>
+                {occupancy.totals.distinctCampaigns > 0 ? (
                   <ClassificationDonut
                     breakdown={occupancy.classificationTotals}
                     theme={theme}
                   />
-                </section>
-              </div>
+                ) : (
+                  <p className="dashboard-rail__empty">
+                    Sin datos del periodo.
+                  </p>
+                )}
+              </section>
 
-              <div className="occ-charts">
-                <SupportOccupancyChart
-                  supports={occupancy.supports}
-                  onSelect={(item) => setSelection({ kind: 'support', item })}
-                />
-                <StoreOccupancyChart
-                  stores={occupancy.stores}
-                  onSelect={(item) => setSelection({ kind: 'store', item })}
-                />
-              </div>
-
-              <h3 style={{ fontSize: '1rem', margin: '1.25rem 0 0.25rem' }}>
-                Matriz tienda × soporte
-              </h3>
-              <p
-                className="text-muted"
-                style={{ margin: '0 0 0.25rem', fontSize: '0.82rem' }}
+              <section
+                className="dashboard-panel dashboard-actions"
+                aria-labelledby="dashboard-actions-title"
               >
-                El color indica intensidad relativa del pico dentro de la vista,
-                no capacidad ni saturación.
-              </p>
-              <StoreSupportMatrix
-                supports={occupancy.supports}
-                stores={occupancy.stores}
-                matrix={occupancy.matrix}
-                onSelect={(item) => setSelection({ kind: 'cell', item })}
+                <div className="dashboard-panel__head dashboard-panel__head--compact">
+                  <div>
+                    <span className="dashboard-eyebrow">Atajos</span>
+                    <h2 id="dashboard-actions-title">Acciones rápidas</h2>
+                  </div>
+                </div>
+                <nav className="dashboard-actions__list">
+                  {quickActions.map((route) => (
+                    <Link key={route.path} to={route.path}>
+                      <span className="dashboard-actions__icon">
+                        <Icon name={route.icon} size={18} />
+                      </span>
+                      <span>{route.label}</span>
+                      <Icon
+                        className="dashboard-actions__chevron"
+                        name="chevron-down"
+                        size={16}
+                      />
+                    </Link>
+                  ))}
+                </nav>
+              </section>
+            </aside>
+          </div>
+
+          <section
+            id="dashboard-attention"
+            className="dashboard-section"
+            aria-labelledby="dashboard-attention-title"
+          >
+            <div className="dashboard-section__head">
+              <div>
+                <span className="dashboard-eyebrow">Prioridades</span>
+                <h2 id="dashboard-attention-title">Atención operativa</h2>
+              </div>
+              <Link className="dashboard-section__link" to="/seguimiento">
+                Ver seguimiento completo
+              </Link>
+            </div>
+            <div className="dash-grid">
+              <AlertList
+                title="Alertas críticas"
+                empty="Sin alertas críticas."
+                tone="danger"
+                items={view.alerts.map((a) => ({
+                  row: a.row,
+                  text: a.alerts.map((x) => x.label).join(' · '),
+                }))}
               />
-            </>
-          )}
-        </section>
+              <AlertList
+                title="Próximos vencimientos"
+                empty="Nada por vencer pronto."
+                tone="warning"
+                items={view.upcomingDue.map((r) => ({
+                  row: r,
+                  text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
+                }))}
+              />
+              <AlertList
+                title="Próximos inicios (7 días)"
+                empty="Sin inicios próximos."
+                tone="info"
+                items={view.upcomingStarts.map((r) => {
+                  const c = effectiveChecks(r);
+                  const pend: string[] = [];
+                  if (r.linkStatus !== 'valid') pend.push('link');
+                  if (!c.liverpool) pend.push('validación');
+                  if (!c.csm) pend.push('CSM');
+                  return {
+                    row: r,
+                    text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
+                      pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
+                    }`,
+                  };
+                })}
+              />
+              <AlertList
+                title="Terminadas con pendientes"
+                empty="Ninguna terminada con obligaciones pendientes."
+                tone="danger"
+                items={view.finishedPending.map((r) => ({
+                  row: r,
+                  text: criticalAlerts(r)
+                    .map((x) => x.label)
+                    .join(' · '),
+                }))}
+              />
+            </div>
+          </section>
+
+          <section
+            id="dashboard-load"
+            className="occ-section dashboard-section"
+            aria-labelledby="dashboard-occupancy-title"
+          >
+            <div className="dashboard-section__head">
+              <div>
+                <span className="dashboard-eyebrow">Detalle de carga</span>
+                <h2 id="dashboard-occupancy-title">
+                  Carga por tienda y soporte
+                </h2>
+              </div>
+            </div>
+            <p className="dashboard-section__description">
+              La carga se mide como{' '}
+              <strong>pico de campañas simultáneas</strong> en el periodo. No
+              representa capacidad ni saturación porque aún no existe una
+              capacidad máxima configurada por pantalla.
+            </p>
+
+            {campaigns.length === 0 ? (
+              <p className="occ-empty">
+                Aún no hay campañas. Importa el calendario para ver la carga.
+              </p>
+            ) : occupancy.totals.distinctCampaigns === 0 ? (
+              <p className="occ-empty">
+                El detalle de tiendas y soportes está vacío para la selección
+                actual.
+              </p>
+            ) : (
+              <>
+                <div className="occ-cards">
+                  <OccCard
+                    label="Tienda con mayor carga"
+                    value={occupancy.stores[0]?.storeName ?? '—'}
+                    sub={
+                      occupancy.stores[0]
+                        ? `Pico ${occupancy.stores[0].peakConcurrentCampaigns} simultáneas`
+                        : undefined
+                    }
+                  />
+                  <OccCard
+                    label="Soporte con mayor carga"
+                    value={occupancy.supports[0]?.supportName ?? '—'}
+                    sub={
+                      occupancy.supports[0]
+                        ? `Pico ${occupancy.supports[0].peakConcurrentCampaigns} simultáneas`
+                        : undefined
+                    }
+                  />
+                  <OccCard
+                    label="Campañas activas en el periodo"
+                    value={occupancy.totals.distinctCampaigns}
+                    sub={`Pico global ${occupancy.totals.peakConcurrentCampaigns}`}
+                  />
+                  <OccCard
+                    label="Tiendas utilizadas"
+                    value={occupancy.totals.distinctStores}
+                  />
+                  <OccCard
+                    label="Soportes utilizados"
+                    value={occupancy.totals.distinctSupports}
+                  />
+                </div>
+
+                <div className="occ-charts">
+                  <SupportOccupancyChart
+                    supports={occupancy.supports}
+                    onSelect={(item) => setSelection({ kind: 'support', item })}
+                  />
+                  <StoreOccupancyChart
+                    stores={occupancy.stores}
+                    onSelect={(item) => setSelection({ kind: 'store', item })}
+                  />
+                </div>
+
+                <h3 className="dashboard-matrix-title">
+                  Matriz tienda × soporte
+                </h3>
+                <p className="dashboard-matrix-description">
+                  El color indica intensidad relativa del pico dentro de la
+                  vista, no capacidad ni saturación.
+                </p>
+                <StoreSupportMatrix
+                  supports={occupancy.supports}
+                  stores={occupancy.stores}
+                  matrix={occupancy.matrix}
+                  onSelect={(item) => setSelection({ kind: 'cell', item })}
+                />
+              </>
+            )}
+          </section>
+        </>
       )}
 
       {detail && (
@@ -589,53 +777,67 @@ export function DashboardPage() {
 
       <DigitalDashboardPanel />
 
-      <h2 style={{ fontSize: '1.1rem', margin: '1.5rem 0 0.75rem' }}>
-        Módulos
-      </h2>
-      <div
-        style={{
-          display: 'grid',
-          gap: '1rem',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        }}
+      <section
+        id="dashboard-modules"
+        className="dashboard-section dashboard-modules"
+        aria-labelledby="dashboard-modules-title"
       >
-        {modules.map((route) => (
-          <Link
-            key={route.path}
-            to={route.path}
-            className="card"
-            style={{ color: 'inherit', display: 'block' }}
-          >
-            <div className="dash-module__icon" aria-hidden="true">
-              <Icon name={route.icon} size={22} />
-            </div>
-            <h3 style={{ fontSize: '1.05rem', marginTop: '0.5rem' }}>
-              {route.label}
-            </h3>
-            <p className="text-muted" style={{ margin: 0 }}>
-              {route.description}
-            </p>
-          </Link>
-        ))}
-      </div>
+        <div className="dashboard-section__head">
+          <div>
+            <span className="dashboard-eyebrow">Navegación</span>
+            <h2 id="dashboard-modules-title">Módulos</h2>
+          </div>
+        </div>
+        <div className="dashboard-modules__grid">
+          {modules.map((route) => (
+            <Link key={route.path} to={route.path} className="card dash-module">
+              <div className="dash-module__icon" aria-hidden="true">
+                <Icon name={route.icon} size={22} />
+              </div>
+              <div>
+                <h3>{route.label}</h3>
+                <p className="text-muted">{route.description}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
     </>
   );
 }
 
 function SummaryTile({
+  icon,
   label,
+  status,
   value,
   tone,
 }: {
+  icon: IconName;
   label: string;
+  status: string;
   value: number;
-  tone?: 'warn' | 'danger';
+  tone: DashboardTone;
 }) {
   return (
-    <div className={`dash-tile${tone ? ` dash-tile--${tone}` : ''}`}>
-      <div className="dash-tile__value">{value}</div>
-      <div className="dash-tile__label">{label}</div>
-    </div>
+    <article
+      className={`dash-tile dash-tile--${tone}`}
+      aria-label={`${label}: ${value}. ${status}`}
+    >
+      <div className="dash-tile__top">
+        <span className="dash-tile__icon" aria-hidden="true">
+          <Icon name={icon} size={20} />
+        </span>
+        <span className="dash-tile__status">
+          <span className="dash-tile__status-dot" aria-hidden="true" />
+          {status}
+        </span>
+      </div>
+      <div>
+        <div className="dash-tile__value">{value}</div>
+        <div className="dash-tile__label">{label}</div>
+      </div>
+    </article>
   );
 }
 
@@ -661,20 +863,22 @@ function AlertList({
   title,
   empty,
   items,
+  tone,
 }: {
   title: string;
   empty: string;
   items: { row: TrackingRow; text: string }[];
+  tone: Extract<DashboardTone, 'info' | 'warning' | 'danger'>;
 }) {
   return (
-    <section className="card dash-list" aria-label={title}>
-      <h3 className="dash-list__title">
-        {title} <span className="text-muted">({items.length})</span>
-      </h3>
+    <section className={`card dash-list dash-list--${tone}`} aria-label={title}>
+      <div className="dash-list__head">
+        <span className="dash-list__indicator" aria-hidden="true" />
+        <h3 className="dash-list__title">{title}</h3>
+        <span className="dash-list__count">{items.length}</span>
+      </div>
       {items.length === 0 ? (
-        <p className="text-muted" style={{ margin: 0 }}>
-          {empty}
-        </p>
+        <p className="dash-list__empty">{empty}</p>
       ) : (
         <ul className="dash-list__items">
           {items.slice(0, 12).map((it) => (

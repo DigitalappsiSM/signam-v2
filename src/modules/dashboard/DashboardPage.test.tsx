@@ -130,6 +130,37 @@ function renderDash() {
 }
 
 describe('DashboardPage — resumen operativo', () => {
+  it('presenta KPIs con semáforo, estado textual y acciones rápidas', async () => {
+    renderDash();
+
+    const summary = await screen.findByLabelText('Resumen de campañas activas');
+    expect(
+      within(summary).getByLabelText(/Campañas activas: 0\. En ejecución/i),
+    ).toHaveClass('dash-tile--info');
+    expect(
+      within(summary).getByLabelText(/Vencidas con pendientes: 1\. Urgente/i),
+    ).toHaveClass('dash-tile--danger');
+
+    const actionsTitle = screen.getByRole('heading', {
+      name: /Acciones rápidas/i,
+    });
+    const actions = actionsTitle.closest('section');
+    expect(actions).not.toBeNull();
+    expect(
+      within(actions!).getByRole('link', { name: /Seguimiento operativo/i }),
+    ).toHaveAttribute('href', '/seguimiento');
+    expect(
+      within(actions!).getByRole('link', { name: /Importar Calendario/i }),
+    ).toHaveAttribute('href', '/importar');
+  });
+
+  it('marca atención inmediata cuando hay terminadas con pendientes', async () => {
+    renderDash();
+    expect(
+      await screen.findByLabelText(/Estado operativo: Atención inmediata/i),
+    ).toHaveClass('dashboard-health--danger');
+  });
+
   it('muestra alertas críticas con enlace a Seguimiento', async () => {
     render(
       <MemoryRouter>
