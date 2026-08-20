@@ -121,17 +121,21 @@ function withOccupancyData() {
   ]);
 }
 
-function renderDash() {
+function renderDash(route = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[route]}>
       <DashboardPage />
     </MemoryRouter>,
   );
 }
 
+// Periodo que intersecta la vigencia de VIEJA (campaña de 2020). El periodo por
+// defecto es "Hoy", que excluiría al histórico; estas rutas lo vuelven visible.
+const VIEJA_ROUTE = '/?periodo=custom&desde=2020-01-01&hasta=2020-12-31';
+
 describe('DashboardPage — resumen operativo', () => {
   it('presenta KPIs con semáforo, estado textual y acciones rápidas', async () => {
-    renderDash();
+    renderDash(VIEJA_ROUTE);
 
     const summary = await screen.findByLabelText('Resumen de campañas activas');
     expect(
@@ -155,18 +159,14 @@ describe('DashboardPage — resumen operativo', () => {
   });
 
   it('marca atención inmediata cuando hay terminadas con pendientes', async () => {
-    renderDash();
+    renderDash(VIEJA_ROUTE);
     expect(
       await screen.findByLabelText(/Estado operativo: Atención inmediata/i),
     ).toHaveClass('dashboard-health--danger');
   });
 
   it('muestra alertas críticas con enlace a Seguimiento', async () => {
-    render(
-      <MemoryRouter>
-        <DashboardPage />
-      </MemoryRouter>,
-    );
+    renderDash(VIEJA_ROUTE);
     // La campaña vencida aparece como alerta con enlace a Seguimiento.
     const links = await screen.findAllByRole('link', { name: 'VIEJA' });
     expect(links.length).toBeGreaterThan(0);
@@ -207,12 +207,104 @@ describe('DashboardPage — resumen operativo', () => {
         ReturnType<typeof listOperationalTracking>
       >[number],
     ]);
-    renderDash();
+    renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
     // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
     expect(
       screen.queryByRole('link', { name: 'VIEJA' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('DashboardPage — filtros globales y detalle de KPI', () => {
+  it('con periodo Hoy (por defecto) una campaña histórica no cuenta como urgente', async () => {
+    renderDash();
+    const summary = await screen.findByLabelText('Resumen de campañas activas');
+    expect(
+      within(summary).getByLabelText(/Vencidas con pendientes: 0\./i),
+    ).toBeInTheDocument();
+    // La histórica de 2020 no aparece en el resumen con periodo Hoy.
+    expect(
+      screen.queryByRole('link', { name: 'VIEJA' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('la campaña histórica reaparece al elegir un periodo que intersecta su vigencia', async () => {
+    renderDash(VIEJA_ROUTE);
+    const summary = await screen.findByLabelText('Resumen de campañas activas');
+    expect(
+      within(summary).getByLabelText(/Vencidas con pendientes: 1\. Urgente/i),
+    ).toBeInTheDocument();
+  });
+
+  it('una campaña vigente con indicadores vencidos aparece como urgente con periodo Hoy', async () => {
+    vi.mocked(listCampaigns).mockResolvedValue([
+      campaign({
+        name: 'ACTUAL',
+        nameKey: 'actual',
+        tipo: 'PROVEEDOR',
+        fechaInicio: dayOffset(-15),
+        fechaFin: dayOffset(15),
+      }),
+    ]);
+    renderDash();
+    const summary = await screen.findByLabelText('Resumen de campañas activas');
+    expect(
+      within(summary).getByLabelText(/Vencidas con pendientes: 1\. Urgente/i),
+    ).toBeInTheDocument();
+  });
+
+  it('al pulsar una tarjeta se abre su detalle con el conteo y enlace a Seguimiento', async () => {
+    renderDash(VIEJA_ROUTE);
+    const card = await screen.findByLabelText(
+      /Vencidas con pendientes: 1\. Urgente\. Ver detalle/i,
+    );
+    await userEvent.click(card);
+    const detail = await screen.findByRole('region', {
+      name: /Detalle de la tarjeta Vencidas con pendientes/i,
+    });
+    expect(
+      within(detail).getByText(/1 campaña · Periodo/i),
+    ).toBeInTheDocument();
+    const link = within(detail).getByRole('link', { name: 'VIEJA' });
+    expect(link).toHaveAttribute(
+      'href',
+      `/seguimiento?campana=${encodeURIComponent(campaignIdentity(VIEJA))}`,
+    );
+  });
+
+  it('cambiar la clasificación recalcula tarjetas y el detalle abierto', async () => {
+    renderDash(VIEJA_ROUTE);
+    const card = await screen.findByLabelText(
+      /Vencidas con pendientes: 1\. Urgente\. Ver detalle/i,
+    );
+    await userEvent.click(card);
+    // VIEJA es Proveedor; filtrar por Institucional la deja fuera.
+    await userEvent.selectOptions(
+      screen.getByLabelText('Clasificación'),
+      'institutional',
+    );
+    const detail = await screen.findByRole('region', {
+      name: /Detalle de la tarjeta/i,
+    });
+    expect(
+      within(detail).getByText(/Ninguna campaña coincide/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Vencidas con pendientes: 0\./i),
+    ).toBeInTheDocument();
+  });
+
+  it('buscar por nombre limita las tarjetas', async () => {
+    renderDash(VIEJA_ROUTE);
+    const summary = await screen.findByLabelText('Resumen de campañas activas');
+    expect(
+      within(summary).getByLabelText(/Vencidas con pendientes: 1\./i),
+    ).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Buscar campaña'), 'NO EXISTE');
+    expect(
+      await screen.findByLabelText(/Vencidas con pendientes: 0\./i),
+    ).toBeInTheDocument();
   });
 });
 

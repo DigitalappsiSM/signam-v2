@@ -641,6 +641,13 @@ export function buildOccupancyDashboard(
   const issues: OccupancyIssue[] = [];
   const periodCampaigns: PeriodCampaign[] = [];
   const placements: Placement[] = [];
+  // Cuando hay un filtro de colocación activo (propietario/tienda/soporte), una
+  // campaña solo participa en totales, serie diaria y dona si conserva al menos
+  // una colocación que cumpla todos esos filtros (requerimiento §5.3). Sin esos
+  // filtros, participan todas las campañas del periodo (comportamiento previo).
+  const placementFilterActive =
+    ownerFilter !== 'all' || storeFilter !== null || supportFilter !== null;
+  const campaignsWithPlacement = new Set<string>();
 
   for (const c of campaigns) {
     const classification = classify(c, trackingByKey);
@@ -656,8 +663,16 @@ export function buildOccupancyDashboard(
       if (storeFilter && p.store !== storeFilter) continue;
       if (supportFilter && p.support !== supportFilter) continue;
       placements.push(p);
+      campaignsWithPlacement.add(p.campaign.campaignNameKey);
     }
   }
+
+  // Conjunto de campañas del periodo que alimenta totales, serie y dona.
+  const effectivePeriodCampaigns = placementFilterActive
+    ? periodCampaigns.filter((p) =>
+        campaignsWithPlacement.has(p.campaign.campaignNameKey),
+      )
+    : periodCampaigns;
 
   // Agregación por soporte, tienda y celda tienda-soporte.
   const bySupport = new Map<string, Bucket>();
@@ -752,18 +767,18 @@ export function buildOccupancyDashboard(
   }
   const totals: OccupancyTotals = {
     peakConcurrentCampaigns: maxOverlap(
-      periodCampaigns.map((p) => ({ s: p.startDay, e: p.endDay })),
+      effectivePeriodCampaigns.map((p) => ({ s: p.startDay, e: p.endDay })),
     ),
-    distinctCampaigns: periodCampaigns.length,
-    campaignDays: periodCampaigns.reduce((n, p) => n + p.days, 0),
+    distinctCampaigns: effectivePeriodCampaigns.length,
+    campaignDays: effectivePeriodCampaigns.reduce((n, p) => n + p.days, 0),
     distinctStores: allStores.size,
     distinctSupports: allSupports.size,
     physicalScreens: allScreens.size,
   };
 
-  const series = buildDailySeries(periodCampaigns, range);
+  const series = buildDailySeries(effectivePeriodCampaigns, range);
   const classificationTotals = breakdown(
-    periodCampaigns.map((p) => ({ oc: p.campaign })),
+    effectivePeriodCampaigns.map((p) => ({ oc: p.campaign })),
   );
 
   return {
