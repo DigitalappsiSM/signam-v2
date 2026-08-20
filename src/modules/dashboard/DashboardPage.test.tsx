@@ -295,6 +295,24 @@ describe('DashboardPage — filtros globales y detalle de KPI', () => {
     ).toBeInTheDocument();
   });
 
+  it('permite escribir varias letras en la búsqueda con el detalle abierto', async () => {
+    renderDash(VIEJA_ROUTE);
+    const card = await screen.findByLabelText(
+      /Vencidas con pendientes: 1\. Urgente\. Ver detalle/i,
+    );
+    await userEvent.click(card);
+    const input = screen.getByLabelText('Buscar campaña');
+    await userEvent.type(input, 'VIE');
+    // El foco no se robó tras la primera letra: el texto completo se conservó.
+    expect(input).toHaveValue('VIE');
+    const detail = await screen.findByRole('region', {
+      name: /Detalle de la tarjeta Vencidas con pendientes/i,
+    });
+    expect(
+      within(detail).getByRole('link', { name: 'VIEJA' }),
+    ).toBeInTheDocument();
+  });
+
   it('buscar por nombre limita las tarjetas', async () => {
     renderDash(VIEJA_ROUTE);
     const summary = await screen.findByLabelText('Resumen de campañas activas');

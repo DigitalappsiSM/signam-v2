@@ -238,26 +238,59 @@ export function DashboardPage() {
     [campaigns, screens, tracking, today],
   );
 
+  // Modelo de carga (fuente única de la resolución de colocaciones contra el
+  // catálogo). El resumen operativo reutiliza su conjunto de campañas para que
+  // KPIs/alertas se recorten igual que la carga ante filtros de colocación.
+  const occupancy = useMemo(
+    () =>
+      buildOccupancyDashboard({
+        campaigns,
+        screens,
+        tracking,
+        range,
+        filters: {
+          classification: filters.classification,
+          owner: filters.owner,
+          store: filters.store || null,
+          support: filters.support || null,
+          search: filters.search,
+        },
+      }),
+    [
+      campaigns,
+      screens,
+      tracking,
+      range,
+      filters.classification,
+      filters.owner,
+      filters.store,
+      filters.support,
+      filters.search,
+    ],
+  );
+
+  // Cuando hay filtro de propietario/soporte/tienda activo, el resumen se
+  // restringe a las campañas con colocación resuelta (las mismas que alimentan
+  // la carga). Sin esos filtros, no se restringe por colocación.
+  const placementActive =
+    filters.owner !== 'all' ||
+    Boolean(filters.support) ||
+    Boolean(filters.store);
+  const placementCampaignIds = useMemo(
+    () => (placementActive ? new Set(occupancy.campaignIds) : null),
+    [placementActive, occupancy.campaignIds],
+  );
+
   // Filas del resumen operativo recortadas al contexto global del panel.
   const filteredRows = useMemo(
     () =>
       filterDashboardRows(rows, {
         range,
         classification: filters.classification,
-        owner: filters.owner,
-        support: filters.support || null,
-        store: filters.store || null,
         search: filters.search,
+        placementCampaignIds,
       }),
-    [
-      rows,
-      range,
-      filters.classification,
-      filters.owner,
-      filters.support,
-      filters.store,
-      filters.search,
-    ],
+    [rows, range, filters.classification, filters.search, placementCampaignIds],
   );
 
   const view = useMemo(() => {
@@ -410,34 +443,6 @@ export function DashboardPage() {
         .map((s) => ({ number: s.storeNumber, name: s.storeName }))
         .sort((a, b) => a.name.localeCompare(b.name, 'es')),
     [optionsModel],
-  );
-
-  const occupancy = useMemo(
-    () =>
-      buildOccupancyDashboard({
-        campaigns,
-        screens,
-        tracking,
-        range,
-        filters: {
-          classification: filters.classification,
-          owner: filters.owner,
-          store: filters.store || null,
-          support: filters.support || null,
-          search: filters.search,
-        },
-      }),
-    [
-      campaigns,
-      screens,
-      tracking,
-      range,
-      filters.classification,
-      filters.owner,
-      filters.store,
-      filters.support,
-      filters.search,
-    ],
   );
 
   const rowByKey = useMemo(() => {

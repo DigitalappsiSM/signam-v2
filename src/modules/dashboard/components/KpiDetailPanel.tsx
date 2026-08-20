@@ -49,8 +49,16 @@ export function KpiDetailPanel({
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // Enfoca el botón de cerrar UNA sola vez, al abrir el panel. No debe depender
+  // de `onClose` (una función nueva en cada render): si se re-ejecutara al
+  // recalcular por un cambio de filtro, robaría el foco a la búsqueda mientras
+  // el detalle está abierto (impidiendo escribir varias letras seguidas).
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  // El listener de Escape sí sigue a `onClose` para cerrar con el callback vigente.
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };

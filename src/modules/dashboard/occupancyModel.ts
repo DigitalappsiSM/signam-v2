@@ -129,6 +129,14 @@ export interface OccupancyDashboard {
   series: DailyLoadPoint[];
   /** Campañas distintas del periodo por clasificación (para la dona). */
   classificationTotals: ClassificationBreakdown;
+  /**
+   * Ids (`OccupancyCampaign.campaignNameKey` = `campaign.id`) de las campañas
+   * que participan tras aplicar el periodo y los filtros (incluidas las
+   * colocaciones resueltas contra el catálogo). Es la fuente única para que el
+   * resumen operativo (KPIs/alertas) se recorte igual que la carga cuando hay
+   * filtro de propietario/soporte/tienda activo.
+   */
+  campaignIds: string[];
 }
 
 /** Periodo civil (medianoche UTC, ambos extremos inclusivos). */
@@ -789,6 +797,9 @@ export function buildOccupancyDashboard(
     totals,
     series,
     classificationTotals,
+    campaignIds: effectivePeriodCampaigns.map(
+      (p) => p.campaign.campaignNameKey,
+    ),
   };
 }
 

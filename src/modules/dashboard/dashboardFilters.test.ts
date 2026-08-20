@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTrackingRows } from '@/modules/operational-tracking/trackingModel';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
-import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
 import { filterDashboardRows } from './dashboardFilters';
 import type { DateRange } from './occupancyModel';
 
@@ -23,21 +22,6 @@ function campaign(over: Partial<StoredCampaign>): StoredCampaign {
   };
 }
 
-function support(o: {
-  support?: string;
-  owner?: CampaignSupport['owner'];
-  stores?: { numero: string; nombre?: string }[];
-}): CampaignSupport {
-  return {
-    support: o.support ?? 'PANTALLA',
-    owner: o.owner ?? 'liverpool',
-    stores: (o.stores ?? []).map((s) => ({
-      numero: s.numero,
-      nombre: s.nombre ?? '',
-    })),
-  };
-}
-
 function range(startIso: string, endIso: string): DateRange {
   const [ys, ms, ds] = startIso.split('-').map(Number);
   const [ye, me, de] = endIso.split('-').map(Number);
@@ -55,10 +39,8 @@ function rowsOf(campaigns: StoredCampaign[]) {
 
 const base = {
   classification: 'all' as const,
-  owner: 'all' as const,
-  support: null,
-  store: null,
   search: '',
+  placementCampaignIds: null,
 };
 
 describe('filterDashboardRows — periodo', () => {
@@ -136,79 +118,37 @@ describe('filterDashboardRows — clasificación', () => {
   });
 });
 
-describe('filterDashboardRows — propietario / soporte / tienda', () => {
+describe('filterDashboardRows — colocación (conjunto resuelto por occupancyModel)', () => {
   const rows = rowsOf([
-    campaign({
-      name: 'LIV',
-      supports: [support({ support: 'PANTALLA', stores: [{ numero: '5' }] })],
-    }),
-    campaign({
-      name: 'ISM',
-      supports: [
-        support({
-          support: "MUPPI'S",
-          owner: 'instore-media',
-          stores: [{ numero: '6' }],
-        }),
-      ],
-    }),
+    campaign({ name: 'A', id: 'a' }),
+    campaign({ name: 'B', id: 'b' }),
+    campaign({ name: 'C', id: 'c' }),
   ]);
   const r = range('2026-05-01', '2026-05-31');
 
-  it('propietario elimina campañas sin colocación del propietario', () => {
+  it('sin filtro de colocación (null) participan todas', () => {
     const out = filterDashboardRows(rows, {
       ...base,
       range: r,
-      owner: 'instore-media',
+      placementCampaignIds: null,
     });
-    expect(out.map((x) => x.campaign.name)).toEqual(['ISM']);
+    expect(out.map((x) => x.campaign.name)).toEqual(['A', 'B', 'C']);
   });
 
-  it('soporte compara con la clave normalizada', () => {
+  it('restringe a los ids del conjunto de colocación resuelto', () => {
     const out = filterDashboardRows(rows, {
       ...base,
       range: r,
-      support: 'PANTALLA',
+      placementCampaignIds: new Set(['a', 'c']),
     });
-    expect(out.map((x) => x.campaign.name)).toEqual(['LIV']);
+    expect(out.map((x) => x.campaign.name)).toEqual(['A', 'C']);
   });
 
-  it('tienda compara el número normalizado', () => {
-    const out = filterDashboardRows(rows, { ...base, range: r, store: '6' });
-    expect(out.map((x) => x.campaign.name)).toEqual(['ISM']);
-  });
-});
-
-describe('filterDashboardRows — filtros combinados exigen una sola colocación', () => {
-  // CRIUS en tienda 5 y PANTALLA en tienda 6: ninguna colocación cumple
-  // simultáneamente soporte CRIUS + tienda 6.
-  const rows = rowsOf([
-    campaign({
-      name: 'MIXTA',
-      supports: [
-        support({ support: 'VIDEO WALL CRIUS', stores: [{ numero: '5' }] }),
-        support({ support: 'PANTALLA', stores: [{ numero: '6' }] }),
-      ],
-    }),
-  ]);
-  const r = range('2026-05-01', '2026-05-31');
-
-  it('participa si soporte y tienda coinciden en la misma colocación', () => {
+  it('un conjunto vacío deja fuera a todas las campañas', () => {
     const out = filterDashboardRows(rows, {
       ...base,
       range: r,
-      support: 'VIDEO WALL CRIUS',
-      store: '5',
-    });
-    expect(out).toHaveLength(1);
-  });
-
-  it('queda fuera si soporte y tienda coinciden en colocaciones distintas', () => {
-    const out = filterDashboardRows(rows, {
-      ...base,
-      range: r,
-      support: 'VIDEO WALL CRIUS',
-      store: '6',
+      placementCampaignIds: new Set<string>(),
     });
     expect(out).toHaveLength(0);
   });
