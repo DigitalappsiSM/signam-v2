@@ -46,12 +46,25 @@ import { SupportOccupancyChart } from './components/SupportOccupancyChart';
 import { StoreOccupancyChart } from './components/StoreOccupancyChart';
 import { StoreSupportMatrix } from './components/StoreSupportMatrix';
 import { OccupancyDetailPanel } from './components/OccupancyDetailPanel';
+import { KpiDetailPanel } from './components/KpiDetailPanel';
 import { DailyLoadChart } from './components/DailyLoadChart';
 import { ClassificationDonut } from './components/ClassificationDonut';
+import { filterDashboardRows } from './dashboardFilters';
 import { useTheme } from '@/app/theme';
 import './DashboardPage.css';
 
 type DashboardTone = 'info' | 'success' | 'warning' | 'danger';
+
+type KpiId = 'active' | 'full' | 'ontrack' | 'alerts' | 'overdue';
+
+interface Kpi {
+  id: KpiId;
+  icon: IconName;
+  label: string;
+  status: string;
+  tone: DashboardTone;
+  rows: TrackingRow[];
+}
 
 const QUICK_ACTION_PATHS = [
   '/seguimiento',
@@ -175,9 +188,112 @@ export function DashboardPage() {
   }, [load]);
 
   const today = useMemo(() => todayCivil(), []);
+
+  // --- Filtros globales del panel ------------------------------------------
+  // Un solo contexto (periodo, clasificación, propietario, soporte, tienda y
+  // búsqueda) recorta TODAS las secciones: tarjetas KPI, salud operativa,
+  // alertas, vencimientos, inicios, terminadas con pendientes y la carga.
+  const [params, setParams] = useSearchParams();
+  const filters: OccupancyFilterValues = {
+    // Mes actual es el periodo predeterminado: sin `periodo` en la URL se usa
+    // `this-month` (§3.3). `periodo=today` u otros presets se respetan tal cual.
+    preset: (params.get('periodo') as RangePreset) || 'this-month',
+    desde: params.get('desde') ?? '',
+    hasta: params.get('hasta') ?? '',
+    classification:
+      (params.get('clasificacion') as OccupancyClassification | 'all') || 'all',
+    owner: (params.get('propietario') as Owner | 'all') || 'all',
+    support: params.get('soporte') ?? '',
+    store: params.get('tienda') ?? '',
+    search: params.get('q') ?? '',
+  };
+  const patchFilters = (patch: Partial<OccupancyFilterValues>) => {
+    const next = { ...filters, ...patch };
+    const p = new URLSearchParams();
+    // La vista predeterminada (Mes actual) omite `periodo` de la URL (§3.3).
+    if (next.preset !== 'this-month') p.set('periodo', next.preset);
+    if (next.preset === 'custom') {
+      if (next.desde) p.set('desde', next.desde);
+      if (next.hasta) p.set('hasta', next.hasta);
+    }
+    if (next.classification !== 'all')
+      p.set('clasificacion', next.classification);
+    if (next.owner !== 'all') p.set('propietario', next.owner);
+    if (next.support) p.set('soporte', next.support);
+    if (next.store) p.set('tienda', next.store);
+    if (next.search) p.set('q', next.search);
+    setParams(p, { replace: true });
+  };
+
+  const range: DateRange = useMemo(() => {
+    if (filters.preset === 'custom') {
+      const s = parseCampaignDate(filters.desde) ?? today;
+      const e = parseCampaignDate(filters.hasta) ?? s;
+      return s.getTime() <= e.getTime()
+        ? { start: s, end: e }
+        : { start: e, end: s };
+    }
+    return presetRange(filters.preset, today);
+  }, [filters.preset, filters.desde, filters.hasta, today]);
+
   const rows = useMemo(
     () => buildTrackingRows(campaigns, screens, tracking, today),
     [campaigns, screens, tracking, today],
+  );
+
+  // Modelo de carga (fuente única de la resolución de colocaciones contra el
+  // catálogo). El resumen operativo reutiliza su conjunto de campañas para que
+  // KPIs/alertas se recorten igual que la carga ante filtros de colocación.
+  const occupancy = useMemo(
+    () =>
+      buildOccupancyDashboard({
+        campaigns,
+        screens,
+        tracking,
+        range,
+        filters: {
+          classification: filters.classification,
+          owner: filters.owner,
+          store: filters.store || null,
+          support: filters.support || null,
+          search: filters.search,
+        },
+      }),
+    [
+      campaigns,
+      screens,
+      tracking,
+      range,
+      filters.classification,
+      filters.owner,
+      filters.store,
+      filters.support,
+      filters.search,
+    ],
+  );
+
+  // Cuando hay filtro de propietario/soporte/tienda activo, el resumen se
+  // restringe a las campañas con colocación resuelta (las mismas que alimentan
+  // la carga). Sin esos filtros, no se restringe por colocación.
+  const placementActive =
+    filters.owner !== 'all' ||
+    Boolean(filters.support) ||
+    Boolean(filters.store);
+  const placementCampaignIds = useMemo(
+    () => (placementActive ? new Set(occupancy.campaignIds) : null),
+    [placementActive, occupancy.campaignIds],
+  );
+
+  // Filas del resumen operativo recortadas al contexto global del panel.
+  const filteredRows = useMemo(
+    () =>
+      filterDashboardRows(rows, {
+        range,
+        classification: filters.classification,
+        search: filters.search,
+        placementCampaignIds,
+      }),
+    [rows, range, filters.classification, filters.search, placementCampaignIds],
   );
 
   const view = useMemo(() => {
@@ -187,7 +303,9 @@ export function DashboardPage() {
     // cancelada no acabe contada como "En curso sin atrasos" solo porque
     // `criticalAlerts()` devuelva un arreglo vacío. Siguen participando en la
     // sección de carga (que usa `campaigns`/`tracking`, no estas filas).
-    const applicable = rows.filter((r) => r.lifecycleStatus !== 'cancelled');
+    const applicable = filteredRows.filter(
+      (r) => r.lifecycleStatus !== 'cancelled',
+    );
     const active = applicable.filter((r) => r.timeframe === 'active');
     const withAlerts = active.filter((r) => criticalAlerts(r).length > 0);
     const full = active.filter(isFullyTracked);
@@ -244,6 +362,16 @@ export function DashboardPage() {
       (r) => r.timeframe === 'finished' && criticalAlerts(r).length > 0,
     );
 
+    // "Vencidas con pendientes": activas con indicadores vencidos + terminadas
+    // con obligaciones pendientes (deduplicadas por identidad de campaña).
+    const overdueOrFinishedPending: TrackingRow[] = [];
+    const seenUrgent = new Set<string>();
+    for (const r of [...overduePending, ...finishedPending]) {
+      if (seenUrgent.has(r.campaign.id)) continue;
+      seenUrgent.add(r.campaign.id);
+      overdueOrFinishedPending.push(r);
+    }
+
     return {
       active,
       withAlerts,
@@ -254,8 +382,9 @@ export function DashboardPage() {
       upcomingDue,
       upcomingStarts,
       finishedPending,
+      overdueOrFinishedPending,
     };
-  }, [rows, today]);
+  }, [filteredRows, today]);
 
   const operationalHealth = useMemo(() => {
     const measuredIds = new Set(view.active.map((row) => row.campaign.id));
@@ -299,49 +428,6 @@ export function DashboardPage() {
   }, [view]);
 
   // --- Carga operativa (ocupación) -----------------------------------------
-  const [params, setParams] = useSearchParams();
-  const filters: OccupancyFilterValues = {
-    // Mes actual es el periodo predeterminado: sin `periodo` en la URL se usa
-    // `this-month` (§3.3). `periodo=today` u otros presets se respetan tal cual.
-    preset: (params.get('periodo') as RangePreset) || 'this-month',
-    desde: params.get('desde') ?? '',
-    hasta: params.get('hasta') ?? '',
-    classification:
-      (params.get('clasificacion') as OccupancyClassification | 'all') || 'all',
-    owner: (params.get('propietario') as Owner | 'all') || 'all',
-    support: params.get('soporte') ?? '',
-    store: params.get('tienda') ?? '',
-    search: params.get('q') ?? '',
-  };
-  const patchFilters = (patch: Partial<OccupancyFilterValues>) => {
-    const next = { ...filters, ...patch };
-    const p = new URLSearchParams();
-    // La vista predeterminada (Mes actual) omite `periodo` de la URL (§3.3).
-    if (next.preset !== 'this-month') p.set('periodo', next.preset);
-    if (next.preset === 'custom') {
-      if (next.desde) p.set('desde', next.desde);
-      if (next.hasta) p.set('hasta', next.hasta);
-    }
-    if (next.classification !== 'all')
-      p.set('clasificacion', next.classification);
-    if (next.owner !== 'all') p.set('propietario', next.owner);
-    if (next.support) p.set('soporte', next.support);
-    if (next.store) p.set('tienda', next.store);
-    if (next.search) p.set('q', next.search);
-    setParams(p, { replace: true });
-  };
-
-  const range: DateRange = useMemo(() => {
-    if (filters.preset === 'custom') {
-      const s = parseCampaignDate(filters.desde) ?? today;
-      const e = parseCampaignDate(filters.hasta) ?? s;
-      return s.getTime() <= e.getTime()
-        ? { start: s, end: e }
-        : { start: e, end: s };
-    }
-    return presetRange(filters.preset, today);
-  }, [filters.preset, filters.desde, filters.hasta, today]);
-
   // Opciones de soporte/tienda: modelo del periodo sin filtros de tienda/soporte.
   const optionsModel = useMemo(
     () => buildOccupancyDashboard({ campaigns, screens, tracking, range }),
@@ -362,34 +448,6 @@ export function DashboardPage() {
     [optionsModel],
   );
 
-  const occupancy = useMemo(
-    () =>
-      buildOccupancyDashboard({
-        campaigns,
-        screens,
-        tracking,
-        range,
-        filters: {
-          classification: filters.classification,
-          owner: filters.owner,
-          store: filters.store || null,
-          support: filters.support || null,
-          search: filters.search,
-        },
-      }),
-    [
-      campaigns,
-      screens,
-      tracking,
-      range,
-      filters.classification,
-      filters.owner,
-      filters.store,
-      filters.support,
-      filters.search,
-    ],
-  );
-
   const rowByKey = useMemo(() => {
     const m = new Map<string, TrackingRow>();
     for (const r of rows) m.set(r.campaign.nameKey, r);
@@ -401,6 +459,54 @@ export function DashboardPage() {
     () => (selection ? selectionToDetail(selection) : null),
     [selection],
   );
+
+  // --- Tarjetas KPI interactivas -------------------------------------------
+  const urgentCount = view.overdueOrFinishedPending.length;
+  const kpis: Kpi[] = [
+    {
+      id: 'active',
+      icon: 'activity',
+      label: 'Campañas activas',
+      status: 'En ejecución',
+      tone: 'info',
+      rows: view.active,
+    },
+    {
+      id: 'full',
+      icon: 'check-circle',
+      label: 'Seguimiento completo',
+      status: 'Completas',
+      tone: 'success',
+      rows: view.full,
+    },
+    {
+      id: 'ontrack',
+      icon: 'clock',
+      label: 'En curso sin atrasos',
+      status: 'Al día',
+      tone: 'success',
+      rows: view.onTrack,
+    },
+    {
+      id: 'alerts',
+      icon: 'alert-triangle',
+      label: 'Con alertas',
+      status: view.withAlerts.length > 0 ? 'Revisión' : 'Sin alertas',
+      tone: view.withAlerts.length > 0 ? 'warning' : 'success',
+      rows: view.withAlerts,
+    },
+    {
+      id: 'overdue',
+      icon: 'bell',
+      label: 'Vencidas con pendientes',
+      status: urgentCount > 0 ? 'Urgente' : 'Sin vencidas',
+      tone: urgentCount > 0 ? 'danger' : 'success',
+      rows: view.overdueOrFinishedPending,
+    },
+  ];
+  const [kpiSelection, setKpiSelection] = useState<KpiId | null>(null);
+  const selectedKpi = kpis.find((k) => k.id === kpiSelection) ?? null;
+  const periodLabel = rangeLabel(range);
 
   return (
     <>
@@ -445,53 +551,55 @@ export function DashboardPage() {
       {loadedOnce && (
         <>
           <section
+            className="dashboard-panel dashboard-filters"
+            aria-labelledby="dashboard-filters-title"
+          >
+            <div className="dashboard-panel__head dashboard-panel__head--compact">
+              <div>
+                <span className="dashboard-eyebrow">Contexto</span>
+                <h2 id="dashboard-filters-title">Filtros del panel</h2>
+                <p>
+                  Afectan todas las secciones: tarjetas, salud operativa,
+                  alertas, gráficas, dona y totales.
+                </p>
+              </div>
+            </div>
+            <OccupancyFilters
+              values={filters}
+              onChange={patchFilters}
+              supportOptions={supportOptions}
+              storeOptions={storeOptions}
+            />
+          </section>
+
+          <section
             className="dash-summary"
             aria-label="Resumen de campañas activas"
           >
-            <SummaryTile
-              icon="activity"
-              label="Campañas activas"
-              status="En ejecución"
-              tone="info"
-              value={view.active.length}
-            />
-            <SummaryTile
-              icon="check-circle"
-              label="Seguimiento completo"
-              status="Completas"
-              tone="success"
-              value={view.full.length}
-            />
-            <SummaryTile
-              icon="clock"
-              label="En curso sin atrasos"
-              status="Al día"
-              tone="success"
-              value={view.onTrack.length}
-            />
-            <SummaryTile
-              icon="alert-triangle"
-              label="Con alertas"
-              status={view.withAlerts.length > 0 ? 'Revisión' : 'Sin alertas'}
-              tone={view.withAlerts.length > 0 ? 'warning' : 'success'}
-              value={view.withAlerts.length}
-            />
-            <SummaryTile
-              icon="bell"
-              label="Vencidas con pendientes"
-              status={
-                view.overduePending.length + view.finishedPending.length > 0
-                  ? 'Urgente'
-                  : 'Sin vencidas'
-              }
-              tone={
-                view.overduePending.length + view.finishedPending.length > 0
-                  ? 'danger'
-                  : 'success'
-              }
-              value={view.overduePending.length + view.finishedPending.length}
-            />
+            {kpis.map((kpi) => (
+              <SummaryTile
+                key={kpi.id}
+                icon={kpi.icon}
+                label={kpi.label}
+                status={kpi.status}
+                tone={kpi.tone}
+                value={kpi.rows.length}
+                selected={kpiSelection === kpi.id}
+                onSelect={() =>
+                  setKpiSelection((cur) => (cur === kpi.id ? null : kpi.id))
+                }
+              />
+            ))}
           </section>
+
+          {selectedKpi && (
+            <KpiDetailPanel
+              title={selectedKpi.label}
+              periodLabel={periodLabel}
+              rows={selectedKpi.rows}
+              onClose={() => setKpiSelection(null)}
+            />
+          )}
 
           <div className="dashboard-overview">
             <section
@@ -508,13 +616,6 @@ export function DashboardPage() {
                   Pico {occupancy.totals.peakConcurrentCampaigns}
                 </span>
               </div>
-
-              <OccupancyFilters
-                values={filters}
-                onChange={patchFilters}
-                supportOptions={supportOptions}
-                storeOptions={storeOptions}
-              />
 
               {campaigns.length === 0 ? (
                 <div className="dashboard-chart-empty">
@@ -815,17 +916,26 @@ function SummaryTile({
   status,
   value,
   tone,
+  selected,
+  onSelect,
 }: {
   icon: IconName;
   label: string;
   status: string;
   value: number;
   tone: DashboardTone;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   return (
-    <article
-      className={`dash-tile dash-tile--${tone}`}
-      aria-label={`${label}: ${value}. ${status}`}
+    <button
+      type="button"
+      className={`dash-tile dash-tile--${tone}${
+        selected ? ' dash-tile--selected' : ''
+      }`}
+      aria-pressed={selected}
+      aria-label={`${label}: ${value}. ${status}. Ver detalle`}
+      onClick={onSelect}
     >
       <div className="dash-tile__top">
         <span className="dash-tile__icon" aria-hidden="true">
@@ -840,7 +950,11 @@ function SummaryTile({
         <div className="dash-tile__value">{value}</div>
         <div className="dash-tile__label">{label}</div>
       </div>
-    </article>
+      <span className="dash-tile__action">
+        {selected ? 'Ocultar detalle' : 'Ver detalle'}
+        <Icon name="chevron-down" size={14} />
+      </span>
+    </button>
   );
 }
 

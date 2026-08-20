@@ -747,6 +747,24 @@ describe('occupancy — filtros', () => {
     expect(d.supports).toHaveLength(1);
     expect(d.supports[0]!.supportName).toBe('PANTALLA');
   });
+
+  it('37b) totales, serie y dona solo cuentan campañas con colocación coincidente (§5.3)', () => {
+    // Con filtro por tienda 5, solo "I" (institucional en tienda 5) participa;
+    // "P" (proveedor en tienda 6) queda fuera de totales, serie y dona.
+    const d = build(camps, cat, { filters: { store: '5' } });
+    expect(d.totals.distinctCampaigns).toBe(1);
+    expect(d.classificationTotals.institutional).toBe(1);
+    expect(d.classificationTotals.provider).toBe(0);
+    expect(d.series.some((p) => p.provider > 0)).toBe(false);
+    expect(d.series.some((p) => p.institutional > 0)).toBe(true);
+  });
+
+  it('37c) sin filtros de colocación participan todas las campañas del periodo', () => {
+    const d = build(camps, cat);
+    expect(d.totals.distinctCampaigns).toBe(2);
+    expect(d.classificationTotals.institutional).toBe(1);
+    expect(d.classificationTotals.provider).toBe(1);
+  });
 });
 
 // --- Orden / empates / vacíos ------------------------------------------------
