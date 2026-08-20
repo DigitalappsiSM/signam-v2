@@ -17,6 +17,13 @@ export const CANCELLED_CHECK_MESSAGE =
   'La campaña está cancelada: reactívala para volver a editar sus indicadores.';
 
 /**
+ * Mensaje de dominio cuando se intenta editar los testigos (T Arranque /
+ * T Completos) de una campaña Institucional: no aplican por regla de negocio.
+ */
+export const INSTITUTIONAL_WITNESS_MESSAGE =
+  'Los testigos no aplican a campañas institucionales.';
+
+/**
  * Construcción y transición puras del documento de seguimiento operativo.
  *
  * Los documentos actuales usan el `campaignId` canónico. `campaignKeyId` se
@@ -211,6 +218,16 @@ export function applyCheckChange(
     return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
   }
 
+  // Los testigos no aplican a las campañas Institucional: se rechaza cualquier
+  // cambio en dominio (no basta ocultar las casillas). No se tocan sus valores
+  // históricos, que reaparecen si la campaña vuelve a Proveedor.
+  if (
+    (key === 'witnessStart' || key === 'witnessComplete') &&
+    tracking.classification === 'institutional'
+  ) {
+    return { ok: false, reason: INSTITUTIONAL_WITNESS_MESSAGE };
+  }
+
   if (
     key === 'witnessStart' &&
     !completed &&
@@ -247,10 +264,15 @@ export function applyCheckChange(
 }
 
 /**
- * Marca **todos** los indicadores como completados (acción explícita del usuario,
- * `source: 'manual'`). Se usa en el botón "Marcar todas" de campañas terminadas.
- * No requiere reglas especiales: dejar todo marcado satisface la relación de
- * testigos (T Completos ⇒ T Arranque).
+ * Marca los indicadores **aplicables** como completados (acción explícita del
+ * usuario, `source: 'manual'`). Se usa en el botón "Marcar todas"/"Marcar
+ * aplicables" de campañas terminadas y respeta la clasificación almacenada:
+ *
+ * - **Proveedor** (o pendiente): marca los cinco indicadores. Dejar todo marcado
+ *   satisface la relación de testigos (T Completos ⇒ T Arranque).
+ * - **Institucional**: marca sólo Link, Validación Liverpool y Programación CSM;
+ *   NO toca T Arranque ni T Completos (no aplican; sus valores se conservan).
+ * - **Cancelada**: se rechaza (la reactivación es la única vía para editar).
  */
 export function markAllComplete(
   tracking: CampaignOperationalTracking,
@@ -261,6 +283,7 @@ export function markAllComplete(
   if (isCancelled(tracking)) {
     return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
   }
+  const institutional = tracking.classification === 'institutional';
   return {
     ok: true,
     tracking: {
@@ -268,8 +291,13 @@ export function markAllComplete(
       linkDownload: makeCheck(true, 'manual', actor, now),
       liverpoolValidation: makeCheck(true, 'manual', actor, now),
       csmProgramming: makeCheck(true, 'manual', actor, now),
-      witnessStart: makeCheck(true, 'manual', actor, now),
-      witnessComplete: makeCheck(true, 'manual', actor, now),
+      // Los testigos no aplican a Institucional: se conservan intactos.
+      witnessStart: institutional
+        ? tracking.witnessStart
+        : makeCheck(true, 'manual', actor, now),
+      witnessComplete: institutional
+        ? tracking.witnessComplete
+        : makeCheck(true, 'manual', actor, now),
       updatedAt: now,
       updatedByUid: actor.uid,
       updatedByEmail: actor.email,

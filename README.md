@@ -10,9 +10,10 @@ Aplicación web para operar el flujo de programación de pantallas entre
 5. **Consolidar por resolución** (`Campaña + RESOLUCION`).
 6. Generar los **CSV de programación** de Admira.
 7. **Seguimiento operativo** por campaña (clasificación Institucional/Proveedor,
-   link, validación, programación CSM y testigos con fechas límite y alertas),
-   con un **estado manual Activa/Cancelada** por campaña, más un **Dashboard**
-   con el resumen y las alertas críticas.
+   link, validación, programación CSM y testigos con fechas límite y alertas;
+   los **testigos no aplican a campañas Institucional**), con un **estado manual
+   Activa/Cancelada** por campaña, más un **Dashboard** con el resumen y las
+   alertas críticas (periodo predeterminado: **Mes actual**).
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
 9. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
    proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
@@ -258,7 +259,9 @@ separadas y nunca combinan sus métricas.
   (78 → CRIUS + CUADRADA). Nombre oficial de tienda del catálogo.
 - **Filtros** (periodo, clasificación, propietario, soporte, tienda, búsqueda)
   sincronizados con la URL, y **drill-down** por soporte/tienda/celda con enlace
-  a Seguimiento. Generación client-side; botón Actualizar sin vaciar la vista.
+  a Seguimiento. El periodo por defecto es **Mes actual** (sin `periodo` en la
+  URL); no hay preset de año completo. Generación client-side; botón Actualizar
+  sin vaciar la vista.
 - **Gráficas Apache ECharts** (import dinámico, chunk aparte): _Carga diaria_
   (área apilada de campañas simultáneas por día, con marcador de pico) y _Mezcla
   por clasificación_ (dona). Refuerzan las barras top-10 y la matriz, que siguen

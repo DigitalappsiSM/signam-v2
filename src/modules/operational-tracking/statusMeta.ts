@@ -12,6 +12,9 @@ export const STATUS_META: Record<
   WitnessStatus,
   { label: string; icon: IconName; cls: string }
 > = {
+  // Testigos no aplicables (campañas Institucional): estado neutro, sin
+  // obligación ni urgencia. Icono `minus` y clase gris (misma que "cancelada").
+  'not-applicable': { label: 'No aplica', icon: 'minus', cls: 'ot-na-badge' },
   overdue: { label: 'Vencido', icon: 'ban', cls: 'ot-overdue' },
   'due-today': { label: 'Vence hoy', icon: 'clock', cls: 'ot-due-today' },
   'due-soon': {

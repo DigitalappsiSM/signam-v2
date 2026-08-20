@@ -287,6 +287,61 @@ describe('criticalAlerts / isFullyTracked', () => {
   });
 });
 
+describe('testigos no aplicables para institucional', () => {
+  // Institucional activa que, de aplicar testigos, tendría T Arranque vencido.
+  const inst = campaign({
+    tipo: 'INSTITUCIONAL',
+    link: 'https://x.com/a.zip',
+    fechaInicio: '2026-03-02',
+    fechaFin: '2026-03-20',
+  });
+
+  it('ambos estados de testigos quedan como not-applicable', () => {
+    const rows = buildTrackingRows([inst], [], [], today);
+    expect(rows[0]!.startStatus).toBe('not-applicable');
+    expect(rows[0]!.completeStatus).toBe('not-applicable');
+    expect(rows[0]!.overall).toBe('not-applicable');
+  });
+
+  it('no tiene próximo vencimiento derivado de testigos', () => {
+    const rows = buildTrackingRows([inst], [], [], today);
+    expect(rows[0]!.nextDeadline).toBeNull();
+  });
+
+  it('no genera alertas start-overdue ni complete-overdue', () => {
+    const rows = buildTrackingRows([inst], [], [], today);
+    const kinds = criticalAlerts(rows[0]!).map((a) => a.kind);
+    expect(kinds).not.toContain('start-overdue');
+    expect(kinds).not.toContain('complete-overdue');
+  });
+
+  it('puede quedar completamente seguida sin testigos (link + validación + CSM)', () => {
+    const tracking = {
+      campaignNameKey: campaignIdentity(inst),
+      classification: 'institutional',
+      linkDownload: { completed: true, source: 'automatic' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: true },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+    const rows = buildTrackingRows([inst], [], [tracking], today);
+    expect(isFullyTracked(rows[0]!)).toBe(true);
+  });
+
+  it('un proveedor conserva los vencimientos de testigos', () => {
+    const prov = campaign({
+      tipo: 'PROVEEDOR',
+      link: 'https://x.com/a.zip',
+      fechaInicio: '2026-03-02',
+      fechaFin: '2026-03-20',
+    });
+    const rows = buildTrackingRows([prov], [], [], today);
+    expect(rows[0]!.startStatus).toBe('overdue');
+    expect(rows[0]!.nextDeadline).not.toBeNull();
+  });
+});
+
 describe('ciclo de vida en el modelo de vista', () => {
   // Campaña que, activa, dispararía alertas (proveedor vencido, sin link, etc.).
   function riskyProvider(cancelled: boolean): CampaignOperationalTracking {

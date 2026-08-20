@@ -216,6 +216,45 @@ describe('DashboardPage — resumen operativo', () => {
   });
 });
 
+describe('DashboardPage — periodo predeterminado', () => {
+  it('sin parámetros en la URL selecciona "Mes actual"', async () => {
+    renderDash();
+    const periodo = (await screen.findByLabelText(
+      'Periodo',
+    )) as HTMLSelectElement;
+    expect(periodo.value).toBe('this-month');
+  });
+
+  it('respeta periodo=today explícito en la URL', async () => {
+    render(
+      <MemoryRouter initialEntries={['/?periodo=today']}>
+        <DashboardPage />
+      </MemoryRouter>,
+    );
+    const periodo = (await screen.findByLabelText(
+      'Periodo',
+    )) as HTMLSelectElement;
+    expect(periodo.value).toBe('today');
+  });
+
+  it('no ofrece un preset de año completo', async () => {
+    renderDash();
+    const periodo = (await screen.findByLabelText(
+      'Periodo',
+    )) as HTMLSelectElement;
+    const labels = Array.from(periodo.options).map((o) => o.textContent ?? '');
+    expect(labels).toEqual([
+      'Hoy',
+      'Semana actual',
+      'Próximos 7 días',
+      'Mes actual',
+      'Próximos 30 días',
+      'Rango personalizado',
+    ]);
+    expect(labels.some((l) => /a[ñn]o/i.test(l))).toBe(false);
+  });
+});
+
 describe('DashboardPage — carga por tienda y soporte', () => {
   beforeEach(withOccupancyData);
 

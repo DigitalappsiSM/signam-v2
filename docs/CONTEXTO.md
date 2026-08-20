@@ -315,10 +315,20 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
     Institucional **o** tiene link válido; editable (si la desmarcas, se
     respeta).
   - **CSM / T Arranque / T Completos**: manuales, inician desmarcados.
-- **Marcar todas** (campañas terminadas): en las filas cuya `fechaFin` ya pasó
-  (periodo **Terminada**) aparece un botón **"Marcar todas"** que marca los cinco
-  indicadores de una sola vez (`source: manual`, con quién/cuándo). No aparece en
-  campañas activas ni futuras.
+- **Testigos no aplican a Institucional**: las campañas **Institucional** no
+  requieren testigos, así que **T Arranque** y **T Completos** se muestran como
+  **"No aplica"** (sin casilla editable) y no generan estados, vencimientos ni
+  alertas. La regla vive en el dominio (`applyCheckChange` rechaza esos cambios y
+  `markAllComplete` no los toca), no solo en la interfaz. Los valores históricos
+  se conservan y **reaparecen** si la campaña vuelve a Proveedor. Con la
+  clasificación **pendiente** los testigos muestran **"Clasifica primero"** (nunca
+  se asume Proveedor).
+- **Marcar todas / Marcar aplicables** (campañas terminadas): en las filas cuya
+  `fechaFin` ya pasó (periodo **Terminada**) aparece un botón que marca de una vez
+  los indicadores (`source: manual`, con quién/cuándo). En **Proveedor** se llama
+  **"Marcar todas"** y marca los cinco; en **Institucional** se llama **"Marcar
+  aplicables"** y marca solo Link, Validación Liverpool y CSM (nunca los testigos).
+  No aparece en campañas activas ni futuras.
 - **Bitácora de comentarios**: cada campaña tiene un **historial** de comentarios
   (`comments[]`, cada uno con texto, autor y fecha) accesible desde un botón
   `💬 N` que despliega un panel inline bajo la fila. Los comentarios se agregan al
@@ -345,7 +355,8 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   desfases por zona horaria/DST). Si `fechaInicio`/`fechaFin` no se interpreta,
   se muestra estado `Fecha inválida` (no una alerta de vencimiento) y el check
   sigue editable.
-- **Estados y alertas** con icono + texto (no solo color): `upcoming`,
+- **Estados y alertas** con icono + texto (no solo color): `not-applicable`
+  (testigos de Institucional; neutro, se ordena al final), `upcoming`,
   `on-track`, `due-soon` (2 días hábiles T Arranque / 5 naturales T Completos),
   `due-today`, `overdue`, `completed-on-time`, `completed-late`, `invalid-date`.
 - El **Dashboard** deriva (no persiste) el resumen operativo: activas,
@@ -465,8 +476,11 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 - **Filtros**: periodo (Hoy / Semana actual / Próximos 7 / Mes actual / Próximos
   30 / Rango personalizado, por intersección con fechas civiles), clasificación,
   propietario, soporte, tienda y búsqueda; sincronizados con la **URL**
-  (`?periodo=&clasificacion=&tienda=&soporte=&q=`). Drill-down por soporte,
-  tienda o celda que lista las campañas con enlace a `/seguimiento?campana=`.
+  (`?periodo=&clasificacion=&tienda=&soporte=&q=`). El periodo **predeterminado es
+  Mes actual** (del día 1 al último día del mes natural): sin `periodo` en la URL
+  se usa `this-month` y la vista por defecto lo **omite** de la URL; `periodo=today`
+  u otros presets se respetan. No existe un preset de año completo. Drill-down por
+  soporte, tienda o celda que lista las campañas con enlace a `/seguimiento?campana=`.
 - **Estados**: carga inicial, error (sin vaciar), sin campañas, sin datos para el
   periodo/filtros; botón **Actualizar** que conserva los datos previos y muestra
   la última actualización. `occupancyModel` está ampliamente cubierto por
