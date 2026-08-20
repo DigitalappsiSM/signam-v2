@@ -429,6 +429,14 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   de carga **recibe todas las campañas**, incluidas las **canceladas** (solo el
   resumen operativo superior las excluye); su resultado no cambia por el estado
   de ciclo de vida.
+- **Jerarquía visual y semáforos**: la cabecera presenta KPIs con icono, texto y
+  tono semántico; la gráfica diaria y sus filtros ocupan el panel principal; un
+  rail lateral muestra salud operativa, clasificación y acciones rápidas; las
+  listas de atención quedan debajo. Azul = informativo, verde = al día, amarillo
+  = revisión/vencimiento próximo, rojo = vencido/terminado con pendientes y gris
+  = neutral. El color nunca es el único medio de comunicar el estado.
+- **Fuentes separadas**: el bloque Digital multirretailer conserva sus métricas
+  y colecciones independientes; no agrega cifras con Liverpool.
 - **Definición de carga**: métrica principal **pico de campañas simultáneas**
   (`peakConcurrentCampaigns`) = máximo, para cualquier día civil del periodo, de
   campañas distintas que usan esa tienda/soporte ese día. Complementarias:

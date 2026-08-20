@@ -17,34 +17,33 @@ export function DigitalDashboardPanel() {
   }, []);
   if (!data) return null;
   return (
-    <section aria-labelledby="digital-dashboard">
-      <h2 id="digital-dashboard">Operación Digital Signage multirretailer</h2>
-      <p>
-        Sección aislada: métricas exclusivas de las colecciones{' '}
-        <code>digital*</code>.
-      </p>
-      <div className="digital-grid">
-        <article className="digital-card">
-          <strong>{data.activeItems}</strong>Activas
-        </article>
-        <article className="digital-card">
-          <strong>{data.cancelledItems}</strong>Canceladas
-        </article>
-        <article className="digital-card">
-          <strong>{Math.round(data.averageProgress * 100)}%</strong>Avance
-          promedio
-        </article>
-        <article className="digital-card">
-          <strong>{data.distinctCampaigns}</strong>Campañas
-        </article>
-        <article className="digital-card">
-          <strong>{data.totalCenters}</strong>Centros reportados
-        </article>
-        <article className="digital-card">
-          <strong>{data.totalSupports}</strong>Soportes reportados
-        </article>
+    <section
+      className="dashboard-section digital-dashboard"
+      aria-labelledby="digital-dashboard"
+    >
+      <div className="dashboard-section__head">
+        <div>
+          <span className="dashboard-eyebrow">Fuente independiente</span>
+          <h2 id="digital-dashboard">Operación Digital multirretailer</h2>
+          <p className="dashboard-section__description">
+            Métricas exclusivas de La Comer y Chedraui; no se mezclan con la
+            operación Liverpool.
+          </p>
+        </div>
       </div>
-      <div className="digital-grid">
+      <div className="digital-grid digital-grid--metrics">
+        <Metric value={data.activeItems} label="Activas" tone="info" />
+        <Metric value={data.cancelledItems} label="Canceladas" tone="neutral" />
+        <Metric
+          value={`${Math.round(data.averageProgress * 100)}%`}
+          label="Avance promedio"
+          tone="info"
+        />
+        <Metric value={data.distinctCampaigns} label="Campañas" tone="info" />
+        <Metric value={data.totalCenters} label="Centros reportados" />
+        <Metric value={data.totalSupports} label="Soportes reportados" />
+      </div>
+      <div className="digital-grid digital-grid--breakdowns">
         <Breakdown title="Por retailer" values={data.byRetailer} />
         <Breakdown title="Por soporte" values={data.bySupport} />
         <Breakdown title="Por catorcena" values={data.byPeriod} />
@@ -58,6 +57,26 @@ export function DigitalDashboardPanel() {
     </section>
   );
 }
+
+function Metric({
+  value,
+  label,
+  tone = 'neutral',
+}: {
+  value: string | number;
+  label: string;
+  tone?: 'info' | 'neutral';
+}) {
+  return (
+    <article
+      className={`digital-card digital-card--metric digital-card--${tone}`}
+    >
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </article>
+  );
+}
+
 function Breakdown({
   title,
   values,
