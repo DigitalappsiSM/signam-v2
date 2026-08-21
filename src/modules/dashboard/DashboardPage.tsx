@@ -82,6 +82,18 @@ function isoDay(d: Date | null): string {
   return d ? formatDdMmYyyy(d) : '—';
 }
 
+/**
+ * Motivo mostrado en "Atención inmediata". Si la fila tiene incidencias reales
+ * (vencidos, terminada con pendientes, etc.) se listan; si no (p. ej. "vence
+ * hoy" sin otra alerta) se usa el estado global, con su fecha si existe.
+ */
+function immediateReason(row: TrackingRow): string {
+  const alerts = criticalAlerts(row);
+  if (alerts.length > 0) return alerts.map((a) => a.label).join(' · ');
+  const label = STATUS_META[row.overall].label;
+  return row.nextDeadline ? `${label} · ${isoDay(row.nextDeadline)}` : label;
+}
+
 function rangeLabel(range: DateRange): string {
   const start = formatDdMmYyyy(range.start);
   const end = formatDdMmYyyy(range.end);
@@ -372,25 +384,34 @@ export function DashboardPage() {
       overdueOrFinishedPending.push(r);
     }
 
-    // Atención inmediata: lo verdaderamente urgente (ROJO) = vencido + vence
-    // HOY. "Por vencer" (días) queda fuera; sigue en "Próximos vencimientos".
-    // Ordenado por severidad y luego por el vencimiento más próximo.
-    const immediateAttention = applicable
-      .filter(
-        (r) =>
-          r.startStatus === 'overdue' ||
-          r.completeStatus === 'overdue' ||
-          r.startStatus === 'due-today' ||
-          r.completeStatus === 'due-today',
-      )
-      .sort((a, b) => {
-        const s = rowSeverity(a) - rowSeverity(b);
-        if (s !== 0) return s;
-        return (
-          (a.nextDeadline?.getTime() ?? Infinity) -
-          (b.nextDeadline?.getTime() ?? Infinity)
-        );
-      });
+    // Atención inmediata: lo que exige acción YA, en ROJO. Cubre exactamente lo
+    // mismo que dispara el rojo de "Estado operativo" (vencidas + terminadas con
+    // pendientes) para no dar señales contradictorias, y suma "vence hoy" (la
+    // urgencia recién escalada a rojo). "Por vencer" (días) queda fuera: sigue en
+    // "Próximos vencimientos". Deduplicado por identidad y ordenado por severidad
+    // y luego por el vencimiento más próximo.
+    const urgentNow = applicable.filter(
+      (r) =>
+        r.startStatus === 'overdue' ||
+        r.completeStatus === 'overdue' ||
+        r.startStatus === 'due-today' ||
+        r.completeStatus === 'due-today',
+    );
+    const immediateAttention: TrackingRow[] = [];
+    const seenImmediate = new Set<string>();
+    for (const r of [...urgentNow, ...finishedPending]) {
+      if (seenImmediate.has(r.campaign.id)) continue;
+      seenImmediate.add(r.campaign.id);
+      immediateAttention.push(r);
+    }
+    immediateAttention.sort((a, b) => {
+      const s = rowSeverity(a) - rowSeverity(b);
+      if (s !== 0) return s;
+      return (
+        (a.nextDeadline?.getTime() ?? Infinity) -
+        (b.nextDeadline?.getTime() ?? Infinity)
+      );
+    });
 
     return {
       active,
@@ -698,7 +719,7 @@ export function DashboardPage() {
                 </div>
                 {view.immediateAttention.length === 0 ? (
                   <p className="dashboard-urgent__empty">
-                    Nada vencido ni que venza hoy.
+                    Sin campañas que requieran acción inmediata.
                   </p>
                 ) : (
                   <>
@@ -710,8 +731,7 @@ export function DashboardPage() {
                         >
                           <Link to={trackingLink(r)}>{r.campaign.name}</Link>
                           <span className="dashboard-urgent__reason">
-                            {STATUS_META[r.overall].label} ·{' '}
-                            {isoDay(r.nextDeadline)}
+                            {immediateReason(r)}
                           </span>
                         </li>
                       ))}
