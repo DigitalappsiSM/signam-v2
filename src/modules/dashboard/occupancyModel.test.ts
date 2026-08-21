@@ -5,6 +5,7 @@ import {
   type DateRange,
   type OccupancyCampaignInput,
   type OccupancyFilters,
+  type RangePreset,
 } from './occupancyModel';
 import { parseCampaignDate } from '@/modules/operational-tracking/businessDays';
 import {
@@ -874,6 +875,33 @@ describe('presetRange', () => {
     expect(r.start.getUTCDate()).toBe(1);
     expect(r.end.getUTCMonth()).toBe(4); // mayo (0-index)
     expect(r.end.getUTCDate()).toBe(31);
+  });
+
+  it('mes actual respeta febrero en año bisiesto', () => {
+    const r = presetRange('this-month', parseCampaignDate('2024-02-15')!);
+    expect(r.start.getUTCDate()).toBe(1);
+    expect(r.end.getUTCMonth()).toBe(1); // febrero (0-index)
+    expect(r.end.getUTCDate()).toBe(29); // 2024 es bisiesto
+  });
+
+  it('mes actual respeta febrero en año no bisiesto', () => {
+    const r = presetRange('this-month', parseCampaignDate('2026-02-15')!);
+    expect(r.end.getUTCMonth()).toBe(1);
+    expect(r.end.getUTCDate()).toBe(28);
+  });
+
+  it('no existe un preset de año completo', () => {
+    const presets: RangePreset[] = [
+      'today',
+      'this-week',
+      'next-7',
+      'this-month',
+      'next-30',
+      'custom',
+    ];
+    // El tipo `RangePreset` no admite ningún preset anual: esta lista es exhaustiva.
+    expect(presets).not.toContain('this-year' as RangePreset);
+    expect(presets).not.toContain('full-year' as RangePreset);
   });
 });
 

@@ -254,6 +254,7 @@ describe('OperationalTrackingPage', () => {
       id: 'f',
       name: 'TERMINADA',
       nameKey: 'terminada',
+      tipo: 'PROVEEDOR',
       fechaInicio: dayOffset(-40),
       fechaFin: dayOffset(-30),
     });
@@ -261,6 +262,7 @@ describe('OperationalTrackingPage', () => {
       id: 'u2',
       name: 'FUTURA',
       nameKey: 'futura',
+      tipo: 'PROVEEDOR',
       fechaInicio: dayOffset(30),
       fechaFin: dayOffset(40),
     });
@@ -277,7 +279,30 @@ describe('OperationalTrackingPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('"Marcar todas" marca todos los indicadores de la campaña', async () => {
+  it('"Marcar todas" marca todos los indicadores de un proveedor', async () => {
+    vi.mocked(markAllChecks).mockResolvedValue({} as never);
+    const FIN = campaign({
+      id: 'f',
+      name: 'TERMINADA',
+      nameKey: 'terminada',
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+      tipo: 'PROVEEDOR',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN]);
+    await renderAllPeriods();
+    await screen.findByText('TERMINADA');
+    await userEvent.click(screen.getByRole('button', { name: 'Marcar todas' }));
+    await waitFor(() => expect(markAllChecks).toHaveBeenCalledTimes(1));
+    expect(markAllChecks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: campaignIdentity(FIN),
+        classification: 'provider',
+      }),
+    );
+  });
+
+  it('una institucional terminada ofrece "Marcar aplicables" (no "Marcar todas")', async () => {
     vi.mocked(markAllChecks).mockResolvedValue({} as never);
     const FIN = campaign({
       id: 'f',
@@ -290,7 +315,12 @@ describe('OperationalTrackingPage', () => {
     vi.mocked(listCampaigns).mockResolvedValue([FIN]);
     await renderAllPeriods();
     await screen.findByText('TERMINADA');
-    await userEvent.click(screen.getByRole('button', { name: 'Marcar todas' }));
+    expect(
+      screen.queryByRole('button', { name: 'Marcar todas' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Marcar aplicables' }),
+    );
     await waitFor(() => expect(markAllChecks).toHaveBeenCalledTimes(1));
     expect(markAllChecks).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -347,6 +377,68 @@ describe('OperationalTrackingPage', () => {
         text: 'Revisado',
       }),
     );
+  });
+});
+
+describe('OperationalTrackingPage — testigos no aplican a institucional', () => {
+  it('institucional muestra "No aplica" en testigos, objetivo y estado, sin casillas de testigo', async () => {
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    // 2 testigos + objetivo + estado general = 4 "No aplica".
+    expect(within(row).getAllByText('No aplica').length).toBe(4);
+    // Sólo hay casillas de Link/Validación/CSM (3), ninguna de testigo.
+    expect(within(row).getAllByRole('checkbox').length).toBe(3);
+    expect(
+      within(row).queryByLabelText('T Arranque de BUEN FIN'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByLabelText('T Completos de BUEN FIN'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clasificación pendiente exige clasificar antes de operar los testigos', async () => {
+    await renderAllPeriods();
+    const row = (await screen.findByText('REGRESO')).closest('tr')!;
+    expect(within(row).getAllByText('Clasifica primero').length).toBe(2);
+    expect(
+      within(row).queryByLabelText('T Arranque de REGRESO'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('un proveedor conserva las casillas de testigo', async () => {
+    const PROV = campaign({
+      id: 'p',
+      name: 'PROVE',
+      nameKey: 'prove',
+      tipo: 'PROVEEDOR',
+      link: 'https://x.com/a.zip',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([PROV]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('PROVE')).closest('tr')!;
+    expect(
+      within(row).getByLabelText('T Arranque de PROVE'),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByLabelText('T Completos de PROVE'),
+    ).toBeInTheDocument();
+  });
+
+  it('una campaña pendiente terminada no ofrece marcar hasta clasificar', async () => {
+    const FIN = campaign({
+      id: 'f',
+      name: 'PENDIENTE FIN',
+      nameKey: 'pendiente fin',
+      tipo: 'Digital', // clasificación desconocida
+      fechaInicio: dayOffset(-40),
+      fechaFin: dayOffset(-30),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([FIN]);
+    await renderAllPeriods();
+    const row = (await screen.findByText('PENDIENTE FIN')).closest('tr')!;
+    expect(
+      within(row).queryByRole('button', { name: /^Marcar/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -459,8 +551,8 @@ describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () =>
     ]);
     await renderAllPeriods();
     const row = (await screen.findByText('TERMINADA')).closest('tr')!;
-    // Cinco "No aplica" en las columnas de indicadores.
-    expect(within(row).getAllByText('No aplica').length).toBe(6); // 5 checks + estado general
+    // "No aplica": 5 indicadores + objetivo (institucional) + estado general.
+    expect(within(row).getAllByText('No aplica').length).toBe(7);
     // Sin casillas editables.
     expect(within(row).queryByRole('checkbox')).not.toBeInTheDocument();
     // Aunque está terminada, no ofrece "Marcar todas".

@@ -195,7 +195,9 @@ export function DashboardPage() {
   // alertas, vencimientos, inicios, terminadas con pendientes y la carga.
   const [params, setParams] = useSearchParams();
   const filters: OccupancyFilterValues = {
-    preset: (params.get('periodo') as RangePreset) || 'today',
+    // Mes actual es el periodo predeterminado: sin `periodo` en la URL se usa
+    // `this-month` (§3.3). `periodo=today` u otros presets se respetan tal cual.
+    preset: (params.get('periodo') as RangePreset) || 'this-month',
     desde: params.get('desde') ?? '',
     hasta: params.get('hasta') ?? '',
     classification:
@@ -208,7 +210,8 @@ export function DashboardPage() {
   const patchFilters = (patch: Partial<OccupancyFilterValues>) => {
     const next = { ...filters, ...patch };
     const p = new URLSearchParams();
-    if (next.preset !== 'today') p.set('periodo', next.preset);
+    // La vista predeterminada (Mes actual) omite `periodo` de la URL (§3.3).
+    if (next.preset !== 'this-month') p.set('periodo', next.preset);
     if (next.preset === 'custom') {
       if (next.desde) p.set('desde', next.desde);
       if (next.hasta) p.set('hasta', next.hasta);

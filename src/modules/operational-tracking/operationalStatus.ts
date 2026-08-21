@@ -13,6 +13,7 @@ import {
  */
 
 export type WitnessStatus =
+  | 'not-applicable'
   | 'upcoming'
   | 'on-track'
   | 'due-soon'
@@ -31,7 +32,13 @@ export interface WitnessInput {
   today: Date;
 }
 
-/** Prioridad visual (menor = más urgente), según la especificación §10. */
+/**
+ * Prioridad visual (menor = más urgente), según la especificación §10.
+ *
+ * `not-applicable` (testigos no aplicables para campañas Institucional) tiene la
+ * severidad más baja: se ordena después de cualquier obligación real, pendiente o
+ * urgente, para no competir con estados que sí requieren acción.
+ */
 export const STATUS_SEVERITY: Record<WitnessStatus, number> = {
   overdue: 1,
   'due-today': 2,
@@ -41,6 +48,7 @@ export const STATUS_SEVERITY: Record<WitnessStatus, number> = {
   'completed-late': 6,
   'completed-on-time': 7,
   upcoming: 8,
+  'not-applicable': 9,
 };
 
 /** Convierte un timestamp de completado a su fecha civil (zona local). */

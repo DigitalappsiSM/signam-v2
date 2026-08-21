@@ -138,32 +138,46 @@ export function buildTrackingRows(
     }
     const distinctStores = stores.size;
 
+    // Los testigos (T Arranque / T Completos) sólo aplican a **Proveedor**. Las
+    // campañas Institucional no los requieren, y las de clasificación **pendiente**
+    // no asumen ningún régimen hasta que el usuario clasifique: en ambos casos los
+    // testigos quedan como `not-applicable` (sin estados, vencimientos ni alertas).
+    // Se deriva de la clasificación efectiva, no de las casillas de la interfaz.
+    const witnessesApplicable = classification === 'provider';
+
     const start = t?.witnessStart ?? null;
     const complete = t?.witnessComplete ?? null;
-    const startStatus = witnessStartStatus({
-      startStr: campaign.fechaInicio,
-      endStr: campaign.fechaFin,
-      completed: start?.completed ?? false,
-      completedAt: start?.completedAt ?? null,
-      today,
-    });
-    const completeStatus = witnessCompleteStatus({
-      startStr: campaign.fechaInicio,
-      endStr: campaign.fechaFin,
-      completed: complete?.completed ?? false,
-      completedAt: complete?.completedAt ?? null,
-      today,
-    });
-    const overall =
-      STATUS_SEVERITY[startStatus] <= STATUS_SEVERITY[completeStatus]
+    const startStatus: WitnessStatus = witnessesApplicable
+      ? witnessStartStatus({
+          startStr: campaign.fechaInicio,
+          endStr: campaign.fechaFin,
+          completed: start?.completed ?? false,
+          completedAt: start?.completedAt ?? null,
+          today,
+        })
+      : 'not-applicable';
+    const completeStatus: WitnessStatus = witnessesApplicable
+      ? witnessCompleteStatus({
+          startStr: campaign.fechaInicio,
+          endStr: campaign.fechaFin,
+          completed: complete?.completed ?? false,
+          completedAt: complete?.completedAt ?? null,
+          today,
+        })
+      : 'not-applicable';
+    const overall: WitnessStatus = witnessesApplicable
+      ? STATUS_SEVERITY[startStatus] <= STATUS_SEVERITY[completeStatus]
         ? startStatus
-        : completeStatus;
+        : completeStatus
+      : 'not-applicable';
 
     const startCivil = parseCampaignDate(campaign.fechaInicio);
     const endCivil = parseCampaignDate(campaign.fechaFin);
     const deadlines: Date[] = [];
-    // Una campaña cancelada no tiene vencimientos operativos aplicables.
-    if (!cancelled) {
+    // Ni las campañas canceladas ni las Institucional (testigos no aplicables)
+    // tienen vencimientos de testigos: no se calcula el 5.º día hábil ni se toma
+    // `fechaFin` como vencimiento de T Completos.
+    if (!cancelled && witnessesApplicable) {
       if (!(start?.completed ?? false) && startCivil) {
         deadlines.push(fifthBusinessDay(startCivil));
       }
@@ -195,6 +209,11 @@ export function buildTrackingRows(
  * - `link`: si el usuario lo sobrescribió manualmente, manda su valor; si no, se
  *   deriva del link del calendario (por defecto automático, editable).
  * - `liverpool`: por defecto marcado si es Institucional **o** hay link válido.
+ * - `witnessStart` / `witnessComplete`: para las campañas Institucional los
+ *   testigos **no aplican**, por lo que su valor efectivo es `true` (obligación
+ *   satisfecha) sólo para los cálculos agregados (p. ej. `isFullyTracked`). Esto
+ *   NO significa que estén completados ni debe persistirse como tal: los valores
+ *   históricos permanecen intactos y reaparecen si la campaña vuelve a Proveedor.
  */
 export function effectiveChecks(row: TrackingRow): {
   link: boolean;
@@ -205,18 +224,21 @@ export function effectiveChecks(row: TrackingRow): {
 } {
   const t = row.tracking;
   const linkValid = row.linkStatus === 'valid';
+  const institutional = row.classification === 'institutional';
   const link =
     t && t.linkDownload && t.linkDownload.source === 'manual'
       ? t.linkDownload.completed
       : linkValid;
   return {
     link,
-    liverpool: t
-      ? t.liverpoolValidation.completed
-      : row.classification === 'institutional' || linkValid,
+    liverpool: t ? t.liverpoolValidation.completed : institutional || linkValid,
     csm: t ? t.csmProgramming.completed : false,
-    witnessStart: t ? t.witnessStart.completed : false,
-    witnessComplete: t ? t.witnessComplete.completed : false,
+    witnessStart: institutional ? true : t ? t.witnessStart.completed : false,
+    witnessComplete: institutional
+      ? true
+      : t
+        ? t.witnessComplete.completed
+        : false,
   };
 }
 
@@ -227,7 +249,8 @@ export type AlertKind =
   | 'invalid-date'
   | 'active-no-csm'
   | 'provider-no-validation'
-  | 'classification-pending';
+  | 'classification-pending'
+  | 'finished-pending';
 
 export interface RowAlert {
   kind: AlertKind;
@@ -268,6 +291,24 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   }
   if (row.timeframe === 'active' && !c.csm) {
     out.push({ kind: 'active-no-csm', label: 'Activa sin Programación CSM' });
+  }
+  // Una campaña **terminada** debe tener completos sus indicadores APLICABLES.
+  // Antes, la señal de "terminada con pendientes" venía del vencimiento de los
+  // testigos; para Institucional ya no aplican, así que se detecta directamente
+  // por los indicadores aplicables incompletos (Link/Validación/CSM; para
+  // Proveedor incluye además los testigos vía `effectiveChecks`). Se omite cuando
+  // ya hay un testigo vencido (Proveedor) para no duplicar la alerta, y cuando la
+  // clasificación está pendiente (ya la señala `classification-pending`).
+  const applicableComplete =
+    c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
+  if (
+    row.timeframe === 'finished' &&
+    row.classification !== 'unknown' &&
+    !applicableComplete &&
+    row.startStatus !== 'overdue' &&
+    row.completeStatus !== 'overdue'
+  ) {
+    out.push({ kind: 'finished-pending', label: 'Terminada con pendientes' });
   }
   if (row.classification === 'provider' && !c.liverpool) {
     out.push({

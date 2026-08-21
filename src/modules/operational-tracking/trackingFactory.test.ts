@@ -11,6 +11,7 @@ import {
   isCancelled,
   normalizeTracking,
   CANCELLED_CHECK_MESSAGE,
+  INSTITUTIONAL_WITNESS_MESSAGE,
 } from './trackingFactory';
 import type { CampaignOperationalTracking } from './types';
 import { campaignKeyId as ekonKeyId } from '@/modules/campaigns/ekon';
@@ -122,7 +123,7 @@ describe('applyCheckChange — CSM y trazabilidad', () => {
 
 describe('applyCheckChange — relación de testigos', () => {
   it('marcar T Completos marca también T Arranque con el mismo usuario y fecha', () => {
-    const t = institutional();
+    const t = provider();
     const res = applyCheckChange(t, 'witnessComplete', true, actor2, 5000);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -133,7 +134,7 @@ describe('applyCheckChange — relación de testigos', () => {
   });
 
   it('no arrastra fecha si T Arranque ya estaba completado', () => {
-    const t = institutional();
+    const t = provider();
     const started = applyCheckChange(t, 'witnessStart', true, actor, 4000);
     expect(started.ok).toBe(true);
     if (!started.ok) return;
@@ -151,7 +152,7 @@ describe('applyCheckChange — relación de testigos', () => {
   });
 
   it('no permite desmarcar T Arranque mientras T Completos siga marcado', () => {
-    const t = institutional();
+    const t = provider();
     const c = applyCheckChange(t, 'witnessComplete', true, actor, 5000);
     expect(c.ok).toBe(true);
     if (!c.ok) return;
@@ -168,7 +169,7 @@ describe('applyCheckChange — relación de testigos', () => {
   });
 
   it('desmarcar T Completos no desmarca T Arranque automáticamente', () => {
-    const t = institutional();
+    const t = provider();
     const c = applyCheckChange(t, 'witnessComplete', true, actor, 5000);
     expect(c.ok).toBe(true);
     if (!c.ok) return;
@@ -186,9 +187,70 @@ describe('applyCheckChange — relación de testigos', () => {
   });
 });
 
+function provider() {
+  return initialTracking(
+    {
+      campaignId: 'campaign-proveedor',
+      campaignNameKey: 'proveedor',
+      campaignName: 'PROVEEDOR',
+      classification: 'provider',
+      classificationSource: 'import-user',
+      linkValid: false,
+    },
+    actor,
+    1000,
+  );
+}
+
+describe('applyCheckChange — testigos no aplican a institucional', () => {
+  it('rechaza marcar T Arranque en una campaña institucional', () => {
+    const res = applyCheckChange(
+      institutional(),
+      'witnessStart',
+      true,
+      actor,
+      2000,
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.reason).toBe(INSTITUTIONAL_WITNESS_MESSAGE);
+  });
+
+  it('rechaza marcar T Completos en una campaña institucional', () => {
+    const res = applyCheckChange(
+      institutional(),
+      'witnessComplete',
+      true,
+      actor,
+      2000,
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.reason).toBe(INSTITUTIONAL_WITNESS_MESSAGE);
+  });
+
+  it('los demás indicadores siguen siendo editables en institucional', () => {
+    const res = applyCheckChange(
+      institutional(),
+      'csmProgramming',
+      true,
+      actor,
+      2000,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it('un proveedor sí puede marcar los testigos', () => {
+    const res = applyCheckChange(provider(), 'witnessStart', true, actor, 2000);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.tracking.witnessStart.completed).toBe(true);
+  });
+});
+
 describe('markAllComplete', () => {
-  it('marca los cinco indicadores como completados (source manual)', () => {
-    const res = markAllComplete(institutional(), actor2, 8000);
+  it('proveedor marca los cinco indicadores como completados (source manual)', () => {
+    const res = markAllComplete(provider(), actor2, 8000);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const t = res.tracking;
@@ -200,6 +262,20 @@ describe('markAllComplete', () => {
     expect(t.csmProgramming.source).toBe('manual');
     expect(t.csmProgramming.completedByUid).toBe('u2');
     expect(t.updatedAt).toBe(8000);
+  });
+
+  it('institucional sólo marca los indicadores aplicables (no los testigos)', () => {
+    const res = markAllComplete(institutional(), actor2, 8000);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const t = res.tracking;
+    expect(t.linkDownload.completed).toBe(true);
+    expect(t.liverpoolValidation.completed).toBe(true);
+    expect(t.csmProgramming.completed).toBe(true);
+    // Los testigos NO se marcan ni se tocan (conservan su valor previo).
+    expect(t.witnessStart.completed).toBe(false);
+    expect(t.witnessComplete.completed).toBe(false);
+    expect(t.witnessStart.source).toBe('automatic');
   });
 });
 

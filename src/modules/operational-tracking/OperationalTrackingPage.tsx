@@ -708,6 +708,14 @@ export function OperationalTrackingPage() {
                 const isExpanded = expanded.has(r.identity);
                 const isFinished = r.timeframe === 'finished';
                 const cancelled = r.lifecycleStatus === 'cancelled';
+                // Los testigos no aplican a las campañas Institucional; la
+                // clasificación pendiente exige clasificar antes de operarlos
+                // (nunca se asume Proveedor).
+                const institutional = r.classification === 'institutional';
+                const pending = r.classification === 'unknown';
+                const markAllLabel = institutional
+                  ? 'Marcar aplicables'
+                  : 'Marcar todas';
                 const markAllBusy = busy.has(`${r.identity}:markall`);
                 const commentBusy = busy.has(`${r.identity}:comment`);
                 const lifecycleBusy = busy.has(`${r.identity}:lifecycle`);
@@ -777,9 +785,21 @@ export function OperationalTrackingPage() {
                       <td>{formatCivilString(r.campaign.fechaFin)}</td>
                       <td>{r.distinctStores}</td>
                       <td>
-                        {r.target} de {r.distinctStores}
+                        {institutional ? (
+                          <span
+                            className="ot-na"
+                            title="El objetivo de testigos no aplica a campañas institucionales"
+                          >
+                            No aplica
+                          </span>
+                        ) : (
+                          `${r.target} de ${r.distinctStores}`
+                        )}
                       </td>
                       {CHECK_COLUMNS.map((col) => {
+                        const isWitness =
+                          col.key === 'witnessStart' ||
+                          col.key === 'witnessComplete';
                         // Cancelada: no se muestran casillas (ni desmarcadas);
                         // los cinco indicadores quedan como "No aplica".
                         if (cancelled) {
@@ -790,6 +810,34 @@ export function OperationalTrackingPage() {
                                 title={`${col.label}: no aplica mientras la campaña está cancelada`}
                               >
                                 No aplica
+                              </span>
+                            </td>
+                          );
+                        }
+                        // Institucional: los testigos no aplican (dominio + UI);
+                        // no se renderiza casilla editable.
+                        if (isWitness && institutional) {
+                          return (
+                            <td key={col.key} className="ot-check-cell">
+                              <span
+                                className="ot-na"
+                                title={`${col.label}: no aplica a campañas institucionales`}
+                              >
+                                No aplica
+                              </span>
+                            </td>
+                          );
+                        }
+                        // Clasificación pendiente: exige clasificar antes de
+                        // operar los testigos (nunca se asume Proveedor).
+                        if (isWitness && pending) {
+                          return (
+                            <td key={col.key} className="ot-check-cell">
+                              <span
+                                className="ot-na"
+                                title={`${col.label}: clasifica la campaña antes de operar los testigos`}
+                              >
+                                Clasifica primero
                               </span>
                             </td>
                           );
@@ -834,16 +882,22 @@ export function OperationalTrackingPage() {
                         {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
                       </td>
                       <td className="ot-actions-cell">
-                        {/* "Marcar todas" no aparece en campañas canceladas. */}
-                        {isFinished && !cancelled && (
+                        {/* "Marcar todas/aplicables" no aparece en canceladas ni
+                            mientras la clasificación esté pendiente (no se asume
+                            un régimen: primero hay que clasificar). */}
+                        {isFinished && !cancelled && !pending && (
                           <button
                             type="button"
                             className="btn btn-secondary ot-mark-all"
                             disabled={!canWrite || markAllBusy}
                             onClick={() => void markAllForRow(r)}
-                            title="Marcar todos los indicadores de esta campaña terminada"
+                            title={
+                              institutional
+                                ? 'Marcar los indicadores aplicables (los testigos no aplican a campañas institucionales)'
+                                : 'Marcar todos los indicadores de esta campaña terminada'
+                            }
                           >
-                            Marcar todas
+                            {markAllLabel}
                           </button>
                         )}
                         {canWrite &&

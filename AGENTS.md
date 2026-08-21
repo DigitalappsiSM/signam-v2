@@ -64,9 +64,23 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   marcada si Institucional **o** hay link válido; editable), **Programación
   CSM**, **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar
   T Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
-  T Completos siga marcado. En campañas **terminadas** (fecha de fin ya pasada)
-  aparece un botón **"Marcar todas"** por fila que marca los cinco indicadores de
-  golpe. Cada campaña tiene además una **bitácora de comentarios** (`comments[]`,
+  T Completos siga marcado. **Los testigos NO aplican a campañas Institucional**:
+  T Arranque y T Completos se muestran como **"No aplica"** (sin casilla), no
+  generan estados/vencimientos/alertas y su valor efectivo se trata como
+  satisfecho solo para los agregados (`isFullyTracked`); la regla vive en el
+  dominio (`applyCheckChange` **rechaza** esos cambios con `TrackingError` y
+  `markAllComplete` no los toca), no solo en la UI, y **conserva** los valores
+  históricos (reaparecen si vuelve a Proveedor). Los testigos **solo aplican a
+  Proveedor**: con clasificación **pendiente** no se asume ningún régimen (no
+  generan vencimientos ni alertas de testigo), muestran "Clasifica primero" y no
+  ofrecen "Marcar…". Una campaña **terminada** con indicadores **aplicables**
+  incompletos (p. ej. Institucional sin CSM) sigue apareciendo como *terminada
+  con pendientes* en el Dashboard (alerta `finished-pending`), aunque los testigos
+  no apliquen. En campañas **terminadas** (fecha de fin ya pasada) y **ya
+  clasificadas** aparece un botón por fila: **"Marcar todas"** (Proveedor: marca
+  los cinco) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
+  Liverpool y CSM). Cada campaña tiene
+  además una **bitácora de comentarios** (`comments[]`,
   historial con autor y fecha) en un panel expandible; los comentarios se agregan
   al final y no se borran desde el cliente. Clasificación
   **Institucional/Proveedor** obligatoria
