@@ -165,6 +165,35 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveClass('dashboard-health--danger');
   });
 
+  it('incluye terminadas con pendientes (sin testigo vencido) en el widget de Atención inmediata', async () => {
+    // Institucional terminada: los testigos NO aplican (no hay "vencido" ni
+    // "vence hoy"), pero queda con un check aplicable pendiente → alerta
+    // crítica "Terminada con pendientes". La tarjeta de salud la marca en rojo;
+    // el widget de Atención inmediata debe incluirla también (sin contradicción).
+    const INSTIT = campaign({
+      name: 'INSTIT',
+      nameKey: 'instit',
+      tipo: 'INSTITUCIONAL',
+      fechaInicio: '2020-03-01',
+      fechaFin: '2020-03-20',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([INSTIT]);
+    const { container } = renderDash(VIEJA_ROUTE);
+
+    // Salud operativa en rojo por la terminada con pendientes.
+    expect(
+      await screen.findByLabelText(/Estado operativo: Atención inmediata/i),
+    ).toHaveClass('dashboard-health--danger');
+
+    // El widget NO debe quedar vacío ("en calma") y debe enlazar la campaña.
+    const urgent = container.querySelector('.dashboard-urgent');
+    expect(urgent).not.toBeNull();
+    expect(urgent).not.toHaveClass('dashboard-urgent--clear');
+    expect(
+      within(urgent as HTMLElement).getByRole('link', { name: 'INSTIT' }),
+    ).toBeInTheDocument();
+  });
+
   it('muestra alertas críticas con enlace a Seguimiento', async () => {
     renderDash(VIEJA_ROUTE);
     // La campaña vencida aparece como alerta con enlace a Seguimiento.

@@ -37,14 +37,13 @@
   color: var(--color-danger-fg);
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
+/* "Vence hoy" es urgente: se refuerza en ROJO (familia danger) junto con
+   "Vencido", con un tinte ligeramente distinto para que icono + texto sigan
+   diferenciándolo de lo ya vencido. "Por vencer" (días) se mantiene en ámbar. */
 .ot-due-today {
-  background: color-mix(
-    in srgb,
-    var(--color-warning) 20%,
-    var(--color-surface)
-  );
-  color: var(--color-warning-fg);
-  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface));
+  color: var(--color-danger-fg);
+  border-color: color-mix(in srgb, var(--color-danger) 32%, transparent);
 }
 .ot-due-soon {
   background: color-mix(

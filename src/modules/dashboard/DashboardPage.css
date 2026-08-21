@@ -337,6 +337,106 @@
   padding: 1rem 1.05rem;
 }
 
+/* Atención inmediata: lo urgente en ROJO (vencido + vence hoy). Borde superior
+   danger como refuerzo; cuando no hay nada urgente, vira a un estado "en calma"
+   verde para no mantener alarma visual sin motivo. */
+.dashboard-urgent {
+  --urgent-tone: var(--color-danger);
+  padding: 1rem 1.05rem;
+  border-top: 3px solid var(--urgent-tone);
+}
+
+.dashboard-urgent--clear {
+  --urgent-tone: var(--color-success);
+}
+
+.dashboard-urgent__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-urgent__head h2 {
+  margin: 0.12rem 0 0;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.dashboard-urgent__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface));
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-urgent--clear .dashboard-urgent__count {
+  color: var(--color-success-fg);
+  background: color-mix(
+    in srgb,
+    var(--color-success) 16%,
+    var(--color-surface)
+  );
+}
+
+.dashboard-urgent__empty {
+  margin: 0.75rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.dashboard-urgent__list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-urgent__item {
+  display: grid;
+  gap: 0.1rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid
+    color-mix(in srgb, var(--color-danger) 55%, transparent);
+}
+
+.dashboard-urgent__item a {
+  color: var(--color-text);
+  font-size: 0.83rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.dashboard-urgent__item a:hover {
+  color: var(--color-danger-fg);
+  text-decoration: underline;
+}
+
+.dashboard-urgent__reason {
+  color: var(--color-danger-fg);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.dashboard-urgent__more {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .dashboard-classification [role='img'] {
   margin: -0.35rem 0 -0.25rem;
 }
