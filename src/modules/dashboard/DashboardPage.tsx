@@ -372,6 +372,26 @@ export function DashboardPage() {
       overdueOrFinishedPending.push(r);
     }
 
+    // Atención inmediata: lo verdaderamente urgente (ROJO) = vencido + vence
+    // HOY. "Por vencer" (días) queda fuera; sigue en "Próximos vencimientos".
+    // Ordenado por severidad y luego por el vencimiento más próximo.
+    const immediateAttention = applicable
+      .filter(
+        (r) =>
+          r.startStatus === 'overdue' ||
+          r.completeStatus === 'overdue' ||
+          r.startStatus === 'due-today' ||
+          r.completeStatus === 'due-today',
+      )
+      .sort((a, b) => {
+        const s = rowSeverity(a) - rowSeverity(b);
+        if (s !== 0) return s;
+        return (
+          (a.nextDeadline?.getTime() ?? Infinity) -
+          (b.nextDeadline?.getTime() ?? Infinity)
+        );
+      });
+
     return {
       active,
       withAlerts,
@@ -383,6 +403,7 @@ export function DashboardPage() {
       upcomingStarts,
       finishedPending,
       overdueOrFinishedPending,
+      immediateAttention,
     };
   }, [filteredRows, today]);
 
@@ -653,6 +674,59 @@ export function DashboardPage() {
                   {operationalHealth.score}%
                 </progress>
                 <p>{operationalHealth.detail}</p>
+              </section>
+
+              <section
+                className={`dashboard-panel dashboard-urgent${
+                  view.immediateAttention.length === 0
+                    ? ' dashboard-urgent--clear'
+                    : ''
+                }`}
+                aria-labelledby="dashboard-urgent-title"
+              >
+                <div className="dashboard-urgent__head">
+                  <div>
+                    <span className="dashboard-eyebrow">Prioridad</span>
+                    <h2 id="dashboard-urgent-title">Atención inmediata</h2>
+                  </div>
+                  <span
+                    className="dashboard-urgent__count"
+                    aria-hidden={view.immediateAttention.length === 0}
+                  >
+                    {view.immediateAttention.length}
+                  </span>
+                </div>
+                {view.immediateAttention.length === 0 ? (
+                  <p className="dashboard-urgent__empty">
+                    Nada vencido ni que venza hoy.
+                  </p>
+                ) : (
+                  <>
+                    <ul className="dashboard-urgent__list">
+                      {view.immediateAttention.slice(0, 5).map((r) => (
+                        <li
+                          key={r.campaign.id}
+                          className="dashboard-urgent__item"
+                        >
+                          <Link to={trackingLink(r)}>{r.campaign.name}</Link>
+                          <span className="dashboard-urgent__reason">
+                            {STATUS_META[r.overall].label} ·{' '}
+                            {isoDay(r.nextDeadline)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {view.immediateAttention.length > 5 && (
+                      <Link
+                        className="dashboard-urgent__more"
+                        to="/seguimiento"
+                      >
+                        Ver {view.immediateAttention.length - 5} más en
+                        Seguimiento
+                      </Link>
+                    )}
+                  </>
+                )}
               </section>
 
               <section
