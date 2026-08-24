@@ -968,8 +968,12 @@
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   z-index: 50;
+  opacity: 1;
+  transition: opacity var(--dur-3) var(--ease-out);
 }
 
+/* Panel-cortina: entra deslizándose desde su propio borde derecho, explicando
+   de dónde viene. Se anima al montarse con la curva de cortina. */
 .occ-detail {
   position: fixed;
   top: 0;
@@ -984,6 +988,24 @@
   box-shadow: var(--shadow-md);
   padding: 1.25rem;
   overflow-y: auto;
+  transform: translateX(0);
+  transition: transform var(--dur-3) var(--ease-drawer);
+}
+
+@starting-style {
+  .occ-detail__backdrop {
+    opacity: 0;
+  }
+  .occ-detail {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .occ-detail {
+    transform: none;
+    transition: none;
+  }
 }
 
 .occ-detail__head {
