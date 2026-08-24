@@ -644,33 +644,100 @@ export function DashboardPage() {
           )}
 
           <div className="dashboard-overview">
-            <section
-              className="dashboard-panel dashboard-panel--chart"
-              aria-labelledby="dashboard-load-title"
-            >
-              <div className="dashboard-panel__head">
-                <div>
-                  <span className="dashboard-eyebrow">Liverpool</span>
-                  <h2 id="dashboard-load-title">Carga diaria</h2>
-                  <p>Campañas simultáneas · {rangeLabel(range)}</p>
+            <div className="dashboard-main">
+              <section
+                className="dashboard-panel dashboard-panel--chart"
+                aria-labelledby="dashboard-load-title"
+              >
+                <div className="dashboard-panel__head">
+                  <div>
+                    <span className="dashboard-eyebrow">Liverpool</span>
+                    <h2 id="dashboard-load-title">Carga diaria</h2>
+                    <p>Campañas simultáneas · {rangeLabel(range)}</p>
+                  </div>
+                  <span className="dashboard-stat-pill">
+                    Pico {occupancy.totals.peakConcurrentCampaigns}
+                  </span>
                 </div>
-                <span className="dashboard-stat-pill">
-                  Pico {occupancy.totals.peakConcurrentCampaigns}
-                </span>
-              </div>
 
-              {campaigns.length === 0 ? (
-                <div className="dashboard-chart-empty">
-                  Importa el calendario para visualizar la carga diaria.
+                {campaigns.length === 0 ? (
+                  <div className="dashboard-chart-empty">
+                    Importa el calendario para visualizar la carga diaria.
+                  </div>
+                ) : occupancy.totals.distinctCampaigns === 0 ? (
+                  <div className="dashboard-chart-empty">
+                    Sin campañas en el periodo o filtros seleccionados.
+                  </div>
+                ) : (
+                  <DailyLoadChart series={occupancy.series} theme={theme} />
+                )}
+              </section>
+
+              <section
+                id="dashboard-attention"
+                className="dashboard-section dashboard-attention"
+                aria-labelledby="dashboard-attention-title"
+              >
+                <div className="dashboard-section__head">
+                  <div>
+                    <span className="dashboard-eyebrow">Prioridades</span>
+                    <h2 id="dashboard-attention-title">Atención operativa</h2>
+                  </div>
+                  <Link className="dashboard-section__link" to="/seguimiento">
+                    Ver seguimiento completo
+                  </Link>
                 </div>
-              ) : occupancy.totals.distinctCampaigns === 0 ? (
-                <div className="dashboard-chart-empty">
-                  Sin campañas en el periodo o filtros seleccionados.
+                <div className="dash-grid">
+                  <AlertList
+                    title="Alertas críticas"
+                    empty="Sin alertas críticas."
+                    tone="danger"
+                    items={view.alerts.map((a) => ({
+                      row: a.row,
+                      text: a.alerts.map((x) => x.label).join(' · '),
+                    }))}
+                  />
+                  <AlertList
+                    title="Próximos vencimientos"
+                    empty="Nada por vencer pronto."
+                    tone="warning"
+                    items={view.upcomingDue.map((r) => ({
+                      row: r,
+                      text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
+                    }))}
+                  />
+                  <AlertList
+                    title="Próximos inicios (7 días)"
+                    empty="Sin inicios próximos."
+                    tone="info"
+                    items={view.upcomingStarts.map((r) => {
+                      const c = effectiveChecks(r);
+                      const pend: string[] = [];
+                      if (r.linkStatus !== 'valid') pend.push('link');
+                      if (!c.liverpool) pend.push('validación');
+                      if (!c.csm) pend.push('CSM');
+                      return {
+                        row: r,
+                        text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
+                          pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
+                        }`,
+                      };
+                    })}
+                  />
+                  <AlertList
+                    title="Terminadas con pendientes"
+                    empty="Ninguna terminada con obligaciones pendientes."
+                    tone="danger"
+                    items={view.finishedPending.map((r) => ({
+                      row: r,
+                      text: criticalAlerts(r)
+                        .map((x) => x.label)
+                        .join(' · '),
+                    }))}
+                  />
                 </div>
-              ) : (
-                <DailyLoadChart series={occupancy.series} theme={theme} />
-              )}
-            </section>
+              </section>
+            </div>
 
             <aside className="dashboard-rail" aria-label="Estado y acciones">
               <section
@@ -801,71 +868,6 @@ export function DashboardPage() {
               </section>
             </aside>
           </div>
-
-          <section
-            id="dashboard-attention"
-            className="dashboard-section"
-            aria-labelledby="dashboard-attention-title"
-          >
-            <div className="dashboard-section__head">
-              <div>
-                <span className="dashboard-eyebrow">Prioridades</span>
-                <h2 id="dashboard-attention-title">Atención operativa</h2>
-              </div>
-              <Link className="dashboard-section__link" to="/seguimiento">
-                Ver seguimiento completo
-              </Link>
-            </div>
-            <div className="dash-grid">
-              <AlertList
-                title="Alertas críticas"
-                empty="Sin alertas críticas."
-                tone="danger"
-                items={view.alerts.map((a) => ({
-                  row: a.row,
-                  text: a.alerts.map((x) => x.label).join(' · '),
-                }))}
-              />
-              <AlertList
-                title="Próximos vencimientos"
-                empty="Nada por vencer pronto."
-                tone="warning"
-                items={view.upcomingDue.map((r) => ({
-                  row: r,
-                  text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
-                }))}
-              />
-              <AlertList
-                title="Próximos inicios (7 días)"
-                empty="Sin inicios próximos."
-                tone="info"
-                items={view.upcomingStarts.map((r) => {
-                  const c = effectiveChecks(r);
-                  const pend: string[] = [];
-                  if (r.linkStatus !== 'valid') pend.push('link');
-                  if (!c.liverpool) pend.push('validación');
-                  if (!c.csm) pend.push('CSM');
-                  return {
-                    row: r,
-                    text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
-                      pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
-                    }`,
-                  };
-                })}
-              />
-              <AlertList
-                title="Terminadas con pendientes"
-                empty="Ninguna terminada con obligaciones pendientes."
-                tone="danger"
-                items={view.finishedPending.map((r) => ({
-                  row: r,
-                  text: criticalAlerts(r)
-                    .map((x) => x.label)
-                    .join(' · '),
-                }))}
-              />
-            </div>
-          </section>
 
           <section
             id="dashboard-load"

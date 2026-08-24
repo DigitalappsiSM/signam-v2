@@ -243,6 +243,12 @@ con pendientes, **azul** = dato informativo y **gris** = neutral/no aplicable.
 Liverpool y la operación Digital multirretailer se muestran en secciones
 separadas y nunca combinan sus métricas.
 
+En escritorio, **Carga diaria** y **Atención operativa** comparten una columna
+principal independiente del rail de estado, urgencias, clasificación y atajos;
+así el contenido operativo continúa inmediatamente debajo de la gráfica sin
+depender de la altura del rail. En tablet el rail se organiza en dos columnas y
+en móvil todos los paneles se apilan.
+
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.
 - **Complementarias:** campañas distintas, **días-campaña**, tiendas/soportes

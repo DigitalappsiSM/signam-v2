@@ -165,12 +165,25 @@
   line-height: 1.25;
 }
 
-/* --- Vista principal: gráfica + rail lateral ---------------------------- */
+/* --- Vista principal: columna operativa + rail lateral ------------------ */
 .dashboard-overview {
   display: grid;
   grid-template-columns: minmax(0, 2.2fr) minmax(270px, 0.8fr);
   gap: 1rem;
   align-items: start;
+}
+
+.dashboard-main {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* Atención vive en la columna principal para que el rail no deje un hueco
+   bajo la gráfica. Mantiene los mismos tokens en tema claro y oscuro. */
+.dashboard-main > .dashboard-section {
+  margin-top: 0;
 }
 
 .dashboard-panel {
@@ -1211,10 +1224,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-actions {
-    grid-column: 1 / -1;
-  }
-
   .dashboard-actions__list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1229,10 +1238,6 @@
 
   .dash-tile {
     min-height: 126px;
-  }
-
-  .dashboard-actions {
-    grid-column: auto;
   }
 
   .dashboard-section__head {
