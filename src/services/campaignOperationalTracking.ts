@@ -414,76 +414,99 @@ export interface ImportClassificationSelection {
   confirmedReclassify: boolean;
 }
 
+export interface TrackingInitializationFailure {
+  campaignId: string;
+  campaignName: string;
+  message: string;
+}
+
+export interface TrackingInitializationResult {
+  created: number;
+  reclassified: number;
+  failures: TrackingInitializationFailure[];
+}
+
 /**
  * Inicializa el seguimiento durante la importación confirmada:
  * - crea el documento para campañas sin seguimiento (source `import-user`);
  * - actualiza la clasificación de una campaña existente **solo** si el usuario
  *   confirmó el cambio (nunca toca sus checks);
  * - nunca sobrescribe checks manuales ni borra seguimientos.
- * Devuelve cuántos se crearon y cuántos se reclasificaron.
+ * Cada campaña se procesa de forma independiente e idempotente. Un fallo no
+ * impide intentar las demás y se devuelve con identidad suficiente para que la
+ * UI pueda mostrar la inconsistencia exacta.
  */
 export async function initializeTrackingForImport(
   selections: readonly ImportClassificationSelection[],
   actor: TrackingActor,
-): Promise<{ created: number; reclassified: number }> {
+): Promise<TrackingInitializationResult> {
   const database = db();
   let created = 0;
   let reclassified = 0;
+  const failures: TrackingInitializationFailure[] = [];
 
   for (const sel of selections) {
     const documentId = trackingDocumentId(sel);
     const ref = doc(database, COLLECTION, documentId);
-    // Una transacción por campaña (verifica existencia sin sobrescribir).
-    const outcome = await runTransaction(database, async (tx) => {
-      const snap = await tx.get(ref);
-      const now = Date.now();
-      if (!snap.exists()) {
-        const tracking = initialTracking(
-          {
-            campaignId: sel.campaignId,
-            campaignNameKey: sel.campaignNameKey,
-            campaignName: sel.campaignName,
-            classification: sel.classification,
-            classificationSource: 'import-user',
-            linkValid: sel.linkValid,
-          },
-          actor,
-          now,
-        );
-        const { id: _id, ...data } = tracking;
-        void _id;
-        tx.set(ref, data);
-        return 'created' as const;
-      }
-      // Normaliza el ciclo de vida (legacy → active) sin cambiarlo: la
-      // importación nunca altera `lifecycleStatus` ni el motivo de cancelación.
-      const base: CampaignOperationalTracking = normalizeTracking({
-        id: documentId,
-        ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
+    try {
+      // Una transacción por campaña (verifica existencia sin sobrescribir).
+      const outcome = await runTransaction(database, async (tx) => {
+        const snap = await tx.get(ref);
+        const now = Date.now();
+        if (!snap.exists()) {
+          const tracking = initialTracking(
+            {
+              campaignId: sel.campaignId,
+              campaignNameKey: sel.campaignNameKey,
+              campaignName: sel.campaignName,
+              classification: sel.classification,
+              classificationSource: 'import-user',
+              linkValid: sel.linkValid,
+            },
+            actor,
+            now,
+          );
+          const { id: _id, ...data } = tracking;
+          void _id;
+          tx.set(ref, data);
+          return 'created' as const;
+        }
+        // Normaliza el ciclo de vida (legacy → active) sin cambiarlo: la
+        // importación nunca altera `lifecycleStatus` ni la cancelación.
+        const base: CampaignOperationalTracking = normalizeTracking({
+          id: documentId,
+          ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
+        });
+        if (
+          sel.confirmedReclassify &&
+          base.classification !== sel.classification
+        ) {
+          const tracking = setClassification(
+            base,
+            sel.classification,
+            'import-user',
+            actor,
+            now,
+          );
+          const { id: _id, ...data } = tracking;
+          void _id;
+          tx.set(ref, data);
+          return 'reclassified' as const;
+        }
+        return 'skipped' as const;
       });
-      if (
-        sel.confirmedReclassify &&
-        base.classification !== sel.classification
-      ) {
-        const tracking = setClassification(
-          base,
-          sel.classification,
-          'import-user',
-          actor,
-          now,
-        );
-        const { id: _id, ...data } = tracking;
-        void _id;
-        tx.set(ref, data);
-        return 'reclassified' as const;
-      }
-      return 'skipped' as const;
-    });
-    if (outcome === 'created') created += 1;
-    else if (outcome === 'reclassified') reclassified += 1;
+      if (outcome === 'created') created += 1;
+      else if (outcome === 'reclassified') reclassified += 1;
+    } catch (error) {
+      failures.push({
+        campaignId: sel.campaignId,
+        campaignName: sel.campaignName,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
-  return { created, reclassified };
+  return { created, reclassified, failures };
 }
 
 /**
