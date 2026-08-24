@@ -47,12 +47,14 @@ npm install
 2. Nombre: **`signam-v2-prod`** (es el proyecto `default` en `.firebaserc`).
 3. Google Analytics es opcional; puedes desactivarlo.
 
-## Fase 2 — Activar los servicios (plan Spark, gratis)
+## Fase 2 — Activar los servicios
 
-Se trabaja en el **plan Spark (gratuito, sin tarjeta)**. En esta etapa **no se
-habilita Cloud Storage**: Storage (y Cloud Functions) requieren el plan Blaze, y
-la app todavía no usa Storage. Se activarán cuando se implemente la carga de los
-archivos Excel originales.
+Auth y Firestore funcionan en el **plan Spark (gratuito, sin tarjeta)**. La
+**Importación Digital** (La Comer / Chedraui) es el único flujo que **sí usa
+Cloud Storage**: guarda el `.xlsx` original en `digital-imports/` antes de
+escribir cualquier fila operativa, así que **si Storage no está habilitado la
+importación se cuelga y falla** con `storage/retry-limit-exceeded`. Storage
+requiere el **plan Blaze**; habilítalo antes de usar la Importación Digital.
 
 Dentro del proyecto:
 
@@ -60,7 +62,12 @@ Dentro del proyecto:
    **Correo electrónico/contraseña**.
 2. **Firestore Database** → _Crear base de datos_ → modo **producción** →
    elige región (p. ej. `nam5` / `us-central1`).
-3. **Storage** → _omitir por ahora_ (requiere Blaze; no es necesario aún).
+3. **Storage** → _Comenzar_ (pasa el proyecto a **Blaze** si aún está en Spark).
+   Anota el **nombre exacto del bucket** que muestra la consola: será
+   `signam-v2-prod.appspot.com` o `signam-v2-prod.firebasestorage.app` según
+   cuándo se creó el proyecto. Ese valor va tal cual en
+   `VITE_FIREBASE_STORAGE_BUCKET` (Fase 4). Si solo usas Auth + Firestore (sin
+   Importación Digital) puedes omitir este paso por ahora.
 
 ## Fase 3 — Registrar la app web y obtener `firebaseConfig`
 
@@ -80,6 +87,9 @@ Completa `.env` con los valores de `firebaseConfig`:
 VITE_FIREBASE_API_KEY=AIza...
 VITE_FIREBASE_AUTH_DOMAIN=signam-v2-prod.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=signam-v2-prod
+# Copia el bucket EXACTO de la consola (Build → Storage). Según el proyecto
+# será `.appspot.com` o `.firebasestorage.app`; si no coincide, la Importación
+# Digital falla con `storage/retry-limit-exceeded`.
 VITE_FIREBASE_STORAGE_BUCKET=signam-v2-prod.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
 VITE_FIREBASE_APP_ID=1:123456789:web:abc...
@@ -103,14 +113,34 @@ debe desaparecer cuando las variables son válidas.
 ```bash
 firebase login
 firebase use prod    # apunta a signam-v2-prod (también es el default)
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-Esto publica `firestore.rules` y `firestore.indexes.json`.
+Esto publica `firestore.rules`, `firestore.indexes.json` y `storage.rules`
+(la ruta `digital-imports/` que necesita la Importación Digital).
 
-> En el plan Spark **no se despliega `storage`** (Storage no está habilitado).
-> Cuando se pase a Blaze y se active Storage, añade `,storage` al comando para
-> publicar también `storage.rules`.
+> Solo si **no** habilitaste Storage (usas únicamente Auth + Firestore, sin
+> Importación Digital) omite `,storage`: desplegar `storage.rules` sin Storage
+> habilitado falla. En cuanto habilites Storage (Fase 2), vuelve a correr el
+> comando **con** `,storage` para publicar las reglas de `digital-imports/`.
+
+## Fase 6b — Verificar la Importación Digital (Storage)
+
+Si al confirmar una Importación Digital ves
+`storage/retry-limit-exceeded` («Firebase Storage no respondió dentro del
+tiempo de reintento»), la subida del archivo original no está llegando a un
+bucket válido. Revisa, en orden:
+
+1. **Storage habilitado**: consola → _Build → Storage → Comenzar_ (requiere
+   Blaze). Sin esto no existe bucket y la subida se cuelga.
+2. **Bucket correcto**: `VITE_FIREBASE_STORAGE_BUCKET` en tu `.env` debe ser
+   **idéntico** al que muestra la consola de Storage (`.appspot.com` **o**
+   `.firebasestorage.app`). Tras cambiar `.env` reinicia `npm run dev` /
+   reconstruye el _deploy_ de Hosting: Vite congela las `VITE_*` en el _build_.
+3. **Reglas publicadas**: `firebase deploy --only storage` con la ruta
+   `digital-imports/` de `storage.rules`.
+4. **Rol suficiente**: tu usuario debe tener rol `admin` u `operator`
+   (custom claim), o Storage responderá `storage/unauthorized`.
 
 ## Fase 7 (opcional) — Emulator Suite (desarrollo sin datos reales)
 
