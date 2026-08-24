@@ -163,17 +163,19 @@ El libro tiene hasta tres hojas:
 
 - **`Desglose`**: una fila por **combinación única** de identidad de campaña +
   número Ekon + configuración de pantalla. Columnas, en orden: _Número de campaña
-  en Ekon, Nombre de campaña, Fecha de inicio, Fecha de fin, Número de tienda,
-  Nombre de tienda, Soporte Liverpool, Tipo de pantalla, Modelo, Circuito,
-  Resolución, Formato, Nombre en plataforma_. **No** se cuentan pantallas: si
-  varias pantallas físicas comparten esos campos, colapsan en **una sola fila**;
-  un cambio de tienda, soporte, tipo, modelo, circuito, resolución, formato o
-  nombre en plataforma produce **otra fila**. El número Ekon se repite en cada
-  fila; si la campaña no lo tiene, la celda queda **vacía** (no se inventa cero).
+  en Ekon, Nombre de campaña, Tipo de campaña, Fecha de inicio, Fecha de fin,
+  Número de tienda, Nombre de tienda, Soporte Liverpool, Tipo de pantalla,
+  Modelo, Circuito, Resolución, Formato, Nombre en plataforma_. **No** se cuentan
+  pantallas: si varias pantallas físicas comparten esos campos, colapsan en **una
+  sola fila**; un cambio de tienda, soporte, tipo, modelo, circuito, resolución,
+  formato o nombre en plataforma produce **otra fila**. El número Ekon se repite
+  en cada fila; si la campaña no lo tiene, la celda queda **vacía** (no se inventa
+  cero). El tipo de campaña conserva el valor guardado en SIGNAM (por ejemplo,
+  `Institucional` o `Proveedor`) y queda vacío si el campo no tiene valor.
 - **`Incidencias`** (solo si las hay): cruces fallidos y soportes/pantallas
-  excluidos (InStore Media / ISM), con Ekon, campaña, fechas, soporte, tienda,
-  código y mensaje.
-- **`Resumen`** (opcional): una fila por campaña con el número de
+  excluidos (InStore Media / ISM), con Ekon, campaña, tipo, fechas, soporte,
+  tienda, código y mensaje.
+- **`Resumen`** (opcional): una fila por campaña con su tipo y el número de
   **configuraciones únicas** y **tiendas distintas** (sin contar pantallas).
 
 El cruce reutiliza `buildScreenIndex` / `matchCampaignScreens` de la consolidación

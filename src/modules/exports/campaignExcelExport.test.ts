@@ -13,6 +13,7 @@ function row(over: Partial<CampaignReportRow>): CampaignReportRow {
   return {
     ekonNumber: over.ekonNumber ?? null,
     campaignName: over.campaignName ?? 'Camp',
+    campaignType: over.campaignType ?? 'Proveedor',
     startDate: over.startDate ?? '2026-05-01',
     endDate: over.endDate ?? '2026-05-31',
     storeNumber: over.storeNumber ?? '10',
@@ -62,6 +63,20 @@ describe('buildCampaignReportWorkbook', () => {
     expect(sheet.getCell('A2').value).toBe(4242);
   });
 
+  it('coloca el tipo de campaña después del nombre', async () => {
+    const report: CampaignReport = {
+      rows: [row({ campaignType: 'Institucional' })],
+      issues: [],
+    };
+    const wb = await reload(report);
+    const sheet = wb.getWorksheet('Desglose')!;
+    expect(sheet.getCell('C1').value).toBe('Tipo de campaña');
+    expect(sheet.getCell('C2').value).toBe('Institucional');
+    const summary = wb.getWorksheet('Resumen')!;
+    expect(summary.getCell('C1').value).toBe('Tipo de campaña');
+    expect(summary.getCell('C2').value).toBe('Institucional');
+  });
+
   it('deja la celda de Ekon vacía cuando no hay número', async () => {
     const report: CampaignReport = {
       rows: [row({ ekonNumber: null })],
@@ -90,7 +105,7 @@ describe('buildCampaignReportWorkbook', () => {
     };
     const wb = await reload(report);
     const sheet = wb.getWorksheet('Desglose')!;
-    const cell = sheet.getCell('E2');
+    const cell = sheet.getCell('F2');
     expect(cell.value).toBe('78');
     expect(typeof cell.value).toBe('string');
   });
@@ -112,8 +127,8 @@ describe('buildCampaignReportWorkbook', () => {
     };
     const wb = await reload(report);
     const sheet = wb.getWorksheet('Desglose')!;
-    const start = sheet.getCell('C2');
-    const end = sheet.getCell('D2');
+    const start = sheet.getCell('D2');
+    const end = sheet.getCell('E2');
     // Fecha real (Date), no texto, para que Excel ordene y filtre por fecha.
     expect(start.value).toBeInstanceOf(Date);
     expect(end.value).toBeInstanceOf(Date);
@@ -134,10 +149,10 @@ describe('buildCampaignReportWorkbook', () => {
     };
     const wb = await reload(report);
     const sheet = wb.getWorksheet('Desglose')!;
-    expect((sheet.getCell('C2').value as Date).toISOString()).toBe(
+    expect((sheet.getCell('D2').value as Date).toISOString()).toBe(
       '2026-05-01T00:00:00.000Z',
     );
-    expect((sheet.getCell('D2').value as Date).toISOString()).toBe(
+    expect((sheet.getCell('E2').value as Date).toISOString()).toBe(
       '2026-05-31T00:00:00.000Z',
     );
   });
@@ -150,9 +165,9 @@ describe('buildCampaignReportWorkbook', () => {
     const wb = await reload(report);
     const sheet = wb.getWorksheet('Desglose')!;
     // No parseable: se reporta el texto original, no se corrige en silencio.
-    expect(sheet.getCell('C2').value).toBe('por confirmar');
+    expect(sheet.getCell('D2').value).toBe('por confirmar');
     // Vacía: celda en blanco.
-    const end = sheet.getCell('D2').value;
+    const end = sheet.getCell('E2').value;
     expect(end == null || end === '').toBe(true);
   });
 
@@ -167,6 +182,7 @@ describe('buildCampaignReportWorkbook', () => {
         {
           ekonNumber: null,
           campaignName: 'Camp',
+          campaignType: 'Proveedor',
           startDate: '2026-05-01',
           endDate: '2026-05-31',
           support: 'SOP',
@@ -177,7 +193,10 @@ describe('buildCampaignReportWorkbook', () => {
       ],
     };
     const withSheet = await reload(withIssues);
-    expect(withSheet.getWorksheet('Incidencias')).toBeDefined();
+    const issues = withSheet.getWorksheet('Incidencias')!;
+    expect(issues).toBeDefined();
+    expect(issues.getCell('C1').value).toBe('Tipo de campaña');
+    expect(issues.getCell('C2').value).toBe('Proveedor');
   });
 });
 
