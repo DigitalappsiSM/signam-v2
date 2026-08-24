@@ -9,7 +9,10 @@ SIGNAM V2 is a browser-based web app that operates the screen-programming flow b
 maintain an editable catalog of Admira screens, cross campaigns against active screens,
 **consolidate by resolution**, and generate the **Admira programming CSVs**. It also covers
 operational tracking, low-occupancy alerts, a load dashboard, and per-campaign PPTX evidence
-export. All business logic runs client-side; Firebase provides Auth/Firestore/Storage/Functions/Hosting.
+export. Two integrations live in **separate collections** that never touch the Liverpool↔Admira
+flow: **Ekon** (ERP import + Ekon↔Liverpool reconciliation) and the **multiretailer Digital
+operation** (La Comer / Chedraui `COPETE DIGITAL`, tracked without Admira/CSV/witnesses). All
+business logic runs client-side; Firebase provides Auth/Firestore/Storage/Functions/Hosting.
 
 Note: the repository (README, code comments, UI copy, domain terms) is written in **Spanish**.
 Match the existing language when writing comments, UI strings, and commit messages.
@@ -62,16 +65,26 @@ Layered so that domain rules stay framework-free and independently testable:
   `consolidation/consolidate.ts`, `liverpool-import/campaignParse.ts`, `operational-tracking/businessDays.ts`)
   so it is unit-testable without rendering. Modules: `dashboard`, `liverpool-import`, `admira-catalog`,
   `ekon-import`, `campaigns`, `consolidation`, `reconciliation`, `low-occupancy`, `operational-tracking`,
-  `exports`, `audit`, `auth`, `users`.
+  `exports`, `audit`, `auth`, `users`, plus the Digital multiretailer trio `digital-import`
+  (catorcena EKON import), `digital-operations` (external tracking + retailer/support catalog) and
+  `digital-dashboard` (its isolated metrics panel).
 - **`src/domain/ekon/`** — Pure Ekon integration domain (parser, normalization, periods, stable identity,
   diff/states, campaign-type Ratio classification, circuit↔support mapping, reconciliation, CSV fallback).
   Imported via `@/domain/ekon` (kept out of the main `@/domain` barrel to avoid name clashes). See the
   **Integración Ekon** section of `AGENTS.md` before changing it.
+- **`src/domain/digital-operations/`** — Pure Digital multiretailer domain (parser, normalization, stable
+  identity, diff/states, periods/catorcenas, retailer/support catalog, conflicts, three-check tracking,
+  dashboard aggregates). Imported via `@/domain/digital-operations`. See the **Operación Digital
+  multirretailer** section of `AGENTS.md` before changing it.
 - **`src/services/`** — External adapters (Firebase, environment). `firebase.ts` initializes lazily and only
   if `VITE_FIREBASE_*` env vars are present; without config the app boots in **degraded mode** (UI works, panel
   reports missing config — never invent credentials). One service file per Firestore collection
   (`campaigns.ts`, `screens.ts`, `campaignEkonLinks.ts`, `campaignOperationalTracking.ts`,
-  `ekonImports.ts`, `ekonAssignments.ts`, `ekonRevisions.ts`, etc.).
+  `dateResolutions.ts`, `ekonImports.ts`, `ekonAssignments.ts`, `ekonRevisions.ts`, and the isolated
+  `digital*.ts` set — `digitalCatalog.ts`, `digitalImportBatches.ts`, `digitalImportResolutions.ts`,
+  `digitalPlacementRows.ts`, `digitalRevisions.ts`, `digitalOperationalItems.ts`,
+  `digitalOperationalTracking.ts`, `digitalReportExports.ts`; the last uses Cloud Storage under
+  `digital-imports/`).
 - **`src/app/`** — App composition: routing (`App.tsx`), route/nav metadata (`routes.ts`), UI permission
   matrix (`permissions.ts`), theme (`theme.ts`), and `providers/AuthProvider.tsx`.
 - **`functions/src/`** — Cloud Functions grouped by concern (`imports`, `consolidation`, `exports`, `users`,
@@ -108,9 +121,17 @@ logic. The load-bearing ones:
   (they still appear in the PPTX evidence and dashboard demand views).
 - **SIGNAM metadata** (`active`, `createdAt`, `version`, …) is stored **separately** from original master fields
   and is never exported inside the master.
-- **Campaign ↔ Ekon** and **operational tracking** are separate collections keyed by a `campaignKeyId` derived
-  deterministically from `nameKey` (not the random `campaigns` doc id). Calendar import never touches them, and
+- **Campaign ↔ Ekon** (`campaignEkonLinks/{campaignId}`, many-to-one) and **operational tracking**
+  (`campaignOperationalTracking/{campaignId}`) are separate collections keyed by the persistent
+  `campaign.id` (the `campaigns` doc id), so two homonymous flights track independently. Legacy docs keyed by
+  `nameKey`/`campaignIdentity` are copied idempotently to the canonical `campaignId`; `campaignIdentity` is a
+  comparison fingerprint only, never a persistent key. Calendar import never touches these collections, and
   they never modify the imported campaign.
+- **Ekon integration and Digital multiretailer operation** live in their own isolated collection sets
+  (`ekon*` / `digital*`) that **never** write to `campaigns`, `screens`, `campaignEkonLinks`, consolidations,
+  CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
+  touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
+  multirretailer**) before changing either.
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete
