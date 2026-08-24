@@ -172,6 +172,26 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  /* Escala desde el disparador (el `transform-origin` lo fija el componente
+     según abra hacia arriba o hacia abajo). La clase `--in` se aplica una vez
+     calculada la posición, para que la transición dispare al hacerse visible. */
+  opacity: 0;
+  transform: scale(0.97);
+  transition:
+    opacity var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+
+.csv-menu__panel--in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csv-menu__panel,
+  .csv-menu__panel--in {
+    transform: none;
+  }
 }
 
 .csv-menu__item {
@@ -395,8 +415,12 @@
   background: rgba(15, 27, 45, 0.45);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
+  opacity: 1;
+  transition: opacity var(--dur-3) var(--ease-out);
 }
 
+/* El modal aparece al montarse: fundido + micro-escala desde 0.97 (nunca desde
+   0). El origen es el centro porque no está anclado a ningún disparador. */
 .modal__card {
   position: relative;
   z-index: 1;
@@ -409,6 +433,30 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow-md);
   padding: 1.5rem;
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+}
+
+@starting-style {
+  .modal__backdrop {
+    opacity: 0;
+  }
+  .modal__card {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Movimiento reducido: se conserva el fundido, se elimina el desplazamiento. */
+@media (prefers-reduced-motion: reduce) {
+  .modal__card {
+    transform: none;
+    transition: opacity var(--dur-2) ease;
+  }
 }
 
 .modal__title {

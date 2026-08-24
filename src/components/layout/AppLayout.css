@@ -278,7 +278,7 @@
     border-color 0.15s ease,
     background 0.15s ease,
     color 0.15s ease,
-    transform 0.12s ease;
+    transform var(--dur-1) var(--ease-out);
 }
 
 .topbar__icon-btn:hover {
@@ -288,7 +288,7 @@
 }
 
 .topbar__icon-btn:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
 /* Chip de usuario con avatar + rol. */
@@ -387,7 +387,7 @@
     left: 0;
     height: 100vh;
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    transition: transform var(--dur-3) var(--ease-drawer);
     z-index: 40;
   }
 

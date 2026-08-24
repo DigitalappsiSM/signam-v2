@@ -126,6 +126,18 @@
     Helvetica, Arial, sans-serif;
   /* Display/marca: grotesca geométrica premium para encabezados y cifras. */
   --font-display: 'Space Grotesk Variable', 'Space Grotesk', var(--font-sans);
+
+  /* ── Movimiento ──────────────────────────────────────────────────────────
+     Curvas y duraciones como tokens compartidos (antes tecleadas a mano). Las
+     curvas nativas (`ease`) son débiles para UI; estas tienen más "punch":
+     arrancan rápido y asientan suave. Duraciones siempre por debajo de 300ms.
+     Para color/hover basta el `ease` nativo; estos tokens son para entradas,
+     salidas y movimiento en pantalla. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* entradas/salidas */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* cortina tipo iOS */
+  --dur-1: 120ms; /* feedback de pulsación */
+  --dur-2: 160ms; /* menús, popovers */
+  --dur-3: 220ms; /* modales, cortinas */
 }
 
 /* ── Tema OSCURO ──────────────────────────────────────────────────────────
@@ -306,15 +318,16 @@ button {
   font-size: 0.85rem;
   font-weight: 700;
   transition:
-    transform 0.1s ease,
+    transform var(--dur-1) var(--ease-out),
     filter 0.15s ease,
     background 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
+/* Feedback de pulsación táctil: micro-reducción de escala. */
 .btn:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
 /* Acción primaria: azul de marca en píldora, con resplandor moderado. */

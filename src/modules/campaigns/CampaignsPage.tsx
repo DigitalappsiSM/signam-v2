@@ -1087,6 +1087,9 @@ function CampaignDownloadsMenu({
         ...(placement.top !== undefined ? { top: placement.top } : {}),
         ...(placement.bottom !== undefined ? { bottom: placement.bottom } : {}),
         ...(placement.maxHeight ? { maxHeight: placement.maxHeight } : {}),
+        // El panel se alinea al borde derecho del botón; escala desde esa
+        // esquina, arriba o abajo según hacia dónde abra.
+        transformOrigin: placement.openUp ? 'bottom right' : 'top right',
       }
     : { visibility: 'hidden' };
 
@@ -1111,7 +1114,11 @@ function CampaignDownloadsMenu({
             id={panelId}
             role="menu"
             aria-label={`Descargas de ${campaign.name}`}
-            className="csv-menu__panel"
+            className={
+              placement
+                ? 'csv-menu__panel csv-menu__panel--in'
+                : 'csv-menu__panel'
+            }
             style={style}
           >
             <button
