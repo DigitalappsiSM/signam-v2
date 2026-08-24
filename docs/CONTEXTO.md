@@ -26,34 +26,48 @@ Herramienta web para operar la programación de pantallas entre **Liverpool** y
 - **Estado/UX**: componentes por módulo, formularios validados, diseño
   responsive.
 - **Backend**: Firebase — **Authentication** (correo/contraseña), **Cloud
-  Firestore**, Hosting. (Storage y Functions **no** se usan aún: requieren plan
-  Blaze; ver §7.)
+  Firestore**, **Cloud Storage** (usado por la **Importación Digital** para
+  conservar los archivos originales bajo `digital-imports/`; requiere plan Blaze)
+  y Hosting. La estructura de **Cloud Functions** existe (`functions/`, con su
+  propio `package.json`/`tsconfig` y build en CI) pero la mayor parte de la lógica
+  sigue como *stub* para iteraciones futuras; ver §7.
 - **Lectura de Excel**: `xlsx` (SheetJS) para el calendario (tolera `.xls`
   antiguos) y `exceljs` para el maestro. Ambos con import dinámico.
 - **Exportación**: `jszip` (ZIP de CSV) y `jspdf` + `jspdf-autotable` (PDF).
   Todo client-side, import dinámico.
-- **Pruebas**: Vitest + Testing Library (116 pruebas al momento de escribir).
+- **Pruebas**: Vitest + Testing Library (716 pruebas en 66 archivos al momento de
+  escribir).
 - **Calidad**: ESLint (flat) + Prettier + `tsc` strict.
 
 ### Estructura
 
 ```
 src/
-├── app/                  # rutas, permisos, AuthProvider
-├── components/           # layout, StatusScreen, PageHeader
+├── app/                  # rutas, permisos, AuthProvider, tema
+├── components/           # layout, StatusScreen, PageHeader, charts (ECharts)
 ├── domain/               # modelos y lógica pura (constantes, csv, soportes…)
+│   ├── ekon/             # dominio Ekon: parser, identidad, diff, mapeo, conciliación
+│   └── digital-operations/ # dominio Digital multirretailer: parser, catálogo, tracking
 ├── modules/
 │   ├── auth/             # LoginPage
 │   ├── admira-catalog/   # catálogo: tabla, formulario, import maestro, filtros
 │   ├── liverpool-import/ # inspector del calendario + parseo de campañas + guardado
-│   ├── consolidation/    # motor de consolidación (cruce → CSV; helpers reutilizables)
-│   ├── campaigns/        # diff de campañas (cambios vs BD) + Ekon
+│   ├── consolidation/    # motor de consolidación (cruce → CSV; incluye ekonFallback)
+│   ├── campaigns/        # diff de campañas (cambios vs BD) + Ekon + descargas CSV/PPT/PDF
+│   ├── ekon-import/      # importación Ekon (flujo por etapas + diff por lote)
+│   ├── reconciliation/   # conciliación Ekon ↔ Liverpool (solo compara)
 │   ├── low-occupancy/    # alertas de baja ocupación → CSV Ratio 1 / Ratio 3
-│   ├── operational-tracking/ # seguimiento operativo (estados, testigos, alertas)
-│   ├── exports/          # CSV/ZIP + reporte PDF
-│   ├── dashboard/ audit/ # panel e historial (placeholder)
-└── services/             # firebase, auth, screens, campaigns, env
-functions/                # estructura de Cloud Functions (pendiente de uso)
+│   ├── operational-tracking/ # seguimiento operativo (estados, testigos, alertas, ciclo de vida)
+│   ├── digital-import/   # importación de catorcenas EKON (La Comer / Chedraui)
+│   ├── digital-operations/ # seguimiento Digital externo + catálogo de retailer/soporte
+│   ├── digital-dashboard/  # panel de métricas Digital (aislado)
+│   ├── exports/          # CSV/ZIP + reporte PDF + PPT
+│   ├── dashboard/        # panel: resumen operativo + carga por tienda/soporte
+│   └── audit/            # historial (placeholder)
+├── services/             # firebase, auth, screens, campaigns, env, ekon*, digital*
+├── lib/                  # utilidades puras reutilizables (p. ej. tableSort)
+└── tests/                # pruebas de aislamiento/integración (p. ej. digitalIsolation)
+functions/                # estructura de Cloud Functions (mayormente stub; build en CI)
 ```
 
 ## 3. Infraestructura y despliegue
@@ -606,6 +620,72 @@ PASES`, el ratio 83/17, las reglas de pantallas inactivas y las exclusiones
 InStore Media. La agrupación `NORMALIZACION LIVERPOOL + RESOLUCION` aplica **solo**
 a los CSV auxiliares Ratio 1/3.
 
+### 6.7 Integración Ekon (`/importar-ekon` y `/conciliacion`)
+
+> Detalle completo en `README.md` (**Integración Ekon**) y `AGENTS.md`
+> (**Integración Ekon**). Dominio puro en `src/domain/ekon`, servicios
+> `src/services/ekon*.ts`, módulos `ekon-import` y `reconciliation`.
+
+- **Colecciones separadas y aisladas** (`ekonImportBatches`, `ekonAssignments`,
+  `ekonRevisions`): la importación Ekon **nunca** modifica `campaigns`, el catálogo
+  Admira ni el seguimiento. La asociación campaña ↔ Ekon es **manual y
+  muchos-a-uno** en `campaignEkonLinks` (§5) y la importación nunca la crea ni la
+  mueve.
+- **Autoridad entre fuentes**: Ekon manda en número de campaña, producto, tipo,
+  periodos ERP y artículo/circuito; **Liverpool** en fechas exactas, tiendas
+  operativas y soportes solicitados; el **Master Admira** en las pantallas físicas.
+- **Identidad estable de asignación** = `Año + Campaña + Línea campaña +
+  Determinante + Artículo` (`identity.ts`). Un cambio de periodo/importe/factura es
+  **modificación** de la misma asignación (van al fingerprint, no a la identidad).
+  Estados: `Nueva`, `Sin cambios`, `Modificada`, `No incluida`, `Restaurada`,
+  `Conflicto`. Nunca se borra: se inactiva y se conserva historial. `contentHash`
+  garantiza idempotencia al reimportar.
+- **Tipos Ekon → Ratio** (`campaignType.ts`, **distinto** de baja ocupación):
+  Institucionales/Liverpesos = Ratio 3 sin testigos; Liverpool/General = Ratio 1
+  con testigos; una campaña mixta con ≥1 línea Ratio 1 es Ratio 1 global.
+- **Conciliación** (`/conciliacion`): para cada campaña con vínculo manual compara
+  número, tipo/Ratio, periodos, tiendas y soportes (mapeo circuito Ekon ↔ soporte
+  Liverpool, `supportMapping.ts`). **Solo compara, nunca corrige ni mueve
+  asociaciones.** Determinante `0` = Centro Administrativo (no es tienda).
+- **Fallback CSV Ekon** (`fallbackCsv.ts` + `consolidation/ekonFallback.ts`): solo
+  `MEGA MUPI DIGITAL` (desde `MEGA MUPI`) y `BANNER DIGITAL` (desde `ESPECTACULAR
+  IN STORE`). Si Liverpool ya marca el soporte se usa su flujo y **no** hay fallback
+  (nunca ambos). Reutiliza `consolidate` y conserva encabezados, columna guarda,
+  BOM, escape y llave `Campaña + RESOLUCION`.
+- **Índice requerido** (`firestore.indexes.json`): `ekonAssignments` compuesto por
+  `campaignNumber` (ASC) + `active` (ASC).
+
+### 6.8 Operación Digital multirretailer (`/importar-digital`, `/operacion-digital`, `/catalogo-digital`)
+
+> Detalle completo en `README.md` (**Operación Digital multirretailer**) y
+> `AGENTS.md` (**Operación Digital multirretailer**). Dominio puro en
+> `src/domain/digital-operations`, servicios `src/services/digital*.ts`, módulos
+> `digital-import`, `digital-operations` y `digital-dashboard`.
+
+- **Alcance**: La Comer y Chedraui con `COPETE DIGITAL`. Vive **exclusivamente** en
+  las colecciones `digital*` (`digitalSupportCatalog`, `digitalImportBatches`,
+  `digitalPlacementRows`, `digitalPlacementRevisions`, `digitalOperationalItems`,
+  `digitalOperationalTracking`, `digitalImportResolutions`, `digitalReportExports`)
+  y en Storage bajo `digital-imports/`. Una importación digital **nunca** escribe en
+  `campaigns`, `screens`, `campaignEkonLinks`, consolidaciones, `csvExports` ni el
+  seguimiento Liverpool (probado en `src/tests/digitalIsolation.test.ts`).
+- **Alcance por catálogo**: la pertenencia se decide por coincidencia exacta
+  normalizada contra los perfiles activos del catálogo (nunca por palabras en
+  creatividad u observaciones). Los perfiles de retailer/soporte se administran en
+  `/catalogo-digital`.
+- **Identidad de fila** = año + campaña + línea + retailer + soporte + creatividad +
+  periodo; la identidad **operativa** omite la línea. Los originales conservan las
+  39 columnas y su orden. `Tipo Fijación` es autoritativo (Fijación → `fixation`,
+  Revisión → `continuous`; desconocidos bloquean). Conflictos y duplicados requieren
+  confirmación y nunca se suman automáticamente.
+- **Seguimiento digital**: exactamente **tres checks** (link, validación de cadena y
+  programación CMS). No usa testigos, objetivos, días hábiles, Admira, PPT, CSV/ZIP
+  ni los reportes Excel Liverpool. Las ausencias solo se inactivan dentro de
+  catorcenas confirmadas; nunca hay borrado físico y una reimportación conserva
+  checks, comentarios y cancelación.
+- El **Dashboard** muestra las métricas digitales en una **sección independiente**
+  que no agrega cifras con Liverpool.
+
 ## 7. Pendientes / próximos pasos
 
 - **Muppi's / ISM**: definir e implementar su lógica (hoy se excluyen).
@@ -618,8 +698,11 @@ a los CSV auxiliares Ratio 1/3.
   **festivos** para los días hábiles, **evidencias** de testigos y selección de
   **tiendas individuales**, y **bitácora global** de auditoría.
 - **Historial/auditoría** e **snapshot inmutable de exportaciones** en Firestore
-  (y Storage para archivos originales cuando se habilite Blaze).
-- **Storage/Functions** (requieren plan Blaze).
+  (y Storage para los archivos originales de calendario/maestro/Ekon).
+- **Cloud Functions**: la estructura existe y compila en CI, pero la mayor parte de
+  la lógica sigue como *stub*; llevar a producción los procesos de servidor
+  (imports, consolidación, exports, users, audit) queda pendiente. Requieren plan
+  Blaze (ya activo para el Storage de la Importación Digital).
 
 ## 8. Estado (resumen)
 
@@ -630,6 +713,9 @@ a los CSV auxiliares Ratio 1/3.
 | Calendario (inspector, campañas, tiendas)                     | ✅     |
 | Persistencia de campañas con confirmación de cambios          | ✅     |
 | Consolidación + CSV + ZIP + incidencias + PDF                 | ✅     |
-| Seguimiento operativo (estados, testigos, alertas) + Dashboard | ✅     |
+| Seguimiento operativo (estados, testigos, alertas, ciclo de vida) + Dashboard | ✅     |
 | Alertas de baja ocupación (Ratio 1 / Ratio 3, CSV por soporte+resolución) | ✅     |
+| Integración Ekon (importación + conciliación + fallback CSV)  | ✅     |
+| Operación Digital multirretailer (importación, seguimiento, catálogo, panel) | ✅     |
 | Muppi's / ISM · Festivos/evidencias · Historial global        | ⏳     |
+| Cloud Functions (lógica de servidor)                          | ⏳     |
