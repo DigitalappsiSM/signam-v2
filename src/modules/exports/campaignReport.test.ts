@@ -111,6 +111,53 @@ describe('buildCampaignReport — Ekon', () => {
   });
 });
 
+// --- Tipo de campaña en las filas ------------------------------------------
+
+describe('buildCampaignReport — tipo de campaña', () => {
+  it('conserva el campo tipo de la campaña en todas sus filas', () => {
+    const screens = [
+      screen('s1', { 'Numero de Tienda': '10', RESOLUCION: 'R' }, 'VIDEO WALL'),
+    ];
+    const c = campaign({
+      name: 'Campaña institucional',
+      tipo: 'Institucional',
+      supports: [
+        {
+          support: 'VIDEO WALL',
+          owner: 'liverpool',
+          stores: [{ numero: '10', nombre: 'T10' }],
+        },
+      ],
+    });
+
+    const report = buildCampaignReport([c], screens, ekon([]));
+
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]!.campaignType).toBe('Institucional');
+  });
+
+  it('recorta espacios y deja vacío el tipo ausente sin inferirlo', () => {
+    const screens = [
+      screen('s1', { 'Numero de Tienda': '10', RESOLUCION: 'R' }, 'VIDEO WALL'),
+    ];
+    const c = campaign({
+      name: 'Campaña sin tipo',
+      tipo: '   ',
+      supports: [
+        {
+          support: 'VIDEO WALL',
+          owner: 'liverpool',
+          stores: [{ numero: '10', nombre: 'T10' }],
+        },
+      ],
+    });
+
+    const report = buildCampaignReport([c], screens, ekon([]));
+
+    expect(report.rows[0]!.campaignType).toBe('');
+  });
+});
+
 // --- Contenido y configuración ----------------------------------------------
 
 describe('buildCampaignReport — contenido', () => {

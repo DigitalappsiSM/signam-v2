@@ -29,6 +29,8 @@ export interface CampaignReportRow {
   /** Número de campaña Ekon (repetido en cada fila); `null` si no está asociado. */
   ekonNumber: number | null;
   campaignName: string;
+  /** Campo `tipo` de la campaña, tal como está guardado en SIGNAM. */
+  campaignType: string;
   /** Fecha de inicio, texto literal del calendario (se formatea al exportar). */
   startDate: string;
   endDate: string;
@@ -48,6 +50,7 @@ export interface CampaignReportRow {
 export interface CampaignReportIssue {
   ekonNumber: number | null;
   campaignName: string;
+  campaignType: string;
   startDate: string;
   endDate: string;
   support: string;
@@ -71,6 +74,7 @@ function screenToRow(
   return {
     ekonNumber,
     campaignName: campaign.name,
+    campaignType: campaign.tipo.trim(),
     startDate: campaign.fechaInicio,
     endDate: campaign.fechaFin,
     storeNumber: normalizeStore(screen.original['Numero de Tienda']),
@@ -168,6 +172,7 @@ export function buildCampaignReport(
       issues.push({
         ekonNumber,
         campaignName: campaign.name,
+        campaignType: campaign.tipo.trim(),
         startDate: campaign.fechaInicio,
         endDate: campaign.fechaFin,
         support: issue.support,
@@ -180,6 +185,7 @@ export function buildCampaignReport(
       issues.push({
         ekonNumber,
         campaignName: campaign.name,
+        campaignType: campaign.tipo.trim(),
         startDate: campaign.fechaInicio,
         endDate: campaign.fechaFin,
         support: ex.support,
@@ -191,6 +197,7 @@ export function buildCampaignReport(
       issues.push({
         ekonNumber,
         campaignName: campaign.name,
+        campaignType: campaign.tipo.trim(),
         startDate: campaign.fechaInicio,
         endDate: campaign.fechaFin,
         support: '',
