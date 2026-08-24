@@ -120,7 +120,13 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   con el mismo nombre se actualizan conservando `campaign.id`. Si varios
   homónimos cambian y no hay correspondencia inequívoca, SIGNAM bloquea el
   guardado hasta que el usuario los empareje. Un cambio de nombre siempre pide
-  confirmación. Las ausentes se inactivan (`active:false`), no se borran.
+  confirmación. Las ausentes se inactivan (`active:false`), no se borran. Las
+  fechas vacías, imposibles, invertidas o con año fuera de `2000–2100` son
+  errores bloqueantes y **no se escribe ninguna campaña**. Después de cada
+  guardado se vuelve a leer campañas y seguimiento: toda campaña activa debe
+  tener seguimiento por `campaign.id` (o por identidad legacy). Los fallos de
+  inicialización se reportan por campaña y el reintento es idempotente; nunca
+  se sobrescriben checks manuales ni el ciclo de vida existente.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImportPage } from './ImportPage';
 import { analyzeCalendar } from './calendarImport';
-import { parseCampaigns } from './campaignParse';
+import { parseCampaigns, type CampaignParseResult } from './campaignParse';
 import { readCalendarWorkbook } from './readCalendarWorkbook';
 import { listCampaigns, applyCampaignChanges } from '@/services/campaigns';
 import { campaignIdentity } from '@/modules/campaigns/campaignDiff';
@@ -61,7 +61,11 @@ const analysis = {
   issues: [],
 };
 
-function parseResultWith(fechaInicio: string) {
+function parseResultWith(
+  fechaInicio: string,
+  fechaFin = '2026-11-01',
+  name = 'HIPER X',
+): CampaignParseResult {
   return {
     operativeSheet: 'Hoja1',
     headerRow: 1,
@@ -71,11 +75,11 @@ function parseResultWith(fechaInicio: string) {
     campaigns: [
       {
         row: 2,
-        name: 'HIPER X',
+        name,
         tipo: 'PROVEEDOR',
         vendidoPor: 'LIVERPOOL',
         fechaInicio,
-        fechaFin: '2026-11-01',
+        fechaFin,
         mes: 'Octubre',
         link: '',
         supports: [
@@ -87,6 +91,7 @@ function parseResultWith(fechaInicio: string) {
         ],
       },
     ],
+    issues: [],
   };
 }
 
@@ -111,6 +116,7 @@ beforeEach(() => {
   vi.mocked(initializeTrackingForImport).mockResolvedValue({
     created: 0,
     reclassified: 0,
+    failures: [],
   });
   vi.mocked(listDateResolutions).mockResolvedValue(new Map());
   vi.mocked(saveDateResolutions).mockResolvedValue(undefined);
@@ -211,5 +217,67 @@ describe('ImportPage — fechas ambiguas', () => {
     await upload();
     await screen.findByRole('button', { name: /Aceptar y guardar/i });
     expect(screen.queryByText(/Fechas por confirmar/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('ImportPage — integridad campañas y seguimiento', () => {
+  it('bloquea MAGFESA cuando el calendario contiene el año 0266', async () => {
+    vi.mocked(parseCampaigns).mockReturnValue(
+      parseResultWith('8/17/2026', '8/31/0266', 'MAGFESA') as never,
+    );
+
+    render(<ImportPage />);
+    await upload();
+
+    expect(
+      await screen.findByText(/MAGFESA.*año 266.*fuera del rango/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Aceptar y guardar/i }),
+    ).toBeDisabled();
+  });
+
+  it('nombra la campaña si la verificación detecta seguimiento faltante', async () => {
+    const incoming = parseResultWith('2026-08-17', '2026-08-31', 'TRAMONTINA')
+      .campaigns[0]!;
+    const identity = campaignIdentity(incoming);
+    vi.mocked(parseCampaigns).mockReturnValue({
+      ...parseResultWith('2026-08-17', '2026-08-31', 'TRAMONTINA'),
+      campaigns: [incoming],
+    } as never);
+    vi.mocked(listCampaigns).mockResolvedValue([
+      {
+        ...incoming,
+        id: 'tramontina-id',
+        nameKey: identity,
+        signature: 'sig',
+        active: true,
+      },
+    ] as never);
+    vi.mocked(initializeTrackingForImport).mockResolvedValue({
+      created: 0,
+      reclassified: 0,
+      failures: [
+        {
+          campaignId: 'tramontina-id',
+          campaignName: 'TRAMONTINA',
+          message: 'permission-denied',
+        },
+      ],
+    });
+
+    render(<ImportPage />);
+    await upload();
+    const saveButton = await screen.findByRole('button', {
+      name: /Aceptar y guardar/i,
+    });
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+    await userEvent.click(saveButton);
+
+    expect(
+      await screen.findByText(
+        /Inconsistencia detectada.*sin seguimiento operativo: TRAMONTINA/i,
+      ),
+    ).toBeInTheDocument();
   });
 });

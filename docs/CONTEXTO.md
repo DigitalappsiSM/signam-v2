@@ -444,6 +444,13 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
   - **Reimportaciones**: actualizar una línea con el mismo `campaign.id` conserva
     `cancelled`; `initializeTrackingForImport` no cambia `lifecycleStatus`, el
     motivo ni los metadatos de transición.
+  - **Integridad al importar**: las fechas vacías, imposibles, invertidas o con
+    año fuera de `2000–2100` bloquean el guardado (por ejemplo, `8/31/0266` se
+    identifica por fila y campaña). Tras escribir, la UI vuelve a consultar
+    campañas y seguimiento y verifica que cada campaña activa tenga documento
+    por `campaign.id` o identidad legacy. La inicialización continúa por
+    campaña aunque una transacción falle y muestra los nombres inconsistentes;
+    reimportar es idempotente y conserva checks y ciclo de vida existentes.
 - **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.

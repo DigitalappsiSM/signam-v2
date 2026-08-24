@@ -55,6 +55,8 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { importSummary, type ImportSummary } from './importSummary';
 import { nextBulk, type BulkState } from './accordionBulk';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
+import { validateCampaignDates } from './campaignDateValidation';
+import { campaignsMissingOperationalTracking } from '@/modules/operational-tracking/trackingReconciliation';
 import './ImportPage.css';
 
 /**
@@ -143,8 +145,16 @@ export function ImportPage() {
     setPhase('analyzing');
     try {
       const data = await readCalendarWorkbook(file);
-      setAnalysis(analyzeCalendar(data));
+      const structuralAnalysis = analyzeCalendar(data);
       const parsed = parseCampaigns(data);
+      setAnalysis({
+        ...structuralAnalysis,
+        issues: [
+          ...structuralAnalysis.issues,
+          ...(parsed.issues ?? []),
+          ...validateCampaignDates(parsed.campaigns, parsed.operativeSheet),
+        ],
+      });
       setCampaigns(parsed);
       setParsedList(parsed.campaigns);
       setDateChoices(new Map());
@@ -281,6 +291,9 @@ export function ImportPage() {
   ).length;
   const pendingMatchCount = diff?.pendingMatches.length ?? 0;
   const pendingCount = pendingClassCount + pendingMatchCount;
+  const blockingCount =
+    analysis?.issues.filter((issue) => issue.severity === 'blocking').length ??
+    0;
   // Hay trabajo si: cambios en campañas, clasificaciones nuevas, o **fechas
   // ambiguas por resolver** (aunque la fecha resuelta ya coincida con la BD, hay
   // que persistir la confirmación para no volver a preguntar).
@@ -288,8 +301,13 @@ export function ImportPage() {
     Boolean(diff?.hasChanges) ||
     pendingMatchCount > 0 ||
     needClass.length > 0 ||
-    ambiguousRows.length > 0;
-  const canSave = hasWork && pendingCount === 0 && pendingDatesCount === 0;
+    ambiguousRows.length > 0 ||
+    blockingCount > 0;
+  const canSave =
+    hasWork &&
+    blockingCount === 0 &&
+    pendingCount === 0 &&
+    pendingDatesCount === 0;
   const summary = importSummary(
     diff,
     analysis,
@@ -314,9 +332,17 @@ export function ImportPage() {
   }
 
   async function saveChanges() {
-    if (saving || pendingCount > 0 || pendingDatesCount > 0) return;
+    if (
+      saving ||
+      blockingCount > 0 ||
+      pendingCount > 0 ||
+      pendingDatesCount > 0
+    ) {
+      return;
+    }
     setSaving(true);
     setError(null);
+    setSaveNotice(null);
     try {
       // Persiste las resoluciones de fecha confirmadas para reimportaciones.
       const newResolutions: DateResolution[] = ambiguousRows
@@ -375,7 +401,7 @@ export function ImportPage() {
         );
       const track = sels.length
         ? await initializeTrackingForImport(sels, actor)
-        : { created: 0, reclassified: 0 };
+        : { created: 0, reclassified: 0, failures: [] };
 
       const [stored, tracking, resolutions] = await Promise.all([
         listCampaigns({ includeInactive: true }),
@@ -386,11 +412,34 @@ export function ImportPage() {
       setExistingTracking(tracking);
       setDateMemory(resolutions);
       setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
-      setSaveNotice(
-        `Guardado: ${res.added} nuevas, ${res.modified} actualizadas, ${res.removed} inactivadas. Seguimiento inicializado: ${track.created}.`,
+      const missingTracking = campaignsMissingOperationalTracking(
+        stored,
+        tracking,
       );
-    } catch {
-      setError('No se pudieron guardar los cambios de campañas.');
+      const inconsistentNames = Array.from(
+        new Set([
+          ...track.failures.map((failure) => failure.campaignName),
+          ...missingTracking.map((campaign) => campaign.name),
+        ]),
+      );
+      if (inconsistentNames.length > 0) {
+        setSaveNotice(
+          `Guardado parcial: ${res.added} nuevas, ${res.modified} actualizadas, ${res.removed} inactivadas. Seguimiento inicializado: ${track.created}.`,
+        );
+        setError(
+          `Inconsistencia detectada: estas campañas activas quedaron sin seguimiento operativo: ${inconsistentNames.join(', ')}. Vuelve a importar el mismo calendario para reintentar; la operación es idempotente y conserva los checks existentes.`,
+        );
+      } else {
+        setSaveNotice(
+          `Guardado y verificado: ${res.added} nuevas, ${res.modified} actualizadas, ${res.removed} inactivadas. Seguimiento inicializado: ${track.created}.`,
+        );
+      }
+    } catch (saveError) {
+      const detail =
+        saveError instanceof Error ? saveError.message : String(saveError);
+      setError(
+        `No se pudieron completar los cambios. Detalle: ${detail}. Revisa Campañas y Seguimiento operativo antes de reintentar.`,
+      );
     } finally {
       setSaving(false);
     }
@@ -679,9 +728,11 @@ function ImportSummaryBanner({
             onClick={onSave}
             disabled={saving || !canSave}
             title={
-              summary.pending > 0
-                ? `Faltan ${summary.pending} confirmaciones por definir (clasificación o fecha)`
-                : undefined
+              summary.errors > 0
+                ? `Corrige ${summary.errors} errores bloqueantes del calendario`
+                : summary.pending > 0
+                  ? `Faltan ${summary.pending} confirmaciones por definir (clasificación o fecha)`
+                  : undefined
             }
           >
             {saving ? 'Guardando…' : 'Aceptar y guardar cambios'}
