@@ -127,6 +127,15 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   tener seguimiento por `campaign.id` (o por identidad legacy). Los fallos de
   inicialización se reportan por campaña y el reintento es idempotente; nunca
   se sobrescriben checks manuales ni el ciclo de vida existente.
+- **Correcciones manuales de campaña**: admin/operator pueden corregir desde
+  Campañas únicamente fechas, link, mes, vendido por y tipo; nombre, soportes y
+  tiendas siguen bajo control de la importación. Cada guardado exige motivo,
+  conserva `campaign.id`, recalcula `signature`, registra un evento append-only
+  en `campaigns/{campaignId}/corrections` y guarda el valor como
+  `manualOverrides`. Los overrides prevalecen sobre reimportaciones posteriores;
+  nunca reinician checks, comentarios, Ekon ni ciclo de vida. Si falta el
+  seguimiento, la corrección intenta crearlo de forma idempotente y solicita
+  clasificación cuando `tipo` no sea inequívoco.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

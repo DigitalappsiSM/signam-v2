@@ -57,6 +57,7 @@ import { nextBulk, type BulkState } from './accordionBulk';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { validateCampaignDates } from './campaignDateValidation';
 import { campaignsMissingOperationalTracking } from '@/modules/operational-tracking/trackingReconciliation';
+import { CAMPAIGN_FIELD_LABELS } from '@/modules/campaigns/campaignCorrection';
 import './ImportPage.css';
 
 /**
@@ -149,11 +150,7 @@ export function ImportPage() {
       const parsed = parseCampaigns(data);
       setAnalysis({
         ...structuralAnalysis,
-        issues: [
-          ...structuralAnalysis.issues,
-          ...(parsed.issues ?? []),
-          ...validateCampaignDates(parsed.campaigns, parsed.operativeSheet),
-        ],
+        issues: [...structuralAnalysis.issues, ...(parsed.issues ?? [])],
       });
       setCampaigns(parsed);
       setParsedList(parsed.campaigns);
@@ -291,9 +288,70 @@ export function ImportPage() {
   ).length;
   const pendingMatchCount = diff?.pendingMatches.length ?? 0;
   const pendingCount = pendingClassCount + pendingMatchCount;
+
+  // Valida fechas después de resolver DMY/MDY y después de aplicar las
+  // correcciones manuales del documento emparejado. Una fecha ambigua pendiente
+  // se valida cuando el usuario elige su interpretación, no antes.
+  const dateIssues = useMemo(() => {
+    const unresolved = new Set(
+      ambiguousRows
+        .filter((row) => !dateChoices.get(row.raw))
+        .map((row) => row.raw),
+    );
+    const candidates = diff
+      ? [
+          ...diff.matched.map((match) => match.campaign),
+          ...diff.added,
+          ...diff.pendingMatches.map((pending) => pending.campaign),
+        ]
+      : resolvedList;
+    const unique = new Map(
+      candidates.map((campaign) => [campaignIdentity(campaign), campaign]),
+    );
+    return validateCampaignDates(
+      [...unique.values()].filter(
+        (campaign) =>
+          !unresolved.has(campaign.fechaInicio) &&
+          !unresolved.has(campaign.fechaFin),
+      ),
+      campaigns?.operativeSheet ?? null,
+    );
+  }, [ambiguousRows, dateChoices, diff, resolvedList, campaigns]);
+
+  const manualOverrideIssues = useMemo(
+    () =>
+      (diff?.matched ?? [])
+        .filter((match) => match.overriddenFields.length > 0)
+        .map((match) => ({
+          severity: 'warning' as const,
+          code: 'manual-correction-preserved',
+          message: `Se conservó la corrección manual de "${match.campaign.name}" en: ${match.overriddenFields
+            .map((field) => CAMPAIGN_FIELD_LABELS[field])
+            .join(', ')}. El valor del archivo no sobrescribirá estos campos.`,
+          location: campaigns?.operativeSheet
+            ? { sheet: campaigns.operativeSheet }
+            : undefined,
+        })),
+    [campaigns?.operativeSheet, diff],
+  );
+
+  const validatedAnalysis = useMemo<CalendarAnalysis | null>(
+    () =>
+      analysis
+        ? {
+            ...analysis,
+            issues: [
+              ...analysis.issues,
+              ...dateIssues,
+              ...manualOverrideIssues,
+            ],
+          }
+        : null,
+    [analysis, dateIssues, manualOverrideIssues],
+  );
   const blockingCount =
-    analysis?.issues.filter((issue) => issue.severity === 'blocking').length ??
-    0;
+    validatedAnalysis?.issues.filter((issue) => issue.severity === 'blocking')
+      .length ?? 0;
   // Hay trabajo si: cambios en campañas, clasificaciones nuevas, o **fechas
   // ambiguas por resolver** (aunque la fecha resuelta ya coincida con la BD, hay
   // que persistir la confirmación para no volver a preguntar).
@@ -310,7 +368,7 @@ export function ImportPage() {
     pendingDatesCount === 0;
   const summary = importSummary(
     diff,
-    analysis,
+    validatedAnalysis,
     needClass.length,
     pendingCount + pendingDatesCount,
   );
@@ -446,9 +504,15 @@ export function ImportPage() {
   }
 
   function downloadDiagnosis() {
-    if (!analysis) return;
+    if (!validatedAnalysis) return;
     const blob = new Blob(
-      [JSON.stringify({ fileName, analysis, campaigns }, null, 2)],
+      [
+        JSON.stringify(
+          { fileName, analysis: validatedAnalysis, campaigns },
+          null,
+          2,
+        ),
+      ],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -460,9 +524,9 @@ export function ImportPage() {
   }
 
   const blocking =
-    analysis?.issues.filter((i) => i.severity === 'blocking') ?? [];
+    validatedAnalysis?.issues.filter((i) => i.severity === 'blocking') ?? [];
   const warnings =
-    analysis?.issues.filter((i) => i.severity === 'warning') ?? [];
+    validatedAnalysis?.issues.filter((i) => i.severity === 'warning') ?? [];
 
   return (
     <>
@@ -665,9 +729,9 @@ export function ImportPage() {
 
             {resolvedResult && <CampaignsSection result={resolvedResult} />}
 
-            {analysis && (
+            {validatedAnalysis && (
               <FileDiagnosisSection
-                analysis={analysis}
+                analysis={validatedAnalysis}
                 onDownload={downloadDiagnosis}
               />
             )}

@@ -116,6 +116,21 @@ service cloud.firestore {
     match /campaigns/{campaignId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isSignedIn();
+
+      // Bitácora append-only de correcciones manuales. El documento padre se
+      // actualiza en la misma transacción; el historial nunca se edita ni borra.
+      match /corrections/{correctionId} {
+        allow read: if isSignedIn();
+        allow create: if (isAdmin() || isOperator())
+          && request.resource.data.campaignId == campaignId
+          && request.resource.data.reason is string
+          && request.resource.data.comment is string
+          && request.resource.data.changes is list
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.actorEmail is string
+          && request.resource.data.at is int;
+        allow update, delete: if false;
+      }
     }
 
     // Asociación manual campaña Liverpool ↔ número de campaña Ekon. Colección

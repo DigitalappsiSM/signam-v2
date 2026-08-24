@@ -10,6 +10,7 @@ export type Permission =
   | 'catalog.write'
   | 'catalog.deactivate'
   | 'calendar.import'
+  | 'campaign.correct'
   | 'ekon.import'
   | 'reconciliation.read'
   | 'export.csv'
@@ -34,6 +35,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.write',
     'catalog.deactivate',
     'calendar.import',
+    'campaign.correct',
     'ekon.import',
     'reconciliation.read',
     'export.csv',
@@ -50,6 +52,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   operator: [
     'catalog.read',
     'calendar.import',
+    'campaign.correct',
     'ekon.import',
     'reconciliation.read',
     'export.csv',

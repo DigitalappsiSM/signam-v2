@@ -105,6 +105,29 @@ describe('diffCampaigns', () => {
     expect(diff.modified[0]!.stored.id).toBe('id1');
   });
 
+  it('una corrección manual prevalece sobre el valor erróneo reimportado', () => {
+    const imported = camp('MAGFESA', { fechaFin: '8/31/0266' });
+    const corrected = stored(
+      camp('MAGFESA', { fechaFin: '2026-08-31' }),
+      'magfesa-id',
+    );
+    corrected.manualOverrides = {
+      fechaFin: {
+        value: '2026-08-31',
+        reason: 'Error de captura',
+        correctedAt: 1,
+        correctedByUid: 'u1',
+        correctedByEmail: 'a@b.mx',
+      },
+    };
+
+    const diff = diffCampaigns([imported], [corrected]);
+    expect(diff.modified).toHaveLength(0);
+    expect(diff.unchanged).toBe(1);
+    expect(diff.matched[0]?.campaign.fechaFin).toBe('2026-08-31');
+    expect(diff.matched[0]?.overriddenFields).toEqual(['fechaFin']);
+  });
+
   it('detecta eliminadas (en BD, ya no en el calendario)', () => {
     const s = [stored(camp('Nike')), stored(camp('Vieja'), 'id2')];
     const diff = diffCampaigns([camp('Nike')], s);

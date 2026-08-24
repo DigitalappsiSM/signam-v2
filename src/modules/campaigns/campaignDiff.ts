@@ -1,6 +1,12 @@
 import { normalizeSupport } from '@/domain';
 import { normalizeStore } from '@/modules/consolidation/consolidate';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import {
+  applyManualOverrides,
+  EDITABLE_CAMPAIGN_FIELDS,
+  type CampaignManualOverrides,
+  type EditableCampaignField,
+} from './campaignCorrection';
 
 /**
  * Detección de cambios de campañas contra lo guardado en la base de datos.
@@ -17,6 +23,10 @@ export interface StoredCampaign extends ParsedCampaign {
   signature: string;
   /** Baja lógica. Los documentos legacy sin el campo se consideran activos. */
   active?: boolean;
+  /** Correcciones operativas que prevalecen sobre futuras reimportaciones. */
+  manualOverrides?: CampaignManualOverrides;
+  updatedAt?: number;
+  updatedBy?: string;
 }
 
 /** Clave de identidad de campaña (por nombre, estable ante cambios de datos). */
@@ -169,7 +179,12 @@ export interface CampaignDiff {
   removed: StoredCampaign[];
   modified: CampaignChange[];
   /** Todas las correspondencias resueltas, incluidas las que no cambiaron. */
-  matched: Array<{ campaign: ParsedCampaign; stored: StoredCampaign }>;
+  matched: Array<{
+    campaign: ParsedCampaign;
+    stored: StoredCampaign;
+    /** Campos cuyo valor importado fue sustituido por una corrección activa. */
+    overriddenFields: EditableCampaignField[];
+  }>;
   unchanged: number;
   pendingMatches: CampaignMatchPending[];
   hasChanges: boolean;
@@ -197,8 +212,7 @@ export function diffCampaigns(
   const added: ParsedCampaign[] = [];
   const modified: CampaignChange[] = [];
   const pendingMatches: CampaignMatchPending[] = [];
-  const matched: Array<{ campaign: ParsedCampaign; stored: StoredCampaign }> =
-    [];
+  const matched: CampaignDiff['matched'] = [];
   const forcedNew = new Set(
     [...selections]
       .filter(([, storedId]) => storedId === null)
@@ -209,11 +223,17 @@ export function diffCampaigns(
   const pair = (campaign: ParsedCampaign, saved: StoredCampaign) => {
     unmatchedIncoming.delete(campaignIdentity(campaign));
     unmatchedStored.delete(saved.id);
-    matched.push({ campaign, stored: saved });
-    const changes = describeChanges(saved, campaign);
+    const effective = applyManualOverrides(campaign, saved.manualOverrides);
+    const overriddenFields = EDITABLE_CAMPAIGN_FIELDS.filter(
+      (field) =>
+        saved.manualOverrides?.[field] != null &&
+        campaign[field].trim() !== effective[field].trim(),
+    );
+    matched.push({ campaign: effective, stored: saved, overriddenFields });
+    const changes = describeChanges(saved, effective);
     if (saved.active === false) changes.unshift('Campaña reactivada');
     if (changes.length === 0) unchanged += 1;
-    else modified.push({ campaign, stored: saved, changes });
+    else modified.push({ campaign: effective, stored: saved, changes });
   };
 
   // 1) Las selecciones del usuario tienen precedencia, siempre que sigan siendo

@@ -11,7 +11,11 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { listCampaigns } from '@/services/campaigns';
+import {
+  correctCampaign,
+  listCampaignCorrections,
+  listCampaigns,
+} from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import {
   listEkonLinks,
@@ -52,7 +56,7 @@ import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
-import type { StoredCampaign } from './campaignDiff';
+import { campaignIdentity, type StoredCampaign } from './campaignDiff';
 import { parseEkonNumber, otherCampaignsWithEkonNumber } from './ekon';
 import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
 import {
@@ -68,6 +72,26 @@ import {
 } from './dateFilter';
 import '@/modules/liverpool-import/ImportPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
+import {
+  CAMPAIGN_FIELD_LABELS,
+  EDITABLE_CAMPAIGN_FIELDS,
+  campaignCorrectionError,
+  type CampaignCorrectionEvent,
+  type CampaignCorrectionValues,
+  type EditableCampaignField,
+} from './campaignCorrection';
+import {
+  initializeTrackingForImport,
+  listOperationalTracking,
+} from '@/services/campaignOperationalTracking';
+import type {
+  CampaignOperationalTracking,
+  Classification,
+} from '@/modules/operational-tracking/types';
+import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
+import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
+import { can } from '@/app/permissions';
+import './CampaignsPage.css';
 
 function normalize(v: string): string {
   return v
@@ -130,12 +154,16 @@ export function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
   const [ekonLinks, setEkonLinks] = useState<CampaignEkonLink[]>([]);
+  const [trackingList, setTrackingList] = useState<
+    CampaignOperationalTracking[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [detail, setDetail] = useState<StoredCampaign | null>(null);
+  const [correction, setCorrection] = useState<StoredCampaign | null>(null);
   // Menú de descargas: solo uno abierto a la vez (por id de campaña).
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [zipBusyName, setZipBusyName] = useState<string | null>(null);
@@ -152,10 +180,11 @@ export function CampaignsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [c, s, initialLinks] = await Promise.all([
+      const [c, s, initialLinks, tracking] = await Promise.all([
         listCampaigns(),
         listScreens(),
         listEkonLinks(),
+        listOperationalTracking(),
       ]);
       let e = initialLinks;
       try {
@@ -169,6 +198,7 @@ export function CampaignsPage() {
       setCampaigns(c);
       setScreens(s);
       setEkonLinks(e);
+      setTrackingList(tracking);
     } catch {
       setError('No se pudieron cargar las campañas o el catálogo.');
     } finally {
@@ -183,6 +213,27 @@ export function CampaignsPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
+
+  const trackingCampaignIds = useMemo(
+    () =>
+      new Set(
+        trackingList.flatMap((tracking) =>
+          tracking.campaignId ? [tracking.campaignId] : [],
+        ),
+      ),
+    [trackingList],
+  );
+  const legacyTrackingKeys = useMemo(
+    () =>
+      new Set(
+        trackingList
+          .filter((tracking) => !tracking.campaignId)
+          .map((tracking) => tracking.campaignNameKey),
+      ),
+    [trackingList],
+  );
 
   const result: ConsolidationResult = useMemo(
     () => consolidate(campaigns, screens),
@@ -428,7 +479,7 @@ export function CampaignsPage() {
     <>
       <PageHeader
         title="Campañas"
-        description="Campañas guardadas y su cruce contra el catálogo. Por cada campaña puedes generar la PPT de evidencias, exportar el PDF de errores, ver el detalle (soportes y tiendas), descargar sus CSV y asociar su número de campaña Ekon."
+        description="Campañas guardadas y su cruce contra el catálogo. Desde aquí puedes corregir datos con motivo e historial, generar evidencias, exportar errores, descargar CSV y asociar el número de campaña Ekon."
         actions={
           <button className="btn btn-secondary" onClick={() => void reload()}>
             Actualizar
@@ -662,6 +713,16 @@ export function CampaignsPage() {
                         >
                           📄
                         </button>
+                        {canCorrectCampaign && (
+                          <button
+                            className="icon-btn"
+                            title={`Corregir datos de ${c.name}`}
+                            aria-label={`Corregir datos de ${c.name}`}
+                            onClick={() => setCorrection(c)}
+                          >
+                            ✏️
+                          </button>
+                        )}
                         <button
                           className="icon-btn"
                           title="Ver detalle (soportes, tiendas y Ekon)"
@@ -704,7 +765,288 @@ export function CampaignsPage() {
           onClose={() => setDetail(null)}
         />
       )}
+
+      {correction && (
+        <CampaignCorrectionModal
+          campaign={correction}
+          actor={actor}
+          hasTracking={
+            trackingCampaignIds.has(correction.id) ||
+            legacyTrackingKeys.has(campaignIdentity(correction))
+          }
+          onSaved={async () => {
+            await reload();
+            setCorrection(null);
+          }}
+          onClose={() => setCorrection(null)}
+        />
+      )}
     </>
+  );
+}
+
+function toDateInputValue(value: string): string {
+  const date = parseCampaignDate(value);
+  if (!date) return '';
+  const year = date.getUTCFullYear();
+  if (year < 2000 || year > 2100) return '';
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function initialCorrectionValues(
+  campaign: StoredCampaign,
+): CampaignCorrectionValues {
+  return Object.fromEntries(
+    EDITABLE_CAMPAIGN_FIELDS.map((field) => [
+      field,
+      field === 'fechaInicio' || field === 'fechaFin'
+        ? toDateInputValue(campaign[field])
+        : campaign[field],
+    ]),
+  ) as CampaignCorrectionValues;
+}
+
+function CampaignCorrectionModal({
+  campaign,
+  actor,
+  hasTracking,
+  onSaved,
+  onClose,
+}: {
+  campaign: StoredCampaign;
+  actor: Actor;
+  hasTracking: boolean;
+  onSaved: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [values, setValues] = useState<CampaignCorrectionValues>(() =>
+    initialCorrectionValues(campaign),
+  );
+  const [reason, setReason] = useState('');
+  const [classification, setClassification] = useState<Classification | ''>('');
+  const [history, setHistory] = useState<CampaignCorrectionEvent[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [correctionSaved, setCorrectionSaved] = useState<StoredCampaign | null>(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void listCampaignCorrections(campaign.id)
+      .then((events) => {
+        if (active) setHistory(events);
+      })
+      .catch(() => {
+        if (active) setHistory([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [campaign.id]);
+
+  const effectiveTipo = values.tipo ?? campaign.tipo;
+  const inferredClassification = classifyFromTipo(effectiveTipo);
+  const needsClassification =
+    !hasTracking && inferredClassification === 'unknown';
+  const validation = campaignCorrectionError(campaign, values, reason);
+
+  function setField(field: EditableCampaignField, value: string) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  async function save() {
+    setError(null);
+    if (!correctionSaved && validation) {
+      setError(validation);
+      return;
+    }
+    const selectedClassification =
+      inferredClassification === 'unknown'
+        ? classification
+        : inferredClassification;
+    if (!hasTracking && selectedClassification === '') {
+      setError('Selecciona la clasificación para crear el seguimiento.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const correctedCampaign =
+        correctionSaved ??
+        (
+          await correctCampaign({
+            campaignId: campaign.id,
+            values,
+            reason,
+            actor,
+          })
+        ).campaign;
+      setCorrectionSaved(correctedCampaign);
+      if (!hasTracking) {
+        const trackingResult = await initializeTrackingForImport(
+          [
+            {
+              campaignId: correctedCampaign.id,
+              campaignNameKey: campaignIdentity(correctedCampaign),
+              campaignName: correctedCampaign.name,
+              classification: selectedClassification as Classification,
+              linkValid: isValidDownloadUrl(correctedCampaign.link),
+              confirmedReclassify: false,
+            },
+          ],
+          actor,
+        );
+        if (trackingResult.failures.length > 0) {
+          setHistory(await listCampaignCorrections(campaign.id));
+          setError(
+            'La corrección se guardó, pero no se pudo crear el seguimiento operativo. Usa “Reintentar seguimiento” para completar la operación.',
+          );
+          return;
+        }
+      }
+      await onSaved();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo guardar la corrección.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Corregir campaña ${campaign.name}`}
+    >
+      <div className="modal__backdrop" onClick={onClose} aria-hidden="true" />
+      <div
+        className="modal__card campaign-correction"
+        style={{ maxWidth: 760 }}
+      >
+        <h2 className="modal__title">Corregir {campaign.name}</h2>
+        <p className="text-muted campaign-correction__intro">
+          Modifica únicamente los campos necesarios. SIGNAM conservará la
+          corrección frente a futuras reimportaciones y registrará el cambio.
+        </p>
+
+        <div className="campaign-correction__grid">
+          {EDITABLE_CAMPAIGN_FIELDS.map((field) => (
+            <label key={field}>
+              <span>{CAMPAIGN_FIELD_LABELS[field]}</span>
+              <input
+                className="catalog__search"
+                type={
+                  field === 'fechaInicio' || field === 'fechaFin'
+                    ? 'date'
+                    : field === 'link'
+                      ? 'url'
+                      : 'text'
+                }
+                min={
+                  field === 'fechaInicio' || field === 'fechaFin'
+                    ? '2000-01-01'
+                    : undefined
+                }
+                max={
+                  field === 'fechaInicio' || field === 'fechaFin'
+                    ? '2100-12-31'
+                    : undefined
+                }
+                value={values[field] ?? ''}
+                disabled={saving || correctionSaved !== null}
+                onChange={(event) => setField(field, event.target.value)}
+              />
+              {(field === 'fechaInicio' || field === 'fechaFin') &&
+                values[field] === '' && (
+                  <small className="text-muted">
+                    Valor guardado: {campaign[field] || 'vacío'}
+                  </small>
+                )}
+            </label>
+          ))}
+        </div>
+
+        {needsClassification && (
+          <label className="campaign-correction__classification">
+            <span>Clasificación para seguimiento</span>
+            <select
+              value={classification}
+              disabled={saving || correctionSaved !== null}
+              onChange={(event) =>
+                setClassification(event.target.value as Classification | '')
+              }
+            >
+              <option value="">— Selecciona —</option>
+              <option value="institutional">Institucional</option>
+              <option value="provider">Proveedor</option>
+            </select>
+          </label>
+        )}
+
+        <label className="campaign-correction__reason">
+          <span>Motivo de la corrección</span>
+          <textarea
+            rows={3}
+            value={reason}
+            disabled={saving || correctionSaved !== null}
+            placeholder="Ej. Error de captura en la fecha del calendario recibido"
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </label>
+
+        {error && (
+          <div className="catalog__error" role="alert">
+            {error}
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <section className="campaign-correction__history">
+            <h3>Historial de correcciones</h3>
+            <ul>
+              {history.map((event) => (
+                <li key={event.id}>
+                  <p>{event.comment}</p>
+                  <small className="text-muted">
+                    {new Date(event.at).toLocaleString('es-MX')}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <div className="modal__actions">
+          <button
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => void save()}
+            disabled={saving || (!correctionSaved && validation !== null)}
+            aria-busy={saving}
+          >
+            {saving
+              ? 'Guardando…'
+              : correctionSaved
+                ? 'Reintentar seguimiento'
+                : 'Confirmar corrección'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
