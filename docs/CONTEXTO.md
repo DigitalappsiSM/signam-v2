@@ -451,6 +451,14 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
     por `campaign.id` o identidad legacy. La inicialización continúa por
     campaña aunque una transacción falle y muestra los nombres inconsistentes;
     reimportar es idempotente y conserva checks y ciclo de vida existentes.
+  - **Corrección operativa desde Campañas**: admin/operator disponen de la acción
+    **Corregir** para fechas, link, mes, vendido por y tipo. El modal muestra el
+    valor vigente, exige un motivo y registra valor anterior/nuevo, usuario y
+    fecha/hora en `campaigns/{campaignId}/corrections` (append-only). La campaña
+    conserva su `campaign.id`; la corrección queda en `manualOverrides` y
+    prevalece ante calendarios posteriores que todavía traigan el dato erróneo.
+    Si falta seguimiento, SIGNAM lo inicializa sin tocar checks existentes; si
+    el tipo es ambiguo, solicita clasificación.
 - **Auditoría**: por ahora la trazabilidad (quién/cuándo modificó y completó)
   vive **dentro** del documento de seguimiento. No existe todavía una bitácora
   global operativa; queda preparada la información para poblarla más adelante.

@@ -1,4 +1,10 @@
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  runTransaction,
+  writeBatch,
+} from 'firebase/firestore';
 import { getFirebase } from './firebase';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import {
@@ -9,6 +15,14 @@ import {
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import {
+  campaignCorrectionError,
+  correctionChanges,
+  correctionComment,
+  type CampaignCorrectionEvent,
+  type CampaignCorrectionValues,
+  type CampaignManualOverrides,
+} from '@/modules/campaigns/campaignCorrection';
 
 /**
  * Persistencia de campañas del calendario en Cloud Firestore.
@@ -38,6 +52,114 @@ export async function listCampaigns(options?: {
   return options?.includeInactive
     ? campaigns
     : campaigns.filter((campaign) => campaign.active !== false);
+}
+
+export interface CorrectCampaignParams {
+  campaignId: string;
+  values: CampaignCorrectionValues;
+  reason: string;
+  actor: Actor;
+}
+
+/**
+ * Corrige campos escalares y registra el evento en la subcolección append-only
+ * dentro de la misma transacción. Las correcciones quedan como overrides para
+ * que una reimportación no restaure silenciosamente el dato erróneo.
+ */
+export async function correctCampaign({
+  campaignId,
+  values,
+  reason,
+  actor,
+}: CorrectCampaignParams): Promise<{
+  campaign: StoredCampaign;
+  event: CampaignCorrectionEvent;
+}> {
+  const database = db();
+  const campaignRef = doc(database, COLLECTION, campaignId);
+  const correctionRef = doc(
+    collection(database, COLLECTION, campaignId, 'corrections'),
+  );
+
+  return runTransaction(database, async (tx) => {
+    const snapshot = await tx.get(campaignRef);
+    if (!snapshot.exists()) throw new Error('La campaña ya no existe.');
+    const current: StoredCampaign = {
+      id: campaignId,
+      ...(snapshot.data() as Omit<StoredCampaign, 'id'>),
+    };
+    const validation = campaignCorrectionError(current, values, reason);
+    if (validation) throw new Error(validation);
+
+    const now = Date.now();
+    const changes = correctionChanges(current, values);
+    const next = { ...current, ...values };
+    const manualOverrides: CampaignManualOverrides = {
+      ...(current.manualOverrides ?? {}),
+    };
+    for (const change of changes) {
+      manualOverrides[change.field] = {
+        value: change.after,
+        reason: reason.trim(),
+        correctedAt: now,
+        correctedByUid: actor.uid,
+        correctedByEmail: actor.email,
+      };
+    }
+    const event: CampaignCorrectionEvent = {
+      id: correctionRef.id,
+      campaignId,
+      campaignName: current.name,
+      changes,
+      reason: reason.trim(),
+      comment: correctionComment(changes, reason, actor.email, now),
+      actorUid: actor.uid,
+      actorEmail: actor.email,
+      at: now,
+    };
+    const { id: _campaignId, ...campaignData } = next;
+    void _campaignId;
+    tx.set(
+      campaignRef,
+      {
+        ...campaignData,
+        signature: campaignSignature(next),
+        manualOverrides,
+        updatedAt: now,
+        updatedBy: actor.email,
+      },
+      { merge: true },
+    );
+    const { id: _eventId, ...eventData } = event;
+    void _eventId;
+    tx.set(correctionRef, eventData);
+
+    return {
+      campaign: {
+        ...next,
+        signature: campaignSignature(next),
+        manualOverrides,
+        updatedAt: now,
+        updatedBy: actor.email,
+      },
+      event,
+    };
+  });
+}
+
+/** Historial inmutable de correcciones de una campaña, más reciente primero. */
+export async function listCampaignCorrections(
+  campaignId: string,
+): Promise<CampaignCorrectionEvent[]> {
+  const snapshot = await getDocs(
+    collection(db(), COLLECTION, campaignId, 'corrections'),
+  );
+  return snapshot.docs
+    .map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<CampaignCorrectionEvent, 'id'>),
+    }))
+    .sort((a, b) => b.at - a.at);
 }
 
 function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {

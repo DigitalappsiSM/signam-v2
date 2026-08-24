@@ -10,6 +10,7 @@ describe('permisos por rol', () => {
 
   it('operator importa y exporta pero no modifica el catálogo', () => {
     expect(can('operator', 'calendar.import')).toBe(true);
+    expect(can('operator', 'campaign.correct')).toBe(true);
     expect(can('operator', 'export.csv')).toBe(true);
     expect(can('operator', 'catalog.write')).toBe(false);
     expect(can('operator', 'users.manage')).toBe(false);
@@ -19,6 +20,7 @@ describe('permisos por rol', () => {
     expect(can('viewer', 'catalog.read')).toBe(true);
     expect(can('viewer', 'export.csv')).toBe(false);
     expect(can('viewer', 'calendar.import')).toBe(false);
+    expect(can('viewer', 'campaign.correct')).toBe(false);
   });
 
   it('los CSV de ocupación (operativos) los puede exportar cualquier rol', () => {

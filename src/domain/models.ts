@@ -169,6 +169,7 @@ export type AuditAction =
   | 'screen.reactivate'
   | 'master.import'
   | 'calendar.import'
+  | 'campaign.correct'
   | 'consolidation.run'
   | 'export.csv'
   | 'user.role.update';

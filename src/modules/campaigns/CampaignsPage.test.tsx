@@ -10,7 +10,11 @@ import {
 } from '@/modules/admira-catalog/screenFactory';
 import type { AdmiraScreen } from '@/domain';
 import type { StoredCampaign } from './campaignDiff';
-import { listCampaigns } from '@/services/campaigns';
+import {
+  correctCampaign,
+  listCampaignCorrections,
+  listCampaigns,
+} from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import {
   listEkonLinks,
@@ -29,6 +33,10 @@ import {
 } from '@/modules/exports/pptExport';
 import { buildCampaignReport } from '@/modules/exports/campaignReport';
 import { buildCampaignReportBlob } from '@/modules/exports/campaignExcelExport';
+import {
+  initializeTrackingForImport,
+  listOperationalTracking,
+} from '@/services/campaignOperationalTracking';
 
 vi.mock('@/modules/exports/pptExport', async () => {
   const actual = await vi.importActual<
@@ -86,8 +94,16 @@ vi.mock('@/app/providers/AuthProvider', () => ({
   }),
 }));
 
-vi.mock('@/services/campaigns', () => ({ listCampaigns: vi.fn() }));
+vi.mock('@/services/campaigns', () => ({
+  listCampaigns: vi.fn(),
+  correctCampaign: vi.fn(),
+  listCampaignCorrections: vi.fn(),
+}));
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
+vi.mock('@/services/campaignOperationalTracking', () => ({
+  listOperationalTracking: vi.fn(),
+  initializeTrackingForImport: vi.fn(),
+}));
 vi.mock('@/services/campaignEkonLinks', async () => {
   const actual = await vi.importActual<
     typeof import('@/services/campaignEkonLinks')
@@ -182,6 +198,30 @@ function defaultConsolidation() {
 beforeEach(() => {
   vi.mocked(listCampaigns).mockResolvedValue([A, B]);
   vi.mocked(listScreens).mockResolvedValue([]);
+  vi.mocked(listOperationalTracking).mockResolvedValue([]);
+  vi.mocked(listCampaignCorrections).mockResolvedValue([]);
+  vi.mocked(initializeTrackingForImport).mockResolvedValue({
+    created: 1,
+    reclassified: 0,
+    failures: [],
+  });
+  vi.mocked(correctCampaign).mockImplementation(async ({ values, reason }) => ({
+    campaign: {
+      ...A,
+      ...values,
+    },
+    event: {
+      id: 'correction-1',
+      campaignId: A.id,
+      campaignName: A.name,
+      changes: [],
+      reason,
+      comment: 'Corrección manual',
+      actorUid: 'u1',
+      actorEmail: 'admin@signam.mx',
+      at: 1,
+    },
+  }));
   vi.mocked(listEkonLinks).mockResolvedValue([
     {
       id: 'k',
@@ -1050,6 +1090,107 @@ describe('CampaignsPage — advertencia de baja ocupación', () => {
       name: /Ver alertas de baja ocupación/i,
     });
     expect(link).toHaveAttribute('href', `/alertas-ocupacion?fecha=${today}`);
+  });
+});
+
+describe('CampaignsPage — correcciones manuales', () => {
+  it('corrige una fecha con motivo y crea el seguimiento faltante', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /Corregir datos de BUEN FIN/i }),
+    );
+    const endDate = screen.getByLabelText('Fecha de fin');
+    await userEvent.clear(endDate);
+    await userEvent.type(endDate, '2026-05-21');
+    await userEvent.selectOptions(
+      screen.getByLabelText('Clasificación para seguimiento'),
+      'provider',
+    );
+    await userEvent.type(
+      screen.getByLabelText('Motivo de la corrección'),
+      'Error de captura en calendario',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /Confirmar corrección/i }),
+    );
+
+    await waitFor(() => expect(correctCampaign).toHaveBeenCalledTimes(1));
+    expect(correctCampaign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignId: 'a',
+        values: expect.objectContaining({ fechaFin: '2026-05-21' }),
+        reason: 'Error de captura en calendario',
+      }),
+    );
+    expect(initializeTrackingForImport).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          campaignId: 'a',
+          classification: 'provider',
+        }),
+      ],
+      expect.objectContaining({ uid: 'u1' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: /Corregir campaña BUEN FIN/i }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('permite reintentar el seguimiento sin duplicar la corrección', async () => {
+    vi.mocked(correctCampaign).mockClear();
+    vi.mocked(initializeTrackingForImport)
+      .mockResolvedValueOnce({
+        created: 0,
+        reclassified: 0,
+        failures: [
+          {
+            campaignId: 'a',
+            campaignName: 'BUEN FIN',
+            message: 'permission-denied',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ created: 1, reclassified: 0, failures: [] });
+
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(
+      screen.getByRole('button', { name: /Corregir datos de BUEN FIN/i }),
+    );
+    const endDate = screen.getByLabelText('Fecha de fin');
+    await userEvent.clear(endDate);
+    await userEvent.type(endDate, '2026-05-21');
+    await userEvent.selectOptions(
+      screen.getByLabelText('Clasificación para seguimiento'),
+      'provider',
+    );
+    await userEvent.type(
+      screen.getByLabelText('Motivo de la corrección'),
+      'Error de captura en calendario',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /Confirmar corrección/i }),
+    );
+
+    const retry = await screen.findByRole('button', {
+      name: /Reintentar seguimiento/i,
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'La corrección se guardó',
+    );
+    await userEvent.click(retry);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: /Reintentar seguimiento/i }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(initializeTrackingForImport).toHaveBeenCalled();
+    expect(correctCampaign).toHaveBeenCalledTimes(1);
   });
 });
 
