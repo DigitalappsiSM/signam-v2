@@ -58,6 +58,14 @@ import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { validateCampaignDates } from './campaignDateValidation';
 import { campaignsMissingOperationalTracking } from '@/modules/operational-tracking/trackingReconciliation';
 import { CAMPAIGN_FIELD_LABELS } from '@/modules/campaigns/campaignCorrection';
+import {
+  applyImportDateCorrections,
+  campaignHasBlockingDates,
+  importDateCorrectionError,
+  toDateInputValue,
+  type ImportDateCorrection,
+  type ImportDateCorrections,
+} from './importDateCorrection';
 import './ImportPage.css';
 
 /**
@@ -125,6 +133,11 @@ export function ImportPage() {
   const [dateChoices, setDateChoices] = useState<Map<string, DateOrder>>(
     new Map(),
   );
+  // Correcciones de vigencia capturadas durante la importación (por fila de
+  // origen), para campañas nuevas con fecha inválida. No tocan el archivo.
+  const [dateCorrections, setDateCorrections] = useState<ImportDateCorrections>(
+    new Map(),
+  );
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +168,7 @@ export function ImportPage() {
       setCampaigns(parsed);
       setParsedList(parsed.campaigns);
       setDateChoices(new Map());
+      setDateCorrections(new Map());
       const [stored, tracking, resolutions] = await Promise.all([
         listCampaigns({ includeInactive: true }),
         listOperationalTracking(),
@@ -177,13 +191,22 @@ export function ImportPage() {
   }
 
   // --- Derivaciones reactivas -----------------------------------------------
+  // Campañas con las correcciones de vigencia de la importación ya aplicadas
+  // (fila → fechas corregidas). Es la base de todas las derivaciones siguientes.
+  const correctedList = useMemo(
+    () => applyImportDateCorrections(parsedList, dateCorrections),
+    [parsedList, dateCorrections],
+  );
+
   // Calendario con fechas resueltas (memoria + elecciones) y deduplicado.
   const resolvedList = useMemo(
     () =>
       dedupeIncoming(
-        parsedList.map((c) => resolveCampaignDates(c, dateMemory, dateChoices)),
+        correctedList.map((c) =>
+          resolveCampaignDates(c, dateMemory, dateChoices),
+        ),
       ),
-    [parsedList, dateMemory, dateChoices],
+    [correctedList, dateMemory, dateChoices],
   );
 
   const diff = useMemo(
@@ -199,7 +222,7 @@ export function ImportPage() {
   const ambiguousRows = useMemo(() => {
     const seen = new Set<string>();
     const rows: { raw: string; dmy: string | null; mdy: string | null }[] = [];
-    for (const c of parsedList) {
+    for (const c of correctedList) {
       for (const raw of [c.fechaInicio, c.fechaFin]) {
         if (!isAmbiguousDate(raw) || dateMemory.has(raw) || seen.has(raw)) {
           continue;
@@ -209,7 +232,7 @@ export function ImportPage() {
       }
     }
     return rows.sort((a, b) => a.raw.localeCompare(b.raw));
-  }, [parsedList, dateMemory]);
+  }, [correctedList, dateMemory]);
 
   const pendingDatesCount = ambiguousRows.filter(
     (r) => !dateChoices.get(r.raw),
@@ -222,12 +245,12 @@ export function ImportPage() {
       campaigns
         ? {
             ...campaigns,
-            campaigns: campaigns.campaigns.map((c) =>
+            campaigns: correctedList.map((c) =>
               resolveCampaignDates(c, dateMemory, dateChoices),
             ),
           }
         : null,
-    [campaigns, dateMemory, dateChoices],
+    [campaigns, correctedList, dateMemory, dateChoices],
   );
 
   // Campañas del calendario sin seguimiento previo (necesitan clasificación).
@@ -335,6 +358,23 @@ export function ImportPage() {
     [campaigns?.operativeSheet, diff],
   );
 
+  // Altas nuevas con vigencia inválida que aún pueden corregirse dentro de la
+  // importación. Las coincidencias con campañas ya guardadas no se listan aquí:
+  // esas se corrigen desde Campañas y su corrección se conserva al reimportar.
+  const correctableAdded = useMemo(
+    () => (diff ? diff.added.filter((c) => campaignHasBlockingDates(c)) : []),
+    [diff],
+  );
+  const appliedCorrections = useMemo(() => {
+    const byRow = new Map(parsedList.map((c) => [c.row, c]));
+    return [...dateCorrections.entries()]
+      .flatMap(([row, correction]) => {
+        const campaign = byRow.get(row);
+        return campaign ? [{ row, campaign, correction }] : [];
+      })
+      .sort((a, b) => a.row - b.row);
+  }, [dateCorrections, parsedList]);
+
   const validatedAnalysis = useMemo<CalendarAnalysis | null>(
     () =>
       analysis
@@ -389,6 +429,18 @@ export function ImportPage() {
     setDateChoices((prev) => new Map(prev).set(raw, order));
   }
 
+  function applyDateCorrection(row: number, correction: ImportDateCorrection) {
+    setDateCorrections((prev) => new Map(prev).set(row, correction));
+  }
+
+  function undoDateCorrection(row: number) {
+    setDateCorrections((prev) => {
+      const next = new Map(prev);
+      next.delete(row);
+      return next;
+    });
+  }
+
   async function saveChanges() {
     if (
       saving ||
@@ -433,7 +485,7 @@ export function ImportPage() {
         addedCampaignIds: {} as Record<string, string>,
       };
       if (diff && diff.hasChanges) {
-        res = await applyCampaignChanges(diff, actor);
+        res = await applyCampaignChanges(diff, actor, dateCorrections);
       }
       const matchedIds = new Map(
         (diff?.matched ?? []).map((match) => [
@@ -625,6 +677,15 @@ export function ImportPage() {
                   </div>
                 )}
               </Section>
+            )}
+
+            {(correctableAdded.length > 0 || appliedCorrections.length > 0) && (
+              <InvalidDateCorrectionPanel
+                correctable={correctableAdded}
+                applied={appliedCorrections}
+                onApply={applyDateCorrection}
+                onUndo={undoDateCorrection}
+              />
             )}
 
             {ambiguousRows.length > 0 && (
@@ -1251,6 +1312,175 @@ function AmbiguousDatesPanel({
         </table>
       </div>
     </Section>
+  );
+}
+
+/**
+ * Corrección auditada de vigencias inválidas de campañas nuevas, dentro de la
+ * importación. No modifica el archivo de Liverpool: aplica la fecha en memoria
+ * para desbloquear la importación y, al guardar, la persiste como corrección
+ * auditada de la campaña.
+ */
+function InvalidDateCorrectionPanel({
+  correctable,
+  applied,
+  onApply,
+  onUndo,
+}: {
+  correctable: ParsedCampaign[];
+  applied: {
+    row: number;
+    campaign: ParsedCampaign;
+    correction: ImportDateCorrection;
+  }[];
+  onApply: (row: number, correction: ImportDateCorrection) => void;
+  onUndo: (row: number) => void;
+}) {
+  const pending = correctable.length;
+  return (
+    <Section
+      title="Fechas inválidas por corregir"
+      chip={pending > 0 ? `${pending} pendientes` : 'Completa'}
+      tone={pending > 0 ? 'danger' : 'success'}
+      defaultOpen={pending > 0}
+    >
+      <p className="import__note" style={{ marginTop: 0 }}>
+        Estas campañas <strong>nuevas</strong> traen una vigencia inválida en el
+        archivo (año fuera de 2000–2100, texto no interpretable, o inicio
+        posterior a fin). Corrige la fecha aquí{' '}
+        <strong>sin modificar el archivo de Liverpool</strong>: la corrección
+        queda auditada (motivo, autor y fecha) y se conserva en futuras
+        reimportaciones. Las campañas que ya existían se corrigen desde{' '}
+        <strong>Campañas</strong>.
+      </p>
+      {correctable.length > 0 && (
+        <div className="diagnosis__table-wrap">
+          <table className="catalog__table">
+            <thead>
+              <tr>
+                <th>Campaña (fila)</th>
+                <th>Fecha de inicio</th>
+                <th>Fecha de fin</th>
+                <th>Motivo</th>
+                <th aria-label="Acción" />
+              </tr>
+            </thead>
+            <tbody>
+              {correctable.map((c) => (
+                <DateCorrectionRow key={c.row} campaign={c} onApply={onApply} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {applied.length > 0 && (
+        <div
+          className="import__issues import__issues--warning"
+          style={{ marginTop: '1rem' }}
+        >
+          <h3>Correcciones aplicadas</h3>
+          <ul>
+            {applied.map(({ row, campaign, correction }) => (
+              <li key={row}>
+                <strong>{campaign.name}</strong> (fila {row}):{' '}
+                <code>{correction.before.fechaInicio || '(vacía)'}</code> –{' '}
+                <code>{correction.before.fechaFin || '(vacía)'}</code> →{' '}
+                <strong>
+                  {formatCivilString(correction.fechaInicio)} –{' '}
+                  {formatCivilString(correction.fechaFin)}
+                </strong>
+                . Motivo: {correction.reason}{' '}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => onUndo(row)}
+                >
+                  Deshacer
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** Fila editable para corregir la vigencia de una campaña nueva. */
+function DateCorrectionRow({
+  campaign,
+  onApply,
+}: {
+  campaign: ParsedCampaign;
+  onApply: (row: number, correction: ImportDateCorrection) => void;
+}) {
+  const [inicio, setInicio] = useState(() =>
+    toDateInputValue(campaign.fechaInicio),
+  );
+  const [fin, setFin] = useState(() => toDateInputValue(campaign.fechaFin));
+  const [reason, setReason] = useState('');
+  const error = importDateCorrectionError(
+    campaign,
+    { fechaInicio: inicio, fechaFin: fin },
+    reason,
+  );
+  return (
+    <tr>
+      <td>
+        {campaign.name}
+        <span className="text-muted"> · fila {campaign.row}</span>
+        <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+          Archivo: {campaign.fechaInicio || '(vacía)'} –{' '}
+          {campaign.fechaFin || '(vacía)'}
+        </div>
+      </td>
+      <td>
+        <input
+          type="date"
+          aria-label={`Fecha de inicio de ${campaign.name}`}
+          value={inicio}
+          onChange={(e) => setInicio(e.target.value)}
+        />
+      </td>
+      <td>
+        <input
+          type="date"
+          aria-label={`Fecha de fin de ${campaign.name}`}
+          value={fin}
+          onChange={(e) => setFin(e.target.value)}
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          aria-label={`Motivo de la corrección de ${campaign.name}`}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Motivo (mín. 5)"
+        />
+      </td>
+      <td>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={error != null}
+          title={error ?? undefined}
+          onClick={() =>
+            onApply(campaign.row, {
+              fechaInicio: inicio,
+              fechaFin: fin,
+              reason: reason.trim(),
+              before: {
+                fechaInicio: campaign.fechaInicio,
+                fechaFin: campaign.fechaFin,
+              },
+            })
+          }
+        >
+          Aplicar
+        </button>
+      </td>
+    </tr>
   );
 }
 
