@@ -136,6 +136,14 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   nunca reinician checks, comentarios, Ekon ni ciclo de vida. Si falta el
   seguimiento, la corrección intenta crearlo de forma idempotente y solicita
   clasificación cuando `tipo` no sea inequívoco.
+- **Corrección de fechas en la importación**: una campaña **nueva** cuya
+  vigencia de origen es inválida (año fuera de 2000–2100, texto no interpretable
+  o inicio posterior a fin) bloquea la importación. Se puede corregir su fecha
+  desde la propia pantalla de importación **sin modificar el archivo**: la
+  corrección se aplica en memoria (por fila de origen) para desbloquear y, al
+  guardar, se persiste como `manualOverrides` del alta más un evento en su
+  bitácora `corrections`, idéntica a una corrección de Campañas. Las campañas ya
+  existentes con fecha inválida se corrigen desde Campañas, no aquí.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
   `calendarSupport`.

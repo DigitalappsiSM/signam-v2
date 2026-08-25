@@ -23,6 +23,10 @@ import {
   type CampaignCorrectionValues,
   type CampaignManualOverrides,
 } from '@/modules/campaigns/campaignCorrection';
+import type {
+  ImportDateCorrection,
+  ImportDateCorrections,
+} from '@/modules/liverpool-import/importDateCorrection';
 
 /**
  * Persistencia de campañas del calendario en Cloud Firestore.
@@ -162,8 +166,13 @@ export async function listCampaignCorrections(
     .sort((a, b) => b.at - a.at);
 }
 
-function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
-  return {
+function campaignDoc(
+  campaign: ParsedCampaign,
+  actor: Actor,
+  now: number,
+  manualOverrides?: CampaignManualOverrides,
+) {
+  const base = {
     ...campaign,
     // `nameKey` = nombre normalizado (llave estable de Ekon y del CSV). La
     // separación de "flights" homónimos ocurre en Seguimiento vía la identidad
@@ -176,6 +185,68 @@ function campaignDoc(campaign: ParsedCampaign, actor: Actor, now: number) {
     updatedAt: now,
     updatedBy: actor.email,
   };
+  return manualOverrides && Object.keys(manualOverrides).length > 0
+    ? { ...base, manualOverrides }
+    : base;
+}
+
+/**
+ * Traduce las correcciones de fecha capturadas durante la importación en los
+ * `manualOverrides` y el evento auditable de cada alta afectada. Reutiliza las
+ * mismas funciones de dominio que `correctCampaign` para que una corrección de
+ * importación quede idéntica a una hecha desde Campañas.
+ */
+interface CorrectionWrite {
+  manualOverrides: CampaignManualOverrides;
+  event: CampaignCorrectionEvent;
+  eventRef: ReturnType<typeof doc>;
+}
+
+function buildImportCorrectionWrite(
+  database: ReturnType<typeof db>,
+  campaignId: string,
+  campaign: ParsedCampaign,
+  correction: ImportDateCorrection,
+  actor: Actor,
+  now: number,
+): CorrectionWrite | null {
+  const before: ParsedCampaign = {
+    ...campaign,
+    fechaInicio: correction.before.fechaInicio,
+    fechaFin: correction.before.fechaFin,
+  };
+  const values: CampaignCorrectionValues = {
+    fechaInicio: correction.fechaInicio,
+    fechaFin: correction.fechaFin,
+  };
+  const changes = correctionChanges(before, values);
+  if (changes.length === 0) return null;
+  const reason = correction.reason.trim();
+  const manualOverrides: CampaignManualOverrides = {};
+  for (const change of changes) {
+    manualOverrides[change.field] = {
+      value: change.after,
+      reason,
+      correctedAt: now,
+      correctedByUid: actor.uid,
+      correctedByEmail: actor.email,
+    };
+  }
+  const eventRef = doc(
+    collection(database, COLLECTION, campaignId, 'corrections'),
+  );
+  const event: CampaignCorrectionEvent = {
+    id: eventRef.id,
+    campaignId,
+    campaignName: campaign.name,
+    changes,
+    reason,
+    comment: correctionComment(changes, reason, actor.email, now),
+    actorUid: actor.uid,
+    actorEmail: actor.email,
+    at: now,
+  };
+  return { manualOverrides, event, eventRef };
 }
 
 export interface ApplyResult {
@@ -193,6 +264,7 @@ export interface ApplyResult {
 export async function applyCampaignChanges(
   diff: CampaignDiff,
   actor: Actor,
+  importCorrections?: ImportDateCorrections,
 ): Promise<ApplyResult> {
   const database = db();
   const now = Date.now();
@@ -219,6 +291,28 @@ export async function applyCampaignChanges(
     })),
   ];
 
+  // Correcciones de fecha capturadas durante la importación: solo aplican a
+  // altas (las modificaciones de campañas existentes se corrigen desde
+  // Campañas). Cada una escribe `manualOverrides` en el alta y un evento en su
+  // bitácora `corrections`, en el mismo lote atómico que la creación.
+  const correctionWrites = new Map<string, CorrectionWrite>();
+  if (importCorrections && importCorrections.size > 0) {
+    for (const op of ops) {
+      if (op.kind !== 'set' || op.createdAt == null) continue;
+      const correction = importCorrections.get(op.campaign.row);
+      if (!correction) continue;
+      const write = buildImportCorrectionWrite(
+        database,
+        op.id,
+        op.campaign,
+        correction,
+        actor,
+        now,
+      );
+      if (write) correctionWrites.set(op.id, write);
+    }
+  }
+
   for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
     const batch = writeBatch(database);
     for (const op of ops.slice(i, i + BATCH_LIMIT)) {
@@ -237,12 +331,23 @@ export async function applyCampaignChanges(
         continue;
       }
       const ref = doc(database, COLLECTION, op.id);
-      const data = campaignDoc(op.campaign, actor, now);
+      const correction = correctionWrites.get(op.id);
+      const data = campaignDoc(
+        op.campaign,
+        actor,
+        now,
+        correction?.manualOverrides,
+      );
       batch.set(
         ref,
         op.createdAt ? { ...data, createdAt: op.createdAt } : data,
         { merge: true },
       );
+      if (correction) {
+        const { id: _eventId, ...eventData } = correction.event;
+        void _eventId;
+        batch.set(correction.eventRef, eventData);
+      }
     }
     await batch.commit();
   }
