@@ -118,9 +118,12 @@ export function DigitalDashboardPanel() {
         ))}
       </div>
 
-      <ChecksCard pending={data.pendingByCheck} active={data.activeItems} />
-
-      <div className="digital-panels">
+      <div className="digital-subhead">
+        <span className="dashboard-eyebrow">Distribución</span>
+        <h3>Cómo se reparte la operación</h3>
+      </div>
+      <div className="digital-dist">
+        <ChecksCard pending={data.pendingByCheck} active={data.activeItems} />
         <Breakdown title="Por retailer" icon="users" values={data.byRetailer} />
         <Breakdown title="Por soporte" icon="monitor" values={data.bySupport} />
         <Breakdown
@@ -183,7 +186,47 @@ function KpiTile({ icon, value, label, status, tone, progress }: KpiDef) {
   );
 }
 
-/** Tres controles del seguimiento digital y cuántas colocaciones los deben. */
+/**
+ * Fila de ranking: etiqueta + valor sobre una barra de proporción. El color de
+ * la barra toma el tono de su contexto (`--tone`): acento para los desgloses,
+ * semántico (success/warning) en la tarjeta de controles.
+ */
+function RankRow({
+  label,
+  value,
+  share,
+  tone,
+  sub,
+  dot = false,
+}: {
+  label: string;
+  value: number;
+  share: number;
+  tone?: Extract<DigitalTone, 'success' | 'warning'>;
+  sub?: string;
+  dot?: boolean;
+}) {
+  const width = Math.max(0, Math.min(100, share));
+  return (
+    <li className={`digital-rank${tone ? ` digital-rank--${tone}` : ''}`}>
+      <div className="digital-rank__top">
+        <span className="digital-rank__label" title={label}>
+          {dot && <span className="digital-rank__dot" aria-hidden="true" />}
+          {label}
+        </span>
+        <span className="digital-rank__value">
+          {value}
+          {sub && <small>{sub}</small>}
+        </span>
+      </div>
+      <span className="digital-rank__track" aria-hidden="true">
+        <span className="digital-rank__fill" style={{ width: `${width}%` }} />
+      </span>
+    </li>
+  );
+}
+
+/** Avance de los tres controles del seguimiento digital (completados/activas). */
 function ChecksCard({
   pending,
   active,
@@ -191,36 +234,35 @@ function ChecksCard({
   pending: Record<string, number>;
   active: number;
 }) {
-  const keys = Object.keys(CHECK_LABELS);
   return (
-    <article className="digital-checks-card" aria-label="Controles pendientes">
-      <div className="digital-breakdown__head">
-        <span className="digital-breakdown__icon" aria-hidden="true">
-          <Icon name="check-circle" size={16} />
+    <article
+      className="digital-panel-card digital-panel-card--controls"
+      aria-label="Controles completados"
+    >
+      <div className="digital-panel-card__head">
+        <span className="digital-panel-card__icon" aria-hidden="true">
+          <Icon name="check-circle" size={18} />
         </span>
-        <h3>Controles pendientes</h3>
+        <h3>Controles completados</h3>
+        <span className="digital-panel-card__pill">{active}</span>
       </div>
-      <div className="digital-checks-grid">
-        {keys.map((key) => {
-          const count = pending[key] ?? 0;
-          const done = active - count;
-          const tone: DigitalTone =
-            active === 0 ? 'neutral' : count > 0 ? 'warning' : 'success';
+      <ul className="digital-ranks">
+        {Object.keys(CHECK_LABELS).map((key) => {
+          const done = active - (pending[key] ?? 0);
+          const tone = active === 0 || done < active ? 'warning' : 'success';
           return (
-            <div key={key} className={`digital-check digital-check--${tone}`}>
-              <span className="digital-check__value">{count}</span>
-              <span className="digital-check__label">{CHECK_LABELS[key]}</span>
-              <span className="digital-check__hint">
-                {active === 0
-                  ? 'Sin colocaciones activas'
-                  : count === 0
-                    ? 'Todas completas'
-                    : `${done} de ${active} completas`}
-              </span>
-            </div>
+            <RankRow
+              key={key}
+              label={CHECK_LABELS[key] ?? key}
+              value={done}
+              sub={`/ ${active}`}
+              share={active ? (done / active) * 100 : 0}
+              tone={active === 0 ? undefined : tone}
+              dot
+            />
           );
         })}
-      </div>
+      </ul>
     </article>
   );
 }
@@ -239,31 +281,25 @@ function Breakdown({
   const total = rows.reduce((s, [, v]) => s + v, 0);
   const max = rows.reduce((m, [, v]) => Math.max(m, v), 0);
   return (
-    <article className="digital-breakdown">
-      <div className="digital-breakdown__head">
-        <span className="digital-breakdown__icon" aria-hidden="true">
-          <Icon name={icon} size={16} />
+    <article className="digital-panel-card">
+      <div className="digital-panel-card__head">
+        <span className="digital-panel-card__icon" aria-hidden="true">
+          <Icon name={icon} size={18} />
         </span>
         <h3>{title}</h3>
-        {total > 0 && <span className="digital-breakdown__total">{total}</span>}
+        {total > 0 && <span className="digital-panel-card__pill">{total}</span>}
       </div>
       {rows.length === 0 ? (
-        <p className="digital-breakdown__empty">Sin datos en el periodo.</p>
+        <p className="digital-panel-card__empty">Sin datos en el periodo.</p>
       ) : (
-        <ul className="digital-breakdown__rows">
+        <ul className="digital-ranks">
           {rows.map(([key, value]) => (
-            <li className="digital-breakdown__row" key={key}>
-              <span className="digital-breakdown__label" title={key}>
-                {key}
-              </span>
-              <span className="digital-breakdown__bar" aria-hidden="true">
-                <span
-                  className="digital-breakdown__fill"
-                  style={{ width: `${max ? (value / max) * 100 : 0}%` }}
-                />
-              </span>
-              <span className="digital-breakdown__count">{value}</span>
-            </li>
+            <RankRow
+              key={key}
+              label={key}
+              value={value}
+              share={max ? (value / max) * 100 : 0}
+            />
           ))}
         </ul>
       )}
