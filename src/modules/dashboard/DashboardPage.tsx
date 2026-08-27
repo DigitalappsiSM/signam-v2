@@ -64,6 +64,10 @@ interface Kpi {
   status: string;
   tone: DashboardTone;
   rows: TrackingRow[];
+  /** Línea de contexto derivada del propio periodo (sin históricos nuevos). */
+  context?: string;
+  /** Proporción 0–100 para la mini-barra, cuando el contexto es un porcentaje. */
+  meter?: number;
 }
 
 const QUICK_ACTION_PATHS = [
@@ -503,7 +507,14 @@ export function DashboardPage() {
   );
 
   // --- Tarjetas KPI interactivas -------------------------------------------
+  // Los contextos son SIEMPRE derivables del propio periodo (porcentajes,
+  // desgloses de conteos ya calculados). No se comparan con periodos anteriores
+  // porque el modelo no persiste histórico de estos indicadores.
   const urgentCount = view.overdueOrFinishedPending.length;
+  const activeCount = view.active.length;
+  const fullPct = activeCount
+    ? Math.round((view.full.length / activeCount) * 100)
+    : 0;
   const kpis: Kpi[] = [
     {
       id: 'active',
@@ -512,6 +523,7 @@ export function DashboardPage() {
       status: 'En ejecución',
       tone: 'info',
       rows: view.active,
+      context: `${activeCount - view.withAlerts.length} sin alertas`,
     },
     {
       id: 'full',
@@ -520,6 +532,8 @@ export function DashboardPage() {
       status: 'Completas',
       tone: 'success',
       rows: view.full,
+      context: `${fullPct}% de las activas`,
+      meter: fullPct,
     },
     {
       id: 'ontrack',
@@ -528,6 +542,7 @@ export function DashboardPage() {
       status: 'Al día',
       tone: 'success',
       rows: view.onTrack,
+      context: 'Sin alertas ni vencidas',
     },
     {
       id: 'alerts',
@@ -536,6 +551,7 @@ export function DashboardPage() {
       status: view.withAlerts.length > 0 ? 'Revisión' : 'Sin alertas',
       tone: view.withAlerts.length > 0 ? 'warning' : 'success',
       rows: view.withAlerts,
+      context: `${view.upcomingDue.length} próximas a vencer`,
     },
     {
       id: 'overdue',
@@ -544,11 +560,16 @@ export function DashboardPage() {
       status: urgentCount > 0 ? 'Urgente' : 'Sin vencidas',
       tone: urgentCount > 0 ? 'danger' : 'success',
       rows: view.overdueOrFinishedPending,
+      context: `${view.overduePending.length} vencidas · ${view.finishedPending.length} terminadas`,
     },
   ];
   const [kpiSelection, setKpiSelection] = useState<KpiId | null>(null);
   const selectedKpi = kpis.find((k) => k.id === kpiSelection) ?? null;
   const periodLabel = rangeLabel(range);
+
+  // Anillo de salud del hero: circunferencia y desfase según la puntuación.
+  const healthCirc = 2 * Math.PI * 52;
+  const healthOffset = healthCirc * (1 - operationalHealth.score / 100);
 
   return (
     <>
@@ -614,6 +635,112 @@ export function DashboardPage() {
             />
           </section>
 
+          <div className="dashboard-hero">
+            <section
+              className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
+              aria-label={`Estado operativo: ${operationalHealth.label}`}
+            >
+              <div className="dashboard-health__ring" aria-hidden="true">
+                <svg viewBox="0 0 120 120" width="120" height="120">
+                  <circle
+                    className="dashboard-health__ring-bg"
+                    cx="60"
+                    cy="60"
+                    r="52"
+                  />
+                  <circle
+                    className="dashboard-health__ring-fill"
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    strokeDasharray={healthCirc}
+                    strokeDashoffset={healthOffset}
+                  />
+                </svg>
+                <div className="dashboard-health__ring-label">
+                  <span className="dashboard-health__score">
+                    {operationalHealth.score}%
+                  </span>
+                  <span className="dashboard-health__score-cap">Salud</span>
+                </div>
+              </div>
+              <div className="dashboard-health__body">
+                <span className="dashboard-eyebrow">Estado operativo</span>
+                <h2>{operationalHealth.label}</h2>
+                <p>{operationalHealth.detail}</p>
+                <div className="dashboard-health__meta">
+                  <div>
+                    <b className="tabnum">{view.active.length}</b>
+                    <span>activas</span>
+                  </div>
+                  <div>
+                    <b className="tabnum is-warn">{view.withAlerts.length}</b>
+                    <span>con alertas</span>
+                  </div>
+                  <div>
+                    <b className="tabnum is-bad">
+                      {view.overdueOrFinishedPending.length}
+                    </b>
+                    <span>vencidas / pend.</span>
+                  </div>
+                  <div>
+                    <b className="tabnum">{view.full.length}</b>
+                    <span>seguimiento completo</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              className={`dashboard-panel dashboard-urgent${
+                view.immediateAttention.length === 0
+                  ? ' dashboard-urgent--clear'
+                  : ''
+              }`}
+              aria-labelledby="dashboard-urgent-title"
+            >
+              <div className="dashboard-urgent__head">
+                <div>
+                  <span className="dashboard-eyebrow">Prioridad</span>
+                  <h2 id="dashboard-urgent-title">Atención inmediata</h2>
+                </div>
+                <span
+                  className="dashboard-urgent__count"
+                  aria-hidden={view.immediateAttention.length === 0}
+                >
+                  {view.immediateAttention.length}
+                </span>
+              </div>
+              {view.immediateAttention.length === 0 ? (
+                <p className="dashboard-urgent__empty">
+                  Sin campañas que requieran acción inmediata.
+                </p>
+              ) : (
+                <>
+                  <ul className="dashboard-urgent__list">
+                    {view.immediateAttention.slice(0, 5).map((r) => (
+                      <li
+                        key={r.campaign.id}
+                        className="dashboard-urgent__item"
+                      >
+                        <Link to={trackingLink(r)}>{r.campaign.name}</Link>
+                        <span className="dashboard-urgent__reason">
+                          {immediateReason(r)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {view.immediateAttention.length > 5 && (
+                    <Link className="dashboard-urgent__more" to="/seguimiento">
+                      Ver {view.immediateAttention.length - 5} más en
+                      Seguimiento
+                    </Link>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
+
           <section
             className="dash-summary"
             aria-label="Resumen de campañas activas"
@@ -626,6 +753,8 @@ export function DashboardPage() {
                 status={kpi.status}
                 tone={kpi.tone}
                 value={kpi.rows.length}
+                context={kpi.context}
+                meter={kpi.meter}
                 selected={kpiSelection === kpi.id}
                 onSelect={() =>
                   setKpiSelection((cur) => (cur === kpi.id ? null : kpi.id))
@@ -739,83 +868,10 @@ export function DashboardPage() {
               </section>
             </div>
 
-            <aside className="dashboard-rail" aria-label="Estado y acciones">
-              <section
-                className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
-                aria-label={`Estado operativo: ${operationalHealth.label}`}
-              >
-                <div className="dashboard-health__head">
-                  <div>
-                    <span className="dashboard-eyebrow">Estado operativo</span>
-                    <h2>{operationalHealth.label}</h2>
-                  </div>
-                  <span className="dashboard-health__score">
-                    {operationalHealth.score}%
-                  </span>
-                </div>
-                <progress
-                  className="dashboard-health__progress"
-                  max={100}
-                  value={operationalHealth.score}
-                  aria-label="Campañas consideradas sin alertas críticas"
-                >
-                  {operationalHealth.score}%
-                </progress>
-                <p>{operationalHealth.detail}</p>
-              </section>
-
-              <section
-                className={`dashboard-panel dashboard-urgent${
-                  view.immediateAttention.length === 0
-                    ? ' dashboard-urgent--clear'
-                    : ''
-                }`}
-                aria-labelledby="dashboard-urgent-title"
-              >
-                <div className="dashboard-urgent__head">
-                  <div>
-                    <span className="dashboard-eyebrow">Prioridad</span>
-                    <h2 id="dashboard-urgent-title">Atención inmediata</h2>
-                  </div>
-                  <span
-                    className="dashboard-urgent__count"
-                    aria-hidden={view.immediateAttention.length === 0}
-                  >
-                    {view.immediateAttention.length}
-                  </span>
-                </div>
-                {view.immediateAttention.length === 0 ? (
-                  <p className="dashboard-urgent__empty">
-                    Sin campañas que requieran acción inmediata.
-                  </p>
-                ) : (
-                  <>
-                    <ul className="dashboard-urgent__list">
-                      {view.immediateAttention.slice(0, 5).map((r) => (
-                        <li
-                          key={r.campaign.id}
-                          className="dashboard-urgent__item"
-                        >
-                          <Link to={trackingLink(r)}>{r.campaign.name}</Link>
-                          <span className="dashboard-urgent__reason">
-                            {immediateReason(r)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {view.immediateAttention.length > 5 && (
-                      <Link
-                        className="dashboard-urgent__more"
-                        to="/seguimiento"
-                      >
-                        Ver {view.immediateAttention.length - 5} más en
-                        Seguimiento
-                      </Link>
-                    )}
-                  </>
-                )}
-              </section>
-
+            <aside
+              className="dashboard-rail"
+              aria-label="Distribución y acciones"
+            >
               <section
                 className="dashboard-panel dashboard-classification"
                 aria-labelledby="dashboard-classification-title"
@@ -1012,6 +1068,8 @@ function SummaryTile({
   status,
   value,
   tone,
+  context,
+  meter,
   selected,
   onSelect,
 }: {
@@ -1020,6 +1078,8 @@ function SummaryTile({
   status: string;
   value: number;
   tone: DashboardTone;
+  context?: string;
+  meter?: number;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -1045,6 +1105,20 @@ function SummaryTile({
       <div>
         <div className="dash-tile__value">{value}</div>
         <div className="dash-tile__label">{label}</div>
+        {context && (
+          <div className="dash-tile__context">
+            <span>{context}</span>
+            {typeof meter === 'number' && (
+              <span
+                className="dash-tile__meter"
+                aria-hidden="true"
+                data-empty={meter === 0 ? '' : undefined}
+              >
+                <i style={{ width: `${Math.max(meter, 2)}%` }} />
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <span className="dash-tile__action">
         {selected ? 'Ocultar detalle' : 'Ver detalle'}
