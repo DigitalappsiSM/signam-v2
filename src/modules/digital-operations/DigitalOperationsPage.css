@@ -5,6 +5,51 @@
   align-items: flex-end;
 }
 
+.do-export {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.do-export__copy {
+  flex: 1 1 360px;
+}
+
+.do-export__copy h2,
+.do-export__copy p {
+  margin: 0;
+}
+
+.do-export__copy h2 {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.do-export__period {
+  flex: 0 1 360px;
+}
+
+.do-export__period select {
+  width: 100%;
+  max-width: none;
+}
+
+.do-export-notice {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid
+    color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(
+    in srgb,
+    var(--color-success) 10%,
+    var(--color-surface)
+  );
+  color: var(--color-success-fg);
+}
+
 .do-filter {
   display: flex;
   flex-direction: column;
@@ -24,6 +69,18 @@
 .do-count {
   align-self: center;
   white-space: nowrap;
+}
+
+@media (max-width: 800px) {
+  .do-export {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .do-export__period {
+    width: 100%;
+    flex-basis: auto;
+  }
 }
 
 .do-warning {

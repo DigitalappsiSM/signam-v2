@@ -18,6 +18,13 @@ import {
   setDigitalCheck,
   setDigitalLifecycle,
 } from '@/services/digitalOperationalTracking';
+import { saveDigitalExportSnapshot } from '@/services/digitalReportExports';
+import {
+  buildDigitalWorkPaper,
+  digitalWorkPaperFileName,
+  downloadDigitalWorkPaper,
+  eligibleDigitalWorkPaperItems,
+} from './digitalWorkPaperExport';
 import {
   digitalPeriodKey,
   digitalPeriodOptions,
@@ -119,11 +126,15 @@ export function DigitalOperationsPage() {
   const { user } = useAuth();
   const actor = { uid: user?.uid ?? '', email: user?.email ?? '' };
   const editable = !!user && can(user.role, 'digitalOperations.track');
+  const exportable = !!user && can(user.role, 'digitalOperations.export');
   const [items, setItems] = useState<DigitalOperationalItem[]>([]);
   const [tracking, setTracking] = useState<DigitalOperationalTracking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [exportPeriod, setExportPeriod] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
@@ -193,6 +204,20 @@ export function DigitalOperationsPage() {
   );
   const missingTrackingCount = items.length - rows.length;
   const periods = useMemo(() => digitalPeriodOptions(items), [items]);
+  const exportPeriods = useMemo(
+    () =>
+      periods
+        .map((entry) => ({
+          ...entry,
+          count: eligibleDigitalWorkPaperItems({
+            items,
+            tracking,
+            periodKey: entry.key,
+          }).length,
+        }))
+        .filter((entry) => entry.count > 0),
+    [items, periods, tracking],
+  );
   const defaultPeriodIds = useMemo(
     () => surroundingPeriodIds(periods, todayCivil()),
     [periods],
@@ -372,6 +397,43 @@ export function DigitalOperationsPage() {
     }
   }
 
+  async function exportWorkPaper() {
+    const selected = exportPeriods.find((entry) => entry.key === exportPeriod);
+    if (!selected || !exportable || exporting) return;
+    setActionError(null);
+    setExportNotice(null);
+    setExporting(true);
+    try {
+      const eligible = eligibleDigitalWorkPaperItems({
+        items,
+        tracking,
+        periodKey: selected.key,
+      });
+      const latest = [...eligible].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      if (!latest) throw new Error('No hay operaciones vigentes.');
+      const fileName = digitalWorkPaperFileName(selected.id);
+      const buffer = await buildDigitalWorkPaper({
+        items,
+        tracking,
+        periodKey: selected.key,
+      });
+      await saveDigitalExportSnapshot(
+        latest.lastBatchId,
+        fileName,
+        [selected.id],
+        actor,
+      );
+      downloadDigitalWorkPaper(buffer, fileName);
+      setExportNotice(
+        `${fileName} generado con ${eligible.length} operación${eligible.length === 1 ? '' : 'es'}.`,
+      );
+    } catch {
+      setActionError('No se pudo generar el papel de trabajo seleccionado.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function resetFilters() {
     setQuery('');
     setSource('');
@@ -410,12 +472,54 @@ export function DigitalOperationsPage() {
           {actionError}
         </div>
       )}
+      {exportNotice && (
+        <div className="do-export-notice" role="status">
+          {exportNotice}
+        </div>
+      )}
       {missingTrackingCount > 0 && !loading && (
         <div className="do-warning" role="status">
           {missingTrackingCount} elemento{missingTrackingCount === 1 ? '' : 's'}{' '}
           sin seguimiento asociado. Actualiza la importación para completar su
           inicialización.
         </div>
+      )}
+
+      {exportable && !loading && items.length > 0 && (
+        <section className="card do-export" aria-labelledby="do-export-title">
+          <div className="do-export__copy">
+            <h2 id="do-export-title">Papel de trabajo</h2>
+            <p className="text-muted">
+              Exporta una catorcena con las operaciones vigentes. El espacio de
+              Arte se conserva vacío para completar la imagen en Excel.
+            </p>
+          </div>
+          <label className="do-filter do-export__period">
+            <span className="text-muted">Catorcena a exportar</span>
+            <select
+              aria-label="Catorcena a exportar"
+              value={exportPeriod}
+              onChange={(event) => setExportPeriod(event.target.value)}
+            >
+              <option value="">Selecciona una catorcena…</option>
+              {exportPeriods.map((entry) => (
+                <option key={entry.key} value={entry.key}>
+                  {entry.label} · {formatDigitalDate(entry.start)}–
+                  {formatDigitalDate(entry.end)} · {entry.count} operación
+                  {entry.count === 1 ? '' : 'es'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={!exportPeriod || exporting}
+            onClick={() => void exportWorkPaper()}
+          >
+            {exporting ? 'Generando…' : 'Exportar papel de trabajo'}
+          </button>
+        </section>
       )}
 
       <div className="catalog__filters do-filters">

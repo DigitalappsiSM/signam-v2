@@ -220,6 +220,11 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
 - El seguimiento digital tiene exactamente tres checks (link, validación de
   cadena y programación CMS). No usa testigos, objetivos, días hábiles, Admira,
   PPT, CSV/ZIP ni los reportes Excel Liverpool.
+- El papel de trabajo se exporta desde Operación Digital con una catorcena exacta
+  obligatoria e independiente de los filtros. Solo incluye elementos vigentes en
+  fuente y no cancelados; genera `CHEDRAUI` y `LACOMER` con las diez columnas del
+  formato acordado, concatena la bitácora en `Comentarios` y conserva `Arte`
+  vacío con su ancho. No reutiliza ni modifica exportadores Liverpool.
 - Las ausencias solo se inactivan dentro de catorcenas confirmadas. Nunca hay
   borrado físico y una reimportación conserva checks, comentarios y cancelación.
 
