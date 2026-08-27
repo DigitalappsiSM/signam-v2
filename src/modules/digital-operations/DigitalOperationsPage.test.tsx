@@ -14,6 +14,11 @@ import {
   setDigitalCheck,
   setDigitalLifecycle,
 } from '@/services/digitalOperationalTracking';
+import { saveDigitalExportSnapshot } from '@/services/digitalReportExports';
+import {
+  buildDigitalWorkPaper,
+  downloadDigitalWorkPaper,
+} from './digitalWorkPaperExport';
 import { DigitalOperationsPage } from './DigitalOperationsPage';
 
 vi.mock('@/app/providers/AuthProvider', () => ({
@@ -39,6 +44,20 @@ vi.mock('@/services/digitalOperationalTracking', () => ({
   setDigitalLifecycle: vi.fn(),
   appendDigitalComment: vi.fn(),
 }));
+
+vi.mock('@/services/digitalReportExports', () => ({
+  saveDigitalExportSnapshot: vi.fn(),
+}));
+
+vi.mock('./digitalWorkPaperExport', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./digitalWorkPaperExport')>();
+  return {
+    ...actual,
+    buildDigitalWorkPaper: vi.fn(),
+    downloadDigitalWorkPaper: vi.fn(),
+  };
+});
 
 function item(over: Partial<DigitalOperationalItem>): DigitalOperationalItem {
   return {
@@ -139,6 +158,20 @@ beforeEach(() => {
   vi.mocked(setDigitalCheck).mockReset();
   vi.mocked(setDigitalLifecycle).mockReset();
   vi.mocked(appendDigitalComment).mockReset();
+  vi.mocked(buildDigitalWorkPaper).mockReset();
+  vi.mocked(buildDigitalWorkPaper).mockResolvedValue(new ArrayBuffer(8));
+  vi.mocked(downloadDigitalWorkPaper).mockReset();
+  vi.mocked(saveDigitalExportSnapshot).mockReset();
+  vi.mocked(saveDigitalExportSnapshot).mockResolvedValue({
+    batchId: 'b1',
+    fileName: 'Papel de trabajo - C17 operadores.xlsx',
+    periodIds: ['C17'],
+    format: 'xlsx',
+    createdAt: 1,
+    createdByUid: actor.uid,
+    createdByEmail: actor.email,
+    schemaVersion: 1,
+  });
 });
 
 describe('DigitalOperationsPage', () => {
@@ -218,5 +251,39 @@ describe('DigitalOperationsPage', () => {
       actor,
     );
     expect(screen.getByText('Validar material final')).toBeInTheDocument();
+  });
+
+  it('exige una catorcena y exporta su papel de trabajo con auditoría', async () => {
+    render(<DigitalOperationsPage />);
+
+    const button = await screen.findByRole('button', {
+      name: 'Exportar papel de trabajo',
+    });
+    expect(button).toBeDisabled();
+    const periodSelect = screen.getByRole('combobox', {
+      name: 'Catorcena a exportar',
+    });
+    await userEvent.selectOptions(
+      periodSelect,
+      within(periodSelect).getByRole('option', { name: /C17/ }),
+    );
+    await userEvent.click(button);
+
+    expect(buildDigitalWorkPaper).toHaveBeenCalledWith(
+      expect.objectContaining({
+        periodKey: expect.stringContaining('|C17'),
+      }),
+    );
+    expect(saveDigitalExportSnapshot).toHaveBeenCalledWith(
+      'b1',
+      'Papel de trabajo - C17 operadores.xlsx',
+      ['C17'],
+      actor,
+    );
+    expect(downloadDigitalWorkPaper).toHaveBeenCalledWith(
+      expect.any(ArrayBuffer),
+      'Papel de trabajo - C17 operadores.xlsx',
+    );
+    expect(screen.getByText(/generado con 1 operación\./i)).toBeInTheDocument();
   });
 });

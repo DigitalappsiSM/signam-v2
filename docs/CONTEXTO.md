@@ -704,6 +704,12 @@ a los CSV auxiliares Ratio 1/3.
   cubre la catorcena anterior, la vigente y la siguiente. Los elementos
   `active:false` permanecen visibles con una señal de **Inactiva en fuente**,
   independiente del ciclo de vida Activa/Cancelada del seguimiento.
+- **Papel de trabajo**: en `/operacion-digital`, admin/operator selecciona una
+  catorcena exacta en un control independiente de los filtros. El `.xlsx` crea
+  hojas `CHEDRAUI` y `LACOMER` con el formato de diez columnas acordado, exporta
+  solo operaciones `active:true` cuyo seguimiento no esté cancelado, concatena
+  toda la bitácora en `Comentarios` y mantiene `Arte` vacío con su espacio para
+  captura manual. La generación deja auditoría en `digitalReportExports`.
 - El **Dashboard** muestra las métricas digitales en una **sección independiente**
   que no agrega cifras con Liverpool.
 

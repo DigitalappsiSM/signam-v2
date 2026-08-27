@@ -47,6 +47,14 @@ que una reimportación dejó inactivos continúan visibles e identificados para
 preservar el historial; este estado de fuente no se confunde con la cancelación
 operativa.
 
+Desde la misma pantalla, admin y operator pueden generar un **Papel de trabajo**
+eligiendo obligatoriamente una catorcena, de forma independiente a los filtros
+de la tabla. El archivo conserva las hojas `CHEDRAUI` y `LACOMER` y las diez
+columnas del formato operativo (`Cadena` a `Comentarios`); incluye solo registros
+vigentes en fuente y no cancelados, reúne toda la bitácora de comentarios con
+saltos de línea y deja `Arte` vacío con el ancho reservado para añadir la imagen
+en Excel. Cada generación se registra en `digitalReportExports`.
+
 ### Aislamiento
 
 Este dominio no utiliza `campaigns`, `screens`, `campaignEkonLinks`, Admira,
