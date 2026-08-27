@@ -277,10 +277,13 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   if (row.completeStatus === 'overdue') {
     out.push({ kind: 'complete-overdue', label: 'T Completos vencido' });
   }
-  if (
-    (row.timeframe === 'active' || row.timeframe === 'upcoming') &&
-    row.linkStatus !== 'valid'
-  ) {
+  // Se basa en el check EFECTIVO del link (`c.link`), no en el link crudo del
+  // calendario: si el calendario de Liverpool no trae URL pero el link se obtuvo
+  // por fuera (p. ej. por correo) y el usuario marcó la casilla "Link" en el
+  // seguimiento operativo (`source: 'manual'`), la campaña ya tiene link y no debe
+  // alertar. A la inversa, desmarcarlo manualmente sí dispara la alerta aunque el
+  // calendario traiga URL.
+  if ((row.timeframe === 'active' || row.timeframe === 'upcoming') && !c.link) {
     out.push({ kind: 'no-link', label: 'Sin link válido' });
   }
   if (
