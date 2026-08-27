@@ -698,6 +698,12 @@ a los CSV auxiliares Ratio 1/3.
   ni los reportes Excel Liverpool. Las ausencias solo se inactivan dentro de
   catorcenas confirmadas; nunca hay borrado físico y una reimportación conserva
   checks, comentarios y cancelación.
+- **Vista operativa digital**: tabla compacta con los tres checks en columnas,
+  avance derivado de `checks completados / 3`, filtros completos y detalle
+  expandible para creatividad, cliente/producto y comentarios. La ventana inicial
+  cubre la catorcena anterior, la vigente y la siguiente. Los elementos
+  `active:false` permanecen visibles con una señal de **Inactiva en fuente**,
+  independiente del ciclo de vida Activa/Cancelada del seguimiento.
 - El **Dashboard** muestra las métricas digitales en una **sección independiente**
   que no agrega cifras con Liverpool.
 

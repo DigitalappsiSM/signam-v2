@@ -38,6 +38,15 @@ comentarios. El panel agrega una sección independiente de métricas digitales y
 el Excel propio genera `Resumen catorcena`, `Detalle EKON`, `Incidencias` y
 `Metadatos` sin imágenes.
 
+La vista de **Operación Digital** presenta esos tres checks en columnas
+independientes, avance `Sin iniciar / En curso / Completa`, filtros por fuente,
+retailer, soporte, catorcena, modo, estado operativo, vigencia en fuente y
+cliente/anunciante, más ordenamiento y detalle expandible con la bitácora. Al
+entrar muestra la catorcena anterior, la vigente y la siguiente. Los elementos
+que una reimportación dejó inactivos continúan visibles e identificados para
+preservar el historial; este estado de fuente no se confunde con la cancelación
+operativa.
+
 ### Aislamiento
 
 Este dominio no utiliza `campaigns`, `screens`, `campaignEkonLinks`, Admira,
