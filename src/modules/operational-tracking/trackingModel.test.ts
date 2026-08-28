@@ -267,6 +267,54 @@ describe('criticalAlerts / isFullyTracked', () => {
     expect(kinds).toContain('provider-no-validation');
   });
 
+  it('no alerta "no-link" si el link se marcó manualmente pese a faltar en el calendario', () => {
+    // El calendario de Liverpool no trae URL, pero el link se obtuvo por correo y
+    // el usuario marcó la casilla "Link" en el seguimiento (source: manual).
+    const c = campaign({
+      tipo: 'INSTITUCIONAL',
+      link: '',
+      fechaInicio: '2026-03-02',
+      fechaFin: '2026-03-20',
+    });
+    const tracking = {
+      campaignNameKey: campaignIdentity(c),
+      classification: 'institutional',
+      linkDownload: { completed: true, source: 'manual' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: false },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+    const rows = buildTrackingRows([c], [], [tracking], today);
+    // La fila conserva el estado crudo del calendario…
+    expect(rows[0]!.linkStatus).toBe('missing');
+    // …pero la alerta se basa en el check efectivo, que ya está marcado.
+    expect(criticalAlerts(rows[0]!).map((a) => a.kind)).not.toContain(
+      'no-link',
+    );
+  });
+
+  it('alerta "no-link" si el link se desmarcó manualmente pese a existir en el calendario', () => {
+    const c = campaign({
+      tipo: 'INSTITUCIONAL',
+      link: 'https://x.com/a.zip',
+      fechaInicio: '2026-03-02',
+      fechaFin: '2026-03-20',
+    });
+    const tracking = {
+      campaignNameKey: campaignIdentity(c),
+      classification: 'institutional',
+      linkDownload: { completed: false, source: 'manual' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: false },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+    const rows = buildTrackingRows([c], [], [tracking], today);
+    expect(rows[0]!.linkStatus).toBe('valid');
+    expect(criticalAlerts(rows[0]!).map((a) => a.kind)).toContain('no-link');
+  });
+
   it('marca clasificación pendiente cuando el tipo es desconocido', () => {
     const rows = buildTrackingRows(
       [campaign({ tipo: 'Digital' })],
