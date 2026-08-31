@@ -1,6 +1,7 @@
 import {
   parseCampaignDate,
   fifthBusinessDay,
+  witnessCompleteDeadline,
   businessDaysUntil,
   calendarDaysUntil,
   compareCivil,
@@ -78,14 +79,19 @@ export function witnessStartStatus(input: WitnessInput): WitnessStatus {
     : 'on-track';
 }
 
-/** Estado de T Completos: límite = `fechaFin` (fin del día local). */
+/**
+ * Estado de T Completos: la entrega inicia el día inmediato posterior al fin de
+ * campaña y hay 4 días naturales para completarla, por lo que el límite = `fechaFin`
+ * + 4 días naturales (ver {@link witnessCompleteDeadline}).
+ */
 export function witnessCompleteStatus(input: WitnessInput): WitnessStatus {
   const end = parseCampaignDate(input.endStr);
   if (!end) return 'invalid-date';
+  const deadline = witnessCompleteDeadline(end);
 
   if (input.completed) {
     if (input.completedAt == null) return 'completed-on-time';
-    return compareCivil(completedCivil(input.completedAt), end) <= 0
+    return compareCivil(completedCivil(input.completedAt), deadline) <= 0
       ? 'completed-on-time'
       : 'completed-late';
   }
@@ -93,10 +99,12 @@ export function witnessCompleteStatus(input: WitnessInput): WitnessStatus {
   const start = parseCampaignDate(input.startStr);
   if (start && compareCivil(input.today, start) < 0) return 'upcoming';
 
-  const cmp = compareCivil(input.today, end);
+  const cmp = compareCivil(input.today, deadline);
   if (cmp > 0) return 'overdue';
   if (cmp === 0) return 'due-today';
-  return calendarDaysUntil(input.today, end) <= 5 ? 'due-soon' : 'on-track';
+  return calendarDaysUntil(input.today, deadline) <= 5
+    ? 'due-soon'
+    : 'on-track';
 }
 
 /** ¿El estado representa una obligación pendiente y vencida/por vencer? */

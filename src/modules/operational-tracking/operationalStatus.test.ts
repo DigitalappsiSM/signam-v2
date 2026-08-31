@@ -97,38 +97,48 @@ function completeInput(
   };
 }
 
+// Límite de T Completos = fin (03-20) + 4 días naturales = 2026-03-24.
 describe('witnessCompleteStatus', () => {
   it('en tiempo con más de 5 días naturales', () => {
-    // hoy 03-10, fin 03-20 → 10 días → on-track.
+    // hoy 03-10, límite 03-24 → 14 días → on-track.
     expect(
       witnessCompleteStatus(completeInput({ today: d('2026-03-10') })),
     ).toBe('on-track');
   });
 
   it('due-soon con 5 días naturales o menos', () => {
+    // hoy 03-19, límite 03-24 → 5 días → due-soon.
     expect(
-      witnessCompleteStatus(completeInput({ today: d('2026-03-15') })),
+      witnessCompleteStatus(completeInput({ today: d('2026-03-19') })),
     ).toBe('due-soon');
   });
 
-  it('vence hoy', () => {
+  it('sigue en tiempo el día del fin de campaña (aún dentro de la ventana)', () => {
+    // hoy 03-20 (fin), límite 03-24 → 4 días → due-soon, ya no vencido.
     expect(
       witnessCompleteStatus(completeInput({ today: d('2026-03-20') })),
+    ).toBe('due-soon');
+  });
+
+  it('vence hoy en el 4.º día natural posterior al fin', () => {
+    expect(
+      witnessCompleteStatus(completeInput({ today: d('2026-03-24') })),
     ).toBe('due-today');
   });
 
-  it('vencido', () => {
+  it('vencido al pasar los 4 días naturales', () => {
     expect(
-      witnessCompleteStatus(completeInput({ today: d('2026-03-21') })),
+      witnessCompleteStatus(completeInput({ today: d('2026-03-25') })),
     ).toBe('overdue');
   });
 
   it('completado a tiempo y tarde', () => {
+    // 03-24 (último día de la ventana) → a tiempo; 03-25 → tarde.
     expect(
       witnessCompleteStatus(
         completeInput({
           completed: true,
-          completedAt: Date.parse('2026-03-20T23:00:00'),
+          completedAt: Date.parse('2026-03-24T23:00:00'),
         }),
       ),
     ).toBe('completed-on-time');
