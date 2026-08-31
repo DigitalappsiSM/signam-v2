@@ -51,6 +51,22 @@ export function fifthBusinessDay(start: Date): Date {
   return cur;
 }
 
+/**
+ * Días naturales de tolerancia para entregar los **testigos completos** (T
+ * Completos). La entrega inicia el día inmediato posterior al fin de la campaña
+ * y hay esta ventana de días naturales para completarla.
+ */
+export const WITNESS_COMPLETE_GRACE_DAYS = 4;
+
+/**
+ * Vencimiento de T Completos: `fechaFin` + {@link WITNESS_COMPLETE_GRACE_DAYS}
+ * días naturales. Es el último día **a tiempo** para entregar los testigos
+ * completos (la entrega arranca el día inmediato posterior al fin de campaña).
+ */
+export function witnessCompleteDeadline(end: Date): Date {
+  return addDays(end, WITNESS_COMPLETE_GRACE_DAYS);
+}
+
 /** Compara dos fechas civiles: <0, 0, >0. */
 export function compareCivil(a: Date, b: Date): number {
   return a.getTime() - b.getTime();

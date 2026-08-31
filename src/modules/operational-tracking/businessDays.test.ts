@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   fifthBusinessDay,
+  witnessCompleteDeadline,
+  WITNESS_COMPLETE_GRACE_DAYS,
   businessDaysUntil,
   calendarDaysUntil,
   addDays,
@@ -48,6 +50,24 @@ describe('fifthBusinessDay', () => {
   it('funciona en año bisiesto cruzando febrero', () => {
     // 2024-02-27 martes → mié 28, jue 29, vie 01-mar, lun 04-mar.
     expect(ymd(fifthBusinessDay(d('2024-02-27')))).toBe('2024-03-04');
+  });
+});
+
+describe('witnessCompleteDeadline', () => {
+  it('es la fecha de fin más 4 días naturales', () => {
+    expect(WITNESS_COMPLETE_GRACE_DAYS).toBe(4);
+    // fin jueves 03-20 → límite lunes 03-24 (cuenta días naturales, no hábiles).
+    expect(ymd(witnessCompleteDeadline(d('2026-03-20')))).toBe('2026-03-24');
+  });
+
+  it('cuenta días naturales incluyendo fines de semana', () => {
+    // fin viernes 03-06 → +4 = martes 03-10 (cruza sábado y domingo).
+    expect(ymd(witnessCompleteDeadline(d('2026-03-06')))).toBe('2026-03-10');
+  });
+
+  it('funciona cruzando cambio de mes', () => {
+    // fin 03-30 → +4 = 04-03.
+    expect(ymd(witnessCompleteDeadline(d('2026-03-30')))).toBe('2026-04-03');
   });
 });
 

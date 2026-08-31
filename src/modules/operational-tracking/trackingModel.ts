@@ -18,6 +18,7 @@ import { witnessStartTarget } from './witnessTarget';
 import {
   parseCampaignDate,
   fifthBusinessDay,
+  witnessCompleteDeadline,
   compareCivil,
 } from './businessDays';
 import {
@@ -175,13 +176,15 @@ export function buildTrackingRows(
     const endCivil = parseCampaignDate(campaign.fechaFin);
     const deadlines: Date[] = [];
     // Ni las campañas canceladas ni las Institucional (testigos no aplicables)
-    // tienen vencimientos de testigos: no se calcula el 5.º día hábil ni se toma
-    // `fechaFin` como vencimiento de T Completos.
+    // tienen vencimientos de testigos: no se calcula el 5.º día hábil ni el
+    // vencimiento de T Completos (`fechaFin` + 4 días naturales).
     if (!cancelled && witnessesApplicable) {
       if (!(start?.completed ?? false) && startCivil) {
         deadlines.push(fifthBusinessDay(startCivil));
       }
-      if (!(complete?.completed ?? false) && endCivil) deadlines.push(endCivil);
+      if (!(complete?.completed ?? false) && endCivil) {
+        deadlines.push(witnessCompleteDeadline(endCivil));
+      }
       deadlines.sort((a, b) => a.getTime() - b.getTime());
     }
 

@@ -87,7 +87,9 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   (se elige en la importación cuando el `tipo` no es inequívoco; nunca se asume
   Proveedor). Fechas civiles (sin desfase por zona horaria): T Arranque vence al
   **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;
-  aún sin festivos); T Completos vence en `fechaFin`. Objetivo de arranque =
+  aún sin festivos); T Completos: la entrega arranca el día inmediato posterior
+  al fin de campaña y hay **4 días naturales** para completarla, por lo que vence
+  en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`). Objetivo de arranque =
   `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
   evidencias ni se seleccionan tiendas individuales. Permisos: la matriz reserva
   `tracking.write` a admin/operator, pero en **pre-lanzamiento** las reglas
