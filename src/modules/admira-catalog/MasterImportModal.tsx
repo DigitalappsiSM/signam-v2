@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
+import { LoadingState } from '@/components/LoadingState';
 import { deleteAllScreens, importMasterScreens } from '@/services/screens';
 import { analyzeMaster, type MasterAnalysis } from './masterImport';
 import { readWorkbook } from './readWorkbook';
@@ -109,7 +110,12 @@ export function MasterImportModal({
         )}
 
         {phase === 'analyzing' && (
-          <p className="text-muted">Analizando archivo…</p>
+          <LoadingState
+            variant="import"
+            title="Analizando maestro…"
+            description="Buscando encabezados, pantallas e incidencias."
+            compact
+          />
         )}
 
         {phase === 'preview' && analysis && (
@@ -203,7 +209,12 @@ export function MasterImportModal({
         )}
 
         {phase === 'importing' && (
-          <p className="text-muted">Guardando pantallas en la base de datos…</p>
+          <LoadingState
+            variant="import"
+            title="Guardando pantallas…"
+            description="El OVNI ya está acomodando el catálogo."
+            compact
+          />
         )}
 
         <div className="modal__actions">

@@ -332,6 +332,14 @@ claro y oscuro con interruptor** en la barra superior (persistido en
 toggle de tema y usuario). El cambio de tema aplica a **toda la app** vía
 `data-theme` en `<html>`.
 
+Los estados de espera reutilizan `LoadingState` con tres animaciones
+contextuales: **SIGNAM Bot** para el arranque y autenticación, **OVNI
+importador** para lectura y guardado de archivos, y **terminal retro** para
+consultas, cálculos y exportaciones. Los GIF son decorativos; el mensaje
+accesible vive como texto con `role="status"`. Cuando el sistema solicita
+reducir movimiento, el navegador muestra un fotograma estático mediante
+`<picture>`.
+
 ## Stack
 
 - **Frontend**: React 18 + TypeScript + Vite + React Router.

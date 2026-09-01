@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/app/providers/AuthProvider';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
@@ -237,7 +238,12 @@ export function CatalogPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Cargando pantallas…</p>
+        <LoadingState
+          variant="process"
+          title="Cargando pantallas…"
+          description="Sincronizando el catálogo Admira."
+          compact
+        />
       ) : filtered.length === 0 ? (
         <div className="card">
           <p className="text-muted" style={{ margin: 0 }}>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LoadingState } from '@/components/LoadingState';
 import type { AdmiraScreen } from '@/domain';
 import {
   buildCatalogBlob,
@@ -143,6 +144,15 @@ export function MasterExportModal({
           los encabezados, una fila de ejemplo y una hoja <em>Instrucciones</em>{' '}
           que describe cada campo.
         </p>
+
+        {busy && (
+          <LoadingState
+            variant="process"
+            title="Generando Excel…"
+            description="Empaquetando el catálogo sin metadatos internos."
+            compact
+          />
+        )}
 
         <div className="modal__actions">
           <button

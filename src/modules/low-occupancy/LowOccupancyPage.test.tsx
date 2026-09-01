@@ -152,7 +152,7 @@ beforeEach(() => {
 describe('LowOccupancyPage — carga y resumen', () => {
   it('muestra la carga inicial y luego el resumen', async () => {
     renderPage();
-    expect(screen.getByText(/Cargando/i)).toBeInTheDocument();
+    expect(screen.getByText(/Calculando ocupación/i)).toBeInTheDocument();
     await screen.findByText('Total de unidades');
     const summary = screen.getByLabelText('Resumen del análisis de ocupación');
     // 3 unidades: store1 (1), store2 (3), store4 (0).

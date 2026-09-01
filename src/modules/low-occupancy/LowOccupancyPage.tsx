@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import { listCampaigns } from '@/services/campaigns';
@@ -212,7 +213,12 @@ export function LowOccupancyPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Cargando…</p>
+        <LoadingState
+          variant="process"
+          title="Calculando ocupación…"
+          description="Contando campañas activas por pantalla y fecha."
+          compact
+        />
       ) : (
         <>
           <OccupancySummary summary={analysis.summary} />

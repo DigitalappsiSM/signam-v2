@@ -1,12 +1,17 @@
 import type { ReactNode } from 'react';
+import { LoadingState, type LoadingVariant } from './LoadingState';
 
 /** Pantalla completa centrada para estados globales (cargando, sin config). */
 export function StatusScreen({
   title,
   children,
+  loadingVariant,
+  loadingDescription,
 }: {
   title: string;
   children?: ReactNode;
+  loadingVariant?: LoadingVariant;
+  loadingDescription?: string;
 }) {
   return (
     <div
@@ -30,11 +35,21 @@ export function StatusScreen({
         >
           SIGNAM <strong style={{ color: 'var(--color-text)' }}>V2</strong>
         </div>
-        <h1 style={{ fontSize: '1.25rem' }}>{title}</h1>
-        {children && (
-          <p className="text-muted" style={{ margin: 0 }}>
-            {children}
-          </p>
+        {loadingVariant ? (
+          <LoadingState
+            variant={loadingVariant}
+            title={title}
+            description={loadingDescription}
+          />
+        ) : (
+          <>
+            <h1 style={{ fontSize: '1.25rem' }}>{title}</h1>
+            {children && (
+              <p className="text-muted" style={{ margin: 0 }}>
+                {children}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

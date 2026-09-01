@@ -43,7 +43,11 @@ describe('App — control de acceso', () => {
   it('muestra un estado de carga mientras se resuelve la sesión', () => {
     authState.loading = true;
     renderAt('/');
-    expect(screen.getByText(/Cargando/i)).toBeInTheDocument();
+    expect(screen.getByText(/Preparando SIGNAM/i)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveAttribute(
+      'data-loading-variant',
+      'system',
+    );
   });
 
   it('muestra el inicio de sesión cuando no hay usuario', () => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import {
   acceptedRows,
   detectConflicts,
@@ -127,7 +128,14 @@ export function DigitalImportPage() {
             }}
           />
         </label>
-        {busy && <p>Procesando…</p>}
+        {busy && (
+          <LoadingState
+            variant="import"
+            title="Procesando archivo…"
+            description="Detectando catorcenas, duplicados y conflictos."
+            compact
+          />
+        )}
         {message && <p role="status">{message}</p>}
       </div>
       {result && (

@@ -413,8 +413,7 @@
   font-weight: 700;
 }
 
-.reporting-empty,
-.reporting-loading {
+.reporting-empty {
   color: var(--color-text-muted);
   margin: 0;
 }

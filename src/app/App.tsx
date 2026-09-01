@@ -30,7 +30,13 @@ export function App() {
   const { user, loading, configured } = useAuth();
 
   if (loading) {
-    return <StatusScreen title="Cargando…" />;
+    return (
+      <StatusScreen
+        title="Preparando SIGNAM…"
+        loadingVariant="system"
+        loadingDescription="Encendiendo píxeles y verificando tu sesión."
+      />
+    );
   }
 
   if (!configured) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import {
@@ -172,7 +173,12 @@ export function UsersPage() {
       )}
 
       {loading ? (
-        <div className="card text-muted">Cargando usuarios…</div>
+        <LoadingState
+          variant="process"
+          title="Cargando usuarios…"
+          description="Verificando perfiles y permisos."
+          compact
+        />
       ) : users.length === 0 && !error ? (
         <div className="card text-muted">
           No hay usuarios para mostrar. Crea usuarios en Firebase Authentication
