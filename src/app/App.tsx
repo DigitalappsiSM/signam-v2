@@ -17,6 +17,7 @@ import { NotFoundPage } from '@/modules/NotFoundPage';
 import { DigitalImportPage } from '@/modules/digital-import/DigitalImportPage';
 import { DigitalOperationsPage } from '@/modules/digital-operations/DigitalOperationsPage';
 import { DigitalCatalogPage } from '@/modules/digital-operations/DigitalCatalogPage';
+import { ReportingPage } from '@/modules/reporting/ReportingPage';
 
 /**
  * Componente raíz. Controla el acceso:
@@ -58,6 +59,7 @@ export function App() {
         <Route path="/campanas" element={<CampaignsPage />} />
         <Route path="/conciliacion" element={<ReconciliationPage />} />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
+        <Route path="/reporting" element={<ReportingPage />} />
         <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
         <Route path="/usuarios" element={<UsersPage />} />
         <Route path="/historial" element={<AuditPage />} />

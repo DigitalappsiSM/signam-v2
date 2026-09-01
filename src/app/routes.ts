@@ -44,6 +44,15 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Operación',
   },
   {
+    path: '/reporting',
+    label: 'Reporting',
+    icon: 'activity',
+    description:
+      'Resumen ejecutivo, cumplimiento operativo y calidad de datos.',
+    group: 'Operación',
+    permission: 'reporting.read',
+  },
+  {
     path: '/alertas-ocupacion',
     label: 'Alertas de baja ocupación',
     icon: 'bell',

@@ -76,6 +76,7 @@ describe('App — con sesión activa', () => {
     expect(
       nav.getByRole('link', { name: /Seguimiento operativo/i }),
     ).toBeInTheDocument();
+    expect(nav.getByRole('link', { name: /Reporting/i })).toBeInTheDocument();
     expect(
       nav.getByRole('link', { name: /Alertas de baja ocupación/i }),
     ).toBeInTheDocument();
