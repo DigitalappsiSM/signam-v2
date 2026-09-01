@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { Icon } from '@/components/Icon';
 import { reconciliationStatusLabel } from '@/domain/ekon';
 import { presetRange } from '@/modules/dashboard/occupancyModel';
@@ -739,7 +740,11 @@ export function ReportingPage() {
         </div>
       )}
       {loading ? (
-        <div className="card reporting-loading">Construyendo indicadores…</div>
+        <LoadingState
+          variant="process"
+          title="Construyendo indicadores…"
+          description="Cruzando operación, SLA, calidad y conciliación."
+        />
       ) : (
         <div className="reporting-content">
           {tab === 'executive' && <ExecutiveTab model={model} />}

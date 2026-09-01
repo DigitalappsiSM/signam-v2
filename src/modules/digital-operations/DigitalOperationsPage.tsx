@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { Icon } from '@/components/Icon';
 import { SortableTh } from '@/components/SortableTh';
 import {
@@ -669,7 +670,12 @@ export function DigitalOperationsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Cargando…</p>
+        <LoadingState
+          variant="process"
+          title="Cargando operación digital…"
+          description="Ordenando retailers, soportes y catorcenas."
+          compact
+        />
       ) : items.length === 0 ? (
         <div className="card">
           <p className="text-muted do-empty">

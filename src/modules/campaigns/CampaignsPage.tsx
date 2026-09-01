@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/app/providers/AuthProvider';
 import {
   correctCampaign,
@@ -594,7 +595,12 @@ export function CampaignsPage() {
       )}
 
       {loading ? (
-        <p className="text-muted">Cargando…</p>
+        <LoadingState
+          variant="process"
+          title="Cargando campañas…"
+          description="Acomodando flights, fechas y soportes."
+          compact
+        />
       ) : campaigns.length === 0 ? (
         <div className="import__note">
           Aún no hay campañas en la base de datos. Ve a{' '}

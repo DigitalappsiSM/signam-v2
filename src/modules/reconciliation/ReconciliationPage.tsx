@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingState } from '@/components/LoadingState';
 import { isFirebaseConfigured } from '@/services/firebase';
 import { listCampaigns } from '@/services/campaigns';
 import {
@@ -118,7 +119,14 @@ export function ReconciliationPage() {
           {error}
         </div>
       )}
-      {loading && <p className="text-muted">Cargando conciliación…</p>}
+      {loading && (
+        <LoadingState
+          variant="process"
+          title="Conciliando fuentes…"
+          description="Comprobando que Liverpool y EKON se estén hablando."
+          compact
+        />
+      )}
 
       {!loading && configured && (
         <>

@@ -1083,7 +1083,10 @@ describe('CampaignsPage — advertencia de baja ocupación', () => {
       </MemoryRouter>,
     );
 
-    const status = await screen.findByRole('status');
+    const warning = await screen.findByText(/baja ocupación para hoy/i);
+    const status = warning.closest<HTMLElement>('[role="status"]');
+    expect(status).not.toBeNull();
+    if (!status) throw new Error('No se encontró el estado de baja ocupación');
     expect(status).toHaveTextContent(/baja ocupación para hoy/i);
     expect(status).toHaveTextContent(/La exportación puede continuar/i);
     const link = within(status).getByRole('link', {
