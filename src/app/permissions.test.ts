@@ -39,4 +39,10 @@ describe('permisos por rol', () => {
     expect(can('operator', 'tracking.read')).toBe(true);
     expect(can('viewer', 'tracking.read')).toBe(true);
   });
+
+  it('reporting está disponible para los tres roles', () => {
+    expect(can('admin', 'reporting.read')).toBe(true);
+    expect(can('operator', 'reporting.read')).toBe(true);
+    expect(can('viewer', 'reporting.read')).toBe(true);
+  });
 });

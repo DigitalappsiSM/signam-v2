@@ -21,6 +21,36 @@ Aplicación web para operar el flujo de programación de pantallas entre
 11. **Importación Ekon** y **Conciliación** Ekon–Liverpool (ver abajo).
 12. **Operación Digital multirretailer** para La Comer y Chedraui, aislada de
     Liverpool/Admira (ver abajo).
+13. **Reporting** ejecutivo y operativo con SLA de testigos, embudo de
+    preparación, calidad de datos, conciliación y exportación Excel.
+
+## Reporting
+
+La ruta `/reporting` reúne una lectura transversal sin crear una nueva fuente
+de verdad. El módulo consume campañas, seguimiento, catálogo, Operación Digital,
+vínculos/asignaciones Ekon y metadatos de importación, y reutiliza las reglas de
+dominio existentes para que sus cifras coincidan con Seguimiento, Dashboard y
+Conciliación.
+
+- **Resumen ejecutivo:** campañas activas/próximas/terminadas, cumplimiento,
+  alertas, cobertura, avance digital, conciliación y embudo Link → Validación →
+  Programación.
+- **Operación y SLA:** cumplimiento de T. Arranque y T. Completos exclusivamente
+  para campañas Proveedor, más el detalle accionable de campañas con incidencias.
+  Las canceladas no participan y las Institucionales no generan SLA de testigos.
+- **Calidad y conciliación:** vínculos faltantes, bloqueos, fechas inválidas,
+  correcciones protegidas, ausencias en fuente, última importación Ekon y detalle
+  Liverpool–Ekon.
+- **Filtros:** mes actual, últimos tres meses, año actual o rango personalizado.
+  Las campañas se incluyen por intersección de vigencias; las fechas inválidas se
+  mantienen visibles para no esconder problemas de calidad.
+- **Excel:** exporta el modelo ya calculado y visible en hojas de resumen,
+  atención operativa, SLA, conciliación y operación digital. La descarga no
+  vuelve a consultar Firebase.
+
+La primera entrega calcula el estado actual dentro del periodo seleccionado. Las
+tendencias históricas de cada transición requieren una bitácora append-only; no
+se infieren a partir del último usuario o fecha de actualización.
 
 ## Operación Digital multirretailer
 

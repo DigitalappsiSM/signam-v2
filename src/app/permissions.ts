@@ -17,6 +17,7 @@ export type Permission =
   | 'export.occupancyCsv'
   | 'tracking.read'
   | 'tracking.write'
+  | 'reporting.read'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
   | 'digitalOperations.track'
@@ -42,6 +43,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
+    'reporting.read',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -59,6 +61,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'tracking.write',
+    'reporting.read',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -69,6 +72,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'reconciliation.read',
     'export.occupancyCsv',
     'tracking.read',
+    'reporting.read',
     'digitalOperations.read',
   ],
 };
