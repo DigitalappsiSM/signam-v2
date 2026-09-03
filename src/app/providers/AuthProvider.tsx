@@ -6,8 +6,17 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { UserRole } from '@/domain';
+import { doc, getDoc } from 'firebase/firestore';
+import { USER_ROLES, type UserRole } from '@/domain';
 import { getFirebase, isFirebaseConfigured } from '@/services/firebase';
+
+/** Type guard para el rol leído del espejo `users/{uid}` (dato no confiable). */
+function isUserRole(value: unknown): value is UserRole {
+  return (
+    typeof value === 'string' &&
+    (USER_ROLES as readonly string[]).includes(value)
+  );
+}
 
 /**
  * Contexto de autenticación de SIGNAM V2.
@@ -55,8 +64,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const token = await fbUser.getIdTokenResult();
-        const role = (token.claims.role as UserRole | undefined) ?? 'viewer';
+        let token = await fbUser.getIdTokenResult();
+        let role = (token.claims.role as UserRole | undefined) ?? 'viewer';
+
+        // Reconcilia un claim de rol potencialmente obsoleto. Al reasignar un
+        // rol, la Cloud Function fija el claim y revoca los refresh tokens, pero
+        // el ID token que el usuario ya tiene abierto conserva el rol anterior
+        // hasta que caduca (~1 hora). Mientras tanto las reglas de
+        // Firestore/Storage (que leen `request.auth.token.role`) rechazan las
+        // escrituras protegidas por rol —p. ej. importar Ekon/Digital/Catálogo—
+        // aunque el panel ya muestre el rol nuevo. Si el espejo `users/{uid}`
+        // (legible por el propio usuario) indica un rol distinto al del token,
+        // se fuerza un refresco para adoptar el claim nuevo sin obligar a cerrar
+        // sesión manualmente.
+        try {
+          const mirror = await getDoc(doc(firebase.db, 'users', fbUser.uid));
+          const mirrorRole = mirror.exists() ? mirror.data()?.role : undefined;
+          if (isUserRole(mirrorRole) && mirrorRole !== role) {
+            token = await fbUser.getIdTokenResult(true);
+            role = (token.claims.role as UserRole | undefined) ?? 'viewer';
+          }
+        } catch {
+          // Sin acceso al espejo (permisos/red): se conserva el rol del claim
+          // actual. El peor caso es el comportamiento previo a esta reconciliación.
+        }
+
         if (!active) return;
         setUser({
           uid: fbUser.uid,
