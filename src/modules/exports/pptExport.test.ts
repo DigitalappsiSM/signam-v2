@@ -62,6 +62,7 @@ function support(over: {
   support: string;
   owner?: SupportOwner;
   stores?: { numero: string; nombre?: string }[];
+  scope?: CampaignSupport['scope'];
 }): CampaignSupport {
   return {
     support: over.support,
@@ -70,6 +71,7 @@ function support(over: {
       numero: s.numero,
       nombre: s.nombre ?? '',
     })),
+    scope: over.scope,
   };
 }
 
@@ -167,6 +169,21 @@ describe('buildCampaignPptPlan — pantallas físicas', () => {
 // --- Asignada sin comentario / inactivas ------------------------------------
 
 describe('buildCampaignPptPlan — expansión e inactivas', () => {
+  it('un alcance inválido no se expande a diapositivas', () => {
+    const plan = buildCampaignPptPlan(
+      campaign({
+        name: 'HIPER X',
+        supports: [support({ support: CRIUS, scope: 'invalid' })],
+      }),
+      [screen({ id: 'a', numero: '2', calendarSupport: CRIUS })],
+    );
+
+    expect(plan.slides).toHaveLength(0);
+    expect(plan.issues).toEqual([
+      expect.objectContaining({ kind: 'invalid-store-scope' }),
+    ]);
+  });
+
   it('9) "asignada" sin comentario expande todas las pantallas activas del soporte', () => {
     const plan = buildCampaignPptPlan(
       campaign({ supports: [support({ support: 'PANTALLA', stores: [] })] }),

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseCampaigns, parseStoreComment } from './campaignParse';
+import {
+  isExplicitAllStoreComment,
+  parseCampaigns,
+  parseStoreComment,
+} from './campaignParse';
 import type { WorkbookData } from './calendarImport';
 
 const headers = [
@@ -52,6 +56,14 @@ describe('parseStoreComment', () => {
     expect(
       parseStoreComment('Tiendas asignadas:\nL SANTA FE\n7\tL SANTA FE'),
     ).toEqual([{ numero: '7', nombre: 'L SANTA FE' }]);
+  });
+
+  it('reconoce únicamente marcadores inequívocos de circuito completo', () => {
+    expect(isExplicitAllStoreComment('TODAS')).toBe(true);
+    expect(isExplicitAllStoreComment('Todas las tiendas')).toBe(true);
+    expect(isExplicitAllStoreComment('todas las pantallas.')).toBe(true);
+    expect(isExplicitAllStoreComment('1/4 CIRCUITO 20 TIENDAS')).toBe(false);
+    expect(isExplicitAllStoreComment('INSURGENTES')).toBe(false);
   });
 });
 
@@ -116,6 +128,61 @@ describe('parseCampaigns', () => {
     ]);
     const muppis = c.supports.find((s) => s.support === 'MUPPI´S')!;
     expect(muppis.owner).toBe('instore-media');
+  });
+
+  it('marca INSURGENTES como alcance inválido en vez de circuito completo', () => {
+    const result = parseCampaigns(
+      wb(
+        [dataRow],
+        [
+          {
+            sheet: 'Hoja 2',
+            row: 2,
+            col: 9,
+            address: 'I2',
+            text: 'INSURGENTES',
+          },
+        ],
+      ),
+    );
+
+    expect(result.campaigns[0]!.supports[0]).toMatchObject({
+      support: 'VIDEO WALL CRIUS',
+      stores: [],
+      scope: 'invalid',
+    });
+    expect(result.ambiguousStoreComments).toEqual([
+      expect.objectContaining({
+        id: 'Hoja 2:2:9',
+        address: 'I2',
+        campaignName: 'Nike Verano',
+        support: 'VIDEO WALL CRIUS',
+        comment: 'INSURGENTES',
+      }),
+    ]);
+  });
+
+  it('acepta TODAS LAS TIENDAS como alcance global explícito', () => {
+    const result = parseCampaigns(
+      wb(
+        [dataRow],
+        [
+          {
+            sheet: 'Hoja 2',
+            row: 2,
+            col: 9,
+            address: 'I2',
+            text: 'TODAS LAS TIENDAS',
+          },
+        ],
+      ),
+    );
+
+    expect(result.campaigns[0]!.supports[0]).toMatchObject({
+      stores: [],
+      scope: 'all',
+    });
+    expect(result.ambiguousStoreComments).toHaveLength(0);
   });
 
   it('omite filas sin nombre de campaña', () => {

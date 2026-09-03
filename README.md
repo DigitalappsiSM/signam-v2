@@ -234,6 +234,19 @@ congelada**, **autofiltro**, anchos legibles, ajuste de texto, fechas visibles e
 Ekon como número o celda vacía. No se exportan IDs, `active`, versiones, autores
 ni marcas de tiempo SIGNAM.
 
+### Alcance de tiendas en comentarios del calendario
+
+Las celdas de soporte con comentario numérico se interpretan como una selección
+de tiendas. Los marcadores `TODAS`, `TODAS LAS TIENDAS` y
+`TODAS LAS PANTALLAS` autorizan explícitamente el circuito completo. Cualquier
+otro comentario sin número —por ejemplo, un nombre como `INSURGENTES`— queda
+bloqueado durante la importación: el operador debe elegir tiendas activas del
+catálogo o confirmar “Todas las tiendas del soporte”. SIGNAM recuerda la
+decisión por soporte y texto del comentario, pero vuelve a solicitarla si una
+tienda elegida deja de estar activa o pierde ese soporte. Los módulos de
+consolidación, baja ocupación, Dashboard y PPT rechazan un alcance pendiente y
+nunca lo convierten implícitamente en todas las pantallas.
+
 La lógica vive en `src/modules/exports/campaignReport.ts` (modelo puro: cruce,
 deduplicación, incidencias y orden) y `campaignExcelExport.ts` (serialización con
 `exceljs` por **import dinámico**, `Blob` y nombres de archivo). Nombres:

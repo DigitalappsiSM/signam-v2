@@ -5,7 +5,10 @@ import {
   type AdmiraScreen,
 } from '@/domain';
 import { normalizeStore } from '@/modules/consolidation/consolidate';
-import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
+import {
+  effectiveCampaignSupportScope,
+  type CampaignSupport,
+} from '@/modules/liverpool-import/campaignParse';
 import {
   parseCampaignDate,
   formatDdMmYyyy,
@@ -55,6 +58,7 @@ export type PptIssueKind =
   | 'store-not-in-catalog'
   | 'store-support-mismatch'
   | 'only-inactive'
+  | 'invalid-store-scope'
   | 'assigned-no-active-screens'
   | 'instore-assigned-no-comment'
   | 'instore-store-no-name'
@@ -325,9 +329,22 @@ function handleLiverpool(
   g: typeof GUADALAJARA_GALERIAS_EXCEPTION,
 ): void {
   const isCrius = norm(support.support) === norm(g.requestedSupport);
+  const scope = effectiveCampaignSupportScope(support);
+
+  if (
+    scope === 'invalid' ||
+    (scope === 'selected' && support.stores.length === 0)
+  ) {
+    issues.push({
+      kind: 'invalid-store-scope',
+      support: support.support,
+      message: `El alcance de tiendas de "${support.support}" está pendiente o es inválido; no se generaron diapositivas.`,
+    });
+    return;
+  }
 
   // "Asignada" sin comentario: expandir todas las pantallas activas del soporte.
-  if (support.stores.length === 0) {
+  if (scope === 'all') {
     let added = 0;
     for (const s of index.activeBySupport.get(norm(support.support)) ?? []) {
       if (addScreenSlide(s, support.support)) added += 1;
@@ -394,11 +411,18 @@ function handleInstore(
   issues: PptEvidenceIssue[],
   seen: Set<string>,
 ): void {
-  if (support.stores.length === 0) {
+  const scope = effectiveCampaignSupportScope(support);
+  if (scope === 'invalid' || scope === 'all' || support.stores.length === 0) {
     issues.push({
-      kind: 'instore-assigned-no-comment',
+      kind:
+        scope === 'invalid' || scope === 'selected'
+          ? 'invalid-store-scope'
+          : 'instore-assigned-no-comment',
       support: support.support,
-      message: `El soporte InStore Media "${support.support}" está asignado sin comentario; no se puede expandir de forma confiable.`,
+      message:
+        scope === 'invalid' || scope === 'selected'
+          ? `El alcance de tiendas de "${support.support}" está pendiente o es inválido; no se generaron diapositivas.`
+          : `El soporte InStore Media "${support.support}" está asignado sin comentario; no se puede expandir de forma confiable.`,
     });
     return;
   }

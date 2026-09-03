@@ -37,6 +37,8 @@ import {
   type DateResolution,
 } from '@/services/dateResolutions';
 import { applyCampaignChanges, listCampaigns } from '@/services/campaigns';
+import { listScreens } from '@/services/screens';
+import type { AdmiraScreen } from '@/domain';
 import {
   listOperationalTracking,
   initializeTrackingForImport,
@@ -66,6 +68,19 @@ import {
   type ImportDateCorrection,
   type ImportDateCorrections,
 } from './importDateCorrection';
+import { StoreCommentResolutionPanel } from './StoreCommentResolutionPanel';
+import {
+  applyStoreCommentResolutions,
+  hydrateStoreCommentResolutions,
+  isStoreCommentResolutionComplete,
+  unresolvedStoreCommentIssues,
+  type StoreCommentResolution,
+  type StoreCommentResolutions,
+} from './storeCommentResolution';
+import {
+  listStoreCommentResolutions,
+  saveStoreCommentResolutions,
+} from '@/services/storeCommentResolutions';
 import './ImportPage.css';
 
 /**
@@ -117,6 +132,9 @@ export function ImportPage() {
   const [analysis, setAnalysis] = useState<CalendarAnalysis | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignParseResult | null>(null);
   const [parsedList, setParsedList] = useState<ParsedCampaign[]>([]);
+  const [screens, setScreens] = useState<AdmiraScreen[]>([]);
+  const [storeCommentResolutions, setStoreCommentResolutions] =
+    useState<StoreCommentResolutions>(new Map());
   const [storedCampaigns, setStoredCampaigns] = useState<
     StoredCampaign[] | null
   >(null);
@@ -156,6 +174,7 @@ export function ImportPage() {
     setSaveNotice(null);
     setStoredCampaigns(null);
     setMatchSelections(new Map());
+    setStoreCommentResolutions(new Map());
     setPhase('analyzing');
     try {
       const data = await readCalendarWorkbook(file);
@@ -169,14 +188,25 @@ export function ImportPage() {
       setParsedList(parsed.campaigns);
       setDateChoices(new Map());
       setDateCorrections(new Map());
-      const [stored, tracking, resolutions] = await Promise.all([
-        listCampaigns({ includeInactive: true }),
-        listOperationalTracking(),
-        listDateResolutions(),
-      ]);
+      const [stored, tracking, resolutions, catalogScreens, savedStoreScopes] =
+        await Promise.all([
+          listCampaigns({ includeInactive: true }),
+          listOperationalTracking(),
+          listDateResolutions(),
+          listScreens(),
+          listStoreCommentResolutions(),
+        ]);
       setStoredCampaigns(stored);
       setExistingTracking(tracking);
       setDateMemory(resolutions);
+      setScreens(catalogScreens);
+      setStoreCommentResolutions(
+        hydrateStoreCommentResolutions(
+          parsed.ambiguousStoreComments,
+          savedStoreScopes,
+          catalogScreens,
+        ),
+      );
       setExistingKeys(new Set(tracking.map((t) => t.campaignNameKey)));
       // El diff, la deduplicación, la clasificación y las fechas ambiguas se
       // derivan de forma reactiva (ver más abajo).
@@ -191,11 +221,23 @@ export function ImportPage() {
   }
 
   // --- Derivaciones reactivas -----------------------------------------------
+  // Los comentarios ambiguos se mantienen `invalid` hasta que el usuario elige
+  // tiendas del catálogo o confirma explícitamente el circuito completo.
+  const storeResolvedList = useMemo(
+    () =>
+      applyStoreCommentResolutions(
+        parsedList,
+        campaigns?.ambiguousStoreComments ?? [],
+        storeCommentResolutions,
+      ),
+    [parsedList, campaigns?.ambiguousStoreComments, storeCommentResolutions],
+  );
+
   // Campañas con las correcciones de vigencia de la importación ya aplicadas
   // (fila → fechas corregidas). Es la base de todas las derivaciones siguientes.
   const correctedList = useMemo(
-    () => applyImportDateCorrections(parsedList, dateCorrections),
-    [parsedList, dateCorrections],
+    () => applyImportDateCorrections(storeResolvedList, dateCorrections),
+    [storeResolvedList, dateCorrections],
   );
 
   // Calendario con fechas resueltas (memoria + elecciones) y deduplicado.
@@ -375,6 +417,16 @@ export function ImportPage() {
       .sort((a, b) => a.row - b.row);
   }, [dateCorrections, parsedList]);
 
+  const storeScopeIssues = useMemo(
+    () =>
+      unresolvedStoreCommentIssues(
+        campaigns?.ambiguousStoreComments ?? [],
+        storeCommentResolutions,
+      ),
+    [campaigns?.ambiguousStoreComments, storeCommentResolutions],
+  );
+  const pendingStoreCommentCount = storeScopeIssues.length;
+
   const validatedAnalysis = useMemo<CalendarAnalysis | null>(
     () =>
       analysis
@@ -382,12 +434,13 @@ export function ImportPage() {
             ...analysis,
             issues: [
               ...analysis.issues,
+              ...storeScopeIssues,
               ...dateIssues,
               ...manualOverrideIssues,
             ],
           }
         : null,
-    [analysis, dateIssues, manualOverrideIssues],
+    [analysis, storeScopeIssues, dateIssues, manualOverrideIssues],
   );
   const blockingCount =
     validatedAnalysis?.issues.filter((issue) => issue.severity === 'blocking')
@@ -400,6 +453,7 @@ export function ImportPage() {
     pendingMatchCount > 0 ||
     needClass.length > 0 ||
     ambiguousRows.length > 0 ||
+    (campaigns?.ambiguousStoreComments.length ?? 0) > 0 ||
     blockingCount > 0;
   const canSave =
     hasWork &&
@@ -415,6 +469,18 @@ export function ImportPage() {
 
   function setSelection(nameKey: string, value: ClassChoice) {
     setSelections((prev) => new Map(prev).set(nameKey, value));
+  }
+
+  function setStoreCommentResolution(
+    id: string,
+    resolution: StoreCommentResolution | undefined,
+  ) {
+    setStoreCommentResolutions((previous) => {
+      const next = new Map(previous);
+      if (resolution) next.set(id, resolution);
+      else next.delete(id);
+      return next;
+    });
   }
 
   function setMatchSelection(incomingIdentity: string, storedId: string) {
@@ -454,6 +520,20 @@ export function ImportPage() {
     setError(null);
     setSaveNotice(null);
     try {
+      // Recuerda las decisiones humanas por soporte + comentario para que una
+      // reimportación del mismo calendario no vuelva a pedirlas.
+      const resolvedStoreComments = (
+        campaigns?.ambiguousStoreComments ?? []
+      ).flatMap((issue) => {
+        const resolution = storeCommentResolutions.get(issue.id);
+        return resolution && isStoreCommentResolutionComplete(resolution)
+          ? [{ issue, resolution }]
+          : [];
+      });
+      if (resolvedStoreComments.length > 0) {
+        await saveStoreCommentResolutions(resolvedStoreComments, actor);
+      }
+
       // Persiste las resoluciones de fecha confirmadas para reimportaciones.
       const newResolutions: DateResolution[] = ambiguousRows
         .map((r): DateResolution | null => {
@@ -557,10 +637,22 @@ export function ImportPage() {
 
   function downloadDiagnosis() {
     if (!validatedAnalysis) return;
+    const scopeResolutions = (campaigns?.ambiguousStoreComments ?? []).map(
+      (issue) => ({
+        issue,
+        resolution: storeCommentResolutions.get(issue.id) ?? null,
+      }),
+    );
     const blob = new Blob(
       [
         JSON.stringify(
-          { fileName, analysis: validatedAnalysis, campaigns },
+          {
+            fileName,
+            analysis: validatedAnalysis,
+            campaigns,
+            resolvedCampaigns: resolvedList,
+            storeCommentResolutions: scopeResolutions,
+          },
           null,
           2,
         ),
@@ -676,6 +768,26 @@ export function ImportPage() {
                     </ul>
                   </div>
                 )}
+              </Section>
+            )}
+
+            {(campaigns?.ambiguousStoreComments.length ?? 0) > 0 && (
+              <Section
+                title="Asignaciones de tienda por resolver"
+                chip={
+                  pendingStoreCommentCount > 0
+                    ? `${pendingStoreCommentCount} pendientes`
+                    : 'Completas'
+                }
+                tone={pendingStoreCommentCount > 0 ? 'danger' : 'success'}
+                defaultOpen={pendingStoreCommentCount > 0}
+              >
+                <StoreCommentResolutionPanel
+                  items={campaigns?.ambiguousStoreComments ?? []}
+                  screens={screens}
+                  resolutions={storeCommentResolutions}
+                  onChange={setStoreCommentResolution}
+                />
               </Section>
             )}
 

@@ -9,6 +9,7 @@ import {
   type AdmiraScreen,
 } from '@/domain';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
 
 /**
  * Motor de consolidación (paso 2b).
@@ -39,7 +40,8 @@ export type IssueCode =
   | 'store-not-in-catalog'
   | 'store-support-mismatch'
   | 'screen-inactive'
-  | 'support-not-in-catalog';
+  | 'support-not-in-catalog'
+  | 'invalid-store-scope';
 
 /** Incidencia estructurada (para agrupar por campaña/soporte y para el PDF). */
 export interface ConsolidationIssue {
@@ -179,9 +181,23 @@ export function matchCampaignScreens(
       continue;
     }
 
-    // Regla: "Asignada" sin comentario (sin tiendas) => todas las pantallas
-    // activas de ese soporte (todas las tiendas disponibles).
-    if (support.stores.length === 0) {
+    const scope = effectiveCampaignSupportScope(support);
+    if (
+      scope === 'invalid' ||
+      (scope === 'selected' && support.stores.length === 0)
+    ) {
+      issues.push({
+        code: 'invalid-store-scope',
+        campaign: campaign.name,
+        support: support.support,
+        message: `El alcance de tiendas de "${support.support}" en "${campaign.name}" está pendiente o es inválido. No se incluye ninguna pantalla.`,
+      });
+      continue;
+    }
+
+    // Regla: alcance `all` explícito (o documento legacy sin tiendas) => todas
+    // las pantallas activas del soporte.
+    if (scope === 'all') {
       const all = index.activeBySupport.get(norm(support.support)) ?? [];
       if (all.length === 0) {
         issues.push({

@@ -1,6 +1,9 @@
 import { normalizeSupport } from '@/domain';
 import { normalizeStore } from '@/modules/consolidation/consolidate';
-import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import {
+  effectiveCampaignSupportScope,
+  type ParsedCampaign,
+} from '@/modules/liverpool-import/campaignParse';
 import {
   applyManualOverrides,
   EDITABLE_CAMPAIGN_FIELDS,
@@ -80,12 +83,14 @@ export function dedupeIncoming(
 interface SupportSig {
   support: string;
   stores: string[];
+  scope: 'all' | 'selected' | 'invalid';
 }
 
 function supportSignatures(c: ParsedCampaign): SupportSig[] {
   return c.supports
     .map((s) => ({
       support: normalizeSupport(s.support),
+      scope: effectiveCampaignSupportScope(s),
       stores: Array.from(
         new Set(s.stores.map((st) => normalizeStore(st.numero))),
       ).sort(),
@@ -143,6 +148,9 @@ export function describeChanges(
   for (const [name, nsig] of newSup) {
     const osig = oldSup.get(name);
     if (!osig) continue;
+    if (osig.scope !== nsig.scope) {
+      changes.push(`Alcance de ${name}: ${osig.scope} → ${nsig.scope}`);
+    }
     const added = nsig.stores.filter((s) => !osig.stores.includes(s));
     const removed = osig.stores.filter((s) => !nsig.stores.includes(s));
     if (added.length || removed.length) {

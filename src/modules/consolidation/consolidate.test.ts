@@ -364,6 +364,41 @@ describe('consolidate', () => {
     expect(result.consolidations[0]!.screenIds.sort()).toEqual(['a', 'b']);
   });
 
+  it('un comentario ambiguo nunca se convierte en todas las pantallas', () => {
+    const screens = [
+      screen(
+        'insurgentes',
+        { 'Numero de Tienda': '2', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'VIDEO WALL CRIUS',
+      ),
+      screen(
+        'polanco',
+        { 'Numero de Tienda': '3', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'VIDEO WALL CRIUS',
+      ),
+    ];
+    const campaigns = [
+      campaign('HIPER X', [
+        {
+          support: 'VIDEO WALL CRIUS',
+          owner: 'liverpool',
+          stores: [],
+          scope: 'invalid',
+        },
+      ]),
+    ];
+
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(0);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-store-scope',
+        campaign: 'HIPER X',
+        support: 'VIDEO WALL CRIUS',
+      }),
+    ]);
+  });
+
   it('reporta soporte asignado sin comentario que no existe en el catálogo', () => {
     const campaigns = [
       campaign('Camp', [

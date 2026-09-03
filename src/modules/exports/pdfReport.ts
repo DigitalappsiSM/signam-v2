@@ -21,6 +21,7 @@ export const ISSUE_LABELS: Record<IssueCode, string> = {
   'store-support-mismatch': 'Tienda sin ese soporte (posible error de captura)',
   'screen-inactive': 'Pantalla inactiva',
   'support-not-in-catalog': 'Soporte sin pantallas en el catálogo',
+  'invalid-store-scope': 'Alcance de tiendas pendiente o inválido',
 };
 
 function labelFor(code: string): string {
