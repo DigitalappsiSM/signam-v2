@@ -67,6 +67,7 @@ function support(o: {
   support: string;
   owner?: SupportOwner;
   stores?: { numero: string; nombre?: string }[];
+  scope?: CampaignSupport['scope'];
 }): CampaignSupport {
   return {
     support: o.support,
@@ -75,6 +76,7 @@ function support(o: {
       numero: s.numero,
       nombre: s.nombre ?? '',
     })),
+    scope: o.scope,
   };
 }
 
@@ -308,6 +310,26 @@ describe('occupancy — clasificación', () => {
 // --- Combinaciones y deduplicación ------------------------------------------
 
 describe('occupancy — combinaciones y dedup', () => {
+  it('un alcance inválido no se expande ni suma carga', () => {
+    const result = build(
+      [
+        campaign({
+          name: 'HIPER X',
+          supports: [support({ support: 'LED', stores: [], scope: 'invalid' })],
+        }),
+      ],
+      [screen({ id: 'a', numero: '2', calendarSupport: 'LED' })],
+    );
+
+    expect(result.matrix).toHaveLength(0);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-store-scope',
+        campaignName: 'HIPER X',
+      }),
+    ]);
+  });
+
   it('10) una campaña, una tienda, un soporte', () => {
     const d = build(
       [

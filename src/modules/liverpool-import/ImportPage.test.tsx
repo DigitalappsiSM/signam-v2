@@ -20,6 +20,11 @@ import {
   listDateResolutions,
   saveDateResolutions,
 } from '@/services/dateResolutions';
+import { listScreens } from '@/services/screens';
+import {
+  listStoreCommentResolutions,
+  saveStoreCommentResolutions,
+} from '@/services/storeCommentResolutions';
 
 vi.mock('@/app/providers/AuthProvider', () => ({
   useAuth: () => ({
@@ -30,7 +35,10 @@ vi.mock('@/app/providers/AuthProvider', () => ({
 }));
 vi.mock('./readCalendarWorkbook', () => ({ readCalendarWorkbook: vi.fn() }));
 vi.mock('./calendarImport', () => ({ analyzeCalendar: vi.fn() }));
-vi.mock('./campaignParse', () => ({ parseCampaigns: vi.fn() }));
+vi.mock('./campaignParse', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./campaignParse')>();
+  return { ...actual, parseCampaigns: vi.fn() };
+});
 vi.mock('@/services/campaigns', () => ({
   listCampaigns: vi.fn(),
   applyCampaignChanges: vi.fn(),
@@ -47,6 +55,11 @@ vi.mock('@/services/campaignEkonLinks', () => ({
 vi.mock('@/services/dateResolutions', () => ({
   listDateResolutions: vi.fn(),
   saveDateResolutions: vi.fn(),
+}));
+vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
+vi.mock('@/services/storeCommentResolutions', () => ({
+  listStoreCommentResolutions: vi.fn(),
+  saveStoreCommentResolutions: vi.fn(),
 }));
 
 const analysis = {
@@ -92,6 +105,7 @@ function parseResultWith(
       },
     ],
     issues: [],
+    ambiguousStoreComments: [],
   };
 }
 
@@ -120,6 +134,9 @@ beforeEach(() => {
   });
   vi.mocked(listDateResolutions).mockResolvedValue(new Map());
   vi.mocked(saveDateResolutions).mockResolvedValue(undefined);
+  vi.mocked(listScreens).mockResolvedValue([]);
+  vi.mocked(listStoreCommentResolutions).mockResolvedValue(new Map());
+  vi.mocked(saveStoreCommentResolutions).mockResolvedValue(undefined);
 });
 
 async function upload() {
@@ -221,6 +238,81 @@ describe('ImportPage — fechas ambiguas', () => {
 });
 
 describe('ImportPage — integridad campañas y seguimiento', () => {
+  it('bloquea HIPER X y permite resolver INSURGENTES desde el catálogo', async () => {
+    const parsed = parseResultWith('2026-08-11', '2026-09-07', 'HIPER X');
+    parsed.campaigns[0]!.row = 199;
+    parsed.campaigns[0]!.supports[0] = {
+      support: 'VIDEO WALL',
+      owner: 'liverpool',
+      stores: [],
+      scope: 'invalid',
+    };
+    parsed.ambiguousStoreComments = [
+      {
+        id: 'Hoja1:199:9',
+        sheet: 'Hoja1',
+        row: 199,
+        col: 9,
+        address: 'I199',
+        campaignName: 'HIPER X',
+        support: 'VIDEO WALL',
+        comment: 'INSURGENTES',
+      },
+    ];
+    vi.mocked(parseCampaigns).mockReturnValue(parsed as never);
+    vi.mocked(listScreens).mockResolvedValue([
+      {
+        id: 'screen-2',
+        original: {
+          'Numero de Tienda': '2',
+          'Nombre de tienda': 'L INSURGENTES',
+        },
+        metadata: { active: true, calendarSupport: 'VIDEO WALL' },
+      },
+    ] as never);
+
+    render(<ImportPage />);
+    await upload();
+
+    expect(
+      await screen.findByText(/Asignaciones de tienda por resolver/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/I199.*HIPER X.*INSURGENTES/i)).toBeInTheDocument();
+    const saveButton = screen.getByRole('button', {
+      name: /Aceptar y guardar/i,
+    });
+    expect(saveButton).toBeDisabled();
+
+    await userEvent.selectOptions(
+      screen.getByLabelText('Resolver comentario I199 de HIPER X'),
+      'selected',
+    );
+    await userEvent.click(screen.getByLabelText('2 · L INSURGENTES para I199'));
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+
+    await userEvent.click(saveButton);
+    await waitFor(() =>
+      expect(saveStoreCommentResolutions).toHaveBeenCalledTimes(1),
+    );
+    expect(applyCampaignChanges).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: [
+          expect.objectContaining({
+            name: 'HIPER X',
+            supports: [
+              expect.objectContaining({
+                scope: 'selected',
+                stores: [{ numero: '2', nombre: 'L INSURGENTES' }],
+              }),
+            ],
+          }),
+        ],
+      }),
+      expect.anything(),
+      expect.any(Map),
+    );
+  });
+
   it('bloquea MAGFESA cuando el calendario contiene el año 0266', async () => {
     vi.mocked(parseCampaigns).mockReturnValue(
       parseResultWith('8/17/2026', '8/31/0266', 'MAGFESA') as never,

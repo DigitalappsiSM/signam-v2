@@ -125,6 +125,28 @@ describe('analyzeLowOccupancy — niveles y ratios', () => {
     expect(u.recommendedRatio).toBe(1);
   });
 
+  it('HIPER X pendiente no inventa un proveedor ni cambia Ratio 3 a Ratio 1', () => {
+    const res = analyzeWith([
+      campaign({
+        name: 'HIPER X',
+        supports: [
+          {
+            support: 'LED',
+            owner: 'liverpool',
+            stores: [],
+            scope: 'invalid',
+          },
+        ],
+      }),
+    ]);
+    const unit = res.units[0]!;
+    expect(unit.providerCount).toBe(0);
+    expect(unit.recommendedRatio).toBe(3);
+    expect(res.issues).toEqual([
+      expect.objectContaining({ code: 'invalid-store-scope' }),
+    ]);
+  });
+
   it('2 proveedores → preventiva y Ratio 1', () => {
     const s = [
       screen(

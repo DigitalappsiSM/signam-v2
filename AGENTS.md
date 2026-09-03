@@ -148,7 +148,16 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   existentes con fecha inválida se corrigen desde Campañas, no aquí.
 - **Mapeo calendario↔catálogo**: columna del maestro `NORMALIZACION LIVERPOOL`
   (metadato `calendarSupport`); el cruce es por `Numero de Tienda` +
-  `calendarSupport`.
+  `calendarSupport`. Un comentario presente sin números de tienda nunca equivale
+  a circuito completo: queda con alcance `invalid`, bloquea el guardado y se
+  resuelve en la importación seleccionando tiendas activas del soporte o
+  confirmando explícitamente “todas”. Los marcadores inequívocos `TODAS`,
+  `TODAS LAS TIENDAS` y `TODAS LAS PANTALLAS` se aceptan como alcance global.
+  Las resoluciones humanas se recuerdan por `soporte + comentario` en
+  `storeCommentResolutions`; si una tienda seleccionada deja de estar activa o
+  cambia de soporte, se solicita confirmación nuevamente. Los documentos legacy
+  sin `scope` conservan compatibilidad: lista vacía = todas, lista poblada =
+  selección.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan

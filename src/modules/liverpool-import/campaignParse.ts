@@ -17,11 +17,39 @@ export interface StoreRef {
   nombre: string;
 }
 
+/** Alcance explícito del soporte; `invalid` nunca debe consolidar pantallas. */
+export type CampaignSupportScope = 'all' | 'selected' | 'invalid';
+
 /** Un soporte asignado a una campaña, con sus tiendas. */
 export interface CampaignSupport {
   support: string;
   owner: SupportOwner;
   stores: StoreRef[];
+  /**
+   * Documentos legacy pueden no tener este campo: el consumidor debe inferir
+   * `selected` si hay tiendas y `all` si la lista está vacía.
+   */
+  scope?: CampaignSupportScope;
+}
+
+/** Compatibilidad centralizada para campañas guardadas antes de `scope`. */
+export function effectiveCampaignSupportScope(
+  support: Pick<CampaignSupport, 'scope' | 'stores'>,
+): CampaignSupportScope {
+  return support.scope ?? (support.stores.length === 0 ? 'all' : 'selected');
+}
+
+/** Comentario presente cuyo alcance no pudo interpretarse de forma segura. */
+export interface AmbiguousStoreComment {
+  /** Llave estable dentro del archivo cargado. */
+  id: string;
+  sheet: string;
+  row: number;
+  col: number;
+  address: string;
+  campaignName: string;
+  support: string;
+  comment: string;
 }
 
 export interface ParsedCampaign {
@@ -47,6 +75,8 @@ export interface CampaignParseResult {
   instoreSupports: string[];
   totalCampaigns: number;
   issues: ValidationIssue[];
+  /** Asignaciones que requieren resolución humana antes de guardar. */
+  ambiguousStoreComments: AmbiguousStoreComment[];
 }
 
 const PREFERRED_SHEETS = ['hoja 2', 'hoja2'];
@@ -134,10 +164,22 @@ export function parseStoreComment(text: string): StoreRef[] {
   return stores;
 }
 
+/** Marcadores inequívocos que autorizan el circuito completo. */
+export function isExplicitAllStoreComment(text: string): boolean {
+  const normalized = normalizeHeader(text).replace(/[.!;:]+$/g, '');
+  return (
+    normalized === 'todas' ||
+    normalized === 'todas las tiendas' ||
+    normalized === 'todas las pantallas'
+  );
+}
+
 /** Índice de comentarios por `fila:columna` (1-based). */
-function indexComments(comments: readonly CellComment[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const c of comments) map.set(`${c.sheet}:${c.row}:${c.col}`, c.text);
+function indexComments(
+  comments: readonly CellComment[],
+): Map<string, CellComment> {
+  const map = new Map<string, CellComment>();
+  for (const c of comments) map.set(`${c.sheet}:${c.row}:${c.col}`, c);
   return map;
 }
 
@@ -200,6 +242,7 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
     col >= 0 ? (row[col] ?? '').trim() : '';
 
   const campaigns: ParsedCampaign[] = [];
+  const ambiguousStoreComments: AmbiguousStoreComment[] = [];
   for (let r = headerIndex + 1; r < operative.rows.length; r += 1) {
     const row = operative.rows[r] ?? [];
     const name = cellText(row, meta.name);
@@ -211,10 +254,30 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
       const comment = commentIndex.get(
         `${operative.name}:${r + 1}:${sc.col + 1}`,
       );
+      const stores = comment ? parseStoreComment(comment.text) : [];
+      let scope: CampaignSupportScope = comment ? 'selected' : 'all';
+      if (comment && stores.length === 0) {
+        if (isExplicitAllStoreComment(comment.text)) {
+          scope = 'all';
+        } else {
+          scope = 'invalid';
+          ambiguousStoreComments.push({
+            id: `${operative.name}:${r + 1}:${sc.col + 1}`,
+            sheet: operative.name,
+            row: r + 1,
+            col: sc.col + 1,
+            address: comment.address,
+            campaignName: name,
+            support: sc.header,
+            comment: comment.text,
+          });
+        }
+      }
       supports.push({
         support: sc.header,
         owner: sc.owner,
-        stores: comment ? parseStoreComment(comment) : [],
+        stores,
+        scope,
       });
     }
 
@@ -252,6 +315,7 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
       .map((s) => s.header),
     totalCampaigns: campaigns.length,
     issues,
+    ambiguousStoreComments,
   };
 }
 
@@ -268,5 +332,6 @@ function emptyResult(
     instoreSupports: [],
     totalCampaigns: 0,
     issues,
+    ambiguousStoreComments: [],
   };
 }

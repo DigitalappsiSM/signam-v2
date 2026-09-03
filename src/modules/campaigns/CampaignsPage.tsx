@@ -57,6 +57,7 @@ import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
+import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
 import { campaignIdentity, type StoredCampaign } from './campaignDiff';
 import { parseEkonNumber, otherCampaignsWithEkonNumber } from './ekon';
 import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
@@ -1128,7 +1129,12 @@ function CampaignDetail({
                 <p className="text-muted" style={{ margin: 0 }}>
                   Excluido de la consolidación en esta etapa.
                 </p>
-              ) : s.stores.length === 0 ? (
+              ) : effectiveCampaignSupportScope(s) === 'invalid' ? (
+                <p style={{ margin: 0 }}>
+                  Alcance de tiendas pendiente o inválido{' '}
+                  <span className="badge badge-danger">Bloqueado</span>
+                </p>
+              ) : effectiveCampaignSupportScope(s) === 'all' ? (
                 <p style={{ margin: 0 }}>
                   Todas las tiendas del soporte{' '}
                   {bySupport.has(supNorm) ? (

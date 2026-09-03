@@ -133,6 +133,15 @@ service cloud.firestore {
       }
     }
 
+    // Memoria de resoluciones humanas para comentarios del calendario que no
+    // incluyen números de tienda. Evita pedir la misma confirmación en cada
+    // reimportación; nunca concede por sí sola acceso a campañas o pantallas.
+    match /storeCommentResolutions/{resolutionId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
     // Asociación manual campaña Liverpool ↔ número de campaña Ekon. Colección
     // separada de `campaigns`: la importación nunca la toca y sobrevive a
     // reimportaciones. El documento usa el campaignId estable; un mismo número

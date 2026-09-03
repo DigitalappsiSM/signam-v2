@@ -9,7 +9,10 @@ import {
   parseCampaignDate,
   addDays,
 } from '@/modules/operational-tracking/businessDays';
-import type { CampaignSupport } from '@/modules/liverpool-import/campaignParse';
+import {
+  effectiveCampaignSupportScope,
+  type CampaignSupport,
+} from '@/modules/liverpool-import/campaignParse';
 import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
 
 /**
@@ -90,6 +93,7 @@ export type OccupancyIssueCode =
   | 'store-support-mismatch'
   | 'screen-inactive'
   | 'support-not-in-catalog'
+  | 'invalid-store-scope'
   | 'instore-without-stores';
 
 export interface OccupancyIssue {
@@ -422,8 +426,22 @@ function resolveLiverpool(
 ): void {
   const nSupport = norm(support.support);
   const nameFor = (store: string) => idx.nameByStore.get(store) ?? store;
+  const scope = effectiveCampaignSupportScope(support);
 
-  if (support.stores.length === 0) {
+  if (
+    scope === 'invalid' ||
+    (scope === 'selected' && support.stores.length === 0)
+  ) {
+    issues.push({
+      code: 'invalid-store-scope',
+      campaignName: c.name,
+      support: support.support,
+      message: `El alcance de tiendas de "${support.support}" en "${c.name}" está pendiente o es inválido; no suma carga.`,
+    });
+    return;
+  }
+
+  if (scope === 'all') {
     // "Asignada" sin comentario: expandir pantallas activas del soporte.
     const expanded = idx.activeBySupport.get(nSupport) ?? [];
     if (expanded.length === 0) {
@@ -511,12 +529,19 @@ function resolveInstore(
   issues: OccupancyIssue[],
   addCombo: AddCombo,
 ): void {
-  if (support.stores.length === 0) {
+  const scope = effectiveCampaignSupportScope(support);
+  if (scope === 'invalid' || scope === 'all' || support.stores.length === 0) {
     issues.push({
-      code: 'instore-without-stores',
+      code:
+        scope === 'invalid' || scope === 'selected'
+          ? 'invalid-store-scope'
+          : 'instore-without-stores',
       campaignName: c.name,
       support: support.support,
-      message: `El soporte InStore Media "${support.support}" (campaña "${c.name}") está asignado sin comentario; no se puede expandir.`,
+      message:
+        scope === 'invalid' || scope === 'selected'
+          ? `El alcance de tiendas de "${support.support}" en "${c.name}" está pendiente o es inválido; no suma carga.`
+          : `El soporte InStore Media "${support.support}" (campaña "${c.name}") está asignado sin comentario; no se puede expandir.`,
     });
     return;
   }
