@@ -23,7 +23,9 @@ describe('LoadingState', () => {
     );
 
     expect(screen.getByText('Construyendo indicadores…')).toBeInTheDocument();
-    expect(screen.getByText('Cruce operativo en curso.')).toBeInTheDocument();
+    expect(screen.getByText('Cruce operativo en curso.')).toHaveClass(
+      'loading-state__description',
+    );
     expect(container.querySelector('img')).toHaveAttribute('alt', '');
     expect(screen.getByRole('status')).toHaveClass('loading-state--compact');
   });

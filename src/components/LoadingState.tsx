@@ -72,7 +72,9 @@ export function LoadingState({
       </picture>
       <div className="loading-state__copy">
         <strong>{title ?? meta.title}</strong>
-        <span>{description ?? meta.description}</span>
+        <span className="loading-state__description">
+          {description ?? meta.description}
+        </span>
       </div>
     </div>
   );
