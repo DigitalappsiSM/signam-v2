@@ -351,7 +351,10 @@ importador** para lectura y guardado de archivos, y **terminal retro** para
 consultas, cálculos y exportaciones. Los GIF son decorativos; el mensaje
 accesible vive como texto con `role="status"`. Cuando el sistema solicita
 reducir movimiento, el navegador muestra un fotograma estático mediante
-`<picture>`.
+`<picture>`. Su presentación es deliberadamente discreta: no reserva una tarjeta
+ni altura adicional, muestra la animación a 40 px (32 px en modo compacto) y
+mantiene la descripción disponible para lectores de pantalla sin añadir una
+segunda línea visual.
 
 ## Stack
 
