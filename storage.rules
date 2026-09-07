@@ -14,15 +14,20 @@ service firebase.storage {
     }
 
     function role() {
-      return isSignedIn() ? request.auth.token.role : '';
+      return isSignedIn() ? request.auth.token.get('role', '') : '';
     }
 
+    // FASE ACTUAL (pre-lanzamiento): homologada a firestore.rules — cualquier
+    // usuario autenticado (invitado por el administrador) puede leer y subir los
+    // originales de importación (Liverpool, Ekon y Digital), sin depender de que
+    // el custom claim de rol ya esté en el token. Antes de liberar al equipo se
+    // restaurará el control por rol (`role() in [...]`, ver permissions.ts).
     function canRead() {
-      return isSignedIn() && role() in ['admin', 'operator', 'viewer'];
+      return isSignedIn();
     }
 
     function canWriteImports() {
-      return isSignedIn() && role() in ['admin', 'operator'];
+      return isSignedIn();
     }
 
     // Archivos originales de importación (se conservan tal cual).
