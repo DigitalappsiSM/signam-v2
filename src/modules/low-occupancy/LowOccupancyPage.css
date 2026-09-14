@@ -28,6 +28,197 @@
   margin: 0.5rem 0;
 }
 
+.occ-planning-note {
+  margin: -0.35rem 0 0.8rem;
+}
+
+/* Diagnóstico desde el reporte de pases de Admira. */
+.occ-admira {
+  margin-bottom: 2rem;
+}
+
+.occ-admira__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.occ-admira__head .occ-section-title {
+  margin-bottom: 0.3rem;
+}
+
+.occ-admira__description {
+  margin: 0;
+  max-width: 760px;
+}
+
+.occ-admira__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.occ-admira__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 0.8rem;
+}
+
+.occ-admira__meta > div,
+.occ-admira__meta label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.occ-admira__meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occ-admira__meta select {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+}
+
+.occ-admira__summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 0.65rem;
+  margin: 0.85rem 0;
+}
+
+.occ-admira__metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.occ-admira__metric strong {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.occ-admira__metric span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.occ-admira__metric--critical strong {
+  color: var(--color-danger-fg);
+}
+
+.occ-admira__metric--warning strong {
+  color: var(--color-warning-fg);
+}
+
+.occ-admira__metric--healthy strong {
+  color: var(--color-success-fg);
+}
+
+.occ-admira__table {
+  min-width: 1320px;
+}
+
+.occ-admira__table td:first-child,
+.occ-admira__table td:nth-child(10) {
+  white-space: normal;
+  min-width: 220px;
+}
+
+.occ-admira__status {
+  display: inline-flex;
+  padding: 0.16rem 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.occ-admira__status--critical {
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger) 13%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+
+.occ-admira__status--warning {
+  color: var(--color-warning-fg);
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 34%, transparent);
+}
+
+.occ-admira__status--healthy {
+  color: var(--color-success-fg);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+
+.occ-admira__detail {
+  margin-top: 1rem;
+}
+
+.occ-admira__detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.occ-admira__detail-head h3,
+.occ-admira__detail-head p,
+.occ-admira__ratio-detail h4 {
+  margin: 0;
+}
+
+.occ-admira__ratio-detail + .occ-admira__ratio-detail {
+  margin-top: 1rem;
+}
+
+.occ-admira__ratio-detail ul {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+}
+
+.occ-admira__ratio-detail li {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) auto;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+@media (max-width: 900px) {
+  .occ-admira__summary {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .occ-admira__ratio-detail li {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}
+
 /* ── Resumen: titular + barra de distribución + leyenda ──────────────── */
 .occ-summary {
   display: flex;
