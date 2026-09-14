@@ -15,8 +15,9 @@ Aplicación web para operar el flujo de programación de pantallas entre
    Activa/Cancelada** por campaña, más un **Dashboard** con el resumen y las
    alertas críticas (periodo predeterminado: **Mes actual**).
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
-9. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
-   proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
+9. **Alertas de baja ocupación**: importar el reporte de pases de Admira para
+   detectar repetición real por player y fecha, además de conservar el cálculo
+   de planeación y los CSV auxiliares **Ratio 1 / Ratio 3**.
 10. Guardar archivos, versiones, cambios, exportaciones y auditoría en **Firebase**.
 11. **Importación Ekon** y **Conciliación** Ekon–Liverpool (ver abajo).
 12. **Operación Digital multirretailer** para La Comer y Chedraui, aislada de
@@ -140,6 +141,16 @@ Ruta `/alertas-ocupacion` (grupo **Operación**). Evalúa cada unidad
 `Numero de Tienda + NORMALIZACION LIVERPOOL + RESOLUCION` para una **fecha civil**
 (por defecto hoy, o una futura) y cuenta los contenidos de **proveedor vigentes**,
 deduplicados por `Campaña + ARTICULOS`:
+
+La página incorpora además una primera fase de **diagnóstico por reporte de
+pases Admira**. El operador importa el Excel, Signam cruza `Nombre` contra
+`Nombre en plataforma` y analiza cada `player + día`: si existe Publicidad Tipo
+1, la evalúa sin permitir que Ratio 3 compense su repetición; si no existe Tipo
+1, evalúa la variedad institucional. Uno o dos contenidos son críticos, tres
+generan alerta y cuatro o más son saludables, salvo que un contenido concentre
+más de 35 % de los pases. Un contenido con 15 pases por hora o menos genera una
+alerta de entrega mínima. Esta fase no persiste el archivo ni normaliza o
+concilia nombres de campañas con las campañas esperadas de Signam.
 
 - **0** proveedores → _Sin ocupación comercial_ (alerta; **fuera de ambos CSV**).
 - **1** → _Baja ocupación crítica_ → **Ratio 1**.
