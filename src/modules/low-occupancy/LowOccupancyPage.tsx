@@ -28,6 +28,7 @@ import { OccupancyTable } from './components/OccupancyTable';
 import { OccupancyDetail } from './components/OccupancyDetail';
 import { OccupancyChangeDetail } from './components/OccupancyChangeDetail';
 import { OccupancyExportGroups } from './components/OccupancyExportGroups';
+import { AdmiraPassesPanel } from './components/AdmiraPassesPanel';
 import '@/modules/admira-catalog/CatalogPage.css';
 import '@/modules/liverpool-import/ImportPage.css';
 import './LowOccupancyPage.css';
@@ -175,7 +176,7 @@ export function LowOccupancyPage() {
     <>
       <PageHeader
         title="Alertas de baja ocupación"
-        description="Detecta pantallas con baja variedad de proveedores para una fecha y genera CSV para Ratio 1 y Ratio 3. La carga final en Admira sigue siendo manual; SIGNAM no administra los contenidos institucionales."
+        description="Importa el reporte de pases de Admira para detectar repetición real por player y fecha. La planeación calculada desde Signam permanece disponible como referencia independiente."
         actions={
           <button
             className="btn btn-primary"
@@ -192,6 +193,21 @@ export function LowOccupancyPage() {
           {error}
         </div>
       )}
+
+      {!loading && (
+        <AdmiraPassesPanel
+          screens={screens}
+          analysisDate={analysisDate}
+          onDateChange={setAnalysisDate}
+        />
+      )}
+
+      <h2 className="occ-section-title">Planeación estimada de Signam</h2>
+      <p className="text-muted occ-planning-note">
+        Esta sección conserva el cálculo por campañas vigentes y la generación
+        de CSV auxiliares. No se concilia todavía campaña por campaña con el
+        reporte importado de Admira.
+      </p>
 
       <div className="occ-controls">
         <label className="campaign-date">
