@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/LoadingState';
+import { EntityAvatar } from '@/components/EntityAvatar';
 import { useAuth } from '@/app/providers/AuthProvider';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
@@ -272,7 +273,17 @@ export function CatalogPage() {
                   key={screen.id}
                   className={screen.metadata.active ? '' : 'catalog__row--off'}
                 >
-                  <td>{screen.original['Numero de Tienda']}</td>
+                  <td>
+                    <EntityAvatar
+                      label={String(screen.original['Numero de Tienda'] ?? '—')}
+                      color={
+                        screen.metadata.active
+                          ? 'var(--cls-inst)'
+                          : 'var(--color-text-muted)'
+                      }
+                      title={`Tienda ${screen.original['Numero de Tienda'] ?? ''}`}
+                    />
+                  </td>
                   <td>{screen.original['Nombre de tienda']}</td>
                   <td>{screen.original.Modelo}</td>
                   <td>{screen.original.RESOLUCION}</td>
