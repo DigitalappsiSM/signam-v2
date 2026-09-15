@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LoadingState } from '@/components/LoadingState';
 import type { AdmiraScreen } from '@/domain';
+import type { Actor } from '@/modules/admira-catalog/screenFactory';
+import {
+  getCurrentAdmiraPassAnalysis,
+  saveCurrentAdmiraPassAnalysis,
+  type StoredAdmiraPassAnalysis,
+} from '@/services/admiraPassAnalysis';
 import { analyzeAdmiraPasses } from '../admiraPasses';
-import type {
-  AdmiraPassAnalysisUnit,
-  AdmiraPassParseResult,
-  AdmiraRiskLevel,
-} from '../admiraPasses';
+import type { AdmiraPassAnalysisUnit, AdmiraRiskLevel } from '../admiraPasses';
 import { readAdmiraPassesWorkbook } from '../readAdmiraPassesWorkbook';
 
 const LEVEL_LABELS: Record<AdmiraRiskLevel, string> = {
@@ -30,26 +32,52 @@ function passes(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+function dateTime(value: number): string {
+  return value ? new Date(value).toLocaleString('es-MX') : '—';
+}
+
 export function AdmiraPassesPanel({
   screens,
+  actor,
   analysisDate,
   onDateChange,
 }: {
   screens: AdmiraScreen[];
+  actor: Actor;
   analysisDate: string;
   onDateChange: (date: string) => void;
 }) {
-  const [parsed, setParsed] = useState<AdmiraPassParseResult | null>(null);
-  const [fileName, setFileName] = useState('');
-  const [sheetName, setSheetName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [stored, setStored] = useState<StoredAdmiraPassAnalysis | null>(null);
+  const [loading, setLoading] = useState<'saved' | 'import' | null>('saved');
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdmiraPassAnalysisUnit | null>(null);
+  const initialAnalysisDate = useRef(analysisDate);
 
-  const analysis = useMemo(
-    () => (parsed ? analyzeAdmiraPasses(parsed.rows, screens) : null),
-    [parsed, screens],
-  );
+  useEffect(() => {
+    let active = true;
+    void getCurrentAdmiraPassAnalysis()
+      .then((result) => {
+        if (!active) return;
+        setStored(result);
+        const dates = result?.analysis.dates ?? [];
+        const selectedDate = dates.includes(initialAnalysisDate.current)
+          ? initialAnalysisDate.current
+          : dates[0];
+        if (selectedDate) onDateChange(selectedDate);
+      })
+      .catch(() => {
+        if (active)
+          setError('No se pudo cargar el último análisis guardado de Admira.');
+      })
+      .finally(() => {
+        if (active) setLoading(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [onDateChange]);
+
+  const analysis = stored?.analysis ?? null;
   const units = useMemo(
     () => analysis?.units.filter((unit) => unit.date === analysisDate) ?? [],
     [analysis, analysisDate],
@@ -68,7 +96,7 @@ export function AdmiraPassesPanel({
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
-    setLoading(true);
+    setLoading('import');
     setError(null);
     setDetail(null);
     try {
@@ -78,24 +106,36 @@ export function AdmiraPassesPanel({
           result.issues[0]?.message || 'El archivo no tiene datos.',
         );
       }
-      setParsed(result);
-      setFileName(file.name);
-      setSheetName(result.sheetName ?? '');
+      const nextAnalysis = analyzeAdmiraPasses(result.rows, screens);
+      let saved: StoredAdmiraPassAnalysis;
+      try {
+        saved = await saveCurrentAdmiraPassAnalysis({
+          fileName: file.name,
+          sheetName: result.sheetName ?? '',
+          validRows: result.rows.length,
+          omittedRows: result.issues.length,
+          playerCount: result.players.length,
+          analysis: nextAnalysis,
+          actor,
+        });
+      } catch {
+        throw new Error(
+          'El reporte se analizó, pero no se pudo guardar. El diagnóstico anterior continúa vigente.',
+        );
+      }
+      setStored(saved);
       const nextDate = result.dates.includes(analysisDate)
         ? analysisDate
         : result.dates[0];
       if (nextDate) onDateChange(nextDate);
     } catch (caught) {
-      setParsed(null);
-      setFileName('');
-      setSheetName('');
       setError(
         caught instanceof Error
           ? caught.message
           : 'No se pudo leer el reporte de Admira.',
       );
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
 
@@ -108,16 +148,17 @@ export function AdmiraPassesPanel({
           </h2>
           <p className="text-muted occ-admira__description">
             Analiza la programación real por player y fecha. Ratio 1 se revisa
-            por separado; si no existe, se evalúa la variedad de Ratio 3.
+            por separado; si no existe, se evalúa la variedad de Ratio 3. El
+            último resultado queda disponible para consulta.
           </p>
         </div>
         <label className="import-file">
-          <span className="btn btn-primary">Importar reporte Admira</span>
+          <span className="btn btn-primary">Importar y guardar reporte</span>
           <input
             type="file"
             accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             hidden
-            disabled={loading}
+            disabled={loading !== null}
             onChange={(event) => void handleFile(event.target.files?.[0])}
           />
         </label>
@@ -125,9 +166,17 @@ export function AdmiraPassesPanel({
 
       {loading && (
         <LoadingState
-          variant="import"
-          title="Analizando reporte Admira…"
-          description="Cruzando players, fechas, ratios, campañas y pases."
+          variant={loading === 'import' ? 'import' : 'process'}
+          title={
+            loading === 'import'
+              ? 'Analizando y guardando reporte Admira…'
+              : 'Cargando el último análisis…'
+          }
+          description={
+            loading === 'import'
+              ? 'Cruzando players, fechas, ratios, campañas y pases.'
+              : 'Recuperando el diagnóstico vigente para consulta.'
+          }
           compact
         />
       )}
@@ -137,37 +186,45 @@ export function AdmiraPassesPanel({
         </div>
       )}
 
-      {!loading && !parsed && !error && (
+      {!loading && !stored && !error && (
         <div className="card occ-admira__empty">
-          <strong>Importa el archivo de pases para comenzar.</strong>
+          <strong>Aún no hay un análisis guardado.</strong>
           <span className="text-muted">
-            El archivo se analiza en el navegador y no se guarda en esta fase.
+            Importa el archivo de pases; el resultado reemplazará al anterior.
           </span>
         </div>
       )}
 
-      {parsed && analysis && (
+      {stored && analysis && (
         <>
           <div className="occ-admira__meta card">
             <div>
               <span className="text-muted">Archivo</span>
-              <strong>{fileName}</strong>
+              <strong>{stored.metadata.fileName}</strong>
             </div>
             <div>
               <span className="text-muted">Hoja</span>
-              <strong>{sheetName || '—'}</strong>
+              <strong>{stored.metadata.sheetName || '—'}</strong>
             </div>
             <div>
               <span className="text-muted">Filas válidas</span>
-              <strong>{parsed.rows.length}</strong>
+              <strong>{stored.metadata.validRows}</strong>
             </div>
             <div>
               <span className="text-muted">Players</span>
-              <strong>{parsed.players.length}</strong>
+              <strong>{stored.metadata.playerCount}</strong>
             </div>
             <div>
               <span className="text-muted">Fechas</span>
-              <strong>{parsed.dates.length}</strong>
+              <strong>{stored.metadata.dates.length}</strong>
+            </div>
+            <div>
+              <span className="text-muted">Guardado</span>
+              <strong>{dateTime(stored.metadata.createdAt)}</strong>
+            </div>
+            <div>
+              <span className="text-muted">Importado por</span>
+              <strong>{stored.metadata.createdByEmail || '—'}</strong>
             </div>
             <label>
               <span className="text-muted">Fecha analizada</span>
@@ -179,7 +236,7 @@ export function AdmiraPassesPanel({
                   onDateChange(event.target.value);
                 }}
               >
-                {parsed.dates.map((date) => (
+                {stored.metadata.dates.map((date) => (
                   <option key={date} value={date}>
                     {date}
                   </option>
@@ -188,10 +245,10 @@ export function AdmiraPassesPanel({
             </label>
           </div>
 
-          {parsed.issues.length > 0 && (
+          {stored.metadata.omittedRows > 0 && (
             <div className="catalog__notice" role="status">
-              {parsed.issues.length}{' '}
-              {parsed.issues.length === 1
+              {stored.metadata.omittedRows}{' '}
+              {stored.metadata.omittedRows === 1
                 ? 'fila fue omitida'
                 : 'filas fueron omitidas'}{' '}
               por datos incompletos o inválidos.
