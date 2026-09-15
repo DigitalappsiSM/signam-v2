@@ -82,6 +82,19 @@ export interface AdmiraPassAnalysis {
   };
 }
 
+export function summarizeAdmiraPassUnits(
+  units: readonly AdmiraPassAnalysisUnit[],
+): AdmiraPassAnalysis['summary'] {
+  return {
+    total: units.length,
+    critical: units.filter((unit) => unit.level === 'critical').length,
+    warning: units.filter((unit) => unit.level === 'warning').length,
+    healthy: units.filter((unit) => unit.level === 'healthy').length,
+    missingPlayers: units.filter((unit) => unit.catalogMatch !== 'exact')
+      .length,
+  };
+}
+
 const REQUIRED_HEADERS = {
   player: ['NOMBRE'],
   date: ['DIA'],
@@ -472,13 +485,6 @@ export function analyzeAdmiraPasses(
   return {
     units,
     dates: [...new Set(units.map((unit) => unit.date))].sort(),
-    summary: {
-      total: units.length,
-      critical: units.filter((unit) => unit.level === 'critical').length,
-      warning: units.filter((unit) => unit.level === 'warning').length,
-      healthy: units.filter((unit) => unit.level === 'healthy').length,
-      missingPlayers: units.filter((unit) => unit.catalogMatch !== 'exact')
-        .length,
-    },
+    summary: summarizeAdmiraPassUnits(units),
   };
 }
