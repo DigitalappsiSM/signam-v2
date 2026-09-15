@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/LoadingState';
+import { EntityAvatar } from '@/components/EntityAvatar';
+import { toInitials } from '@/lib/initials';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import {
@@ -205,25 +207,34 @@ export function UsersPage() {
                 return (
                   <tr key={u.uid}>
                     <td>
-                      <div className="users__identity">
-                        <span className="users__email">
-                          {u.email || '(sin correo)'}
-                          {isSelf && (
-                            <span className="badge badge-info users__you">
-                              Tú
-                            </span>
-                          )}
-                          {u.disabled && (
-                            <span className="badge badge-warning">
-                              Deshabilitado
-                            </span>
-                          )}
-                        </span>
-                        {u.displayName && (
-                          <span className="users__name text-muted">
-                            {u.displayName}
+                      <div className="avatar-cell">
+                        <EntityAvatar
+                          decorative
+                          label={toInitials(u.displayName || u.email || '?')}
+                          color={
+                            u.disabled ? 'var(--color-text-muted)' : undefined
+                          }
+                        />
+                        <div className="users__identity">
+                          <span className="users__email">
+                            {u.email || '(sin correo)'}
+                            {isSelf && (
+                              <span className="badge badge-info users__you">
+                                Tú
+                              </span>
+                            )}
+                            {u.disabled && (
+                              <span className="badge badge-warning">
+                                Deshabilitado
+                              </span>
+                            )}
                           </span>
-                        )}
+                          {u.displayName && (
+                            <span className="users__name text-muted">
+                              {u.displayName}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td>

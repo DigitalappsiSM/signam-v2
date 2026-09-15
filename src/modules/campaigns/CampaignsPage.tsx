@@ -11,6 +11,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/LoadingState';
+import { EntityAvatar } from '@/components/EntityAvatar';
+import { toInitials } from '@/lib/initials';
 import { useAuth } from '@/app/providers/AuthProvider';
 import {
   correctCampaign,
@@ -672,7 +674,12 @@ export function CampaignsPage() {
                 const ekon = ekonByKey.get(c.id);
                 return (
                   <tr key={c.id}>
-                    <td>{c.name}</td>
+                    <td>
+                      <div className="avatar-cell">
+                        <EntityAvatar decorative label={toInitials(c.name)} />
+                        <span className="avatar-cell__name">{c.name}</span>
+                      </div>
+                    </td>
                     <td>{ekon ?? '—'}</td>
                     <td>{c.tipo || '—'}</td>
                     <td>{formatCivilString(c.fechaInicio)}</td>
