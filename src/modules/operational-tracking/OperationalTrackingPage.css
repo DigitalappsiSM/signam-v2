@@ -90,9 +90,17 @@
 /* Celda de Campaña con su nombre y el indicador de ciclo de vida. */
 .ot-campaign {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ot-campaign__text {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .ot-campaign__name {

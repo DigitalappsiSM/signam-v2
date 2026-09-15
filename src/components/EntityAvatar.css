@@ -1,0 +1,43 @@
+/* Cuadro de iniciales/número con color (tablas tipo mockup). */
+.entity-avatar {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 0.4rem;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(20, 30, 60, 0.14);
+}
+
+/* Celda "avatar + texto" reutilizable en las tablas (nombre/identidad). */
+.avatar-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.avatar-cell__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.avatar-cell__name {
+  font-weight: 600;
+}
+
+.avatar-cell__sub {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}

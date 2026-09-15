@@ -239,7 +239,12 @@ describe('OperationalTrackingPage', () => {
       screen
         .getAllByRole('row')
         .slice(1)
-        .map((r) => within(r).getAllByRole('cell')[0]?.textContent);
+        .map(
+          (r) =>
+            within(r)
+              .getAllByRole('cell')[0]
+              ?.querySelector('.ot-campaign__name')?.textContent,
+        );
     // Orden inicial (por nombre, ascendente en la carga).
     expect(names()).toEqual(['BUEN FIN', 'REGRESO']);
     // Dos clics → descendente.

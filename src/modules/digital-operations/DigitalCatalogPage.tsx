@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import { PageHeader } from '@/components/PageHeader';
+import { EntityAvatar } from '@/components/EntityAvatar';
+import { toInitials } from '@/lib/initials';
 import type { DigitalSupportProfile } from '@/domain/digital-operations';
 import {
   listDigitalProfiles,
@@ -55,7 +57,18 @@ export function DigitalCatalogPage() {
           <tbody>
             {profiles.map((p) => (
               <tr key={p.id}>
-                <td>{p.retailerLabel}</td>
+                <td>
+                  <div className="avatar-cell">
+                    <EntityAvatar
+                      decorative
+                      label={toInitials(p.retailerLabel)}
+                      color={
+                        p.active ? 'var(--cls-inst)' : 'var(--color-text-muted)'
+                      }
+                    />
+                    <span className="avatar-cell__name">{p.retailerLabel}</span>
+                  </div>
+                </td>
                 <td>{p.supportLabel}</td>
                 <td>{p.retailerAliases.join(', ')}</td>
                 <td>{p.articleAliases.join(', ')}</td>

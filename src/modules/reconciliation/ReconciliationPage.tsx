@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/LoadingState';
+import { EntityAvatar } from '@/components/EntityAvatar';
+import { toInitials } from '@/lib/initials';
 import { isFirebaseConfigured } from '@/services/firebase';
 import { listCampaigns } from '@/services/campaigns';
 import {
@@ -231,7 +233,17 @@ export function ReconciliationPage() {
                   <tbody>
                     {filtered.map((row) => (
                       <tr key={row.campaign.id}>
-                        <td>{row.campaign.name}</td>
+                        <td>
+                          <div className="avatar-cell">
+                            <EntityAvatar
+                              decorative
+                              label={toInitials(row.campaign.name)}
+                            />
+                            <span className="avatar-cell__name">
+                              {row.campaign.name}
+                            </span>
+                          </div>
+                        </td>
                         <td>{row.ekonNumber}</td>
                         <td>
                           <span

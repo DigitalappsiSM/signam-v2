@@ -40,6 +40,8 @@ import {
 import { type WitnessStatus } from './operationalStatus';
 import { STATUS_META } from './statusMeta';
 import { Icon } from '@/components/Icon';
+import { EntityAvatar } from '@/components/EntityAvatar';
+import { toInitials } from '@/lib/initials';
 import {
   buildTrackingRows,
   effectiveChecks,
@@ -66,6 +68,13 @@ const CHECK_COLUMNS: { key: CheckKey; label: string; short: string }[] = [
 
 /** Filas por página en la tabla de seguimiento. */
 const PAGE_SIZE = 12;
+
+/** Color del cuadro de iniciales según la clasificación de la campaña. */
+function classAvatarColor(classification: Classification | 'unknown'): string {
+  if (classification === 'institutional') return 'var(--cls-inst)';
+  if (classification === 'provider') return 'var(--cls-prov)';
+  return 'var(--cls-unknown)';
+}
 
 function normalize(v: string): string {
   return v
@@ -759,25 +768,32 @@ export function OperationalTrackingPage() {
                         }
                       >
                         <td>
-                          {cancelled ? (
-                            <div className="ot-campaign">
+                          <div className="ot-campaign">
+                            <EntityAvatar
+                              decorative
+                              label={toInitials(r.campaign.name)}
+                              color={classAvatarColor(r.classification)}
+                            />
+                            <div className="ot-campaign__text">
                               <span className="ot-campaign__name">
                                 {r.campaign.name}
                               </span>
-                              <span
-                                className="ot-badge ot-cancelled"
-                                title={cancellationInfo(r)}
-                              >
-                                <Icon name="ban" size={13} />
-                                Cancelada
-                              </span>
-                              <span className="ot-cancelled__meta text-muted">
-                                {cancellationInfo(r)}
-                              </span>
+                              {cancelled && (
+                                <>
+                                  <span
+                                    className="ot-badge ot-cancelled"
+                                    title={cancellationInfo(r)}
+                                  >
+                                    <Icon name="ban" size={13} />
+                                    Cancelada
+                                  </span>
+                                  <span className="ot-cancelled__meta text-muted">
+                                    {cancellationInfo(r)}
+                                  </span>
+                                </>
+                              )}
                             </div>
-                          ) : (
-                            r.campaign.name
-                          )}
+                          </div>
                         </td>
                         <td>
                           <select
@@ -1024,6 +1040,11 @@ export function OperationalTrackingPage() {
             aria-label={`Detalle de ${detailRow.campaign.name}`}
           >
             <header className="ot-drawer__head">
+              <EntityAvatar
+                decorative
+                label={toInitials(detailRow.campaign.name)}
+                color={classAvatarColor(detailRow.classification)}
+              />
               <div className="ot-drawer__heading">
                 <h3 className="ot-drawer__title">{detailRow.campaign.name}</h3>
                 {detailRow.lifecycleStatus === 'cancelled' ? (

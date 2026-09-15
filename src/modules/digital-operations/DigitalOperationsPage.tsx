@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/LoadingState';
 import { Icon } from '@/components/Icon';
 import { SortableTh } from '@/components/SortableTh';
+import { EntityAvatar } from '@/components/EntityAvatar';
 import {
   digitalProgress,
   type DigitalCheckKey,
@@ -777,30 +778,38 @@ export function DigitalOperationsPage() {
                       }
                     >
                       <td>
-                        <div className="do-campaign">
-                          <span className="do-campaign__name">
-                            {item.campaignNumber}
-                          </span>
-                          <span className="do-campaign__creativity">
-                            {item.creativityId ||
-                              item.creativityTitle ||
-                              'Sin creatividad'}
-                          </span>
-                          {!item.active && (
-                            <span className="do-badge do-badge--inactive">
-                              <Icon name="minus" size={12} />
-                              Inactiva en fuente
+                        <div className="avatar-cell">
+                          <EntityAvatar
+                            label={String(item.campaignNumber)}
+                            color={
+                              cancelled || !item.active
+                                ? 'var(--color-text-muted)'
+                                : 'var(--cls-inst)'
+                            }
+                            title={`Campaña ${item.campaignNumber}`}
+                          />
+                          <div className="do-campaign">
+                            <span className="do-campaign__creativity">
+                              {item.creativityId ||
+                                item.creativityTitle ||
+                                'Sin creatividad'}
                             </span>
-                          )}
-                          {cancelled && (
-                            <span
-                              className="do-badge do-status--cancelled"
-                              title={cancellationInfo(itemTracking)}
-                            >
-                              <Icon name="ban" size={12} />
-                              Cancelada
-                            </span>
-                          )}
+                            {!item.active && (
+                              <span className="do-badge do-badge--inactive">
+                                <Icon name="minus" size={12} />
+                                Inactiva en fuente
+                              </span>
+                            )}
+                            {cancelled && (
+                              <span
+                                className="do-badge do-status--cancelled"
+                                title={cancellationInfo(itemTracking)}
+                              >
+                                <Icon name="ban" size={12} />
+                                Cancelada
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td>{item.retailerLabel}</td>
