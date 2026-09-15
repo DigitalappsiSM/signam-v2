@@ -120,6 +120,33 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
 
+    // Diagnóstico vigente del reporte de pases Admira. El cliente publica un
+    // snapshot completo, cambia el puntero `current` y elimina el reemplazado;
+    // no existe una consulta de históricos ni se conserva el Excel original.
+    match /admiraPassAnalysisState/current {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.snapshotId is string
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.updatedByEmail is string;
+      allow delete: if false;
+    }
+    match /admiraPassAnalysisSnapshots/{snapshotId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.status in ['processing', 'completed', 'failed']
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByEmail is string
+        && request.resource.data.schemaVersion == 1;
+      allow delete: if isSignedIn();
+
+      match /units/{unitId} {
+        allow read, create, delete: if isSignedIn();
+        allow update: if false;
+      }
+    }
+
     // Campañas importadas del calendario Liverpool.
     match /campaigns/{campaignId} {
       allow read: if isSignedIn();
