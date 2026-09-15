@@ -225,6 +225,7 @@ describe('LowOccupancyPage — reporte de pases Admira', () => {
     const input = document.querySelector<HTMLInputElement>(
       '.occ-admira input[type="file"]',
     )!;
+    expect(input.accept).toContain('.csv');
     await userEvent.upload(input, new File(['x'], 'pases.xlsx'));
 
     expect(await screen.findByText('pases.xlsx')).toBeInTheDocument();
