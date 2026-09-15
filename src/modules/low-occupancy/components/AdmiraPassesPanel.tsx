@@ -17,6 +17,63 @@ const LEVEL_LABELS: Record<AdmiraRiskLevel, string> = {
   healthy: 'Saludable',
 };
 
+/** Tarjetas del semáforo: nunca solo color (llevan símbolo + texto + cifra). */
+const SEMAPHORE: {
+  level: AdmiraRiskLevel;
+  label: string;
+  icon: string;
+  hint: string;
+}[] = [
+  {
+    level: 'critical',
+    label: 'Críticos',
+    icon: '▲',
+    hint: 'Repetición alta o entrega mínima',
+  },
+  {
+    level: 'warning',
+    label: 'Alertas',
+    icon: '△',
+    hint: 'Variedad limitada por revisar',
+  },
+  {
+    level: 'healthy',
+    label: 'Saludables',
+    icon: '✓',
+    hint: 'Variedad suficiente',
+  },
+];
+
+/** Etiqueta del estado global del reporte (pill del encabezado). */
+const STATUS_LABEL: Record<AdmiraRiskLevel, string> = {
+  critical: 'Requiere acción',
+  warning: 'Con alertas',
+  healthy: 'Saludable',
+};
+
+/** Icono decorativo del encabezado (pantalla/monitor). No aporta significado. */
+function PanelIcon() {
+  return (
+    <svg
+      className="occ-admira__banner-icon"
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="2.5" y="4" width="19" height="13" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+      <path d="M6.5 13l3-3 2.2 2.2L16 8" />
+    </svg>
+  );
+}
+
 const CATALOG_LABELS: Record<AdmiraPassAnalysisUnit['catalogMatch'], string> = {
   exact: 'Exacto',
   duplicate: 'Duplicado',
@@ -51,6 +108,8 @@ export function AdmiraPassesPanel({
   const [loading, setLoading] = useState<'saved' | 'import' | null>('saved');
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdmiraPassAnalysisUnit | null>(null);
+  // Tarjeta del semáforo desplegada (acordeón). Solo una abierta a la vez.
+  const [openLevel, setOpenLevel] = useState<AdmiraRiskLevel | null>(null);
   const initialAnalysisDate = useRef(analysisDate);
 
   useEffect(() => {
@@ -82,23 +141,39 @@ export function AdmiraPassesPanel({
     () => analysis?.units.filter((unit) => unit.date === analysisDate) ?? [],
     [analysis, analysisDate],
   );
-  const summary = useMemo(
+  const unitsByLevel = useMemo(
     () => ({
-      total: units.length,
-      critical: units.filter((unit) => unit.level === 'critical').length,
-      warning: units.filter((unit) => unit.level === 'warning').length,
-      healthy: units.filter((unit) => unit.level === 'healthy').length,
-      missingPlayers: units.filter((unit) => unit.catalogMatch !== 'exact')
-        .length,
+      critical: units.filter((unit) => unit.level === 'critical'),
+      warning: units.filter((unit) => unit.level === 'warning'),
+      healthy: units.filter((unit) => unit.level === 'healthy'),
     }),
     [units],
   );
+  const summary = useMemo(
+    () => ({
+      total: units.length,
+      critical: unitsByLevel.critical.length,
+      warning: unitsByLevel.warning.length,
+      healthy: unitsByLevel.healthy.length,
+      missingPlayers: units.filter((unit) => unit.catalogMatch !== 'exact')
+        .length,
+    }),
+    [units, unitsByLevel],
+  );
+  // Estado global del reporte: manda el nivel más severo con unidades.
+  const globalStatus: AdmiraRiskLevel =
+    summary.critical > 0
+      ? 'critical'
+      : summary.warning > 0
+        ? 'warning'
+        : 'healthy';
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
     setLoading('import');
     setError(null);
     setDetail(null);
+    setOpenLevel(null);
     try {
       const result = await readAdmiraPassesWorkbook(file);
       if (result.headerRow === null || result.rows.length === 0) {
@@ -141,27 +216,45 @@ export function AdmiraPassesPanel({
 
   return (
     <section className="occ-admira" aria-labelledby="occ-admira-title">
-      <div className="occ-admira__head">
-        <div>
-          <h2 id="occ-admira-title" className="occ-section-title">
-            Diagnóstico del reporte Admira
-          </h2>
-          <p className="text-muted occ-admira__description">
-            Analiza la programación real por player y fecha. Ratio 1 se revisa
-            por separado; si no existe, se evalúa la variedad de Ratio 3. El
-            último resultado queda disponible para consulta.
-          </p>
+      <div
+        className={`occ-admira__banner occ-admira__banner--${stored && analysis ? globalStatus : 'neutral'}`}
+      >
+        <div className="occ-admira__banner-main">
+          <span className="occ-admira__banner-badge" aria-hidden="true">
+            <PanelIcon />
+          </span>
+          <div className="occ-admira__banner-copy">
+            <h2 id="occ-admira-title" className="occ-admira__banner-title">
+              Diagnóstico del reporte Admira
+            </h2>
+            <p className="text-muted occ-admira__description">
+              Analiza la programación real por player y fecha. Ratio 1 se revisa
+              por separado; si no existe, se evalúa la variedad de Ratio 3. El
+              último resultado queda disponible para consulta.
+            </p>
+          </div>
         </div>
-        <label className="import-file">
-          <span className="btn btn-primary">Importar y guardar reporte</span>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv,text/csv,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            hidden
-            disabled={loading !== null}
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-          />
-        </label>
+        <div className="occ-admira__banner-actions">
+          {stored && analysis && (
+            <span
+              className={`occ-admira__status-pill occ-admira__status-pill--${globalStatus}`}
+            >
+              <span className="occ-admira__status-dot" aria-hidden="true" />
+              {STATUS_LABEL[globalStatus]}
+              <span className="occ-admira__status-date">{analysisDate}</span>
+            </span>
+          )}
+          <label className="import-file">
+            <span className="btn btn-primary">Importar y guardar reporte</span>
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv,text/csv,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              hidden
+              disabled={loading !== null}
+              onChange={(event) => void handleFile(event.target.files?.[0])}
+            />
+          </label>
+        </div>
       </div>
 
       {loading && (
@@ -233,6 +326,7 @@ export function AdmiraPassesPanel({
                 value={analysisDate}
                 onChange={(event) => {
                   setDetail(null);
+                  setOpenLevel(null);
                   onDateChange(event.target.value);
                 }}
               >
@@ -255,29 +349,138 @@ export function AdmiraPassesPanel({
             </div>
           )}
 
+          {(summary.critical > 0 || summary.missingPlayers > 0) && (
+            <div
+              className={`occ-admira__alert occ-admira__alert--${summary.critical > 0 ? 'critical' : 'info'}`}
+              role="status"
+            >
+              <span className="occ-admira__alert-icon" aria-hidden="true">
+                {summary.critical > 0 ? '▲' : 'ℹ'}
+              </span>
+              <p className="occ-admira__alert-text">
+                {summary.critical > 0 && (
+                  <>
+                    <strong>
+                      {summary.critical}{' '}
+                      {summary.critical === 1
+                        ? 'player crítico'
+                        : 'players críticos'}
+                    </strong>{' '}
+                    para {analysisDate}. Abre la tarjeta «Críticos» para ver el
+                    detalle.
+                  </>
+                )}
+                {summary.critical > 0 && summary.missingPlayers > 0 && ' '}
+                {summary.missingPlayers > 0 && (
+                  <>
+                    {summary.missingPlayers}{' '}
+                    {summary.missingPlayers === 1
+                      ? 'player sin coincidencia exacta en catálogo'
+                      : 'players sin coincidencia exacta en catálogo'}
+                    .
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+
           <div
             className="occ-admira__summary"
             aria-label="Resumen del reporte Admira"
           >
-            <div className="occ-admira__metric occ-admira__metric--critical">
-              <strong>{summary.critical}</strong>
-              <span>Críticos</span>
+            <div className="occ-sem-cards">
+              {SEMAPHORE.map(({ level, label, icon, hint }) => {
+                const count = summary[level];
+                const list = unitsByLevel[level];
+                const open = openLevel === level;
+                return (
+                  <div
+                    key={level}
+                    className={`occ-sem-card occ-sem-card--${level}${open ? ' is-open' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="occ-sem-card__head"
+                      aria-expanded={open}
+                      aria-controls={`occ-sem-panel-${level}`}
+                      disabled={count === 0}
+                      onClick={() => setOpenLevel(open ? null : level)}
+                    >
+                      <span className="occ-sem-card__icon" aria-hidden="true">
+                        {icon}
+                      </span>
+                      <span className="occ-sem-card__count">{count}</span>
+                      <span className="occ-sem-card__label">{label}</span>
+                      <span className="occ-sem-card__hint">{hint}</span>
+                      <span className="occ-sem-card__chev" aria-hidden="true">
+                        {count === 0 ? '' : open ? '▲' : '▼'}
+                      </span>
+                    </button>
+                    {open && (
+                      <div
+                        id={`occ-sem-panel-${level}`}
+                        className="occ-sem-card__panel"
+                        role="region"
+                        aria-label={`Players ${label}`}
+                      >
+                        {list.length === 0 ? (
+                          <p className="text-muted occ-sem-card__empty">
+                            Sin players en este nivel.
+                          </p>
+                        ) : (
+                          <ul className="occ-sem-list">
+                            {list.map((unit) => (
+                              <li key={unit.key}>
+                                <button
+                                  type="button"
+                                  className="occ-sem-list__item"
+                                  onClick={() => setDetail(unit)}
+                                >
+                                  <span className="occ-sem-list__player">
+                                    {unit.player}
+                                  </span>
+                                  <span className="occ-sem-list__store text-muted">
+                                    {unit.storeNumber || '—'}
+                                    {unit.storeName
+                                      ? ` · ${unit.storeName}`
+                                      : ''}
+                                  </span>
+                                  <span className="occ-sem-list__reason text-muted">
+                                    {unit.reasons.join(' ') || '—'}
+                                  </span>
+                                  <span
+                                    className="occ-sem-list__go"
+                                    aria-hidden="true"
+                                  >
+                                    Ver detalle →
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="occ-admira__metric occ-admira__metric--warning">
-              <strong>{summary.warning}</strong>
-              <span>Alertas</span>
-            </div>
-            <div className="occ-admira__metric occ-admira__metric--healthy">
-              <strong>{summary.healthy}</strong>
-              <span>Saludables</span>
-            </div>
-            <div className="occ-admira__metric">
-              <strong>{summary.total}</strong>
-              <span>Players evaluados</span>
-            </div>
-            <div className="occ-admira__metric">
-              <strong>{summary.missingPlayers}</strong>
-              <span>Problemas de catálogo</span>
+
+            <div className="occ-sem-meta">
+              <div className="occ-sem-meta__item">
+                <span className="occ-sem-meta__value">{summary.total}</span>
+                <span className="occ-sem-meta__label">Players evaluados</span>
+              </div>
+              <div className="occ-sem-meta__item">
+                <span
+                  className={`occ-sem-meta__value${summary.missingPlayers > 0 ? ' occ-sem-meta__value--warn' : ''}`}
+                >
+                  {summary.missingPlayers}
+                </span>
+                <span className="occ-sem-meta__label">
+                  Problemas de catálogo
+                </span>
+              </div>
             </div>
           </div>
 
