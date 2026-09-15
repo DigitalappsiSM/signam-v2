@@ -6,7 +6,7 @@ Admira. La decisión final y la carga en Admira siguen siendo **manuales**.
 
 ## Diagnóstico por reporte de pases de Admira (fase 1)
 
-La misma ruta permite importar el Excel de ocupación de Admira y analizar la
+La misma ruta permite importar el Excel o el CSV nativo de ocupación de Admira y analizar la
 programación que Admira reporta para cada `Nombre + Día`. Esta lectura convive
 con el cálculo histórico de Signam, pero en esta fase son fuentes independientes:
 
@@ -21,7 +21,7 @@ El archivo se procesa en el navegador y **no se conserva el Excel original**.
 El resultado analizado se guarda en Firestore como el único diagnóstico vigente
 y queda disponible para todos los usuarios autenticados al volver a la página.
 Cada importación reemplaza el resultado anterior; no existe consulta histórica.
-Se busca una hoja que
+Ambos formatos reutilizan el mismo parser y producen el mismo diagnóstico. Se busca una hoja o CSV que
 contenga `Nombre`, `Día`, `Campaña`, `Contenidos`, `Categoria` y
 `Pases/Slots en uso`; se admiten encabezados con espacios y mojibake común del
 export. Los players se cruzan por coincidencia literal —tras recortar espacios—

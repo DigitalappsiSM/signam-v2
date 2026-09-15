@@ -5,7 +5,15 @@ export interface AdmiraPassWorkbookResult extends AdmiraPassParseResult {
   sheetName: string | null;
 }
 
-/** Lee el detalle de ocupación de Admira sin persistir el archivo. */
+function isCsvFile(file: Blob): boolean {
+  const name = 'name' in file ? String(file.name) : '';
+  return file.type.toLowerCase().includes('csv') || /\.csv$/i.test(name);
+}
+
+/**
+ * Lee el detalle de ocupación nativo de Admira desde Excel o CSV sin persistir
+ * el archivo original. Ambos formatos terminan en el mismo parser de dominio.
+ */
 export async function readAdmiraPassesWorkbook(
   file: Blob,
 ): Promise<AdmiraPassWorkbookResult> {
@@ -24,7 +32,10 @@ export async function readAdmiraPassesWorkbook(
       blankrows: false,
     });
     const parsed = parseAdmiraPassesGrid(grid);
-    const result = { ...parsed, sheetName };
+    const result = {
+      ...parsed,
+      sheetName: isCsvFile(file) ? 'CSV' : sheetName,
+    };
     if (parsed.headerRow !== null) return result;
     fallback ??= result;
   }

@@ -156,7 +156,7 @@ export function AdmiraPassesPanel({
           <span className="btn btn-primary">Importar y guardar reporte</span>
           <input
             type="file"
-            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            accept=".xlsx,.xls,.csv,text/csv,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             hidden
             disabled={loading !== null}
             onChange={(event) => void handleFile(event.target.files?.[0])}

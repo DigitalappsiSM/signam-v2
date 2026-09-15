@@ -143,7 +143,7 @@ Ruta `/alertas-ocupacion` (grupo **Operación**). Evalúa cada unidad
 deduplicados por `Campaña + ARTICULOS`:
 
 La página incorpora además una primera fase de **diagnóstico por reporte de
-pases Admira**. El operador importa el Excel, Signam cruza `Nombre` contra
+pases Admira**. El operador importa el Excel o CSV nativo, Signam cruza `Nombre` contra
 `Nombre en plataforma` y analiza cada `player + día`: si existe Publicidad Tipo
 1, la evalúa sin permitir que Ratio 3 compense su repetición; si no existe Tipo
 1, evalúa la variedad institucional. Uno o dos contenidos son críticos, tres
