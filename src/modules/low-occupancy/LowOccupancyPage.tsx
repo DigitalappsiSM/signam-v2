@@ -176,7 +176,7 @@ export function LowOccupancyPage() {
     <>
       <PageHeader
         title="Alertas de baja ocupación"
-        description="Importa el reporte de pases de Admira para detectar repetición real por player y fecha. La planeación calculada desde Signam permanece disponible como referencia independiente."
+        description="Semáforo de repetición real por player y fecha a partir del reporte de pases de Admira: revisa críticos, alertas y saludables de un vistazo. La planeación calculada desde Signam permanece disponible como referencia independiente."
         actions={
           <button
             className="btn btn-primary"

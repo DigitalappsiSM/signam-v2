@@ -37,22 +37,162 @@
   margin-bottom: 2rem;
 }
 
-.occ-admira__head {
+/* Encabezado del panel: banda elevada con acento semaforizado + estado. */
+.occ-admira__banner {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1rem 1.25rem;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
+  padding: 1.05rem 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--sem-accent, transparent) 9%, var(--color-surface)),
+    var(--color-surface) 62%
+  );
+  box-shadow: var(--shadow-card);
 }
 
-.occ-admira__head .occ-section-title {
-  margin-bottom: 0.3rem;
+.occ-admira__banner--critical {
+  --sem-accent: var(--color-danger);
+  border-left-color: var(--color-danger);
+}
+.occ-admira__banner--warning {
+  --sem-accent: var(--color-warning);
+  border-left-color: var(--color-warning);
+}
+.occ-admira__banner--healthy {
+  --sem-accent: var(--color-success);
+  border-left-color: var(--color-success);
+}
+.occ-admira__banner--neutral {
+  --sem-accent: var(--color-primary);
+  border-left-color: var(--color-border-strong);
+}
+
+.occ-admira__banner-main {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.occ-admira__banner-badge {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: color-mix(in srgb, var(--sem-accent) 82%, var(--color-text));
+  background: color-mix(in srgb, var(--sem-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sem-accent) 30%, transparent);
+}
+
+.occ-admira__banner-copy {
+  min-width: 0;
+}
+
+.occ-admira__banner-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
 }
 
 .occ-admira__description {
   margin: 0;
   max-width: 760px;
+}
+
+.occ-admira__banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+/* Pill de estado global del reporte (símbolo + texto, nunca solo color). */
+.occ-admira__status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--sem-accent) 34%, transparent);
+  background: color-mix(in srgb, var(--sem-accent) 13%, transparent);
+  color: color-mix(in srgb, var(--sem-accent) 78%, var(--color-text));
+}
+
+.occ-admira__status-pill--critical {
+  --sem-accent: var(--color-danger);
+  color: var(--color-danger-fg);
+}
+.occ-admira__status-pill--warning {
+  --sem-accent: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+.occ-admira__status-pill--healthy {
+  --sem-accent: var(--color-success);
+  color: var(--color-success-fg);
+}
+
+.occ-admira__status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sem-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sem-accent) 22%, transparent);
+}
+
+.occ-admira__status-date {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  opacity: 0.8;
+  padding-left: 0.4rem;
+  border-left: 1px solid currentColor;
+}
+
+/* Alerta puntual (aparece solo cuando hay algo que atender). */
+.occ-admira__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.95rem;
+  margin-bottom: 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.occ-admira__alert--critical {
+  background: color-mix(in srgb, var(--color-danger) 11%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 32%, transparent);
+}
+.occ-admira__alert--info {
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+}
+
+.occ-admira__alert-icon {
+  font-weight: 900;
+  line-height: 1.4;
+}
+.occ-admira__alert--critical .occ-admira__alert-icon {
+  color: var(--color-danger-fg);
+}
+.occ-admira__alert--info .occ-admira__alert-icon {
+  color: var(--color-warning-fg);
+}
+
+.occ-admira__alert-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .occ-admira__empty {
@@ -92,43 +232,262 @@
 }
 
 .occ-admira__summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(110px, 1fr));
-  gap: 0.65rem;
   margin: 0.85rem 0;
 }
 
-.occ-admira__metric {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+/* ── Semáforo: 3 tarjetas Críticos / Alertas / Saludables ────────────── */
+.occ-sem-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
 }
 
-.occ-admira__metric strong {
+.occ-sem-card {
+  border: 1px solid
+    color-mix(in srgb, var(--sem-accent) 32%, var(--color-border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--sem-accent) 6%, var(--color-surface));
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.occ-sem-card--critical {
+  --sem-accent: var(--color-danger);
+}
+.occ-sem-card--warning {
+  --sem-accent: var(--color-warning);
+}
+.occ-sem-card--healthy {
+  --sem-accent: var(--color-success);
+}
+
+.occ-sem-card.is-open {
+  box-shadow: var(--shadow-card);
+}
+
+.occ-sem-card__head {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  grid-template-areas:
+    'icon count label chev'
+    'icon count hint chev';
+  align-items: center;
+  column-gap: 0.7rem;
+  row-gap: 0.1rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.85rem 0.95rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-left: 4px solid var(--sem-accent);
+  transition: background 0.18s ease;
+}
+
+.occ-sem-card__head:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sem-accent) 10%, transparent);
+}
+
+.occ-sem-card__head:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--sem-accent);
+}
+
+.occ-sem-card__head:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.occ-sem-card__icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #fff;
+  background: var(--sem-accent);
+}
+.occ-sem-card--warning .occ-sem-card__icon {
+  color: #3a2a00;
+}
+
+.occ-sem-card__count {
+  grid-area: count;
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--sem-accent) 80%, var(--color-text));
 }
-
-.occ-admira__metric span {
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-}
-
-.occ-admira__metric--critical strong {
+.occ-sem-card--critical .occ-sem-card__count {
   color: var(--color-danger-fg);
 }
+.occ-sem-card--warning .occ-sem-card__count {
+  color: var(--color-warning-fg);
+}
+.occ-sem-card--healthy .occ-sem-card__count {
+  color: var(--color-success-fg);
+}
 
-.occ-admira__metric--warning strong {
+.occ-sem-card__label {
+  grid-area: label;
+  align-self: end;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.occ-sem-card__hint {
+  grid-area: hint;
+  align-self: start;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.occ-sem-card__chev {
+  grid-area: chev;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+/* Panel desplegable del acordeón. */
+.occ-sem-card__panel {
+  border-top: 1px solid
+    color-mix(in srgb, var(--sem-accent) 24%, var(--color-border));
+  background: var(--color-surface);
+  padding: 0.5rem 0.6rem 0.65rem;
+  animation: occ-sem-reveal 0.2s ease;
+}
+
+@keyframes occ-sem-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.occ-sem-card__empty {
+  margin: 0.4rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.occ-sem-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.occ-sem-list__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'player go'
+    'store go'
+    'reason reason';
+  align-items: center;
+  column-gap: 0.6rem;
+  row-gap: 0.1rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.occ-sem-list__item:hover {
+  border-color: color-mix(in srgb, var(--sem-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--sem-accent) 7%, var(--color-surface-2));
+}
+
+.occ-sem-list__item:focus-visible {
+  outline: none;
+  border-color: var(--sem-accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.occ-sem-list__player {
+  grid-area: player;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+.occ-sem-list__store {
+  grid-area: store;
+  font-size: 0.78rem;
+}
+.occ-sem-list__reason {
+  grid-area: reason;
+  font-size: 0.77rem;
+  line-height: 1.35;
+}
+.occ-sem-list__go {
+  grid-area: go;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+/* Fila secundaria discreta: Players evaluados / Problemas de catálogo. */
+.occ-sem-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin-top: 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.occ-sem-meta__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.occ-sem-meta__value {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.occ-sem-meta__value--warn {
   color: var(--color-warning-fg);
 }
 
-.occ-admira__metric--healthy strong {
-  color: var(--color-success-fg);
+.occ-sem-meta__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .occ-sem-card,
+  .occ-sem-card__head,
+  .occ-sem-list__item {
+    transition: none;
+  }
+  .occ-sem-card__panel {
+    animation: none;
+  }
 }
 
 .occ-admira__table {
@@ -209,8 +568,17 @@
 }
 
 @media (max-width: 900px) {
-  .occ-admira__summary {
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  .occ-sem-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .occ-admira__banner {
+    align-items: flex-start;
+  }
+
+  .occ-admira__banner-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .occ-admira__ratio-detail li {
