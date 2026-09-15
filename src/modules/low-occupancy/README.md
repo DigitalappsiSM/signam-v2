@@ -17,7 +17,11 @@ con el cálculo histórico de Signam, pero en esta fase son fuentes independient
 - **Sin conciliación de campañas:** no se normalizan ni se comparan todavía los
   nombres de campaña/contenido entre ambas fuentes.
 
-El archivo se procesa en el navegador y no se persiste. Se busca una hoja que
+El archivo se procesa en el navegador y **no se conserva el Excel original**.
+El resultado analizado se guarda en Firestore como el único diagnóstico vigente
+y queda disponible para todos los usuarios autenticados al volver a la página.
+Cada importación reemplaza el resultado anterior; no existe consulta histórica.
+Se busca una hoja que
 contenga `Nombre`, `Día`, `Campaña`, `Contenidos`, `Categoria` y
 `Pases/Slots en uso`; se admiten encabezados con espacios y mojibake común del
 export. Los players se cruzan por coincidencia literal —tras recortar espacios—
@@ -198,10 +202,11 @@ Separación estricta de responsabilidades:
   **Recalcular** o volver tras una importación.
 - **Reporte de pases** — `readAdmiraPassesWorkbook.ts` lee el Excel;
   `admiraPasses.ts` valida, deduplica, cruza players y clasifica el riesgo;
-  `AdmiraPassesPanel.tsx` contiene la importación y el detalle operativo.
+  `AdmiraPassesPanel.tsx` contiene la importación y el detalle operativo;
+  `services/admiraPassAnalysis.ts` publica y recupera el único snapshot vigente.
 
-En esta versión **no** se persisten resultados: Ratio 1 / Ratio 3 son
-recomendaciones calculadas para una fecha, no propiedades permanentes.
+La planeación estimada de Ratio 1 / Ratio 3 sigue siendo un cálculo en memoria:
+solo se persiste el diagnóstico proveniente del reporte importado de Admira.
 
 ## Lo que NO cambia
 

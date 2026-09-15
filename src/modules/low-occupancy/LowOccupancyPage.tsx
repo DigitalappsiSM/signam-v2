@@ -197,6 +197,7 @@ export function LowOccupancyPage() {
       {!loading && (
         <AdmiraPassesPanel
           screens={screens}
+          actor={{ uid: user?.uid ?? '', email: user?.email ?? '' }}
           analysisDate={analysisDate}
           onDateChange={setAnalysisDate}
         />

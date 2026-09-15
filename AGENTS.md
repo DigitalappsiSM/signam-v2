@@ -214,6 +214,17 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   preferida** (conserva historial); no se deben eliminar pantallas ya
   referenciadas por exportaciones. Antes de liberar se restringirá a admin.
 
+## Diagnóstico de pases Admira
+
+- La página de baja ocupación conserva un único análisis vigente del reporte de
+  pases en Firestore. El Excel original no se sube ni se persiste.
+- El resultado se publica mediante `admiraPassAnalysisState/current` y un
+  snapshot en `admiraPassAnalysisSnapshots/{snapshotId}/units`; primero se
+  escribe completo, después se cambia el puntero y al final se elimina el
+  snapshot anterior. La interfaz no ofrece históricos.
+- Persistir el diagnóstico no concilia campañas con Signam ni cambia las reglas
+  de Ratio 1/Ratio 3, el catálogo, los CSV o la planeación estimada.
+
 ## Operación Digital multirretailer
 
 - La Comer y Chedraui con `COPETE DIGITAL` viven exclusivamente en las ocho
