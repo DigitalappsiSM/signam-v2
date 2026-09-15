@@ -149,8 +149,10 @@ pases Admira**. El operador importa el Excel, Signam cruza `Nombre` contra
 1, evalúa la variedad institucional. Uno o dos contenidos son críticos, tres
 generan alerta y cuatro o más son saludables, salvo que un contenido concentre
 más de 35 % de los pases. Un contenido con 15 pases por hora o menos genera una
-alerta de entrega mínima. Esta fase no persiste el archivo ni normaliza o
-concilia nombres de campañas con las campañas esperadas de Signam.
+alerta de entrega mínima. El Excel original no se conserva: se persiste solo el
+último resultado analizado para que el equipo pueda consultarlo después, y cada
+nueva importación reemplaza la anterior sin ofrecer históricos. Esta fase no
+normaliza ni concilia nombres de campañas con las campañas esperadas de Signam.
 
 - **0** proveedores → _Sin ocupación comercial_ (alerta; **fuera de ambos CSV**).
 - **1** → _Baja ocupación crítica_ → **Ratio 1**.
