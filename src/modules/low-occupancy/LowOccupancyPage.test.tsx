@@ -12,6 +12,11 @@ import { LowOccupancyPage } from './LowOccupancyPage';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import { readAdmiraPassesWorkbook } from './readAdmiraPassesWorkbook';
+import { analyzeAdmiraPasses } from './admiraPasses';
+import {
+  getCurrentAdmiraPassAnalysis,
+  saveCurrentAdmiraPassAnalysis,
+} from '@/services/admiraPassAnalysis';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
@@ -39,6 +44,10 @@ vi.mock('@/services/campaigns', () => ({ listCampaigns: vi.fn() }));
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
 vi.mock('./readAdmiraPassesWorkbook', () => ({
   readAdmiraPassesWorkbook: vi.fn(),
+}));
+vi.mock('@/services/admiraPassAnalysis', () => ({
+  getCurrentAdmiraPassAnalysis: vi.fn(),
+  saveCurrentAdmiraPassAnalysis: vi.fn(),
 }));
 
 vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -150,6 +159,26 @@ beforeEach(() => {
   vi.mocked(listCampaigns).mockReset().mockResolvedValue(CAMPAIGNS);
   vi.mocked(listScreens).mockReset().mockResolvedValue(SCREENS);
   vi.mocked(readAdmiraPassesWorkbook).mockReset();
+  vi.mocked(getCurrentAdmiraPassAnalysis).mockReset().mockResolvedValue(null);
+  vi.mocked(saveCurrentAdmiraPassAnalysis)
+    .mockReset()
+    .mockImplementation(async (input) => ({
+      metadata: {
+        id: 'snapshot-1',
+        fileName: input.fileName,
+        sheetName: input.sheetName,
+        validRows: input.validRows,
+        omittedRows: input.omittedRows,
+        playerCount: input.playerCount,
+        dates: input.analysis.dates,
+        unitCount: input.analysis.units.length,
+        createdAt: 1_789_430_400_000,
+        createdByUid: input.actor.uid,
+        createdByEmail: input.actor.email,
+        schemaVersion: 1,
+      },
+      analysis: input.analysis,
+    }));
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
 });
@@ -192,7 +221,7 @@ describe('LowOccupancyPage — reporte de pases Admira', () => {
       ],
     });
     renderPage();
-    await screen.findByText('Diagnóstico del reporte Admira');
+    await screen.findByText('Aún no hay un análisis guardado.');
     const input = document.querySelector<HTMLInputElement>(
       '.occ-admira input[type="file"]',
     )!;
@@ -205,6 +234,71 @@ describe('LowOccupancyPage — reporte de pases Admira', () => {
     ).toHaveTextContent('1');
     expect(screen.getByText(/Solo hay 1 contenido\./)).toBeInTheDocument();
     expect(screen.getByText('Exacto')).toBeInTheDocument();
+    expect(saveCurrentAdmiraPassAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'pases.xlsx',
+        validRows: 1,
+        omittedRows: 0,
+        actor: { uid: 'u1', email: 'admin@signam.mx' },
+      }),
+    );
+  });
+
+  it('recupera el último análisis guardado sin volver a importar el Excel', async () => {
+    const catalog = [
+      screenOf(
+        'admira-antea-a',
+        {
+          'Nombre en plataforma': 'ISM_ANTEA_A',
+          'Numero de Tienda': '173',
+          'Nombre de tienda': 'L ANTEA',
+        },
+        'LED',
+      ),
+    ];
+    const analysis = analyzeAdmiraPasses(
+      [
+        {
+          sourceRow: 2,
+          player: 'ISM_ANTEA_A',
+          descriptiveName: 'ISM_ANTEA_A',
+          date: '2026-08-15',
+          campaign: 'Campaña guardada',
+          content: 'Video guardado',
+          ratio: 1,
+          schedule: '00:00 00:24',
+          passes: 180,
+          passesMin: 180,
+          passesMax: 180,
+          passesRaw: '180',
+        },
+      ],
+      catalog,
+    );
+    vi.mocked(listScreens).mockResolvedValue(catalog);
+    vi.mocked(getCurrentAdmiraPassAnalysis).mockResolvedValue({
+      metadata: {
+        id: 'snapshot-saved',
+        fileName: 'ultimo-reporte.xlsx',
+        sheetName: 'occupation_details',
+        validRows: 1,
+        omittedRows: 0,
+        playerCount: 1,
+        dates: analysis.dates,
+        unitCount: analysis.units.length,
+        createdAt: 1_789_430_400_000,
+        createdByUid: 'u2',
+        createdByEmail: 'operador@signam.mx',
+        schemaVersion: 1,
+      },
+      analysis,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('ultimo-reporte.xlsx')).toBeInTheDocument();
+    expect(screen.getByText('operador@signam.mx')).toBeInTheDocument();
+    expect(readAdmiraPassesWorkbook).not.toHaveBeenCalled();
   });
 });
 
