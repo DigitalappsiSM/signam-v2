@@ -64,6 +64,9 @@ const CHECK_COLUMNS: { key: CheckKey; label: string; short: string }[] = [
   { key: 'witnessComplete', label: 'T Completos', short: 'T Comp.' },
 ];
 
+/** Filas por página en la tabla de seguimiento. */
+const PAGE_SIZE = 12;
+
 function normalize(v: string): string {
   return v
     .trim()
@@ -162,7 +165,10 @@ export function OperationalTrackingPage() {
   const [hasta, setHasta] = useState(defaultWindow.hasta);
   const [params] = useSearchParams();
   const highlightKey = params.get('campana');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Fila cuyo detalle (resumen + bitácora) se muestra en el panel lateral.
+  const [detailKey, setDetailKey] = useState<string | null>(null);
+  // Página actual de la tabla (paginación en cliente; no afecta la lógica).
+  const [page, setPage] = useState(1);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
     {},
   );
@@ -289,6 +295,22 @@ export function OperationalTrackingPage() {
   );
   const onSort = (k: string) => setSort((s) => nextSortState(s, k));
 
+  // Al cambiar filtros u orden, vuelve a la primera página.
+  useEffect(() => {
+    setPage(1);
+  }, [filtered, sort]);
+
+  // Paginación en cliente sobre las filas ya filtradas y ordenadas.
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Fila seleccionada para el panel lateral (o null si ya no está visible).
+  const detailRow = detailKey
+    ? (sorted.find((r) => r.identity === detailKey) ?? null)
+    : null;
+
   const patchTracking = useCallback((t: CampaignOperationalTracking) => {
     setTrackingList((prev) => [
       ...prev.filter(
@@ -400,15 +422,6 @@ export function OperationalTrackingPage() {
     }
   }
 
-  function toggleExpanded(nameKey: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(nameKey)) next.delete(nameKey);
-      else next.add(nameKey);
-      return next;
-    });
-  }
-
   async function submitComment(row: TrackingRow) {
     if (!canWrite) return;
     const text = (commentDrafts[row.identity] ?? '').trim();
@@ -506,6 +519,27 @@ export function OperationalTrackingPage() {
         }
       />
 
+      <div className="ot-tabs" role="tablist" aria-label="Estado operativo">
+        {(
+          [
+            ['all', 'Todas'],
+            ['active', 'Activas'],
+            ['cancelled', 'Canceladas'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={lifecycleFilter === value}
+            className={`ot-tab ${lifecycleFilter === value ? 'ot-tab--active' : ''}`}
+            onClick={() => setLifecycleFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <div className="catalog__error" role="alert">
           {error}
@@ -555,22 +589,6 @@ export function OperationalTrackingPage() {
             <option value="institutional">Institucional</option>
             <option value="provider">Proveedor</option>
             <option value="unknown">Pendiente</option>
-          </select>
-        </label>
-        <label className="ot-filter">
-          <span className="text-muted">Estado operativo</span>
-          <select
-            aria-label="Estado operativo"
-            value={lifecycleFilter}
-            onChange={(e) =>
-              setLifecycleFilter(
-                e.target.value as 'all' | TrackingLifecycleStatus,
-              )
-            }
-          >
-            <option value="all">Todas</option>
-            <option value="active">Activas</option>
-            <option value="cancelled">Canceladas</option>
           </select>
         </label>
         <label className="campaign-date">
@@ -644,375 +662,486 @@ export function OperationalTrackingPage() {
           </p>
         </div>
       ) : (
-        <div className="diagnosis__table-wrap">
-          <table className="catalog__table ot-table">
-            <thead>
-              <tr>
-                <SortableTh
-                  label="Campaña"
-                  sortKey="name"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Clasificación"
-                  sortKey="classification"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Inicio"
-                  sortKey="inicio"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Fin"
-                  sortKey="fin"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Tiendas"
-                  sortKey="tiendas"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Objetivo 10%"
-                  sortKey="objetivo"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                {CHECK_COLUMNS.map((col) => (
-                  <th key={col.key} title={col.label} className="ot-check-col">
-                    {col.short}
-                  </th>
-                ))}
-                <SortableTh
-                  label="Estado general"
-                  sortKey="estado"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <SortableTh
-                  label="Próx. vencimiento"
-                  sortKey="vencimiento"
-                  sort={sort}
-                  onSort={onSort}
-                />
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r) => {
-                const checks = effectiveChecks(r);
-                const highlighted =
-                  r.identity === highlightKey ||
-                  r.campaign.nameKey === highlightKey;
-                const comments = r.tracking?.comments ?? [];
-                const isExpanded = expanded.has(r.identity);
-                const isFinished = r.timeframe === 'finished';
-                const cancelled = r.lifecycleStatus === 'cancelled';
-                // Los testigos no aplican a las campañas Institucional; la
-                // clasificación pendiente exige clasificar antes de operarlos
-                // (nunca se asume Proveedor).
-                const institutional = r.classification === 'institutional';
-                const pending = r.classification === 'unknown';
-                const markAllLabel = institutional
-                  ? 'Marcar aplicables'
-                  : 'Marcar todas';
-                const markAllBusy = busy.has(`${r.identity}:markall`);
-                const commentBusy = busy.has(`${r.identity}:comment`);
-                const lifecycleBusy = busy.has(`${r.identity}:lifecycle`);
-                return (
-                  <Fragment key={r.campaign.id}>
-                    <tr
-                      className={
-                        [
-                          highlighted ? 'ot-row--highlight' : '',
-                          cancelled ? 'ot-row--cancelled' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ') || undefined
-                      }
+        <>
+          <div className="diagnosis__table-wrap">
+            <table className="catalog__table ot-table">
+              <thead>
+                <tr>
+                  <SortableTh
+                    label="Campaña"
+                    sortKey="name"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Clasificación"
+                    sortKey="classification"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Inicio"
+                    sortKey="inicio"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Fin"
+                    sortKey="fin"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Tiendas"
+                    sortKey="tiendas"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Objetivo 10%"
+                    sortKey="objetivo"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  {CHECK_COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      title={col.label}
+                      className="ot-check-col"
                     >
-                      <td>
-                        {cancelled ? (
-                          <div className="ot-campaign">
-                            <span className="ot-campaign__name">
-                              {r.campaign.name}
-                            </span>
-                            <span
-                              className="ot-badge ot-cancelled"
-                              title={cancellationInfo(r)}
-                            >
-                              <Icon name="ban" size={13} />
-                              Cancelada
-                            </span>
-                            <span className="ot-cancelled__meta text-muted">
-                              {cancellationInfo(r)}
-                            </span>
-                          </div>
-                        ) : (
-                          r.campaign.name
-                        )}
-                      </td>
-                      <td>
-                        <select
-                          className="ot-class-select"
-                          aria-label={`Clasificación de ${r.campaign.name}`}
-                          value={
-                            r.classification === 'unknown'
-                              ? ''
-                              : r.classification
-                          }
-                          disabled={
-                            !canWrite ||
-                            busy.has(`${r.identity}:classification`)
-                          }
-                          onChange={(e) =>
-                            void setRowClassification(
-                              r,
-                              e.target.value as Classification,
-                            )
-                          }
-                        >
-                          {r.classification === 'unknown' && (
-                            <option value="" disabled>
-                              — Pendiente —
-                            </option>
+                      {col.short}
+                    </th>
+                  ))}
+                  <SortableTh
+                    label="Estado general"
+                    sortKey="estado"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortableTh
+                    label="Próx. vencimiento"
+                    sortKey="vencimiento"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((r) => {
+                  const checks = effectiveChecks(r);
+                  const highlighted =
+                    r.identity === highlightKey ||
+                    r.campaign.nameKey === highlightKey;
+                  const comments = r.tracking?.comments ?? [];
+                  const isFinished = r.timeframe === 'finished';
+                  const cancelled = r.lifecycleStatus === 'cancelled';
+                  // Los testigos no aplican a las campañas Institucional; la
+                  // clasificación pendiente exige clasificar antes de operarlos
+                  // (nunca se asume Proveedor).
+                  const institutional = r.classification === 'institutional';
+                  const pending = r.classification === 'unknown';
+                  const markAllLabel = institutional
+                    ? 'Marcar aplicables'
+                    : 'Marcar todas';
+                  const markAllBusy = busy.has(`${r.identity}:markall`);
+                  const lifecycleBusy = busy.has(`${r.identity}:lifecycle`);
+                  return (
+                    <Fragment key={r.campaign.id}>
+                      <tr
+                        className={
+                          [
+                            highlighted ? 'ot-row--highlight' : '',
+                            cancelled ? 'ot-row--cancelled' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ') || undefined
+                        }
+                      >
+                        <td>
+                          {cancelled ? (
+                            <div className="ot-campaign">
+                              <span className="ot-campaign__name">
+                                {r.campaign.name}
+                              </span>
+                              <span
+                                className="ot-badge ot-cancelled"
+                                title={cancellationInfo(r)}
+                              >
+                                <Icon name="ban" size={13} />
+                                Cancelada
+                              </span>
+                              <span className="ot-cancelled__meta text-muted">
+                                {cancellationInfo(r)}
+                              </span>
+                            </div>
+                          ) : (
+                            r.campaign.name
                           )}
-                          <option value="institutional">Institucional</option>
-                          <option value="provider">Proveedor</option>
-                        </select>
-                      </td>
-                      <td>{formatCivilString(r.campaign.fechaInicio)}</td>
-                      <td>{formatCivilString(r.campaign.fechaFin)}</td>
-                      <td>{r.distinctStores}</td>
-                      <td>
-                        {institutional ? (
-                          <span
-                            className="ot-na"
-                            title="El objetivo de testigos no aplica a campañas institucionales"
-                          >
-                            No aplica
-                          </span>
-                        ) : (
-                          `${r.target} de ${r.distinctStores}`
-                        )}
-                      </td>
-                      {CHECK_COLUMNS.map((col) => {
-                        const isWitness =
-                          col.key === 'witnessStart' ||
-                          col.key === 'witnessComplete';
-                        // Cancelada: no se muestran casillas (ni desmarcadas);
-                        // los cinco indicadores quedan como "No aplica".
-                        if (cancelled) {
-                          return (
-                            <td key={col.key} className="ot-check-cell">
-                              <span
-                                className="ot-na"
-                                title={`${col.label}: no aplica mientras la campaña está cancelada`}
-                              >
-                                No aplica
-                              </span>
-                            </td>
-                          );
-                        }
-                        // Institucional: los testigos no aplican (dominio + UI);
-                        // no se renderiza casilla editable.
-                        if (isWitness && institutional) {
-                          return (
-                            <td key={col.key} className="ot-check-cell">
-                              <span
-                                className="ot-na"
-                                title={`${col.label}: no aplica a campañas institucionales`}
-                              >
-                                No aplica
-                              </span>
-                            </td>
-                          );
-                        }
-                        // Clasificación pendiente: exige clasificar antes de
-                        // operar los testigos (nunca se asume Proveedor).
-                        if (isWitness && pending) {
-                          return (
-                            <td key={col.key} className="ot-check-cell">
-                              <span
-                                className="ot-na"
-                                title={`${col.label}: clasifica la campaña antes de operar los testigos`}
-                              >
-                                Clasifica primero
-                              </span>
-                            </td>
-                          );
-                        }
-                        const done = isDone(checks, col.key);
-                        const cellBusy = busy.has(`${r.identity}:${col.key}`);
-                        return (
-                          <td key={col.key} className="ot-check-cell">
-                            <input
-                              type="checkbox"
-                              className="ot-checkbox"
-                              checked={done}
-                              disabled={!canWrite || cellBusy}
-                              title={checkTitle(r, col.key, col.label)}
-                              aria-label={`${col.label} de ${r.campaign.name}`}
-                              onChange={(e) =>
-                                void toggleCheck(r, col.key, e.target.checked)
-                              }
-                            />
-                          </td>
-                        );
-                      })}
-                      <td>
-                        {cancelled ? (
-                          <span className="ot-badge ot-na-badge">
-                            <Icon name="minus" size={14} />
-                            No aplica
-                          </span>
-                        ) : (
-                          <span
-                            className={`ot-badge ${STATUS_META[r.overall].cls}`}
-                          >
-                            <Icon
-                              name={STATUS_META[r.overall].icon}
-                              size={14}
-                            />
-                            {STATUS_META[r.overall].label}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {r.nextDeadline ? formatDdMmYyyy(r.nextDeadline) : '—'}
-                      </td>
-                      <td className="ot-actions-cell">
-                        {/* "Marcar todas/aplicables" no aparece en canceladas ni
-                            mientras la clasificación esté pendiente (no se asume
-                            un régimen: primero hay que clasificar). */}
-                        {isFinished && !cancelled && !pending && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary ot-mark-all"
-                            disabled={!canWrite || markAllBusy}
-                            onClick={() => void markAllForRow(r)}
-                            title={
-                              institutional
-                                ? 'Marcar los indicadores aplicables (los testigos no aplican a campañas institucionales)'
-                                : 'Marcar todos los indicadores de esta campaña terminada'
+                        </td>
+                        <td>
+                          <select
+                            className="ot-class-select"
+                            aria-label={`Clasificación de ${r.campaign.name}`}
+                            value={
+                              r.classification === 'unknown'
+                                ? ''
+                                : r.classification
+                            }
+                            disabled={
+                              !canWrite ||
+                              busy.has(`${r.identity}:classification`)
+                            }
+                            onChange={(e) =>
+                              void setRowClassification(
+                                r,
+                                e.target.value as Classification,
+                              )
                             }
                           >
-                            {markAllLabel}
-                          </button>
-                        )}
-                        {canWrite &&
-                          (cancelled ? (
-                            <button
-                              type="button"
-                              className="btn btn-secondary ot-lifecycle-btn"
-                              disabled={lifecycleBusy}
-                              onClick={() => openDialog(r, 'reactivate')}
-                              title="Reactivar la campaña y recuperar sus indicadores"
+                            {r.classification === 'unknown' && (
+                              <option value="" disabled>
+                                — Pendiente —
+                              </option>
+                            )}
+                            <option value="institutional">Institucional</option>
+                            <option value="provider">Proveedor</option>
+                          </select>
+                        </td>
+                        <td>{formatCivilString(r.campaign.fechaInicio)}</td>
+                        <td>{formatCivilString(r.campaign.fechaFin)}</td>
+                        <td>{r.distinctStores}</td>
+                        <td>
+                          {institutional ? (
+                            <span
+                              className="ot-na"
+                              title="El objetivo de testigos no aplica a campañas institucionales"
                             >
-                              Reactivar
-                            </button>
+                              No aplica
+                            </span>
                           ) : (
+                            `${r.target} de ${r.distinctStores}`
+                          )}
+                        </td>
+                        {CHECK_COLUMNS.map((col) => {
+                          const isWitness =
+                            col.key === 'witnessStart' ||
+                            col.key === 'witnessComplete';
+                          // Cancelada: no se muestran casillas (ni desmarcadas);
+                          // los cinco indicadores quedan como "No aplica".
+                          if (cancelled) {
+                            return (
+                              <td key={col.key} className="ot-check-cell">
+                                <span
+                                  className="ot-na"
+                                  title={`${col.label}: no aplica mientras la campaña está cancelada`}
+                                >
+                                  No aplica
+                                </span>
+                              </td>
+                            );
+                          }
+                          // Institucional: los testigos no aplican (dominio + UI);
+                          // no se renderiza casilla editable.
+                          if (isWitness && institutional) {
+                            return (
+                              <td key={col.key} className="ot-check-cell">
+                                <span
+                                  className="ot-na"
+                                  title={`${col.label}: no aplica a campañas institucionales`}
+                                >
+                                  No aplica
+                                </span>
+                              </td>
+                            );
+                          }
+                          // Clasificación pendiente: exige clasificar antes de
+                          // operar los testigos (nunca se asume Proveedor).
+                          if (isWitness && pending) {
+                            return (
+                              <td key={col.key} className="ot-check-cell">
+                                <span
+                                  className="ot-na"
+                                  title={`${col.label}: clasifica la campaña antes de operar los testigos`}
+                                >
+                                  Clasifica primero
+                                </span>
+                              </td>
+                            );
+                          }
+                          const done = isDone(checks, col.key);
+                          const cellBusy = busy.has(`${r.identity}:${col.key}`);
+                          return (
+                            <td key={col.key} className="ot-check-cell">
+                              <input
+                                type="checkbox"
+                                className="ot-checkbox"
+                                checked={done}
+                                disabled={!canWrite || cellBusy}
+                                title={checkTitle(r, col.key, col.label)}
+                                aria-label={`${col.label} de ${r.campaign.name}`}
+                                onChange={(e) =>
+                                  void toggleCheck(r, col.key, e.target.checked)
+                                }
+                              />
+                            </td>
+                          );
+                        })}
+                        <td>
+                          {cancelled ? (
+                            <span className="ot-badge ot-na-badge">
+                              <Icon name="minus" size={14} />
+                              No aplica
+                            </span>
+                          ) : (
+                            <span
+                              className={`ot-badge ${STATUS_META[r.overall].cls}`}
+                            >
+                              <Icon
+                                name={STATUS_META[r.overall].icon}
+                                size={14}
+                              />
+                              {STATUS_META[r.overall].label}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {r.nextDeadline
+                            ? formatDdMmYyyy(r.nextDeadline)
+                            : '—'}
+                        </td>
+                        <td className="ot-actions-cell">
+                          {/* "Marcar todas/aplicables" no aparece en canceladas ni
+                            mientras la clasificación esté pendiente (no se asume
+                            un régimen: primero hay que clasificar). */}
+                          {isFinished && !cancelled && !pending && (
                             <button
                               type="button"
-                              className="btn btn-secondary ot-lifecycle-btn"
-                              disabled={lifecycleBusy}
-                              onClick={() => openDialog(r, 'cancel')}
-                              title="Marcar la campaña como cancelada"
+                              className="btn btn-secondary ot-mark-all"
+                              disabled={!canWrite || markAllBusy}
+                              onClick={() => void markAllForRow(r)}
+                              title={
+                                institutional
+                                  ? 'Marcar los indicadores aplicables (los testigos no aplican a campañas institucionales)'
+                                  : 'Marcar todos los indicadores de esta campaña terminada'
+                              }
                             >
-                              Cancelar
+                              {markAllLabel}
                             </button>
-                          ))}
-                        <button
-                          type="button"
-                          className="btn btn-secondary ot-comments-toggle"
-                          aria-expanded={isExpanded}
-                          aria-label={`Comentarios de ${r.campaign.name}`}
-                          onClick={() => toggleExpanded(r.identity)}
-                          title="Ver/agregar comentarios"
-                        >
-                          💬 {comments.length}
-                        </button>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr className="ot-comments-row">
-                        <td colSpan={CHECK_COLUMNS.length + 9}>
-                          <div className="ot-comments">
-                            <h4 className="ot-comments__title">
-                              Comentarios · {r.campaign.name}
-                            </h4>
-                            {comments.length === 0 ? (
-                              <p className="text-muted ot-comments__empty">
-                                Aún no hay comentarios.
-                              </p>
+                          )}
+                          {canWrite &&
+                            (cancelled ? (
+                              <button
+                                type="button"
+                                className="btn btn-secondary ot-lifecycle-btn"
+                                disabled={lifecycleBusy}
+                                onClick={() => openDialog(r, 'reactivate')}
+                                title="Reactivar la campaña y recuperar sus indicadores"
+                              >
+                                Reactivar
+                              </button>
                             ) : (
-                              <ul className="ot-comments__list">
-                                {comments.map((cm) => (
-                                  <li key={cm.id} className="ot-comment">
-                                    <div className="ot-comment__meta">
-                                      <span className="ot-comment__author">
-                                        {cm.createdByEmail}
-                                      </span>
-                                      <span className="ot-comment__date">
-                                        {formatCommentStamp(cm.createdAt)}
-                                      </span>
-                                    </div>
-                                    <p className="ot-comment__text">
-                                      {cm.text}
-                                    </p>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {canWrite && (
-                              <div className="ot-comments__form">
-                                <textarea
-                                  className="ot-comments__input"
-                                  rows={2}
-                                  placeholder="Escribe un comentario…"
-                                  aria-label={`Nuevo comentario para ${r.campaign.name}`}
-                                  value={commentDrafts[r.identity] ?? ''}
-                                  disabled={commentBusy}
-                                  onChange={(e) =>
-                                    setCommentDrafts((prev) => ({
-                                      ...prev,
-                                      [r.identity]: e.target.value,
-                                    }))
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  className="btn btn-primary"
-                                  disabled={
-                                    commentBusy ||
-                                    !(commentDrafts[r.identity] ?? '').trim()
-                                  }
-                                  onClick={() => void submitComment(r)}
-                                >
-                                  Agregar
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                              <button
+                                type="button"
+                                className="btn btn-secondary ot-lifecycle-btn"
+                                disabled={lifecycleBusy}
+                                onClick={() => openDialog(r, 'cancel')}
+                                title="Marcar la campaña como cancelada"
+                              >
+                                Cancelar
+                              </button>
+                            ))}
+                          <button
+                            type="button"
+                            className="btn btn-secondary ot-comments-toggle"
+                            aria-expanded={detailRow?.identity === r.identity}
+                            aria-label={`Detalle de ${r.campaign.name}`}
+                            onClick={() =>
+                              setDetailKey((k) =>
+                                k === r.identity ? null : r.identity,
+                              )
+                            }
+                            title="Ver detalle y comentarios"
+                          >
+                            💬 {comments.length}
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="ot-pager">
+            <span className="ot-pager__info">
+              {`Mostrando ${pageStart + 1}–${Math.min(
+                pageStart + PAGE_SIZE,
+                sorted.length,
+              )} de ${sorted.length}`}
+            </span>
+            <div className="ot-pager__controls">
+              <button
+                type="button"
+                className="ot-pager__btn"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Página anterior"
+              >
+                ‹
+              </button>
+              <span className="ot-pager__page">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="ot-pager__btn"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Página siguiente"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {!canWrite && !loading && (
         <p className="text-muted">Solo lectura (rol sin permiso de edición).</p>
+      )}
+
+      {detailRow && (
+        <>
+          <div
+            className="ot-drawer__scrim"
+            aria-hidden="true"
+            onClick={() => setDetailKey(null)}
+          />
+          <aside
+            className="ot-drawer"
+            role="dialog"
+            aria-label={`Detalle de ${detailRow.campaign.name}`}
+          >
+            <header className="ot-drawer__head">
+              <div className="ot-drawer__heading">
+                <h3 className="ot-drawer__title">{detailRow.campaign.name}</h3>
+                {detailRow.lifecycleStatus === 'cancelled' ? (
+                  <span className="ot-badge ot-cancelled">
+                    <Icon name="ban" size={13} />
+                    Cancelada
+                  </span>
+                ) : (
+                  <span
+                    className={`ot-badge ${STATUS_META[detailRow.overall].cls}`}
+                  >
+                    <Icon
+                      name={STATUS_META[detailRow.overall].icon}
+                      size={13}
+                    />
+                    {STATUS_META[detailRow.overall].label}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="ot-drawer__close"
+                aria-label="Cerrar detalle"
+                onClick={() => setDetailKey(null)}
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </header>
+
+            <div className="ot-drawer__body">
+              <section className="ot-drawer__section">
+                <h4 className="ot-drawer__subtitle">Resumen</h4>
+                <div className="ot-kv">
+                  <span>Clasificación</span>
+                  <span>
+                    {detailRow.classification === 'institutional'
+                      ? 'Institucional'
+                      : detailRow.classification === 'provider'
+                        ? 'Proveedor'
+                        : 'Pendiente'}
+                  </span>
+                </div>
+                <div className="ot-kv">
+                  <span>Ventana</span>
+                  <span>
+                    {formatCivilString(detailRow.campaign.fechaInicio)} –{' '}
+                    {formatCivilString(detailRow.campaign.fechaFin)}
+                  </span>
+                </div>
+                <div className="ot-kv">
+                  <span>Tiendas</span>
+                  <span>{detailRow.distinctStores}</span>
+                </div>
+                <div className="ot-kv">
+                  <span>Próx. vencimiento</span>
+                  <span>
+                    {detailRow.nextDeadline
+                      ? formatDdMmYyyy(detailRow.nextDeadline)
+                      : '—'}
+                  </span>
+                </div>
+              </section>
+
+              <section className="ot-drawer__section">
+                <h4 className="ot-drawer__subtitle">Bitácora</h4>
+                {(detailRow.tracking?.comments ?? []).length === 0 ? (
+                  <p className="text-muted ot-comments__empty">
+                    Aún no hay comentarios.
+                  </p>
+                ) : (
+                  <ul className="ot-comments__list">
+                    {(detailRow.tracking?.comments ?? []).map((cm) => (
+                      <li key={cm.id} className="ot-comment">
+                        <div className="ot-comment__meta">
+                          <span className="ot-comment__author">
+                            {cm.createdByEmail}
+                          </span>
+                          <span className="ot-comment__date">
+                            {formatCommentStamp(cm.createdAt)}
+                          </span>
+                        </div>
+                        <p className="ot-comment__text">{cm.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canWrite && (
+                  <div className="ot-comments__form">
+                    <textarea
+                      className="ot-comments__input"
+                      rows={2}
+                      placeholder="Escribe un comentario…"
+                      aria-label={`Nuevo comentario para ${detailRow.campaign.name}`}
+                      value={commentDrafts[detailRow.identity] ?? ''}
+                      disabled={busy.has(`${detailRow.identity}:comment`)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const id = detailRow.identity;
+                        setCommentDrafts((prev) => ({ ...prev, [id]: value }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={
+                        busy.has(`${detailRow.identity}:comment`) ||
+                        !(commentDrafts[detailRow.identity] ?? '').trim()
+                      }
+                      onClick={() => void submitComment(detailRow)}
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
+          </aside>
+        </>
       )}
 
       {dialog && (

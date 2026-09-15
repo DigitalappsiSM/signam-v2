@@ -352,7 +352,7 @@ describe('OperationalTrackingPage', () => {
     await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
-      screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
+      screen.getByRole('button', { name: 'Detalle de BUEN FIN' }),
     );
     expect(screen.getByText('Testigos revisados')).toBeInTheDocument();
     expect(screen.getByText('a@b.mx')).toBeInTheDocument();
@@ -363,7 +363,7 @@ describe('OperationalTrackingPage', () => {
     await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
-      screen.getByRole('button', { name: 'Comentarios de BUEN FIN' }),
+      screen.getByRole('button', { name: 'Detalle de BUEN FIN' }),
     );
     await userEvent.type(
       screen.getByLabelText('Nuevo comentario para BUEN FIN'),
@@ -568,17 +568,11 @@ describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () =>
     await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     // Solo canceladas: queda BUEN FIN (cancelada), se va REGRESO (activa).
-    await userEvent.selectOptions(
-      screen.getByLabelText('Estado operativo'),
-      'cancelled',
-    );
+    await userEvent.click(screen.getByRole('tab', { name: 'Canceladas' }));
     expect(screen.getByText('BUEN FIN')).toBeInTheDocument();
     expect(screen.queryByText('REGRESO')).not.toBeInTheDocument();
     // Solo activas: al revés.
-    await userEvent.selectOptions(
-      screen.getByLabelText('Estado operativo'),
-      'active',
-    );
+    await userEvent.click(screen.getByRole('tab', { name: 'Activas' }));
     expect(screen.getByText('REGRESO')).toBeInTheDocument();
     expect(screen.queryByText('BUEN FIN')).not.toBeInTheDocument();
   });

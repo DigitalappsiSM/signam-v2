@@ -146,18 +146,54 @@
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6);
 }
 
-/* Estado activo: pastilla blanca con texto e icono azules (mockup). */
+/* Estado activo: el enlace toma el color del panel de sección y se "funde"
+   con él en el borde derecho de la barra, mediante dos curvas cóncavas
+   (pseudo-elementos con degradado radial). El relleno usa `--color-surface`
+   (igual que `.content`) y la parte transparente deja ver el azul del sidebar,
+   creando el empalme del mockup. */
 .sidebar__link--active,
 .sidebar__link--active:hover {
-  background: var(--color-sidebar-active-bg);
-  color: var(--color-sidebar-active-text);
+  background: var(--color-surface);
+  color: var(--color-primary);
   font-weight: 700;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  margin-right: -0.75rem;
+  padding-right: 1.5rem;
+  box-shadow: none;
 }
 
 .sidebar__link--active .sidebar__icon {
   background: var(--accent-100);
-  color: var(--color-sidebar-active-text);
+  color: var(--color-primary);
+}
+
+/* Curvas cóncavas arriba y abajo del enlace activo (unión con el panel). */
+.sidebar__link--active::before,
+.sidebar__link--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.sidebar__link--active::before {
+  top: -16px;
+  background: radial-gradient(
+    circle at top left,
+    transparent 16px,
+    var(--color-surface) 0
+  );
+}
+
+.sidebar__link--active::after {
+  bottom: -16px;
+  background: radial-gradient(
+    circle at bottom left,
+    transparent 16px,
+    var(--color-surface) 0
+  );
 }
 
 .sidebar__backdrop {
@@ -364,10 +400,15 @@
 }
 
 /* ── Contenido ────────────────────────────────────────────────────────── */
+/* Panel de sección: superficie clara con la esquina superior izquierda
+   redondeada, "unida" a la barra lateral y a la topbar (detalle tipo mockup).
+   El ítem de menú activo se funde con este panel (ver `.sidebar__link--active`). */
 .content {
   flex: 1;
   min-width: 0;
   padding: 1.9rem clamp(1rem, 4vw, 2.75rem);
+  background: var(--color-surface);
+  border-top-left-radius: var(--radius-lg);
 }
 
 /* ── Responsivo: el sidebar se convierte en cajón lateral ─────────────── */
