@@ -4,6 +4,45 @@ Detecta pantallas con **baja variedad de contenidos de proveedor** para una
 fecha civil y genera los CSV auxiliares **Ratio 1** y **Ratio 3** compatibles con
 Admira. La decisión final y la carga en Admira siguen siendo **manuales**.
 
+## Diagnóstico por reporte de pases de Admira (fase 1)
+
+La misma ruta permite importar el Excel de ocupación de Admira y analizar la
+programación que Admira reporta para cada `Nombre + Día`. Esta lectura convive
+con el cálculo histórico de Signam, pero en esta fase son fuentes independientes:
+
+- **Reporte Admira:** evidencia programada por player, fecha, campaña, contenido,
+  categoría y pases por hora. Es la fuente del diagnóstico de repetición.
+- **Planeación Signam:** campañas vigentes y catálogo; conserva la generación de
+  CSV auxiliares y no se altera.
+- **Sin conciliación de campañas:** no se normalizan ni se comparan todavía los
+  nombres de campaña/contenido entre ambas fuentes.
+
+El archivo se procesa en el navegador y no se persiste. Se busca una hoja que
+contenga `Nombre`, `Día`, `Campaña`, `Contenidos`, `Categoria` y
+`Pases/Slots en uso`; se admiten encabezados con espacios y mojibake común del
+export. Los players se cruzan por coincidencia literal —tras recortar espacios—
+contra `Nombre en plataforma` del catálogo.
+
+### Regla de riesgo del reporte
+
+Los contenidos se deduplican por `Campaña + Contenidos` dentro de cada
+`player + día + categoría`:
+
+1. Si hay Publicidad Tipo 1, se evalúa únicamente Ratio 1. El contenido Ratio 3
+   no compensa una repetición comercial.
+2. Si no hay Tipo 1, se evalúa Ratio 3; cuatro o más contenidos equilibrados se
+   consideran una experiencia saludable.
+3. Uno o dos contenidos son críticos; tres generan alerta; cuatro o más son
+   saludables.
+4. Cualquier contenido que concentre más de 35 % de los pases vuelve crítico el
+   player, aunque tenga cuatro o más contenidos.
+5. Un contenido con 15 pases por hora o menos genera alerta de entrega mínima.
+
+Los valores con rango, por ejemplo `28|29`, se leen con su promedio para el
+cálculo y conservan mínimo/máximo. El resultado se muestra inmediatamente por
+fecha con detalle de campañas, videos y pases. No modifica campañas, catálogo,
+CSV ni Firebase.
+
 ## Objetivo
 
 Admira maneja dos ratios: **Ratio 1** (83 % del loop, marcas/proveedores) y
@@ -157,6 +196,9 @@ Separación estricta de responsabilidades:
 - **Acceso a datos** — bajo demanda con `listCampaigns()` + `listScreens()`
   (`Promise.all`). Se recalcula al abrir la página, cambiar la fecha, pulsar
   **Recalcular** o volver tras una importación.
+- **Reporte de pases** — `readAdmiraPassesWorkbook.ts` lee el Excel;
+  `admiraPasses.ts` valida, deduplica, cruza players y clasifica el riesgo;
+  `AdmiraPassesPanel.tsx` contiene la importación y el detalle operativo.
 
 En esta versión **no** se persisten resultados: Ratio 1 / Ratio 3 son
 recomendaciones calculadas para una fecha, no propiedades permanentes.

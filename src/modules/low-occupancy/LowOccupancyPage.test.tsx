@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { LowOccupancyPage } from './LowOccupancyPage';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
+import { readAdmiraPassesWorkbook } from './readAdmiraPassesWorkbook';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
@@ -36,6 +37,9 @@ vi.mock('@/app/providers/AuthProvider', () => ({
 
 vi.mock('@/services/campaigns', () => ({ listCampaigns: vi.fn() }));
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
+vi.mock('./readAdmiraPassesWorkbook', () => ({
+  readAdmiraPassesWorkbook: vi.fn(),
+}));
 
 vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
@@ -145,8 +149,63 @@ beforeEach(() => {
   };
   vi.mocked(listCampaigns).mockReset().mockResolvedValue(CAMPAIGNS);
   vi.mocked(listScreens).mockReset().mockResolvedValue(SCREENS);
+  vi.mocked(readAdmiraPassesWorkbook).mockReset();
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
+});
+
+describe('LowOccupancyPage — reporte de pases Admira', () => {
+  it('importa el reporte, cruza el player y muestra el diagnóstico inmediato', async () => {
+    vi.mocked(listScreens).mockResolvedValue([
+      ...SCREENS,
+      screenOf(
+        'admira-antea-a',
+        {
+          'Nombre en plataforma': 'ISM_ANTEA_A',
+          'Numero de Tienda': '173',
+          'Nombre de tienda': 'L ANTEA',
+        },
+        'LED',
+      ),
+    ]);
+    vi.mocked(readAdmiraPassesWorkbook).mockResolvedValue({
+      sheetName: 'occupation_details (2)',
+      headerRow: 1,
+      dates: ['2026-08-15'],
+      players: ['ISM_ANTEA_A'],
+      issues: [],
+      rows: [
+        {
+          sourceRow: 2,
+          player: 'ISM_ANTEA_A',
+          descriptiveName: 'ISM_ANTEA_A',
+          date: '2026-08-15',
+          campaign: 'Campaña pagada',
+          content: 'Video pagado',
+          ratio: 1,
+          schedule: '00:00 00:24',
+          passes: 180,
+          passesMin: 180,
+          passesMax: 180,
+          passesRaw: '180',
+        },
+      ],
+    });
+    renderPage();
+    await screen.findByText('Diagnóstico del reporte Admira');
+    const input = document.querySelector<HTMLInputElement>(
+      '.occ-admira input[type="file"]',
+    )!;
+    await userEvent.upload(input, new File(['x'], 'pases.xlsx'));
+
+    expect(await screen.findByText('pases.xlsx')).toBeInTheDocument();
+    const summary = screen.getByLabelText('Resumen del reporte Admira');
+    expect(
+      within(summary).getByText('Críticos').previousSibling,
+    ).toHaveTextContent('1');
+    expect(screen.getByText(/Solo hay 1 contenido\./)).toBeInTheDocument();
+    expect(screen.getByText('Exacto')).toBeInTheDocument();
+  });
 });
 
 describe('LowOccupancyPage — carga y resumen', () => {
