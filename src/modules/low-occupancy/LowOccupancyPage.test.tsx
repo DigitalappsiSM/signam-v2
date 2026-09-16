@@ -300,6 +300,26 @@ describe('LowOccupancyPage — reporte de pases Admira', () => {
     expect(await screen.findByText('ultimo-reporte.xlsx')).toBeInTheDocument();
     expect(screen.getByText('operador@signam.mx')).toBeInTheDocument();
     expect(readAdmiraPassesWorkbook).not.toHaveBeenCalled();
+
+    // The relocated list and player detail retain their existing interactions.
+    const critical = screen.getByRole('button', { name: /Críticos/i });
+    await userEvent.click(critical);
+    const players = screen.getByRole('region', { name: 'Players Críticos' });
+    await userEvent.click(
+      within(players).getByRole('button', { name: /ISM_ANTEA_A/i }),
+    );
+    const detail = document.querySelector('.occ-admira__detail') as HTMLElement;
+    expect(within(detail).getByText('Campaña guardada')).toBeInTheDocument();
+    expect(within(detail).getByText('180 pases por hora')).toBeInTheDocument();
+    await userEvent.click(
+      within(detail).getByRole('button', { name: 'Cerrar' }),
+    );
+    expect(document.querySelector('.occ-admira__detail')).toBeNull();
+    await userEvent.click(critical);
+    expect(
+      screen.queryByRole('region', { name: 'Players Críticos' }),
+    ).not.toBeInTheDocument();
+    expect(saveCurrentAdmiraPassAnalysis).not.toHaveBeenCalled();
   });
 });
 

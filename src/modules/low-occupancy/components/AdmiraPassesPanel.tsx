@@ -391,7 +391,6 @@ export function AdmiraPassesPanel({
             <div className="occ-sem-cards">
               {SEMAPHORE.map(({ level, label, icon, hint }) => {
                 const count = summary[level];
-                const list = unitsByLevel[level];
                 const open = openLevel === level;
                 return (
                   <div
@@ -416,51 +415,6 @@ export function AdmiraPassesPanel({
                         {count === 0 ? '' : open ? '▲' : '▼'}
                       </span>
                     </button>
-                    {open && (
-                      <div
-                        id={`occ-sem-panel-${level}`}
-                        className="occ-sem-card__panel"
-                        role="region"
-                        aria-label={`Players ${label}`}
-                      >
-                        {list.length === 0 ? (
-                          <p className="text-muted occ-sem-card__empty">
-                            Sin players en este nivel.
-                          </p>
-                        ) : (
-                          <ul className="occ-sem-list">
-                            {list.map((unit) => (
-                              <li key={unit.key}>
-                                <button
-                                  type="button"
-                                  className="occ-sem-list__item"
-                                  onClick={() => setDetail(unit)}
-                                >
-                                  <span className="occ-sem-list__player">
-                                    {unit.player}
-                                  </span>
-                                  <span className="occ-sem-list__store text-muted">
-                                    {unit.storeNumber || '—'}
-                                    {unit.storeName
-                                      ? ` · ${unit.storeName}`
-                                      : ''}
-                                  </span>
-                                  <span className="occ-sem-list__reason text-muted">
-                                    {unit.reasons.join(' ') || '—'}
-                                  </span>
-                                  <span
-                                    className="occ-sem-list__go"
-                                    aria-hidden="true"
-                                  >
-                                    Ver detalle →
-                                  </span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -484,106 +438,168 @@ export function AdmiraPassesPanel({
             </div>
           </div>
 
-          <div className="diagnosis__table-wrap">
-            <table className="catalog__table occ-admira__table">
-              <thead>
-                <tr>
-                  <th>Player</th>
-                  <th>Tienda</th>
-                  <th>Catálogo</th>
-                  <th>R1</th>
-                  <th>R3</th>
-                  <th>Ratio evaluado</th>
-                  <th>Mayor participación</th>
-                  <th>Pases por contenido</th>
-                  <th>Estado</th>
-                  <th>Motivo</th>
-                  <th aria-label="Acciones" />
-                </tr>
-              </thead>
-              <tbody>
-                {units.map((unit) => (
-                  <tr key={unit.key}>
-                    <td>{unit.player}</td>
-                    <td>
-                      {unit.storeNumber || '—'}{' '}
-                      {unit.storeName ? `· ${unit.storeName}` : ''}
-                    </td>
-                    <td>{CATALOG_LABELS[unit.catalogMatch]}</td>
-                    <td>{unit.ratio1Contents.length}</td>
-                    <td>{unit.ratio3Contents.length}</td>
-                    <td>
-                      {unit.evaluatedRatio
-                        ? `Ratio ${unit.evaluatedRatio}`
-                        : '—'}
-                    </td>
-                    <td>{percentage(unit.maximumShare)}</td>
-                    <td>
-                      {unit.contentCount
-                        ? `${passes(unit.minimumPasses)}–${passes(unit.maximumPasses)}`
-                        : '—'}
-                    </td>
-                    <td>
-                      <span
-                        className={`occ-admira__status occ-admira__status--${unit.level}`}
-                      >
-                        {LEVEL_LABELS[unit.level]}
-                      </span>
-                    </td>
-                    <td>{unit.reasons.join(' ')}</td>
-                    <td>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setDetail(unit)}
-                      >
-                        Ver detalle
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {detail && (
-            <div className="card occ-admira__detail">
-              <div className="occ-admira__detail-head">
-                <div>
-                  <h3>{detail.player}</h3>
-                  <p className="text-muted">
-                    {detail.date} ·{' '}
-                    {detail.storeName || 'Tienda no identificada'}
-                  </p>
-                </div>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setDetail(null)}
-                >
-                  Cerrar
-                </button>
-              </div>
-              {[detail.ratio1Contents, detail.ratio3Contents].map(
-                (contents, index) => (
-                  <div key={index} className="occ-admira__ratio-detail">
-                    <h4>Publicidad Tipo {index === 0 ? '1' : '3'}</h4>
-                    {contents.length === 0 ? (
-                      <p className="text-muted">Sin contenidos.</p>
+          {SEMAPHORE.map(({ level, label }) => {
+            const list = unitsByLevel[level];
+            return (
+              <div key={level}>
+                {openLevel === level && (
+                  <div
+                    id={`occ-sem-panel-${level}`}
+                    className="occ-sem-card__panel"
+                    role="region"
+                    aria-label={`Players ${label}`}
+                  >
+                    {list.length === 0 ? (
+                      <p className="text-muted occ-sem-card__empty">
+                        Sin players en este nivel.
+                      </p>
                     ) : (
-                      <ul>
-                        {contents.map((content) => (
-                          <li key={content.key}>
-                            <strong>{content.campaign}</strong>
-                            <span>{content.content}</span>
-                            <span>{passes(content.passes)} pases por hora</span>
+                      <ul className="occ-sem-list">
+                        {list.map((unit) => (
+                          <li key={unit.key}>
+                            <button
+                              type="button"
+                              className="occ-sem-list__item"
+                              onClick={() => setDetail(unit)}
+                            >
+                              <span className="occ-sem-list__player">
+                                {unit.player}
+                              </span>
+                              <span className="occ-sem-list__store text-muted">
+                                {unit.storeNumber || '—'}
+                                {unit.storeName ? ` · ${unit.storeName}` : ''}
+                              </span>
+                              <span className="occ-sem-list__reason text-muted">
+                                {unit.reasons.join(' ') || '—'}
+                              </span>
+                              <span
+                                className="occ-sem-list__go"
+                                aria-hidden="true"
+                              >
+                                Ver detalle →
+                              </span>
+                            </button>
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                ),
-              )}
+                )}
+              </div>
+            );
+          })}
+
+          <div
+            className={`occ-admira__workspace${detail ? ' occ-admira__workspace--detail' : ''}`}
+          >
+            <div
+              className="diagnosis__table-wrap"
+              role="region"
+              aria-label="Resultados del reporte Admira"
+              tabIndex={0}
+            >
+              <table className="catalog__table occ-admira__table">
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Tienda</th>
+                    <th>Catálogo</th>
+                    <th>R1</th>
+                    <th>R3</th>
+                    <th>Ratio evaluado</th>
+                    <th>Mayor participación</th>
+                    <th>Pases por contenido</th>
+                    <th>Estado</th>
+                    <th>Motivo</th>
+                    <th aria-label="Acciones" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {units.map((unit) => (
+                    <tr key={unit.key}>
+                      <td>{unit.player}</td>
+                      <td>
+                        {unit.storeNumber || '—'}{' '}
+                        {unit.storeName ? `· ${unit.storeName}` : ''}
+                      </td>
+                      <td>{CATALOG_LABELS[unit.catalogMatch]}</td>
+                      <td>{unit.ratio1Contents.length}</td>
+                      <td>{unit.ratio3Contents.length}</td>
+                      <td>
+                        {unit.evaluatedRatio
+                          ? `Ratio ${unit.evaluatedRatio}`
+                          : '—'}
+                      </td>
+                      <td>{percentage(unit.maximumShare)}</td>
+                      <td>
+                        {unit.contentCount
+                          ? `${passes(unit.minimumPasses)}–${passes(unit.maximumPasses)}`
+                          : '—'}
+                      </td>
+                      <td>
+                        <span
+                          className={`occ-admira__status occ-admira__status--${unit.level}`}
+                        >
+                          {LEVEL_LABELS[unit.level]}
+                        </span>
+                      </td>
+                      <td>{unit.reasons.join(' ')}</td>
+                      <td>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => setDetail(unit)}
+                        >
+                          Ver detalle
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
+
+            {detail && (
+              <div className="card occ-admira__detail">
+                <div className="occ-admira__detail-head">
+                  <div>
+                    <h3>{detail.player}</h3>
+                    <p className="text-muted">
+                      {detail.date} ·{' '}
+                      {detail.storeName || 'Tienda no identificada'}
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setDetail(null)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                {[detail.ratio1Contents, detail.ratio3Contents].map(
+                  (contents, index) => (
+                    <div key={index} className="occ-admira__ratio-detail">
+                      <h4>Publicidad Tipo {index === 0 ? '1' : '3'}</h4>
+                      {contents.length === 0 ? (
+                        <p className="text-muted">Sin contenidos.</p>
+                      ) : (
+                        <ul>
+                          {contents.map((content) => (
+                            <li key={content.key}>
+                              <strong>{content.campaign}</strong>
+                              <span>{content.content}</span>
+                              <span>
+                                {passes(content.passes)} pases por hora
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </section>

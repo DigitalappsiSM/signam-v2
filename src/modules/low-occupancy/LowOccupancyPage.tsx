@@ -32,6 +32,7 @@ import { AdmiraPassesPanel } from './components/AdmiraPassesPanel';
 import '@/modules/admira-catalog/CatalogPage.css';
 import '@/modules/liverpool-import/ImportPage.css';
 import './LowOccupancyPage.css';
+import './LowOccupancyLayout.css';
 
 function download(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
@@ -173,7 +174,7 @@ export function LowOccupancyPage() {
   }
 
   return (
-    <>
+    <div className="occupancy-content">
       <PageHeader
         title="Alertas de baja ocupación"
         description="Semáforo de repetición real por player y fecha a partir del reporte de pases de Admira: revisa críticos, alertas y saludables de un vistazo. La planeación calculada desde Signam permanece disponible como referencia independiente."
@@ -282,6 +283,6 @@ export function LowOccupancyPage() {
           onClose={() => setChangeDetail(null)}
         />
       )}
-    </>
+    </div>
   );
 }

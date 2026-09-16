@@ -53,6 +53,7 @@ import { ClassificationDonut } from './components/ClassificationDonut';
 import { filterDashboardRows } from './dashboardFilters';
 import { useTheme } from '@/app/theme';
 import './DashboardPage.css';
+import './DashboardLayout.css';
 
 type DashboardTone = 'info' | 'success' | 'warning' | 'danger';
 
@@ -573,7 +574,7 @@ export function DashboardPage() {
   const healthOffset = healthCirc * (1 - operationalHealth.score / 100);
 
   return (
-    <>
+    <div className="dashboard-content">
       <PageHeader
         title="Panel SIGNAM V2"
         description="Estado operativo, prioridades y carga de campañas en una sola vista."
@@ -638,62 +639,144 @@ export function DashboardPage() {
             />
           </section>
 
-          <div className="dashboard-hero">
-            <section
-              className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
-              aria-label={`Estado operativo: ${operationalHealth.label}`}
-            >
-              <div className="dashboard-health__ring" aria-hidden="true">
-                <svg viewBox="0 0 120 120" width="120" height="120">
-                  <circle
-                    className="dashboard-health__ring-bg"
-                    cx="60"
-                    cy="60"
-                    r="52"
-                  />
-                  <circle
-                    className="dashboard-health__ring-fill"
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    strokeDasharray={healthCirc}
-                    strokeDashoffset={healthOffset}
-                  />
-                </svg>
-                <div className="dashboard-health__ring-label">
-                  <span className="dashboard-health__score">
-                    {operationalHealth.score}%
-                  </span>
-                  <span className="dashboard-health__score-cap">Salud</span>
-                </div>
-              </div>
-              <div className="dashboard-health__body">
-                <span className="dashboard-eyebrow">Estado operativo</span>
-                <h2>{operationalHealth.label}</h2>
-                <p>{operationalHealth.detail}</p>
-                <div className="dashboard-health__meta">
-                  <div>
-                    <b className="tabnum">{view.active.length}</b>
-                    <span>activas</span>
-                  </div>
-                  <div>
-                    <b className="tabnum is-warn">{view.withAlerts.length}</b>
-                    <span>con alertas</span>
-                  </div>
-                  <div>
-                    <b className="tabnum is-bad">
-                      {view.overdueOrFinishedPending.length}
-                    </b>
-                    <span>vencidas / pend.</span>
-                  </div>
-                  <div>
-                    <b className="tabnum">{view.full.length}</b>
-                    <span>seguimiento completo</span>
-                  </div>
-                </div>
-              </div>
-            </section>
+          <section
+            className="dash-summary"
+            aria-label="Resumen de campañas activas"
+          >
+            {kpis.map((kpi) => (
+              <SummaryTile
+                key={kpi.id}
+                icon={kpi.icon}
+                label={kpi.label}
+                status={kpi.status}
+                tone={kpi.tone}
+                value={kpi.rows.length}
+                context={kpi.context}
+                meter={kpi.meter}
+                selected={kpiSelection === kpi.id}
+                onSelect={() =>
+                  setKpiSelection((cur) => (cur === kpi.id ? null : kpi.id))
+                }
+              />
+            ))}
+          </section>
 
+          {selectedKpi && (
+            <KpiDetailPanel
+              title={selectedKpi.label}
+              periodLabel={periodLabel}
+              rows={selectedKpi.rows}
+              onClose={() => setKpiSelection(null)}
+            />
+          )}
+
+          <section
+            className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
+            aria-label={`Estado operativo: ${operationalHealth.label}`}
+          >
+            <div className="dashboard-health__ring" aria-hidden="true">
+              <svg viewBox="0 0 120 120" width="64" height="64">
+                <circle
+                  className="dashboard-health__ring-bg"
+                  cx="60"
+                  cy="60"
+                  r="52"
+                />
+                <circle
+                  className="dashboard-health__ring-fill"
+                  cx="60"
+                  cy="60"
+                  r="52"
+                  strokeDasharray={healthCirc}
+                  strokeDashoffset={healthOffset}
+                />
+              </svg>
+              <div className="dashboard-health__ring-label">
+                <span className="dashboard-health__score">
+                  {operationalHealth.score}%
+                </span>
+                <span className="dashboard-health__score-cap">Salud</span>
+              </div>
+            </div>
+            <div className="dashboard-health__body">
+              <span className="dashboard-eyebrow">Estado operativo</span>
+              <h2>{operationalHealth.label}</h2>
+              <p>{operationalHealth.detail}</p>
+              <div className="dashboard-health__meta">
+                <div>
+                  <b className="tabnum">{view.active.length}</b>
+                  <span>activas</span>
+                </div>
+                <div>
+                  <b className="tabnum is-warn">{view.withAlerts.length}</b>
+                  <span>con alertas</span>
+                </div>
+                <div>
+                  <b className="tabnum is-bad">
+                    {view.overdueOrFinishedPending.length}
+                  </b>
+                  <span>vencidas / pend.</span>
+                </div>
+                <div>
+                  <b className="tabnum">{view.full.length}</b>
+                  <span>seguimiento completo</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="dashboard-analysis-row">
+            <section
+              className="dashboard-panel dashboard-panel--chart"
+              aria-labelledby="dashboard-load-title"
+            >
+              <div className="dashboard-panel__head">
+                <div>
+                  <span className="dashboard-eyebrow">Liverpool</span>
+                  <h2 id="dashboard-load-title">Carga diaria</h2>
+                  <p>Campañas simultáneas · {rangeLabel(range)}</p>
+                </div>
+                <span className="dashboard-stat-pill">
+                  Pico {occupancy.totals.peakConcurrentCampaigns}
+                </span>
+              </div>
+
+              {campaigns.length === 0 ? (
+                <div className="dashboard-chart-empty">
+                  Importa el calendario para visualizar la carga diaria.
+                </div>
+              ) : occupancy.totals.distinctCampaigns === 0 ? (
+                <div className="dashboard-chart-empty">
+                  Sin campañas en el periodo o filtros seleccionados.
+                </div>
+              ) : (
+                <DailyLoadChart series={occupancy.series} theme={theme} />
+              )}
+            </section>
+            <section
+              className="dashboard-panel dashboard-classification"
+              aria-labelledby="dashboard-classification-title"
+            >
+              <div className="dashboard-panel__head dashboard-panel__head--compact">
+                <div>
+                  <span className="dashboard-eyebrow">Distribución</span>
+                  <h2 id="dashboard-classification-title">
+                    Mezcla por clasificación
+                  </h2>
+                </div>
+              </div>
+              {occupancy.totals.distinctCampaigns > 0 ? (
+                <ClassificationDonut
+                  breakdown={occupancy.classificationTotals}
+                  theme={theme}
+                />
+              ) : (
+                <p className="dashboard-rail__empty">Sin datos del periodo.</p>
+              )}
+            </section>
+          </div>
+
+          <div className="dashboard-priorities-row">
             <section
               className={`dashboard-panel dashboard-urgent${
                 view.immediateAttention.length === 0
@@ -742,190 +825,70 @@ export function DashboardPage() {
                 </>
               )}
             </section>
-          </div>
-
-          <section
-            className="dash-summary"
-            aria-label="Resumen de campañas activas"
-          >
-            {kpis.map((kpi) => (
-              <SummaryTile
-                key={kpi.id}
-                icon={kpi.icon}
-                label={kpi.label}
-                status={kpi.status}
-                tone={kpi.tone}
-                value={kpi.rows.length}
-                context={kpi.context}
-                meter={kpi.meter}
-                selected={kpiSelection === kpi.id}
-                onSelect={() =>
-                  setKpiSelection((cur) => (cur === kpi.id ? null : kpi.id))
-                }
-              />
-            ))}
-          </section>
-
-          {selectedKpi && (
-            <KpiDetailPanel
-              title={selectedKpi.label}
-              periodLabel={periodLabel}
-              rows={selectedKpi.rows}
-              onClose={() => setKpiSelection(null)}
-            />
-          )}
-
-          <div className="dashboard-overview">
-            <div className="dashboard-main">
-              <section
-                className="dashboard-panel dashboard-panel--chart"
-                aria-labelledby="dashboard-load-title"
-              >
-                <div className="dashboard-panel__head">
-                  <div>
-                    <span className="dashboard-eyebrow">Liverpool</span>
-                    <h2 id="dashboard-load-title">Carga diaria</h2>
-                    <p>Campañas simultáneas · {rangeLabel(range)}</p>
-                  </div>
-                  <span className="dashboard-stat-pill">
-                    Pico {occupancy.totals.peakConcurrentCampaigns}
-                  </span>
-                </div>
-
-                {campaigns.length === 0 ? (
-                  <div className="dashboard-chart-empty">
-                    Importa el calendario para visualizar la carga diaria.
-                  </div>
-                ) : occupancy.totals.distinctCampaigns === 0 ? (
-                  <div className="dashboard-chart-empty">
-                    Sin campañas en el periodo o filtros seleccionados.
-                  </div>
-                ) : (
-                  <DailyLoadChart series={occupancy.series} theme={theme} />
-                )}
-              </section>
-
-              <section
-                id="dashboard-attention"
-                className="dashboard-section dashboard-attention"
-                aria-labelledby="dashboard-attention-title"
-              >
-                <div className="dashboard-section__head">
-                  <div>
-                    <span className="dashboard-eyebrow">Prioridades</span>
-                    <h2 id="dashboard-attention-title">Atención operativa</h2>
-                  </div>
-                  <Link className="dashboard-section__link" to="/seguimiento">
-                    Ver seguimiento completo
-                  </Link>
-                </div>
-                <div className="dash-grid">
-                  <AlertList
-                    title="Alertas críticas"
-                    empty="Sin alertas críticas."
-                    tone="danger"
-                    items={view.alerts.map((a) => ({
-                      row: a.row,
-                      text: a.alerts.map((x) => x.label).join(' · '),
-                    }))}
-                  />
-                  <AlertList
-                    title="Próximos vencimientos"
-                    empty="Nada por vencer pronto."
-                    tone="warning"
-                    items={view.upcomingDue.map((r) => ({
-                      row: r,
-                      text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
-                    }))}
-                  />
-                  <AlertList
-                    title="Próximos inicios (7 días)"
-                    empty="Sin inicios próximos."
-                    tone="info"
-                    items={view.upcomingStarts.map((r) => {
-                      const c = effectiveChecks(r);
-                      const pend: string[] = [];
-                      if (r.linkStatus !== 'valid') pend.push('link');
-                      if (!c.liverpool) pend.push('validación');
-                      if (!c.csm) pend.push('CSM');
-                      return {
-                        row: r,
-                        text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
-                          pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
-                        }`,
-                      };
-                    })}
-                  />
-                  <AlertList
-                    title="Terminadas con pendientes"
-                    empty="Ninguna terminada con obligaciones pendientes."
-                    tone="danger"
-                    items={view.finishedPending.map((r) => ({
-                      row: r,
-                      text: criticalAlerts(r)
-                        .map((x) => x.label)
-                        .join(' · '),
-                    }))}
-                  />
-                </div>
-              </section>
-            </div>
-
-            <aside
-              className="dashboard-rail"
-              aria-label="Distribución y acciones"
+            <section
+              id="dashboard-attention"
+              className="dashboard-section dashboard-attention"
+              aria-labelledby="dashboard-attention-title"
             >
-              <section
-                className="dashboard-panel dashboard-classification"
-                aria-labelledby="dashboard-classification-title"
-              >
-                <div className="dashboard-panel__head dashboard-panel__head--compact">
-                  <div>
-                    <span className="dashboard-eyebrow">Distribución</span>
-                    <h2 id="dashboard-classification-title">
-                      Mezcla por clasificación
-                    </h2>
-                  </div>
+              <div className="dashboard-section__head">
+                <div>
+                  <span className="dashboard-eyebrow">Prioridades</span>
+                  <h2 id="dashboard-attention-title">Atención operativa</h2>
                 </div>
-                {occupancy.totals.distinctCampaigns > 0 ? (
-                  <ClassificationDonut
-                    breakdown={occupancy.classificationTotals}
-                    theme={theme}
-                  />
-                ) : (
-                  <p className="dashboard-rail__empty">
-                    Sin datos del periodo.
-                  </p>
-                )}
-              </section>
-
-              <section
-                className="dashboard-panel dashboard-actions"
-                aria-labelledby="dashboard-actions-title"
-              >
-                <div className="dashboard-panel__head dashboard-panel__head--compact">
-                  <div>
-                    <span className="dashboard-eyebrow">Atajos</span>
-                    <h2 id="dashboard-actions-title">Acciones rápidas</h2>
-                  </div>
-                </div>
-                <nav className="dashboard-actions__list">
-                  {quickActions.map((route) => (
-                    <Link key={route.path} to={route.path}>
-                      <span className="dashboard-actions__icon">
-                        <Icon name={route.icon} size={18} />
-                      </span>
-                      <span>{route.label}</span>
-                      <Icon
-                        className="dashboard-actions__chevron"
-                        name="chevron-down"
-                        size={16}
-                      />
-                    </Link>
-                  ))}
-                </nav>
-              </section>
-            </aside>
+                <Link className="dashboard-section__link" to="/seguimiento">
+                  Ver seguimiento completo
+                </Link>
+              </div>
+              <div className="dash-grid">
+                <AlertList
+                  title="Alertas críticas"
+                  empty="Sin alertas críticas."
+                  tone="danger"
+                  items={view.alerts.map((a) => ({
+                    row: a.row,
+                    text: a.alerts.map((x) => x.label).join(' · '),
+                  }))}
+                />
+                <AlertList
+                  title="Próximos vencimientos"
+                  empty="Nada por vencer pronto."
+                  tone="warning"
+                  items={view.upcomingDue.map((r) => ({
+                    row: r,
+                    text: `${STATUS_META[r.overall].label} · ${isoDay(r.nextDeadline)}`,
+                  }))}
+                />
+                <AlertList
+                  title="Próximos inicios (7 días)"
+                  empty="Sin inicios próximos."
+                  tone="info"
+                  items={view.upcomingStarts.map((r) => {
+                    const c = effectiveChecks(r);
+                    const pend: string[] = [];
+                    if (r.linkStatus !== 'valid') pend.push('link');
+                    if (!c.liverpool) pend.push('validación');
+                    if (!c.csm) pend.push('CSM');
+                    return {
+                      row: r,
+                      text: `Inicia ${formatCivilString(r.campaign.fechaInicio)}${
+                        pend.length ? ` · pendiente: ${pend.join(', ')}` : ''
+                      }`,
+                    };
+                  })}
+                />
+                <AlertList
+                  title="Terminadas con pendientes"
+                  empty="Ninguna terminada con obligaciones pendientes."
+                  tone="danger"
+                  items={view.finishedPending.map((r) => ({
+                    row: r,
+                    text: criticalAlerts(r)
+                      .map((x) => x.label)
+                      .join(' · '),
+                  }))}
+                />
+              </div>
+            </section>
           </div>
 
           <section
@@ -1020,6 +983,32 @@ export function DashboardPage() {
               </>
             )}
           </section>
+          <section
+            className="dashboard-panel dashboard-actions"
+            aria-labelledby="dashboard-actions-title"
+          >
+            <div className="dashboard-panel__head dashboard-panel__head--compact">
+              <div>
+                <span className="dashboard-eyebrow">Atajos</span>
+                <h2 id="dashboard-actions-title">Acciones rápidas</h2>
+              </div>
+            </div>
+            <nav className="dashboard-actions__list">
+              {quickActions.map((route) => (
+                <Link key={route.path} to={route.path}>
+                  <span className="dashboard-actions__icon">
+                    <Icon name={route.icon} size={18} />
+                  </span>
+                  <span>{route.label}</span>
+                  <Icon
+                    className="dashboard-actions__chevron"
+                    name="chevron-down"
+                    size={16}
+                  />
+                </Link>
+              ))}
+            </nav>
+          </section>
         </>
       )}
 
@@ -1061,7 +1050,7 @@ export function DashboardPage() {
           ))}
         </div>
       </section>
-    </>
+    </div>
   );
 }
 
