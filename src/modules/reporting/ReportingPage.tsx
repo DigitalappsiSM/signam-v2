@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { Icon } from '@/components/Icon';
 import { reconciliationStatusLabel } from '@/domain/ekon';
 import { presetRange } from '@/modules/dashboard/occupancyModel';
@@ -740,7 +740,7 @@ export function ReportingPage() {
         </div>
       )}
       {loading ? (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Construyendo indicadores…"
           description="Cruzando operación, SLA, calidad y conciliación."

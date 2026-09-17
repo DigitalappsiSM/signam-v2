@@ -10,7 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { EntityAvatar } from '@/components/EntityAvatar';
 import { toInitials } from '@/lib/initials';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -598,11 +598,10 @@ export function CampaignsPage() {
       )}
 
       {loading ? (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Cargando campañas…"
           description="Acomodando flights, fechas y soportes."
-          compact
         />
       ) : campaigns.length === 0 ? (
         <div className="import__note">

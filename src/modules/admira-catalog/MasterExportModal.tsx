@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import type { AdmiraScreen } from '@/domain';
 import {
   buildCatalogBlob,
@@ -146,11 +146,10 @@ export function MasterExportModal({
         </p>
 
         {busy && (
-          <LoadingState
+          <LoadingOverlay
             variant="process"
             title="Generando Excel…"
             description="Empaquetando el catálogo sin metadatos internos."
-            compact
           />
         )}
 

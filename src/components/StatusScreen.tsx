@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { LoadingState, type LoadingVariant } from './LoadingState';
+import { LoadingOverlay } from './LoadingOverlay';
+import type { LoadingVariant } from './LoadingState';
 
 /** Pantalla completa centrada para estados globales (cargando, sin config). */
 export function StatusScreen({
@@ -36,7 +37,7 @@ export function StatusScreen({
           SIGNAM <strong style={{ color: 'var(--color-text)' }}>V2</strong>
         </div>
         {loadingVariant ? (
-          <LoadingState
+          <LoadingOverlay
             variant={loadingVariant}
             title={title}
             description={loadingDescription}
