@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import {
@@ -258,7 +258,7 @@ export function AdmiraPassesPanel({
       </div>
 
       {loading && (
-        <LoadingState
+        <LoadingOverlay
           variant={loading === 'import' ? 'import' : 'process'}
           title={
             loading === 'import'
@@ -270,7 +270,6 @@ export function AdmiraPassesPanel({
               ? 'Cruzando players, fechas, ratios, campañas y pases.'
               : 'Recuperando el diagnóstico vigente para consulta.'
           }
-          compact
         />
       )}
       {error && (

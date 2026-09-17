@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { EntityAvatar } from '@/components/EntityAvatar';
 import { useAuth } from '@/app/providers/AuthProvider';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
@@ -239,11 +239,10 @@ export function CatalogPage() {
       </div>
 
       {loading ? (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Cargando pantallas…"
           description="Sincronizando el catálogo Admira."
-          compact
         />
       ) : filtered.length === 0 ? (
         <div className="card">

@@ -1,0 +1,106 @@
+/* Overlay de carga a pantalla completa: velo con desenfoque + GIF centrado.
+   Los tokens `--lo-*` se definen aquí para no depender de global.css y
+   permitir ajustar rápido el tamaño del GIF y la intensidad del blur. */
+.loading-overlay {
+  --lo-gif-size: clamp(150px, 45vw, 200px);
+  --lo-blur: 8px;
+  --lo-scrim: rgba(9, 22, 44, 0.42);
+  --lo-panel-bg: rgba(255, 255, 255, 0.72);
+  --lo-panel-border: rgba(255, 255, 255, 0.6);
+  --lo-panel-shadow: 0 24px 60px -20px rgba(9, 22, 44, 0.45);
+
+  position: fixed;
+  inset: 0;
+  z-index: 2000; /* por encima de modales (máx. 1000 en la app) */
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--lo-scrim);
+  -webkit-backdrop-filter: blur(var(--lo-blur));
+  backdrop-filter: blur(var(--lo-blur));
+  overscroll-behavior: contain;
+  animation: loading-overlay-in 0.2s ease both;
+}
+
+/* Tema oscuro (el atributo lo fija theme.ts en <html>). */
+:root[data-theme='dark'] .loading-overlay {
+  --lo-scrim: rgba(3, 9, 20, 0.55);
+  --lo-panel-bg: rgba(16, 31, 53, 0.72);
+  --lo-panel-border: rgba(90, 144, 255, 0.24);
+  --lo-panel-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* Respaldo por preferencia del sistema cuando no hay atributo explícito. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .loading-overlay {
+    --lo-scrim: rgba(3, 9, 20, 0.55);
+    --lo-panel-bg: rgba(16, 31, 53, 0.72);
+    --lo-panel-border: rgba(90, 144, 255, 0.24);
+    --lo-panel-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+  }
+}
+
+.loading-overlay__panel {
+  max-width: min(90vw, 420px);
+  padding: 1.75rem 2.25rem;
+  border-radius: 20px;
+  background: var(--lo-panel-bg);
+  border: 1px solid var(--lo-panel-border);
+  box-shadow: var(--lo-panel-shadow);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+/* Reacomoda el LoadingState interno: GIF grande, apilado y centrado. */
+.loading-overlay .loading-state {
+  flex-direction: column;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  gap: 1rem;
+  text-align: center;
+  background: transparent;
+}
+
+.loading-overlay .loading-state__visual {
+  width: var(--lo-gif-size);
+}
+
+.loading-overlay .loading-state__copy {
+  text-align: center;
+}
+
+.loading-overlay .loading-state__copy strong {
+  font-size: 1.05rem;
+}
+
+/* En el overlay sí mostramos la descripción (en el modo compacto va oculta). */
+.loading-overlay .loading-state__description {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  border: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #5a6b85);
+}
+
+@keyframes loading-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay {
+    animation: none;
+  }
+}

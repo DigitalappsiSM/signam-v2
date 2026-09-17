@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { Icon, type IconName } from '@/components/Icon';
 import { NAV_ROUTES } from '@/app/routes';
 import { listCampaigns } from '@/services/campaigns';
@@ -600,7 +600,7 @@ export function DashboardPage() {
       />
 
       {loading && !loadedOnce && (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Construyendo el panel…"
           description="Cruzando campañas, seguimiento y pantallas."

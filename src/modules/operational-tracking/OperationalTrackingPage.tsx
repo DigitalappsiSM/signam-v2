@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
@@ -653,11 +653,10 @@ export function OperationalTrackingPage() {
       )}
 
       {loading ? (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Cargando seguimiento…"
           description="Revisando checks, alertas y vencimientos."
-          compact
         />
       ) : campaigns.length === 0 ? (
         <div className="import__note">

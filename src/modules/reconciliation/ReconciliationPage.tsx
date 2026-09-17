@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { LoadingState } from '@/components/LoadingState';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { EntityAvatar } from '@/components/EntityAvatar';
 import { toInitials } from '@/lib/initials';
 import { isFirebaseConfigured } from '@/services/firebase';
@@ -122,11 +122,10 @@ export function ReconciliationPage() {
         </div>
       )}
       {loading && (
-        <LoadingState
+        <LoadingOverlay
           variant="process"
           title="Conciliando fuentes…"
           description="Comprobando que Liverpool y EKON se estén hablando."
-          compact
         />
       )}
 
