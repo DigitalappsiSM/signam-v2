@@ -2,7 +2,7 @@
    Los tokens `--lo-*` se definen aquí para no depender de global.css y
    permitir ajustar rápido el tamaño del GIF y la intensidad del blur. */
 .loading-overlay {
-  --lo-gif-size: clamp(150px, 45vw, 200px);
+  --lo-gif-size: clamp(75px, 22.5vw, 100px);
   --lo-blur: 8px;
   --lo-scrim: rgba(9, 22, 44, 0.42);
   --lo-panel-bg: rgba(255, 255, 255, 0.72);
