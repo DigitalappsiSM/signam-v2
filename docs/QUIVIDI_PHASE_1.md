@@ -79,6 +79,46 @@ La cobertura se calcula tanto de forma general como por soporte:
 
 Las tiendas sin Quividi no se extrapolan.
 
+## Alcance efectivo y cocomercialización
+
+Quividi no asume que una celda de soporte sin detalle de tiendas significa
+siempre circuito completo. Para construir los pares **Tienda + Soporte** se usa
+esta precedencia:
+
+1. Si el Calendario Liverpool trae tiendas explícitas, se usan exactamente esas
+   tiendas.
+2. Si el comentario confirma explícitamente **todas**, se usa el circuito
+   completo del soporte según el catálogo activo.
+3. Si no hay comentario y el soporte es **VIDEO WALL CRIUS** o
+   **VIDEO WALL POSTER LED**, se usa el circuito completo. Esta es una excepción
+   operativa documentada.
+4. Para cualquier otro soporte sin comentario, SIGNAM busca el número Ekon
+   asociado manualmente a esa instancia de campaña y utiliza solo asignaciones
+   vigentes que:
+   - no sean Centro Administrativo (determinante 0);
+   - no tengan conflicto;
+   - se solapen con la vigencia de la campaña Liverpool;
+   - tengan circuito Ekon compatible con el soporte Liverpool.
+5. Si no existe vínculo Ekon o no hay asignaciones compatibles, el alcance queda
+   sin resolver y no se inventan tiendas.
+
+El fallback Ekon es específico del reporte Quividi y **no modifica** el
+documento de campaña, la conciliación, la consolidación ni el CSV Admira. Las
+fuentes permanecen separadas.
+
+El reporte conserva el origen de cada alcance (`Calendario Liverpool`,
+`Circuito completo` o `EKON · Cocomercialización`) y lo muestra en Dashboard y
+en la hoja **Alcance**.
+
+### Distinción entre “sin comentario” y “todas”
+
+Las nuevas importaciones guardan `scopeSource` para diferenciar una celda sin
+comentario de un comentario/resolución que confirme explícitamente todas las
+tiendas. Los documentos legacy no contienen ese campo. Para ellos, una lista
+vacía se trata de forma conservadora: CRIUS/Poster LED usan circuito completo y
+los demás soportes intentan resolver tiendas desde Ekon. Reimportar el calendario
+vigente deja registrada la distinción exacta para futuras consultas.
+
 ## Varias cámaras en un soporte
 
 Una sola cámara representa el soporte completo.
@@ -122,8 +162,9 @@ SIGNAM no rellena los faltantes con cero y no extrapola los días ausentes.
 
 El archivo contiene:
 
-- **Dashboard**: cobertura, calidad, resultados por soporte y definiciones
-  simples de indicadores.
+- **Dashboard**: cobertura, calidad, origen del alcance, resultados por soporte
+  y definiciones simples de indicadores.
+- **Alcance**: fuente usada por soporte y número Ekon cuando aplica.
 - **Detalle Soportes**: resultado diario ponderado por Tienda + Soporte.
 - **Cámaras**: dato original por location, incluyendo IDs técnicos y duración.
 - **Demografía**: edad y género estimados.
