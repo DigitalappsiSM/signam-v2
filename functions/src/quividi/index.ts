@@ -785,3 +785,72 @@ export const campaignReport = onCall(
     return { report, cached: false };
   },
 );
+
+
+interface CampaignAvailabilityItem {
+  campaignId: string;
+  available: boolean;
+  totalPairs: number;
+  mappedPairs: number;
+  scopeOrigins: EffectiveScopeOrigin[];
+}
+
+export const campaignAvailability = onCall(
+  async (request): Promise<{ items: CampaignAvailabilityItem[] }> => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    const rawIds = (request.data as { campaignIds?: unknown } | undefined)
+      ?.campaignIds;
+    if (!Array.isArray(rawIds)) {
+      throw new HttpsError('invalid-argument', 'Falta campaignIds.');
+    }
+    const campaignIds = Array.from(
+      new Set(
+        rawIds
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (campaignIds.length > 250) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Se pueden consultar hasta 250 campañas por solicitud.',
+      );
+    }
+    if (campaignIds.length === 0) return { items: [] };
+
+    const db = getFirestore();
+    const screensSnap = await db.collection('screens').get();
+    const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
+    const refs = campaignIds.map((id) => db.collection('campaigns').doc(id));
+    const campaignSnaps = await db.getAll(...refs);
+    const assignmentCache = new Map<number, never[]>();
+    const items: CampaignAvailabilityItem[] = [];
+
+    for (const snap of campaignSnaps) {
+      if (!snap.exists) continue;
+      const campaign = snap.data() as CampaignDoc;
+      const effectiveScope = await buildEffectiveSupportPairs(
+        db,
+        snap.id,
+        campaign,
+        screens,
+        assignmentCache,
+      );
+      const mappedPairs = effectiveScope.pairs.filter(
+        (pair) => pair.cameraNames.length > 0,
+      ).length;
+      items.push({
+        campaignId: snap.id,
+        available: mappedPairs > 0,
+        totalPairs: effectiveScope.pairs.length,
+        mappedPairs,
+        scopeOrigins: effectiveScope.origins,
+      });
+    }
+
+    return { items };
+  },
+);
