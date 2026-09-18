@@ -95,12 +95,15 @@ import type {
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import { can } from '@/app/permissions';
-import { getQuividiCampaignReport } from '@/services/quividi';
+import {
+  getQuividiCampaignAvailability,
+  getQuividiCampaignReport,
+  type QuividiCampaignAvailability,
+} from '@/services/quividi';
 import {
   buildQuividiCampaignBlob,
   quividiCampaignFileName,
 } from '@/modules/exports/quividiCampaignExcel';
-import { hasQuividiCoverage } from './quividiCoverage';
 import './CampaignsPage.css';
 
 function normalize(v: string): string {
@@ -122,6 +125,24 @@ function download(blob: Blob, filename: string) {
 
 function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
+}
+
+function quividiScopeLabel(
+  availability: QuividiCampaignAvailability | undefined,
+): string {
+  if (!availability) return 'Cobertura Quividi pendiente de validación';
+  const sources = new Set(
+    availability.scopeOrigins
+      .filter((origin) => origin.pairCount > 0)
+      .map((origin) => origin.source),
+  );
+  const labels: string[] = [];
+  if (sources.has('calendar-selected')) labels.push('Calendario Liverpool');
+  if (sources.has('calendar-all')) labels.push('Calendario · Todas');
+  if (sources.has('calendar-full-circuit'))
+    labels.push('Calendario · Circuito completo');
+  if (sources.has('ekon')) labels.push('EKON · Cocomercialización');
+  return labels.length > 0 ? labels.join(' + ') : 'Sin alcance resoluble';
 }
 
 /** Icono estilizado de PowerPoint (recreado con formas, sin logo propietario). */
@@ -204,10 +225,16 @@ export function CampaignsPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [quividiBusyId, setQuividiBusyId] = useState<string | null>(null);
   const [quividiError, setQuividiError] = useState<string | null>(null);
+  const [quividiAvailability, setQuividiAvailability] = useState<
+    Map<string, QuividiCampaignAvailability>
+  >(new Map());
+  const [quividiAvailabilityLoaded, setQuividiAvailabilityLoaded] =
+    useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setQuividiAvailabilityLoaded(false);
     try {
       const [c, s, initialLinks, tracking] = await Promise.all([
         listCampaigns(),
@@ -228,6 +255,18 @@ export function CampaignsPage() {
       setScreens(s);
       setEkonLinks(e);
       setTrackingList(tracking);
+      try {
+        const availability = await getQuividiCampaignAvailability(
+          c.map((campaign) => campaign.id),
+        );
+        setQuividiAvailability(
+          new Map(availability.map((item) => [item.campaignId, item])),
+        );
+      } catch {
+        setQuividiAvailability(new Map());
+      } finally {
+        setQuividiAvailabilityLoaded(true);
+      }
     } catch {
       setError('No se pudieron cargar las campañas o el catálogo.');
     } finally {
@@ -237,7 +276,17 @@ export function CampaignsPage() {
 
   const reloadEkon = useCallback(async () => {
     setEkonLinks(await listEkonLinks());
-  }, []);
+    try {
+      const availability = await getQuividiCampaignAvailability(
+        campaigns.map((campaign) => campaign.id),
+      );
+      setQuividiAvailability(
+        new Map(availability.map((item) => [item.campaignId, item])),
+      );
+    } catch {
+      // La disponibilidad se volverá a validar al recargar la página.
+    }
+  }, [campaigns]);
 
   useEffect(() => {
     void reload();
@@ -720,6 +769,13 @@ export function CampaignsPage() {
                 const cons = consByCampaign.get(c.name) ?? [];
                 const nIssues = (issuesByCampaign.get(c.name) ?? []).length;
                 const ekon = ekonByKey.get(c.id);
+                const quividi = quividiAvailability.get(c.id);
+                const hasQuividi = quividi?.available === true;
+                const quividiTitle = !quividiAvailabilityLoaded
+                  ? 'Verificando cobertura Quividi…'
+                  : hasQuividi
+                    ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
+                    : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
                 return (
                   <tr key={c.id}>
                     <td>
@@ -755,15 +811,12 @@ export function CampaignsPage() {
                       <div className="campaign-actions">
                         <button
                           className="icon-btn"
-                          title={
-                            hasQuividiCoverage(c, screens)
-                              ? `Descargar métricas Quividi de ${c.name}`
-                              : 'Sin cobertura Quividi para esta campaña'
-                          }
+                          title={quividiTitle}
                           aria-label={`Descargar métricas Quividi de ${c.name}`}
                           disabled={
                             quividiBusyId !== null ||
-                            !hasQuividiCoverage(c, screens)
+                            !quividiAvailabilityLoaded ||
+                            !hasQuividi
                           }
                           aria-busy={quividiBusyId === c.id}
                           onClick={() => void downloadQuividiReport(c)}

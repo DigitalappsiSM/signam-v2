@@ -8,6 +8,20 @@
 
 export type QuividiMeasurementStatus = 'complete' | 'partial' | 'missing';
 
+export type QuividiScopeSource =
+  | 'calendar-selected'
+  | 'calendar-all'
+  | 'calendar-full-circuit'
+  | 'ekon'
+  | 'unresolved';
+
+export interface QuividiScopeOrigin {
+  support: string;
+  source: QuividiScopeSource;
+  pairCount: number;
+  ekonNumber: number | null;
+}
+
 export interface QuividiCameraIdentity {
   locationId: number;
   locationName: string;
@@ -81,12 +95,13 @@ export interface QuividiMeasurementIncident {
 }
 
 export interface QuividiCampaignReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   campaignId: string;
   campaignName: string;
   startDate: string;
   endDate: string;
   generatedAt: number;
+  scopeOrigins: QuividiScopeOrigin[];
   coverage: QuividiCoverage;
   cameraDays: QuividiCameraDay[];
   supportDays: QuividiSupportDay[];

@@ -33,7 +33,10 @@ import {
 } from '@/modules/exports/pptExport';
 import { buildCampaignReport } from '@/modules/exports/campaignReport';
 import { buildCampaignReportBlob } from '@/modules/exports/campaignExcelExport';
-import { getQuividiCampaignReport } from '@/services/quividi';
+import {
+  getQuividiCampaignAvailability,
+  getQuividiCampaignReport,
+} from '@/services/quividi';
 import { buildQuividiCampaignBlob } from '@/modules/exports/quividiCampaignExcel';
 import {
   initializeTrackingForImport,
@@ -80,6 +83,7 @@ vi.mock('@/modules/exports/campaignExcelExport', async () => {
 });
 
 vi.mock('@/services/quividi', () => ({
+  getQuividiCampaignAvailability: vi.fn(),
   getQuividiCampaignReport: vi.fn(),
 }));
 
@@ -299,17 +303,26 @@ beforeEach(() => {
   vi.mocked(buildCampaignReportBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['xlsx']));
+  vi.mocked(getQuividiCampaignAvailability).mockReset().mockResolvedValue([]);
   vi.mocked(getQuividiCampaignReport)
     .mockReset()
     .mockResolvedValue({
       cached: false,
       report: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         campaignId: 'q1',
         campaignName: 'CAMPAÑA QUIVIDI',
         startDate: '2026-05-10',
         endDate: '2026-05-20',
         generatedAt: 1,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'calendar-selected',
+            pairCount: 1,
+            ekonNumber: null,
+          },
+        ],
         coverage: {
           totalPairs: 1,
           mappedPairs: 1,
@@ -645,6 +658,52 @@ describe('CampaignsPage — métricas Quividi', () => {
     ).toBeDisabled();
   });
 
+  it('habilita Quividi por EKON aunque Calendario no detalle tiendas', async () => {
+    const coCommercial = campaign({
+      id: 'co1',
+      name: 'COCOMERCIAL',
+      nameKey: 'cocomercial',
+      supports: [
+        {
+          support: 'MEGA MUPI DIGITAL',
+          owner: 'liverpool',
+          scope: 'all',
+          scopeSource: 'no-comment',
+          stores: [],
+        },
+      ],
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([coCommercial]);
+    vi.mocked(listScreens).mockResolvedValue([]);
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'co1',
+        available: true,
+        totalPairs: 3,
+        mappedPairs: 2,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'ekon',
+            pairCount: 3,
+            ekonNumber: 4321,
+          },
+        ],
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await screen.findByText('COCOMERCIAL');
+    const button = screen.getByRole('button', {
+      name: /Descargar métricas Quividi de COCOMERCIAL/i,
+    });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute(
+      'title',
+      expect.stringContaining('EKON · Cocomercialización'),
+    );
+  });
+
   it('habilita y descarga el informe cuando existe Tienda + Soporte + cámara', async () => {
     vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
     vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
@@ -654,6 +713,22 @@ describe('CampaignsPage — métricas Quividi', () => {
       excludedInstore: [],
       ismExcludedCount: 0,
     });
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'q1',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'calendar-selected',
+            pairCount: 1,
+            ekonNumber: null,
+          },
+        ],
+      },
+    ]);
 
     render(<CampaignsPage />);
     await screen.findByText('CAMPAÑA QUIVIDI');

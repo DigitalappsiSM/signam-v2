@@ -158,6 +158,18 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   cambia de soporte, se solicita confirmación nuevamente. Los documentos legacy
   sin `scope` conservan compatibilidad: lista vacía = todas, lista poblada =
   selección.
+- **Alcance Quividi por cocomercialización**: esta regla es exclusiva del
+  reporte de audiencia y no cambia la autoridad general de Conciliación/CSV.
+  Tiendas explícitas del Calendario mandan; “todas” explícito usa circuito
+  completo. Sin comentario, `VIDEO WALL CRIUS` y
+  `VIDEO WALL POSTER LED` usan circuito completo; los demás soportes intentan
+  completar el alcance desde la campaña Ekon vinculada, usando solo
+  determinantes físicos vigentes, sin conflicto, con periodo solapado y circuito
+  compatible. El resultado es derivado: nunca escribe tiendas Ekon dentro de
+  `campaigns`. Las importaciones nuevas guardan `scopeSource` para distinguir
+  “sin comentario” de “todas” explícito.
+  Para Quividi, `MUPPI'S` se resuelve como `MEGA MUPI DIGITAL` (alias
+  tolerado `MEGAMUPI DIGITAL`) y `PENDON` como `BANNER DIGITAL`.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan

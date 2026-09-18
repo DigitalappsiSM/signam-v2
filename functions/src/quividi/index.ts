@@ -4,46 +4,23 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  buildEffectiveSupportPairs,
+  type CampaignDoc,
+  type EffectiveScopeOrigin,
+  type EffectiveSupportPair,
+  type ScreenDoc,
+} from './effectiveScope';
 
 const QUIVIDI_API_USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const QUIVIDI_API_TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
-const SNAPSHOT_SCHEMA_VERSION = 1;
+const SNAPSHOT_SCHEMA_VERSION = 2;
 const ACTIVE_CACHE_MS = 24 * 60 * 60 * 1000;
 const PARTIAL_DURATION_RATIO = 0.8;
 
 type MeasurementStatus = 'complete' | 'partial' | 'missing';
-
-interface CampaignStore {
-  numero?: string;
-  nombre?: string;
-}
-
-interface CampaignSupport {
-  support?: string;
-  stores?: CampaignStore[];
-  scope?: 'all' | 'selected' | 'invalid';
-}
-
-interface CampaignDoc {
-  name?: string;
-  fechaInicio?: string;
-  fechaFin?: string;
-  supports?: CampaignSupport[];
-}
-
-interface ScreenDoc {
-  original?: {
-    'Numero de Tienda'?: string;
-    'Nombre de tienda'?: string;
-  };
-  metadata?: {
-    active?: boolean;
-    calendarSupport?: string;
-    quividiCameraName?: string;
-  };
-}
 
 interface TopologyLocation {
   id: number;
@@ -73,11 +50,7 @@ interface ViewerExportRow {
   age?: number;
 }
 
-interface SupportPair {
-  storeNumber: string;
-  storeName: string;
-  support: string;
-  cameraNames: string[];
+interface SupportPair extends EffectiveSupportPair {
   cameras: TopologyLocation[];
 }
 
@@ -137,12 +110,13 @@ interface Incident {
 }
 
 interface CampaignReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   campaignId: string;
   campaignName: string;
   startDate: string;
   endDate: string;
   generatedAt: number;
+  scopeOrigins: EffectiveScopeOrigin[];
   coverage: {
     totalPairs: number;
     mappedPairs: number;
@@ -159,25 +133,6 @@ interface CampaignReport {
   demographics: DemographicRow[];
   incidents: Incident[];
   unmappedCameraNames: string[];
-}
-
-function normalized(value: string): string {
-  return value
-    .trim()
-    .toLocaleLowerCase('es-MX')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function normalizeStore(value: string): string {
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return String(Number.parseInt(trimmed, 10));
-  return normalized(trimmed);
-}
-
-function normalizeSupport(value: string): string {
-  return normalized(value).toUpperCase();
 }
 
 function parseCivilDate(value: string): string | null {
@@ -337,78 +292,8 @@ async function exportData(
   );
 }
 
-function buildSupportPairs(
-  campaign: CampaignDoc,
-  screens: ScreenDoc[],
-): Array<Omit<SupportPair, 'cameras'>> {
-  const active = screens.filter((screen) => screen.metadata?.active !== false);
-  const byPair = new Map<string, ScreenDoc[]>();
-  for (const screen of active) {
-    const store = normalizeStore(screen.original?.['Numero de Tienda'] ?? '');
-    const support = normalizeSupport(screen.metadata?.calendarSupport ?? '');
-    if (!store || !support) continue;
-    const key = `${store}|${support}`;
-    const list = byPair.get(key) ?? [];
-    list.push(screen);
-    byPair.set(key, list);
-  }
-
-  const pairs = new Map<string, Omit<SupportPair, 'cameras'>>();
-  for (const item of campaign.supports ?? []) {
-    const support = normalizeSupport(item.support ?? '');
-    if (!support) continue;
-    const stores = item.stores ?? [];
-    const scope =
-      item.scope ?? (stores.length === 0 ? 'all' : 'selected');
-    if (scope === 'invalid') continue;
-
-    const targetStores =
-      scope === 'all'
-        ? Array.from(
-            new Set(
-              active
-                .filter(
-                  (screen) =>
-                    normalizeSupport(screen.metadata?.calendarSupport ?? '') ===
-                    support,
-                )
-                .map((screen) =>
-                  normalizeStore(screen.original?.['Numero de Tienda'] ?? ''),
-                )
-                .filter(Boolean),
-            ),
-          )
-        : stores
-            .map((store) => normalizeStore(store.numero ?? ''))
-            .filter(Boolean);
-
-    for (const storeNumber of targetStores) {
-      const key = `${storeNumber}|${support}`;
-      const matching = byPair.get(key) ?? [];
-      const selectedStore = stores.find(
-        (store) => normalizeStore(store.numero ?? '') === storeNumber,
-      );
-      const storeName =
-        matching
-          .map((screen) => screen.original?.['Nombre de tienda']?.trim() ?? '')
-          .find(Boolean) ??
-        selectedStore?.nombre?.trim() ??
-        '';
-      const cameraNames = Array.from(
-        new Set(
-          matching
-            .map((screen) => screen.metadata?.quividiCameraName?.trim() ?? '')
-            .filter(Boolean),
-        ),
-      );
-      pairs.set(key, { storeNumber, storeName, support, cameraNames });
-    }
-  }
-  return Array.from(pairs.values());
-}
-
 function resolvePairs(
-  pairs: Array<Omit<SupportPair, 'cameras'>>,
+  pairs: EffectiveSupportPair[],
   locations: TopologyLocation[],
 ): {
   pairs: SupportPair[];
@@ -469,7 +354,8 @@ function buildCoverage(pairs: SupportPair[]): CampaignReport['coverage'] {
 
 function inputSignature(
   campaign: CampaignDoc,
-  pairs: Array<Omit<SupportPair, 'cameras'>>,
+  pairs: EffectiveSupportPair[],
+  scopeOrigins: EffectiveScopeOrigin[],
   startDate: string,
   endDate: string,
 ): string {
@@ -477,11 +363,14 @@ function inputSignature(
     name: campaign.name ?? '',
     startDate,
     endDate,
+    scopeOrigins,
     pairs: pairs
       .map((pair) => ({
         storeNumber: pair.storeNumber,
         support: pair.support,
         cameraNames: [...pair.cameraNames].sort(),
+        source: pair.source,
+        ekonNumber: pair.ekonNumber,
       }))
       .sort((a, b) =>
         `${a.storeNumber}|${a.support}`.localeCompare(
@@ -737,7 +626,8 @@ function buildMeasurementRows(
 async function generateReport(
   campaignId: string,
   campaign: CampaignDoc,
-  pairsWithoutLocations: Array<Omit<SupportPair, 'cameras'>>,
+  pairsWithoutLocations: EffectiveSupportPair[],
+  scopeOrigins: EffectiveScopeOrigin[],
   startDate: string,
   endDate: string,
   now: number,
@@ -779,12 +669,13 @@ async function generateReport(
     viewerRows,
   );
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     campaignId,
     campaignName: campaign.name ?? '',
     startDate,
     endDate,
     generatedAt: Date.now(),
+    scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
     ...measurement,
     unmappedCameraNames: resolved.unmappedCameraNames,
@@ -828,8 +719,20 @@ export const campaignReport = onCall(
 
     const screensSnap = await db.collection('screens').get();
     const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
-    const pairs = buildSupportPairs(campaign, screens);
-    const signature = inputSignature(campaign, pairs, startDate, endDate);
+    const effectiveScope = await buildEffectiveSupportPairs(
+      db,
+      campaignId,
+      campaign,
+      screens,
+    );
+    const pairs = effectiveScope.pairs;
+    const signature = inputSignature(
+      campaign,
+      pairs,
+      effectiveScope.origins,
+      startDate,
+      endDate,
+    );
     const snapshotRef = db.collection(SNAPSHOT_COLLECTION).doc(campaignId);
     const now = Date.now();
 
@@ -852,6 +755,7 @@ export const campaignReport = onCall(
       campaignId,
       campaign,
       pairs,
+      effectiveScope.origins,
       startDate,
       endDate,
       now,
@@ -879,5 +783,72 @@ export const campaignReport = onCall(
     }
 
     return { report, cached: false };
+  },
+);
+
+
+interface CampaignAvailabilityItem {
+  campaignId: string;
+  available: boolean;
+  totalPairs: number;
+  mappedPairs: number;
+  scopeOrigins: EffectiveScopeOrigin[];
+}
+
+export const campaignAvailability = onCall(
+  async (request): Promise<{ items: CampaignAvailabilityItem[] }> => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    const rawIds = (request.data as { campaignIds?: unknown } | undefined)
+      ?.campaignIds;
+    if (!Array.isArray(rawIds)) {
+      throw new HttpsError('invalid-argument', 'Falta campaignIds.');
+    }
+    const campaignIds = Array.from(
+      new Set(
+        rawIds
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (campaignIds.length > 250) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Se pueden consultar hasta 250 campañas por solicitud.',
+      );
+    }
+    if (campaignIds.length === 0) return { items: [] };
+
+    const db = getFirestore();
+    const screensSnap = await db.collection('screens').get();
+    const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
+    const refs = campaignIds.map((id) => db.collection('campaigns').doc(id));
+    const campaignSnaps = await db.getAll(...refs);
+    const items: CampaignAvailabilityItem[] = [];
+
+    for (const snap of campaignSnaps) {
+      if (!snap.exists) continue;
+      const campaign = snap.data() as CampaignDoc;
+      const effectiveScope = await buildEffectiveSupportPairs(
+        db,
+        snap.id,
+        campaign,
+        screens,
+      );
+      const mappedPairs = effectiveScope.pairs.filter(
+        (pair) => pair.cameraNames.length > 0,
+      ).length;
+      items.push({
+        campaignId: snap.id,
+        available: mappedPairs > 0,
+        totalPairs: effectiveScope.pairs.length,
+        mappedPairs,
+        scopeOrigins: effectiveScope.origins,
+      });
+    }
+
+    return { items };
   },
 );

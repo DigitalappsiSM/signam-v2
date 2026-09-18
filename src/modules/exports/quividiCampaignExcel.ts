@@ -27,6 +27,34 @@ function safeFileName(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
 }
 
+function scopeSourceLabel(
+  source: QuividiCampaignReport['scopeOrigins'][number]['source'],
+): string {
+  switch (source) {
+    case 'calendar-selected':
+      return 'Calendario Liverpool · Tiendas explícitas';
+    case 'calendar-all':
+      return 'Calendario Liverpool · Todas';
+    case 'calendar-full-circuit':
+      return 'Calendario Liverpool · Circuito completo';
+    case 'ekon':
+      return 'EKON · Cocomercialización';
+    default:
+      return 'Sin alcance resoluble';
+  }
+}
+
+function reportScopeLabel(report: QuividiCampaignReport): string {
+  const labels = Array.from(
+    new Set(
+      report.scopeOrigins
+        .filter((origin) => origin.pairCount > 0)
+        .map((origin) => scopeSourceLabel(origin.source)),
+    ),
+  );
+  return labels.length > 0 ? labels.join(' + ') : 'Sin alcance resoluble';
+}
+
 function weightedTime(
   rows: readonly QuividiSupportDay[],
   field: 'attentionSeconds' | 'dwellSeconds',
@@ -122,6 +150,10 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   sheet.getCell('A3').value =
     `${report.campaignName} · ${report.startDate} a ${report.endDate}`;
   sheet.getCell('A3').font = { bold: true, size: 12 };
+
+  sheet.mergeCells('A4:J4');
+  sheet.getCell('A4').value = `Origen del alcance: ${reportScopeLabel(report)}`;
+  sheet.getCell('A4').font = { italic: true, color: { argb: 'FF5A6670' } };
 
   const measuredDays = report.supportDays.filter(
     (row) => row.status !== 'missing',
@@ -272,6 +304,27 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     { width: 16 },
     { width: 16 },
   ];
+}
+
+function addScopeDetail(wb: Workbook, report: QuividiCampaignReport): void {
+  const sheet = wb.addWorksheet('Alcance');
+  sheet.addRow([
+    'Soporte',
+    'Origen del alcance',
+    '# campaña EKON',
+    'Pares Tienda + Soporte',
+  ]);
+  styleHeader(sheet.getRow(1));
+  for (const origin of report.scopeOrigins) {
+    sheet.addRow([
+      origin.support,
+      scopeSourceLabel(origin.source),
+      origin.ekonNumber ?? '',
+      origin.pairCount,
+    ]);
+  }
+  sheet.columns = [{ width: 28 }, { width: 42 }, { width: 18 }, { width: 22 }];
+  applyBaseSheet(sheet);
 }
 
 function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
@@ -523,6 +576,10 @@ function addMethodology(wb: Workbook): void {
       'Resultados por soporte',
       'Mupi, Banner y otros soportes se muestran por separado para evitar sumar contactos que pueden pertenecer a la misma persona.',
     ],
+    [
+      'Origen del alcance',
+      'Si Liverpool detalla tiendas, se usan esas tiendas. Sin comentario, CRIUS y Poster LED usan circuito completo; los demás soportes pueden completar tiendas desde EKON por vigencia y circuito compatible.',
+    ],
   ];
   for (const row of rows) sheet.addRow(row);
   sheet.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
@@ -537,6 +594,7 @@ export async function buildQuividiCampaignWorkbook(
   wb.creator = 'SIGNAM';
   wb.subject = 'Reporte de audiencia Quividi por campaña';
   addDashboard(wb, report);
+  addScopeDetail(wb, report);
   addSupportDetail(wb, report);
   addCameraDetail(wb, report);
   addDemographics(wb, report);
