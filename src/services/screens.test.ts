@@ -3,10 +3,7 @@ import { emptyOriginal } from '@/modules/admira-catalog/screenFactory';
 import type { MasterRow } from '@/modules/admira-catalog/masterImport';
 import { masterMetadataPatch } from './screens';
 
-function row(
-  calendarSupport: string,
-  quividiCameraName: string,
-): MasterRow {
+function row(calendarSupport: string, quividiCameraName: string): MasterRow {
   return {
     original: emptyOriginal(),
     sourceRow: 2,
