@@ -33,6 +33,7 @@ export function MasterExportModal({
 }) {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [includeMappingColumn, setIncludeMappingColumn] = useState(true);
+  const [includeQuividiColumn, setIncludeQuividiColumn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +47,7 @@ export function MasterExportModal({
       const blob = await buildCatalogBlob(screens, {
         includeInactive,
         includeMappingColumn,
+        includeQuividiColumn,
       });
       download(blob, catalogExportFileName());
       onClose();
@@ -62,7 +64,10 @@ export function MasterExportModal({
     setBusy(true);
     setError(null);
     try {
-      const blob = await buildTemplateBlob({ includeMappingColumn });
+      const blob = await buildTemplateBlob({
+        includeMappingColumn,
+        includeQuividiColumn,
+      });
       download(blob, TEMPLATE_FILE_NAME);
       onClose();
     } catch {
@@ -120,6 +125,17 @@ export function MasterExportModal({
             <span>
               Incluir la columna <strong>NORMALIZACIÓN LIVERPOOL</strong> (mapeo
               al calendario).
+            </span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={includeQuividiColumn}
+              disabled={busy}
+              onChange={(e) => setIncludeQuividiColumn(e.target.checked)}
+            />
+            <span>
+              Incluir la columna <strong>CÁMARA QUIVIDI</strong>.
             </span>
           </label>
         </fieldset>
