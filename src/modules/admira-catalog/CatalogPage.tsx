@@ -80,13 +80,20 @@ export function CatalogPage() {
   async function handleSubmit(
     original: AdmiraScreenOriginal,
     calendarSupport: string,
+    quividiCameraName: string,
   ) {
     setSaving(true);
     try {
       if (form.mode === 'create') {
-        await createScreen(original, actor, calendarSupport);
+        await createScreen(original, actor, calendarSupport, quividiCameraName);
       } else if (form.mode === 'edit') {
-        await updateScreen(form.screen, original, actor, calendarSupport);
+        await updateScreen(
+          form.screen,
+          original,
+          actor,
+          calendarSupport,
+          quividiCameraName,
+        );
       }
       setForm({ mode: 'closed' });
       await reload();
@@ -262,6 +269,7 @@ export function CatalogPage() {
                 <th>Modelo</th>
                 <th>Resolución</th>
                 <th>Normalización Liverpool</th>
+                <th>Quividi</th>
                 <th>Estado</th>
                 <th aria-label="Acciones" />
               </tr>
@@ -289,6 +297,18 @@ export function CatalogPage() {
                   <td>
                     {screen.metadata.calendarSupport || (
                       <span className="text-muted">— sin mapear —</span>
+                    )}
+                  </td>
+                  <td>
+                    {screen.metadata.quividiCameraName ? (
+                      <span
+                        className="badge badge-info"
+                        title={screen.metadata.quividiCameraName}
+                      >
+                        Cámara
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
                     )}
                   </td>
                   <td>
@@ -342,6 +362,11 @@ export function CatalogPage() {
           initial={form.mode === 'edit' ? form.screen.original : undefined}
           initialCalendarSupport={
             form.mode === 'edit' ? form.screen.metadata.calendarSupport : ''
+          }
+          initialQuividiCameraName={
+            form.mode === 'edit'
+              ? form.screen.metadata.quividiCameraName ?? ''
+              : ''
           }
           submitting={saving}
           onSubmit={handleSubmit}
