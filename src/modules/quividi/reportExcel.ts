@@ -75,10 +75,6 @@ function pct(value: number): string {
   return (value * 100).toFixed(1) + '%';
 }
 
-function seconds(value: number | null): string {
-  return value == null ? '—' : value.toFixed(1) + ' s';
-}
-
 export async function buildQuividiCampaignReportBlob(
   snapshot: QuividiCampaignSnapshot,
 ): Promise<Blob> {
