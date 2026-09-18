@@ -41,6 +41,7 @@ export function newScreenMetadata(actor: Actor, now: number): SignamMetadata {
     deactivationReason: null,
     version: 1,
     calendarSupport: '',
+    quividiCameraName: '',
   };
 }
 
