@@ -27,11 +27,6 @@ function safeFileName(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
 }
 
-function round(value: number, digits = 2): number {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
-}
-
 function weightedTime(
   rows: readonly QuividiSupportDay[],
   field: 'attentionSeconds' | 'dwellSeconds',
