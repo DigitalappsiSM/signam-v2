@@ -158,23 +158,28 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveAttribute('href', '/importar');
   });
 
-  it('coloca la atención operativa bajo la carga diaria y separada del rail', async () => {
+  it('mantiene gráficas y prioridades en filas independientes', async () => {
     const { container } = renderDash(VIEJA_ROUTE);
-
     await screen.findByRole('heading', { name: /Atención operativa/i });
-    const main = container.querySelector('.dashboard-main');
-    const overview = container.querySelector('.dashboard-overview');
-
-    expect(main).not.toBeNull();
-    expect(overview?.firstElementChild).toBe(main);
-    expect(main?.nextElementSibling).toHaveClass('dashboard-rail');
+    const analysis = container.querySelector('.dashboard-analysis-row')!;
+    const priorities = container.querySelector('.dashboard-priorities-row')!;
     expect(
-      within(main as HTMLElement).getByRole('heading', {
+      within(analysis as HTMLElement).getByRole('heading', {
         name: /Carga diaria/i,
       }),
     ).toBeInTheDocument();
     expect(
-      within(main as HTMLElement).getByRole('heading', {
+      within(analysis as HTMLElement).getByRole('heading', {
+        name: /Mezcla por clasificación/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(priorities as HTMLElement).getByRole('heading', {
+        name: /Atención inmediata/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(priorities as HTMLElement).getByRole('heading', {
         name: /Atención operativa/i,
       }),
     ).toBeInTheDocument();

@@ -1,0 +1,243 @@
+/* Presentation only. Report and planning remain independent data sources. */
+.occupancy-content {
+  container: occupancy / inline-size;
+}
+
+.occupancy-content .occ-admira {
+  margin-bottom: 1.25rem;
+}
+
+.occupancy-content .occ-admira__banner {
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.6rem;
+  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.occupancy-content .occ-admira__banner-title {
+  font-size: 1rem;
+}
+
+.occupancy-content .occ-admira__description {
+  font-size: 0.8rem;
+}
+
+.occupancy-content .occ-admira__meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0.75rem 1rem;
+  gap: 0.65rem 1rem;
+  box-shadow: none;
+  font-size: 0.75rem;
+}
+
+.occupancy-content .occ-admira__meta strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.occupancy-content .occ-admira__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(140px, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.occupancy-content .occ-sem-cards {
+  gap: 0.65rem;
+}
+
+.occupancy-content .occ-sem-card {
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.occupancy-content .occ-sem-card__head {
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: 'icon label chev' 'count count count' 'hint hint hint';
+  gap: 0.4rem;
+  min-height: 128px;
+  padding: 0.75rem;
+  border-left-width: 2px;
+}
+
+.occupancy-content .occ-sem-card__icon {
+  width: 25px;
+  height: 25px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--sem-accent) 18%, transparent);
+}
+
+.occupancy-content .occ-sem-meta {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.occupancy-content .occ-sem-meta__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem;
+}
+
+.occupancy-content .occ-sem-meta__value {
+  font-size: 1.2rem;
+}
+
+.occupancy-content .occ-sem-card__panel {
+  grid-column: 1 / -1;
+  margin-bottom: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.65rem;
+  background: var(--color-surface);
+}
+
+.occupancy-content .occ-sem-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.6rem;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.occupancy-content .occ-admira__alert {
+  padding: 0.5rem 0.75rem;
+}
+
+.occ-admira__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.occupancy-content .diagnosis__table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.occupancy-content .occ-admira__table {
+  min-width: 1050px;
+}
+
+.occupancy-content .occ-admira__table :is(th, td) {
+  padding: 0.6rem 0.65rem;
+}
+
+.occupancy-content .occ-admira__detail {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.occupancy-content .occ-admira__ratio-detail li {
+  grid-template-columns: 1fr;
+}
+
+.occupancy-content .occ-controls {
+  padding: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.occupancy-content .occ-section-title {
+  margin: 1.25rem 0 0.6rem;
+}
+
+.occupancy-content .occ-summary {
+  padding: 0.85rem 1rem;
+}
+
+/* One export group per row. Existing callbacks, counts and badges retained. */
+.occupancy-content .occ-groups {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.occupancy-content .occ-group {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(0, 3fr);
+  gap: 0.75rem;
+  padding: 0.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.occupancy-content .occ-group__head {
+  margin: 0;
+  align-content: center;
+}
+
+.occupancy-content .occ-group__rows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.occupancy-content .occ-group__row {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.6rem;
+}
+
+.occupancy-content .occ-group__row-info {
+  gap: 0.35rem;
+}
+
+.occupancy-content .occ-group__rows .btn {
+  white-space: normal;
+  font-size: 0.78rem;
+}
+
+@container occupancy (min-width: 1300px) {
+  .occupancy-content .occ-admira__meta {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+
+  .occ-admira__workspace--detail {
+    grid-template-columns: minmax(0, 3fr) minmax(290px, 1fr);
+  }
+}
+
+@container occupancy (max-width: 900px) {
+  .occupancy-content .occ-admira__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .occupancy-content .occ-sem-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .occupancy-content .occ-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container occupancy (max-width: 580px) {
+  .occupancy-content .occ-admira__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .occupancy-content .occ-sem-cards,
+  .occupancy-content .occ-group__rows {
+    grid-template-columns: 1fr;
+  }
+
+  .occupancy-content .occ-sem-card__head {
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-areas: 'icon count label chev' 'icon count hint chev';
+    min-height: 70px;
+  }
+}

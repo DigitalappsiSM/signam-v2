@@ -1,0 +1,212 @@
+/* Module-only composition: uses the existing light/dark tokens and data. */
+.dashboard-content {
+  container: dashboard / inline-size;
+}
+
+.dashboard-content .dashboard-filters,
+.dashboard-content .dash-tile,
+.dashboard-content .dashboard-health {
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-content .dashboard-filters {
+  padding: 0.75rem 1rem;
+}
+
+.dashboard-content .dashboard-filters .dashboard-panel__head > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.dashboard-content .dashboard-filters .dashboard-eyebrow {
+  display: none;
+}
+
+.dashboard-content .dashboard-filters .occ-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.dashboard-content .dashboard-filters .occ-field {
+  min-width: 0;
+}
+
+.dashboard-content .dashboard-filters :is(input, select) {
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-content .dash-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.dashboard-content .dash-tile {
+  min-height: 0;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top-width: 2px;
+}
+
+.dashboard-content .dash-tile::after,
+.dashboard-content .dashboard-health::after {
+  content: none;
+}
+
+.dashboard-content .dash-tile__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.dashboard-content .dash-tile__value {
+  font-size: 1.85rem;
+}
+
+.dashboard-content .dash-tile__label {
+  color: var(--color-text);
+}
+
+.dashboard-content .dashboard-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  border-left-width: 3px;
+}
+
+.dashboard-content .dashboard-health__ring {
+  width: 64px;
+  height: 64px;
+}
+
+.dashboard-content .dashboard-health__score {
+  font-size: 1rem;
+}
+
+.dashboard-content .dashboard-health__score-cap {
+  font-size: 0.45rem;
+}
+
+.dashboard-content .dashboard-health__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 0.15rem 1rem;
+}
+
+.dashboard-content .dashboard-health__body > .dashboard-eyebrow {
+  grid-column: 1;
+}
+
+.dashboard-content .dashboard-health__body h2 {
+  font-size: 1rem;
+  grid-column: 1;
+}
+
+.dashboard-content .dashboard-health__body p {
+  margin: 0.15rem 0 0;
+  grid-column: 1;
+}
+
+.dashboard-content .dashboard-health__meta {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.dashboard-analysis-row,
+.dashboard-priorities-row {
+  display: grid;
+  gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 1rem;
+}
+
+.dashboard-analysis-row {
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+}
+
+.dashboard-priorities-row {
+  grid-template-columns: minmax(250px, 1fr) minmax(0, 2fr);
+}
+
+.dashboard-content .dashboard-priorities-row .dashboard-attention {
+  margin-top: 0;
+}
+
+.dashboard-content .dashboard-priorities-row .dash-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.dashboard-content .dashboard-urgent {
+  align-self: start;
+}
+
+.dashboard-content .dashboard-actions {
+  margin-top: 1rem;
+}
+
+.dashboard-content .dashboard-actions__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.dashboard-content .occ-cards {
+  gap: 0.65rem;
+}
+
+.dashboard-content .occ-card {
+  padding: 0.8rem;
+}
+
+@container dashboard (max-width: 1000px) {
+  .dashboard-content .dash-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-content .dashboard-health__body {
+    display: block;
+  }
+
+  .dashboard-content .dashboard-health__meta {
+    margin-top: 0.6rem;
+  }
+
+  .dashboard-priorities-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container dashboard (max-width: 720px) {
+  .dashboard-analysis-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-content .dashboard-actions__list,
+  .dashboard-content .dash-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container dashboard (max-width: 460px) {
+  .dashboard-content .dashboard-priorities-row .dash-grid,
+  .dashboard-content .dashboard-actions__list,
+  .dashboard-content .dash-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-content .dashboard-health__meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
