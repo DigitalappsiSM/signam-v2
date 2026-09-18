@@ -180,18 +180,26 @@ function toIsoCivilDate(value: string | null | undefined): string | null {
   let year = Number(parts[3]);
   if (parts[3]!.length <= 2) year += 2000;
 
-  const month = first > 12 ? second : first;
-  const day = first > 12 ? first : second > 12 ? second : first;
-  const resolvedMonth = first > 12 ? second : second > 12 ? first : second;
-  const date = new Date(Date.UTC(year, resolvedMonth - 1, day));
+  let day: number;
+  let month: number;
+  if (first > 12) {
+    day = first;
+    month = second;
+  } else if (second > 12) {
+    month = first;
+    day = second;
+  } else {
+    day = first;
+    month = second;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
   if (
     date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== resolvedMonth - 1 ||
+    date.getUTCMonth() !== month - 1 ||
     date.getUTCDate() !== day
   ) {
     return null;
   }
-  void month;
   return date.toISOString().slice(0, 10);
 }
 
