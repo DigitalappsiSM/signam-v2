@@ -826,7 +826,6 @@ export const campaignAvailability = onCall(
     const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
     const refs = campaignIds.map((id) => db.collection('campaigns').doc(id));
     const campaignSnaps = await db.getAll(...refs);
-    const assignmentCache = new Map<number, never[]>();
     const items: CampaignAvailabilityItem[] = [];
 
     for (const snap of campaignSnaps) {
@@ -837,7 +836,6 @@ export const campaignAvailability = onCall(
         snap.id,
         campaign,
         screens,
-        assignmentCache,
       );
       const mappedPairs = effectiveScope.pairs.filter(
         (pair) => pair.cameraNames.length > 0,
