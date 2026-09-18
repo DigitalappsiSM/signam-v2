@@ -80,13 +80,25 @@ export function CatalogPage() {
   async function handleSubmit(
     original: AdmiraScreenOriginal,
     calendarSupport: string,
+    quividiCameraName: string,
   ) {
     setSaving(true);
     try {
       if (form.mode === 'create') {
-        await createScreen(original, actor, calendarSupport);
+        await createScreen(
+          original,
+          actor,
+          calendarSupport,
+          quividiCameraName,
+        );
       } else if (form.mode === 'edit') {
-        await updateScreen(form.screen, original, actor, calendarSupport);
+        await updateScreen(
+          form.screen,
+          original,
+          actor,
+          calendarSupport,
+          quividiCameraName,
+        );
       }
       setForm({ mode: 'closed' });
       await reload();
@@ -342,6 +354,11 @@ export function CatalogPage() {
           initial={form.mode === 'edit' ? form.screen.original : undefined}
           initialCalendarSupport={
             form.mode === 'edit' ? form.screen.metadata.calendarSupport : ''
+          }
+          initialQuividiCameraName={
+            form.mode === 'edit'
+              ? (form.screen.metadata.quividiCameraName ?? '')
+              : ''
           }
           submitting={saving}
           onSubmit={handleSubmit}
