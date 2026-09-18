@@ -168,6 +168,8 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   compatible. El resultado es derivado: nunca escribe tiendas Ekon dentro de
   `campaigns`. Las importaciones nuevas guardan `scopeSource` para distinguir
   “sin comentario” de “todas” explícito.
+  Para Quividi, `MUPPI'S` se resuelve como `MEGA MUPI DIGITAL` (alias
+  tolerado `MEGAMUPI DIGITAL`) y `PENDON` como `BANNER DIGITAL`.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
