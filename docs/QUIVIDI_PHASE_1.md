@@ -164,16 +164,39 @@ SIGNAM no rellena los faltantes con cero y no extrapola los días ausentes.
 
 ## Excel
 
-El archivo contiene:
+El archivo abre primero con una capa comercial para marcas y marketing y deja
+el detalle técnico al final:
 
-- **Dashboard**: cobertura, calidad, origen del alcance, resultados por soporte
-  y definiciones simples de indicadores.
+- **Dashboard Ejecutivo**: KPIs, audiencia por soporte, Top tiendas, días de
+  semana, momentos de mayor oportunidad, franjas horarias, demografía, calidad
+  y origen del alcance.
+- **Tiendas**: OTS, Watchers, tasa de atención, Attention/Dwell Time, mejor día,
+  mejor franja y cobertura de medición por tienda.
+- **Días y Horarios**: mapa de calor de OTS por día de semana y hora.
+- **Evolución Diaria**: tendencia diaria de OTS, Watchers y tasa de atención.
+- **Detalle Horario**: agregado de una hora por Tienda + Soporte para
+  trazabilidad.
+- **Resumen Técnico**: resumen operativo que conserva la estructura previa.
 - **Alcance**: fuente usada por soporte y número Ekon cuando aplica.
 - **Detalle Soportes**: resultado diario ponderado por Tienda + Soporte.
 - **Cámaras**: dato original por location, incluyendo IDs técnicos y duración.
 - **Demografía**: edad y género estimados.
 - **Calidad medición**: cámaras/días parciales o sin medición.
 - **Metodología**: reglas de lectura y limitaciones.
+
+### Lectura comercial y horarios
+
+OTS y Watchers agregados se presentan como **contactos/detecciones medidos**,
+no como reach único de personas. Cuando se agregan tiendas o soportes no se
+deduplican individuos; por eso el detalle por soporte se conserva separado y
+esta limitación aparece en el informe.
+
+Para el análisis horario se solicitan a VidiCenter exports con
+`time_resolution=1h`. La regla de varias cámaras es la misma que en el dato
+diario: se promedian únicamente las cámaras con medición válida del periodo; si
+solo una cámara de varias reporta, la hora queda como medición parcial. Las horas
+se muestran según el periodo horario entregado por VidiCenter para cada
+ubicación; SIGNAM no fuerza una única zona horaria para toda la red.
 
 Definiciones mostradas al usuario:
 
@@ -186,6 +209,9 @@ Definiciones mostradas al usuario:
 - **Demografía**: estimación estadística; no identifica personas.
 
 ## Snapshot
+
+El snapshot del reporte usa schema v3 porque además del agregado diario conserva
+`supportHours`, la capa horaria que alimenta el dashboard comercial.
 
 La colección `campaignAudienceSnapshots/{campaignId}` es exclusivamente de
 backend. Para campañas activas se reutiliza el snapshot durante aproximadamente
