@@ -1,4 +1,4 @@
-import type { Workbook, Worksheet } from 'exceljs';
+import type { Row, Workbook, Worksheet } from 'exceljs';
 import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
@@ -85,7 +85,7 @@ function styleTitle(sheet: Worksheet, range: string): void {
   cells.alignment = { vertical: 'middle' };
 }
 
-function styleSection(row: ReturnType<Worksheet['getRow']>): void {
+function styleSection(row: Row): void {
   row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   row.fill = {
     type: 'pattern',
@@ -94,7 +94,7 @@ function styleSection(row: ReturnType<Worksheet['getRow']>): void {
   };
 }
 
-function styleHeader(row: ReturnType<Worksheet['getRow']>): void {
+function styleHeader(row: Row): void {
   row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   row.fill = {
     type: 'pattern',
