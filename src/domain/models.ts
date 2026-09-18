@@ -53,6 +53,8 @@ export interface SignamMetadata {
    * oficiales del maestro. Vacío si aún no se ha mapeado.
    */
   calendarSupport: string;
+  /** Nombre de la location/cámara Quividi asociada a esta pantalla. */
+  quividiCameraName?: string;
 }
 
 /** Pantalla del catálogo Admira: campos originales + metadatos SIGNAM. */

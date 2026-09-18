@@ -6,6 +6,7 @@ import {
   EXPORT_SHEET_NAME,
   FIELD_GUIDE,
   MAPPING_EXPORT_HEADER,
+  QUIVIDI_EXPORT_HEADER,
   buildCatalogWorkbook,
   buildTemplateWorkbook,
   catalogExportFileName,
@@ -21,6 +22,7 @@ function screen(over: {
   original: Partial<AdmiraScreenOriginal>;
   active?: boolean;
   calendarSupport?: string;
+  quividiCameraName?: string;
   id?: string;
 }): AdmiraScreen {
   return {
@@ -38,6 +40,7 @@ function screen(over: {
       deactivationReason: null,
       version: 1,
       calendarSupport: over.calendarSupport ?? '',
+      quividiCameraName: over.quividiCameraName ?? '',
     },
   };
 }
@@ -59,6 +62,7 @@ const sample = screen({
     BRANDS: 'LIVERPOOL',
   },
   calendarSupport: 'VIDEO WALL CRIUS',
+  quividiCameraName: '78 - L GUADALAJARA GALERIAS- DERECHO',
 });
 
 /** Convierte un worksheet de exceljs en la representación neutral SheetData. */
@@ -88,16 +92,23 @@ describe('buildCatalogWorkbook', () => {
     expect(wb.getWorksheet(EXPORT_SHEET_NAME)).toBeDefined();
   });
 
-  it('escribe los 12 encabezados oficiales en orden + la columna de mapeo', async () => {
+  it('escribe los oficiales y los mapeos operativos por defecto', async () => {
     const wb = await reload(await buildCatalogWorkbook([sample]));
     const sheet = wb.getWorksheet(EXPORT_SHEET_NAME)!;
     const values = (sheet.getRow(1).values as (string | undefined)[]).slice(1);
-    expect(values).toEqual([...ADMIRA_CATALOG_HEADERS, MAPPING_EXPORT_HEADER]);
+    expect(values).toEqual([
+      ...ADMIRA_CATALOG_HEADERS,
+      MAPPING_EXPORT_HEADER,
+      QUIVIDI_EXPORT_HEADER,
+    ]);
   });
 
   it('omite la columna de mapeo cuando includeMappingColumn=false', async () => {
     const wb = await reload(
-      await buildCatalogWorkbook([sample], { includeMappingColumn: false }),
+      await buildCatalogWorkbook([sample], {
+        includeMappingColumn: false,
+        includeQuividiColumn: false,
+      }),
     );
     const sheet = wb.getWorksheet(EXPORT_SHEET_NAME)!;
     const values = (sheet.getRow(1).values as (string | undefined)[]).slice(1);
@@ -157,6 +168,10 @@ describe('buildCatalogWorkbook', () => {
     expect(analysis.rows[0]?.original.Modelo).toBe('CRIUS');
     expect(analysis.mappingColumn).toBe(MAPPING_EXPORT_HEADER);
     expect(analysis.rows[0]?.calendarSupport).toBe('VIDEO WALL CRIUS');
+    expect(analysis.quividiCameraColumn).toBe(QUIVIDI_EXPORT_HEADER);
+    expect(analysis.rows[0]?.quividiCameraName).toBe(
+      '78 - L GUADALAJARA GALERIAS- DERECHO',
+    );
   });
 });
 
@@ -199,15 +214,21 @@ describe('buildTemplateWorkbook', () => {
 });
 
 describe('FIELD_GUIDE', () => {
-  it('cubre los 12 campos oficiales en orden + el mapeo', () => {
+  it('cubre los 12 campos oficiales y ambos mapeos operativos', () => {
     const headers = FIELD_GUIDE.map((f) => f.header);
-    expect(headers).toEqual([...ADMIRA_CATALOG_HEADERS, MAPPING_EXPORT_HEADER]);
+    expect(headers).toEqual([
+      ...ADMIRA_CATALOG_HEADERS,
+      MAPPING_EXPORT_HEADER,
+      QUIVIDI_EXPORT_HEADER,
+    ]);
   });
 
-  it('marca el mapeo como opcional y los oficiales como obligatorios', () => {
+  it('marca ambos mapeos como opcionales y los oficiales como obligatorios', () => {
     for (const field of FIELD_GUIDE) {
-      const isMapping = field.header === MAPPING_EXPORT_HEADER;
-      expect(field.required).toBe(!isMapping);
+      const optional =
+        field.header === MAPPING_EXPORT_HEADER ||
+        field.header === QUIVIDI_EXPORT_HEADER;
+      expect(field.required).toBe(!optional);
     }
   });
 });

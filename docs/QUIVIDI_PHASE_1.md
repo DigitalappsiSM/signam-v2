@@ -1,0 +1,159 @@
+# Quividi — Fase 1: reporte de audiencia por campaña
+
+## Objetivo
+
+La Fase 1 integra Quividi en la vista **Campañas** de SIGNAM. No crea un
+módulo nuevo: cada campaña muestra un icono de métricas cuando al menos una
+combinación **Tienda + Soporte** tiene una cámara Quividi relacionada.
+
+Al pulsar el icono, SIGNAM consulta VidiCenter desde Cloud Functions, normaliza
+la medición, guarda un snapshot cuando cabe de forma segura en Firestore y
+genera un Excel de audiencia.
+
+## Fuente de verdad de inventario
+
+El Catálogo Admira conserva sus 12 campos oficiales sin cambios. SIGNAM añade
+como metadatos operativos:
+
+- `NORMALIZACION LIVERPOOL`: soporte del calendario.
+- `CAMARA QUIVIDI`: nombre exacto de la location en VidiCenter.
+
+La unidad de cruce es:
+
+`Retailer + Número de tienda + Soporte normalizado -> 0..N locations Quividi`
+
+El nombre de cámara se usa para resolver Topology. En cada consulta, el backend
+obtiene de Quividi los identificadores actuales `location_id`, `box_id` y
+`site_id`; esos IDs no se escriben manualmente en el catálogo.
+
+### Cargar el catálogo enriquecido sin duplicar pantallas
+
+En **Catálogo Admira > Importar maestro**:
+
+1. Seleccionar el Excel con las columnas `NORMALIZACION LIVERPOOL` y
+   `CAMARA QUIVIDI`.
+2. Revisar la vista previa.
+3. Seleccionar **Actualizar mapeos**.
+4. Confirmar.
+
+Esta opción no crea ni borra pantallas. Empareja por los 12 campos oficiales y
+actualiza únicamente los dos metadatos operativos.
+
+## Credenciales
+
+Las credenciales nunca se versionan ni se colocan en variables `VITE_*`.
+Desde una terminal autenticada contra el proyecto de producción:
+
+```bash
+firebase login
+firebase use signam-v2-prod
+firebase functions:secrets:set QUIVIDI_API_USERNAME
+firebase functions:secrets:set QUIVIDI_API_TOKEN
+```
+
+Después de crear o cambiar un secreto, desplegar las Functions que consumen
+Quividi. El código sólo referencia el nombre del secreto.
+
+## Consulta a VidiCenter
+
+El backend usa:
+
+- Topology `/api/v1/locations/` para resolver las cámaras.
+- Data Export `data_type=ots`, resolución diaria.
+- Data Export `data_type=viewers`, resolución diaria y
+  `group_by_demographics=1`.
+
+Los exports de datos son asíncronos. SIGNAM maneja los estados
+`started -> in_progress -> finished`, errores `failed` y respuestas HTTP 429
+con espera progresiva.
+
+## Reglas de campaña
+
+SIGNAM respeta el alcance real de cada soporte de la campaña. Una tienda puede
+tener Quividi para Mupi y Banner, pero no para CRIUS; sólo los pares
+Tienda + Soporte mapeados entran en el reporte.
+
+La cobertura se calcula tanto de forma general como por soporte:
+
+`pares Tienda+Soporte con Quividi / pares Tienda+Soporte de la campaña`
+
+Las tiendas sin Quividi no se extrapolan.
+
+## Varias cámaras en un soporte
+
+Una sola cámara representa el soporte completo.
+
+Cuando un mismo Tienda + Soporte tiene varias cámaras que pueden observar el
+mismo tráfico, SIGNAM **no suma** sus audiencias. La ponderación se hace cada
+día:
+
+`resultado diario = promedio de cámaras válidas del día`
+
+Si una cámara cae y otra conserva medición válida, se usa la disponible y el
+día queda marcado como medición parcial. Si ninguna cámara tiene medición, ese
+Tienda + Soporte queda sin medición para ese día.
+
+La regla funciona igual con 2, 3 o más cámaras.
+
+### Medición parcial
+
+Como primera regla operativa, una cámara se marca como parcial cuando la
+duración medida del día es inferior al 80% de la mediana de duración de esa
+misma cámara dentro del periodo consultado.
+
+Cuando existen cámaras completas para ese soporte/día, las parciales no se
+mezclan en la ponderación. Si sólo existen cámaras parciales, se utilizan las
+disponibles y la incidencia queda declarada.
+
+SIGNAM no rellena los faltantes con cero y no extrapola los días ausentes.
+
+## Agregaciones
+
+- OTS, Effective OTS y Watchers: promedio diario entre cámaras válidas del
+  mismo soporte; después se acumulan los días.
+- Attention Time y Dwell Time: promedio ponderado por Watchers.
+- Tasa de atención: se recalcula como `Watchers / OTS`; no se promedian
+  porcentajes.
+- Demografía: se pondera con la misma regla multi-cámara.
+- Los resultados se presentan separados por soporte para evitar interpretar
+  Mupi + Banner como personas únicas.
+
+## Excel
+
+El archivo contiene:
+
+- **Dashboard**: cobertura, calidad, resultados por soporte y definiciones
+  simples de indicadores.
+- **Detalle Soportes**: resultado diario ponderado por Tienda + Soporte.
+- **Cámaras**: dato original por location, incluyendo IDs técnicos y duración.
+- **Demografía**: edad y género estimados.
+- **Calidad medición**: cámaras/días parciales o sin medición.
+- **Metodología**: reglas de lectura y limitaciones.
+
+Definiciones mostradas al usuario:
+
+- **OTS**: oportunidades de estar expuesto al soporte.
+- **Effective OTS**: oportunidades dentro del ángulo efectivo de visión.
+- **Watchers**: personas detectadas que dirigieron la mirada a la pantalla.
+- **Tasa de atención**: porcentaje de oportunidades que terminó mirando.
+- **Attention Time**: tiempo promedio mirando la pantalla.
+- **Dwell Time**: tiempo promedio permaneciendo frente o cerca del soporte.
+- **Demografía**: estimación estadística; no identifica personas.
+
+## Snapshot
+
+La colección `campaignAudienceSnapshots/{campaignId}` es exclusivamente de
+backend. Para campañas activas se reutiliza el snapshot durante aproximadamente
+24 horas. Para una campaña finalizada, un snapshot generado después del cierre
+se considera final mientras no cambie la configuración de campaña/mapeos.
+
+Si el reporte comprimido excede el tamaño seguro del documento Firestore, se
+devuelve el Excel normalmente pero no se persiste el snapshot.
+
+## Seguridad
+
+- El navegador nunca recibe el token de Quividi.
+- La callable requiere un usuario autenticado en SIGNAM.
+- El snapshot no necesita reglas de lectura para cliente; se administra con
+  Firebase Admin SDK desde Cloud Functions.
+- No se guardan credenciales en Git, `.env.example` ni Firestore.

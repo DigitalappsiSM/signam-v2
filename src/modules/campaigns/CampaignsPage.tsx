@@ -95,6 +95,12 @@ import type {
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import { can } from '@/app/permissions';
+import { getQuividiCampaignReport } from '@/services/quividi';
+import {
+  buildQuividiCampaignBlob,
+  quividiCampaignFileName,
+} from '@/modules/exports/quividiCampaignExcel';
+import { hasQuividiCoverage } from './quividiCoverage';
 import './CampaignsPage.css';
 
 function normalize(v: string): string {
@@ -119,6 +125,23 @@ function safeName(name: string): string {
 }
 
 /** Icono estilizado de PowerPoint (recreado con formas, sin logo propietario). */
+function MetricsIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 function PptIcon() {
   return (
     <svg
@@ -179,6 +202,8 @@ export function CampaignsPage() {
   const [excelError, setExcelError] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [quividiBusyId, setQuividiBusyId] = useState<string | null>(null);
+  const [quividiError, setQuividiError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -431,6 +456,24 @@ export function CampaignsPage() {
       csvFileName(cons),
     );
   }
+  async function downloadQuividiReport(c: StoredCampaign) {
+    if (quividiBusyId) return;
+    setQuividiError(null);
+    setQuividiBusyId(c.id);
+    try {
+      const { report } = await getQuividiCampaignReport(c.id);
+      const blob = await buildQuividiCampaignBlob(report);
+      download(blob, quividiCampaignFileName(report));
+    } catch (reportError) {
+      const message =
+        reportError instanceof Error && reportError.message
+          ? reportError.message
+          : 'No se pudo generar el informe Quividi.';
+      setQuividiError(`${c.name}: ${message}`);
+    } finally {
+      setQuividiBusyId(null);
+    }
+  }
 
   // Desglose Excel de UNA campaña (la instancia exacta, sin mezclar homónimas).
   async function downloadExcelFor(c: StoredCampaign) {
@@ -597,6 +640,12 @@ export function CampaignsPage() {
         </div>
       )}
 
+      {quividiError && (
+        <div className="catalog__error" role="alert">
+          {quividiError}
+        </div>
+      )}
+
       {loading ? (
         <LoadingOverlay
           variant="process"
@@ -704,6 +753,27 @@ export function CampaignsPage() {
                     <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
                     <td>
                       <div className="campaign-actions">
+                        <button
+                          className="icon-btn"
+                          title={
+                            hasQuividiCoverage(c, screens)
+                              ? `Descargar métricas Quividi de ${c.name}`
+                              : 'Sin cobertura Quividi para esta campaña'
+                          }
+                          aria-label={`Descargar métricas Quividi de ${c.name}`}
+                          disabled={
+                            quividiBusyId !== null ||
+                            !hasQuividiCoverage(c, screens)
+                          }
+                          aria-busy={quividiBusyId === c.id}
+                          onClick={() => void downloadQuividiReport(c)}
+                        >
+                          {quividiBusyId === c.id ? (
+                            <span className="ppt-generating">…</span>
+                          ) : (
+                            <MetricsIcon />
+                          )}
+                        </button>
                         <button
                           className="icon-btn"
                           title={`Descargar PPT de evidencias de ${c.name}`}

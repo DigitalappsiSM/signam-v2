@@ -1,13 +1,17 @@
 import { useState, type ChangeEvent } from 'react';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import { deleteAllScreens, importMasterScreens } from '@/services/screens';
+import {
+  deleteAllScreens,
+  importMasterScreens,
+  updateScreenMetadataFromMaster,
+} from '@/services/screens';
 import { analyzeMaster, type MasterAnalysis } from './masterImport';
 import { readWorkbook } from './readWorkbook';
 import type { Actor } from './screenFactory';
 import './CatalogPage.css';
 
 type Phase = 'select' | 'analyzing' | 'preview' | 'importing';
-type ImportMode = 'append' | 'replace';
+type ImportMode = 'append' | 'replace' | 'metadata';
 
 /**
  * Flujo de importación del maestro (.xlsx): seleccionar archivo → analizar y
@@ -22,7 +26,7 @@ export function MasterImportModal({
   actor: Actor;
   existingCount: number;
   onClose: () => void;
-  onImported: (created: number) => void;
+  onImported: (created: number, message?: string) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('select');
   const [fileName, setFileName] = useState('');
@@ -57,6 +61,17 @@ export function MasterImportModal({
     setPhase('importing');
     setError(null);
     try {
+      if (mode === 'metadata') {
+        const result = await updateScreenMetadataFromMaster(
+          analysis.rows,
+          actor,
+        );
+        onImported(
+          0,
+          `Mapeos actualizados: ${result.updated}. Sin coincidencia: ${result.unmatched}. Ambiguos: ${result.ambiguous}.`,
+        );
+        return;
+      }
       if (mode === 'replace') {
         await deleteAllScreens();
       }
@@ -142,6 +157,21 @@ export function MasterImportModal({
                 <dt>Columna de normalización</dt>
                 <dd>{analysis.mappingColumn ?? '— no incluida —'}</dd>
               </div>
+              <div>
+                <dt>Columna Quividi</dt>
+                <dd>{analysis.quividiCameraColumn ?? '— no incluida —'}</dd>
+              </div>
+              <div>
+                <dt>Cámaras Quividi</dt>
+                <dd>
+                  <strong>
+                    {
+                      analysis.rows.filter((row) => row.quividiCameraName)
+                        .length
+                    }
+                  </strong>
+                </dd>
+              </div>
             </dl>
 
             {existingCount > 0 && (
@@ -160,6 +190,19 @@ export function MasterImportModal({
                   <span>
                     <strong>Agregar</strong> — conserva las existentes y añade
                     las nuevas.
+                  </span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={mode === 'metadata'}
+                    onChange={() => setMode('metadata')}
+                  />
+                  <span>
+                    <strong>Actualizar mapeos</strong> — no crea ni borra
+                    pantallas; actualiza únicamente Normalización Liverpool y
+                    Cámara Quividi en las filas que coincidan.
                   </span>
                 </label>
                 <label>
@@ -234,7 +277,9 @@ export function MasterImportModal({
             >
               {mode === 'replace'
                 ? 'Reemplazar todo e importar'
-                : 'Confirmar importación'}
+                : mode === 'metadata'
+                  ? 'Actualizar mapeos'
+                  : 'Confirmar importación'}
             </button>
           )}
         </div>

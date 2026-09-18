@@ -33,6 +33,8 @@ import {
 } from '@/modules/exports/pptExport';
 import { buildCampaignReport } from '@/modules/exports/campaignReport';
 import { buildCampaignReportBlob } from '@/modules/exports/campaignExcelExport';
+import { getQuividiCampaignReport } from '@/services/quividi';
+import { buildQuividiCampaignBlob } from '@/modules/exports/quividiCampaignExcel';
 import {
   initializeTrackingForImport,
   listOperationalTracking,
@@ -75,6 +77,20 @@ vi.mock('@/modules/exports/campaignExcelExport', async () => {
     typeof import('@/modules/exports/campaignExcelExport')
   >('@/modules/exports/campaignExcelExport');
   return { ...actual, buildCampaignReportBlob: vi.fn() };
+});
+
+vi.mock('@/services/quividi', () => ({
+  getQuividiCampaignReport: vi.fn(),
+}));
+
+vi.mock('@/modules/exports/quividiCampaignExcel', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/exports/quividiCampaignExcel')
+  >('@/modules/exports/quividiCampaignExcel');
+  return {
+    ...actual,
+    buildQuividiCampaignBlob: vi.fn(),
+  };
 });
 
 // Evita que jsdom falle al "descargar" (no implementa createObjectURL) y no
@@ -147,6 +163,34 @@ const B = campaign({
   nameKey: 'regreso a clases',
   fechaInicio: '2026-08-01',
   fechaFin: '2026-08-10',
+});
+
+function quividiScreen(): AdmiraScreen {
+  const original = emptyOriginal();
+  original['Numero de Tienda'] = '7';
+  original['Nombre de tienda'] = 'L SANTA FE';
+  original['Nombre en plataforma'] = 'SANTA FE MUPI';
+  const metadata = newScreenMetadata(
+    { uid: 'u1', email: 'admin@signam.mx' },
+    1,
+  );
+  metadata.calendarSupport = 'MEGA MUPI DIGITAL';
+  metadata.quividiCameraName = '7 - L SANTA FE- DERECHO';
+  return { id: 'screen-q', original, metadata };
+}
+
+const QUIVIDI_CAMPAIGN = campaign({
+  id: 'q1',
+  name: 'CAMPAÑA QUIVIDI',
+  nameKey: 'campaña quividi',
+  supports: [
+    {
+      support: 'MEGA MUPI DIGITAL',
+      owner: 'liverpool',
+      scope: 'selected',
+      stores: [{ numero: '7', nombre: 'L SANTA FE' }],
+    },
+  ],
 });
 
 function cons(
@@ -255,6 +299,40 @@ beforeEach(() => {
   vi.mocked(buildCampaignReportBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['xlsx']));
+  vi.mocked(getQuividiCampaignReport)
+    .mockReset()
+    .mockResolvedValue({
+      cached: false,
+      report: {
+        schemaVersion: 1,
+        campaignId: 'q1',
+        campaignName: 'CAMPAÑA QUIVIDI',
+        startDate: '2026-05-10',
+        endDate: '2026-05-20',
+        generatedAt: 1,
+        coverage: {
+          totalPairs: 1,
+          mappedPairs: 1,
+          percent: 100,
+          bySupport: [
+            {
+              support: 'MEGA MUPI DIGITAL',
+              totalPairs: 1,
+              mappedPairs: 1,
+              percent: 100,
+            },
+          ],
+        },
+        cameraDays: [],
+        supportDays: [],
+        demographics: [],
+        incidents: [],
+        unmappedCameraNames: [],
+      },
+    });
+  vi.mocked(buildQuividiCampaignBlob)
+    .mockReset()
+    .mockResolvedValue(new Blob(['quividi-xlsx']));
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
 });
@@ -553,6 +631,44 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
       expect.objectContaining({ campaignId: 'flight-jun' }),
     );
     confirmSpy.mockRestore();
+  });
+});
+
+describe('CampaignsPage — métricas Quividi', () => {
+  it('deshabilita métricas cuando la campaña no tiene cobertura Quividi', async () => {
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    expect(
+      screen.getByRole('button', {
+        name: /Descargar métricas Quividi de BUEN FIN/i,
+      }),
+    ).toBeDisabled();
+  });
+
+  it('habilita y descarga el informe cuando existe Tienda + Soporte + cámara', async () => {
+    vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
+    vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
+    vi.mocked(consolidate).mockReturnValue({
+      consolidations: [],
+      issues: [],
+      excludedInstore: [],
+      ismExcludedCount: 0,
+    });
+
+    render(<CampaignsPage />);
+    await screen.findByText('CAMPAÑA QUIVIDI');
+    const button = screen.getByRole('button', {
+      name: /Descargar métricas Quividi de CAMPAÑA QUIVIDI/i,
+    });
+    expect(button).toBeEnabled();
+
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(getQuividiCampaignReport).toHaveBeenCalledWith('q1'),
+    );
+    await waitFor(() =>
+      expect(buildQuividiCampaignBlob).toHaveBeenCalledTimes(1),
+    );
   });
 });
 
