@@ -200,6 +200,25 @@ export interface MasterMetadataUpdateResult {
   ambiguous: number;
 }
 
+export interface MasterMetadataUpdateFields {
+  calendarSupport: boolean;
+  quividiCameraName: boolean;
+}
+
+export function masterMetadataPatch(
+  row: MasterRow,
+  fields: MasterMetadataUpdateFields,
+): { calendarSupport?: string; quividiCameraName?: string } {
+  return {
+    ...(fields.calendarSupport
+      ? { calendarSupport: row.calendarSupport.trim() }
+      : {}),
+    ...(fields.quividiCameraName
+      ? { quividiCameraName: row.quividiCameraName.trim() }
+      : {}),
+  };
+}
+
 /**
  * Actualiza únicamente metadatos SIGNAM (normalización Liverpool + cámara
  * Quividi) a partir de un maestro, sin duplicar ni borrar pantallas.
@@ -207,6 +226,10 @@ export interface MasterMetadataUpdateResult {
 export async function updateScreenMetadataFromMaster(
   rows: readonly MasterRow[],
   actor: Actor,
+  fields: MasterMetadataUpdateFields = {
+    calendarSupport: true,
+    quividiCameraName: true,
+  },
 ): Promise<MasterMetadataUpdateResult> {
   const database = db();
   const existing = await listScreens();
@@ -236,11 +259,10 @@ export async function updateScreenMetadataFromMaster(
   for (let i = 0; i < matches.length; i += BATCH_LIMIT) {
     const batch = writeBatch(database);
     for (const { screen, row } of matches.slice(i, i + BATCH_LIMIT)) {
+      const patch = masterMetadataPatch(row, fields);
+      if (Object.keys(patch).length === 0) continue;
       batch.update(doc(database, COLLECTION, screen.id), {
-        metadata: bumpMetadata(screen.metadata, actor, now, {
-          calendarSupport: row.calendarSupport.trim(),
-          quividiCameraName: row.quividiCameraName.trim(),
-        }),
+        metadata: bumpMetadata(screen.metadata, actor, now, patch),
       });
     }
     await batch.commit();

@@ -65,6 +65,10 @@ export function MasterImportModal({
         const result = await updateScreenMetadataFromMaster(
           analysis.rows,
           actor,
+          {
+            calendarSupport: analysis.mappingColumn !== null,
+            quividiCameraName: analysis.quividiCameraColumn !== null,
+          },
         );
         onImported(
           0,
