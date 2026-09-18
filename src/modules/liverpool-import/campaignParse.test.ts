@@ -122,6 +122,7 @@ describe('parseCampaigns', () => {
     ]);
     const vw = c.supports.find((s) => s.support === 'VIDEO WALL CRIUS')!;
     expect(vw.owner).toBe('liverpool');
+    expect(vw.scopeSource).toBe('comment-selected');
     expect(vw.stores).toEqual([
       { numero: '78', nombre: 'L GUADALAJARA' },
       { numero: '2', nombre: 'L INSURGENTES' },
@@ -150,6 +151,7 @@ describe('parseCampaigns', () => {
       support: 'VIDEO WALL CRIUS',
       stores: [],
       scope: 'invalid',
+      scopeSource: 'comment-ambiguous',
     });
     expect(result.ambiguousStoreComments).toEqual([
       expect.objectContaining({
@@ -181,8 +183,19 @@ describe('parseCampaigns', () => {
     expect(result.campaigns[0]!.supports[0]).toMatchObject({
       stores: [],
       scope: 'all',
+      scopeSource: 'comment-explicit-all',
     });
     expect(result.ambiguousStoreComments).toHaveLength(0);
+  });
+
+  it('distingue un soporte sin comentario de un "todas" explícito', () => {
+    const result = parseCampaigns(wb([dataRow]));
+    expect(result.campaigns[0]!.supports[0]).toMatchObject({
+      support: 'VIDEO WALL CRIUS',
+      stores: [],
+      scope: 'all',
+      scopeSource: 'no-comment',
+    });
   });
 
   it('omite filas sin nombre de campaña', () => {
