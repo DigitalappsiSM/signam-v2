@@ -660,6 +660,52 @@ describe('CampaignsPage — métricas Quividi', () => {
     ).toBeDisabled();
   });
 
+  it('habilita Quividi por EKON aunque Calendario no detalle tiendas', async () => {
+    const coCommercial = campaign({
+      id: 'co1',
+      name: 'COCOMERCIAL',
+      nameKey: 'cocomercial',
+      supports: [
+        {
+          support: 'MEGA MUPI DIGITAL',
+          owner: 'liverpool',
+          scope: 'all',
+          scopeSource: 'no-comment',
+          stores: [],
+        },
+      ],
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([coCommercial]);
+    vi.mocked(listScreens).mockResolvedValue([]);
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'co1',
+        available: true,
+        totalPairs: 3,
+        mappedPairs: 2,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'ekon',
+            pairCount: 3,
+            ekonNumber: 4321,
+          },
+        ],
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await screen.findByText('COCOMERCIAL');
+    const button = screen.getByRole('button', {
+      name: /Descargar métricas Quividi de COCOMERCIAL/i,
+    });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute(
+      'title',
+      expect.stringContaining('EKON · Cocomercialización'),
+    );
+  });
+
   it('habilita y descarga el informe cuando existe Tienda + Soporte + cámara', async () => {
     vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
     vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
