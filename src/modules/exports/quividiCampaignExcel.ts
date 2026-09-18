@@ -27,8 +27,9 @@ function safeFileName(value: string): string {
   return value.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
 }
 
-
-function scopeSourceLabel(source: QuividiCampaignReport['scopeOrigins'][number]['source']): string {
+function scopeSourceLabel(
+  source: QuividiCampaignReport['scopeOrigins'][number]['source'],
+): string {
   switch (source) {
     case 'calendar-selected':
       return 'Calendario Liverpool · Tiendas explícitas';
