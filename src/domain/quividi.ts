@@ -60,7 +60,6 @@ export interface QuividiSupportDay {
   dwellSeconds: number;
 }
 
-
 export interface QuividiSupportHour {
   date: string;
   hour: number;
