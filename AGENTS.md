@@ -170,6 +170,12 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   “sin comentario” de “todas” explícito.
   Para Quividi, `MUPPI'S` se resuelve como `MEGA MUPI DIGITAL` (alias
   tolerado `MEGAMUPI DIGITAL`) y `PENDON` como `BANNER DIGITAL`.
+- **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
+  tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
+  **nunca como reach único**. El análisis horario usa exports VidiCenter de
+  `1h` y replica la ponderación multi-cámara del dato diario; no fuerza una
+  zona horaria única para todas las tiendas. Las hojas técnicas y la calidad de
+  medición permanecen disponibles para auditoría.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
