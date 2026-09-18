@@ -49,6 +49,7 @@ export async function createScreen(
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
   calendarSupport = '',
+  quividiCameraName = '',
 ): Promise<string> {
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
@@ -57,6 +58,7 @@ export async function createScreen(
     metadata: {
       ...newScreenMetadata(actor, now),
       calendarSupport: calendarSupport.trim(),
+      quividiCameraName: quividiCameraName.trim(),
     },
   });
   return ref.id;
@@ -68,6 +70,7 @@ export async function updateScreen(
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
   calendarSupport?: string,
+  quividiCameraName?: string,
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
@@ -75,9 +78,14 @@ export async function updateScreen(
       screen.metadata,
       actor,
       Date.now(),
-      calendarSupport === undefined
-        ? {}
-        : { calendarSupport: calendarSupport.trim() },
+      {
+        ...(calendarSupport === undefined
+          ? {}
+          : { calendarSupport: calendarSupport.trim() }),
+        ...(quividiCameraName === undefined
+          ? {}
+          : { quividiCameraName: quividiCameraName.trim() }),
+      },
     ),
   });
 }
@@ -133,6 +141,7 @@ export async function importMasterScreens(
           sourceSheet: source.sheet,
           sourceRow: row.sourceRow,
           calendarSupport: row.calendarSupport.trim(),
+          quividiCameraName: row.quividiCameraName.trim(),
         },
       });
       created += 1;
