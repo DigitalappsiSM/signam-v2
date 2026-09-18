@@ -194,7 +194,10 @@ function addKpiCard(
 
 function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Dashboard Ejecutivo');
-  setColumns(sheet, Array.from({ length: 12 }, () => 13));
+  setColumns(
+    sheet,
+    Array.from({ length: 12 }, () => 13),
+  );
   baseSheet(sheet);
   sheet.sheetProperties.tabColor = { argb: COLORS.navy };
 
@@ -221,7 +224,14 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   source.alignment = { wrapText: true };
 
   const overall = overallSummary(report);
-  addKpiCard(sheet, 1, 'OTS', overall.ots, '#,##0', 'Oportunidades de exposición');
+  addKpiCard(
+    sheet,
+    1,
+    'OTS',
+    overall.ots,
+    '#,##0',
+    'Oportunidades de exposición',
+  );
   addKpiCard(
     sheet,
     3,
@@ -268,8 +278,10 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   for (const row of report.supportDays) {
     bySupport.set(row.support, (bySupport.get(row.support) ?? 0) + row.ots);
   }
-  const supports = Array.from(bySupport, ([support, ots]) => ({ support, ots }))
-    .sort((a, b) => b.ots - a.ots);
+  const supports = Array.from(bySupport, ([support, ots]) => ({
+    support,
+    ots,
+  })).sort((a, b) => b.ots - a.ots);
   const maxSupport = Math.max(0, ...supports.map((item) => item.ots));
   const maxStore = Math.max(0, ...stores.slice(0, 5).map((item) => item.ots));
 
@@ -296,7 +308,8 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
       sheet.getCell(row, 7).font = { bold: true, color: { argb: COLORS.text } };
       sheet.getCell(row, 9).value = store.ots;
       sheet.getCell(row, 9).numFmt = '#,##0';
-      sheet.getCell(row, 10).value = overall.ots > 0 ? store.ots / overall.ots : 0;
+      sheet.getCell(row, 10).value =
+        overall.ots > 0 ? store.ots / overall.ots : 0;
       sheet.getCell(row, 10).numFmt = '0.0%';
       sheet.mergeCells(row, 11, row, 12);
       sheet.getCell(row, 11).value = barText(store.ots, maxStore, 12);
@@ -381,7 +394,9 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     sheet.mergeCells(row, 4, row, 6);
     sheet.getCell(row, 4).value = barText(item.watchers, maxDemo, 18);
     sheet.getCell(row, 4).font = {
-      color: { argb: index < gender.slice(0, 3).length ? COLORS.pink : COLORS.purple },
+      color: {
+        argb: index < gender.slice(0, 3).length ? COLORS.pink : COLORS.purple,
+      },
     };
   });
 
@@ -437,7 +452,11 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
   sheet.sheetProperties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:L2');
   sheet.getCell('A1').value = 'RESUMEN POR TIENDA';
-  sheet.getCell('A1').font = { bold: true, size: 20, color: { argb: COLORS.white } };
+  sheet.getCell('A1').font = {
+    bold: true,
+    size: 20,
+    color: { argb: COLORS.white },
+  };
   fill(sheet.getCell('A1'), COLORS.navy);
   sheet.mergeCells('A3:L3');
   sheet.getCell('A3').value =
@@ -490,7 +509,9 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
   baseSheet(sheet, 4);
   sheet.sheetProperties.tabColor = { argb: COLORS.cyan };
   const hourly = hourSummaries(report);
-  const activeHours = hourly.filter((item) => item.ots > 0).map((item) => item.hour);
+  const activeHours = hourly
+    .filter((item) => item.ots > 0)
+    .map((item) => item.hour);
   const minHour = activeHours.length > 0 ? Math.min(...activeHours) : 6;
   const maxHour = activeHours.length > 0 ? Math.max(...activeHours) : 23;
   const hours = Array.from(
@@ -523,7 +544,10 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
   weekdaySummaries(report).forEach((day, rowIndex) => {
     const rowNumber = 5 + rowIndex;
     sheet.getCell(rowNumber, 1).value = day.label;
-    sheet.getCell(rowNumber, 1).font = { bold: true, color: { argb: COLORS.navy } };
+    sheet.getCell(rowNumber, 1).font = {
+      bold: true,
+      color: { argb: COLORS.navy },
+    };
     hours.forEach((hour, hourIndex) => {
       const data = heat.find(
         (item) => item.weekday === day.weekday && item.hour === hour,
@@ -573,7 +597,11 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
   sheet.sheetProperties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:E2');
   sheet.getCell('A1').value = 'EVOLUCIÓN DIARIA DE AUDIENCIA';
-  sheet.getCell('A1').font = { bold: true, size: 20, color: { argb: COLORS.white } };
+  sheet.getCell('A1').font = {
+    bold: true,
+    size: 20,
+    color: { argb: COLORS.white },
+  };
   fill(sheet.getCell('A1'), COLORS.navy);
   sheet.mergeCells('A3:E3');
   sheet.getCell('A3').value =
