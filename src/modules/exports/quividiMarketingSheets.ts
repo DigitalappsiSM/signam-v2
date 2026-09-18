@@ -58,7 +58,7 @@ function fill(cell: Cell, color: string): void {
   };
 }
 
-function thinBorder(cell: Cell, color = COLORS.line): void {
+function thinBorder(cell: Cell, color: string = COLORS.line): void {
   cell.border = {
     top: { style: 'thin', color: { argb: color } },
     left: { style: 'thin', color: { argb: color } },
@@ -121,7 +121,7 @@ function heatColor(value: number, max: number): string {
     HEAT.length - 1,
     Math.max(1, Math.ceil(ratio * (HEAT.length - 1))),
   );
-  return HEAT[index];
+  return HEAT[index] ?? HEAT[0];
 }
 
 function scopeSourceLabel(
@@ -199,7 +199,7 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     Array.from({ length: 12 }, () => 13),
   );
   baseSheet(sheet);
-  sheet.sheetProperties.tabColor = { argb: COLORS.navy };
+  sheet.properties.tabColor = { argb: COLORS.navy };
 
   sheet.mergeCells('A1:L3');
   const title = sheet.getCell('A1');
@@ -449,7 +449,7 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Tiendas');
   baseSheet(sheet, 4);
   setColumns(sheet, [10, 26, 28, 15, 15, 14, 14, 16, 14, 16, 13, 24]);
-  sheet.sheetProperties.tabColor = { argb: COLORS.blue };
+  sheet.properties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:L2');
   sheet.getCell('A1').value = 'RESUMEN POR TIENDA';
   sheet.getCell('A1').font = {
@@ -507,7 +507,7 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
 function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Días y Horarios');
   baseSheet(sheet, 4);
-  sheet.sheetProperties.tabColor = { argb: COLORS.cyan };
+  sheet.properties.tabColor = { argb: COLORS.cyan };
   const hourly = hourSummaries(report);
   const activeHours = hourly
     .filter((item) => item.ots > 0)
@@ -594,7 +594,7 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Evolución Diaria');
   baseSheet(sheet, 4);
   setColumns(sheet, [14, 16, 16, 16, 36]);
-  sheet.sheetProperties.tabColor = { argb: COLORS.blue };
+  sheet.properties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:E2');
   sheet.getCell('A1').value = 'EVOLUCIÓN DIARIA DE AUDIENCIA';
   sheet.getCell('A1').font = {
