@@ -51,7 +51,6 @@ export interface QuividiDemographicRow {
   storeNumber: string;
   storeName: string;
   support: string;
-  locationId: number;
   gender: number;
   age: number;
   watchers: number;
