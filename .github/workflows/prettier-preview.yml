@@ -1,0 +1,24 @@
+name: Prettier Preview
+
+on:
+  push:
+    branches:
+      - feat/quividi-marketing-dashboard
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Format preview
+        run: |
+          npm run format
+          git diff --no-color -- src/domain/quividi.ts src/modules/exports/quividiMarketingAnalytics.test.ts src/modules/exports/quividiMarketingAnalytics.ts src/modules/exports/quividiMarketingSheets.ts
