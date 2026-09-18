@@ -91,7 +91,7 @@ function campaignDate(value: unknown): string {
   const text = value.trim();
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[0];
-  const mx = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  const mx = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (mx) {
     return mx[3] + '-' + mx[2].padStart(2, '0') + '-' + mx[1].padStart(2, '0');
   }
