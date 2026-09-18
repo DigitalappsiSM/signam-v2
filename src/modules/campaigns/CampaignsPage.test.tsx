@@ -33,7 +33,10 @@ import {
 } from '@/modules/exports/pptExport';
 import { buildCampaignReport } from '@/modules/exports/campaignReport';
 import { buildCampaignReportBlob } from '@/modules/exports/campaignExcelExport';
-import { getQuividiCampaignReport } from '@/services/quividi';
+import {
+  getQuividiCampaignAvailability,
+  getQuividiCampaignReport,
+} from '@/services/quividi';
 import { buildQuividiCampaignBlob } from '@/modules/exports/quividiCampaignExcel';
 import {
   initializeTrackingForImport,
@@ -80,6 +83,7 @@ vi.mock('@/modules/exports/campaignExcelExport', async () => {
 });
 
 vi.mock('@/services/quividi', () => ({
+  getQuividiCampaignAvailability: vi.fn(),
   getQuividiCampaignReport: vi.fn(),
 }));
 
@@ -299,17 +303,28 @@ beforeEach(() => {
   vi.mocked(buildCampaignReportBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['xlsx']));
+  vi.mocked(getQuividiCampaignAvailability)
+    .mockReset()
+    .mockResolvedValue([]);
   vi.mocked(getQuividiCampaignReport)
     .mockReset()
     .mockResolvedValue({
       cached: false,
       report: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         campaignId: 'q1',
         campaignName: 'CAMPAÑA QUIVIDI',
         startDate: '2026-05-10',
         endDate: '2026-05-20',
         generatedAt: 1,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'calendar-selected',
+            pairCount: 1,
+            ekonNumber: null,
+          },
+        ],
         coverage: {
           totalPairs: 1,
           mappedPairs: 1,
@@ -654,6 +669,22 @@ describe('CampaignsPage — métricas Quividi', () => {
       excludedInstore: [],
       ismExcludedCount: 0,
     });
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'q1',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'calendar-selected',
+            pairCount: 1,
+            ekonNumber: null,
+          },
+        ],
+      },
+    ]);
 
     render(<CampaignsPage />);
     await screen.findByText('CAMPAÑA QUIVIDI');
