@@ -137,7 +137,10 @@ function canonicalCircuit(value: string): string | null {
   const normalizedValue = normalizeSupport(value);
   const alias = ARTICLE_ALIASES[normalizedValue];
   if (alias) return alias;
-  return Object.hasOwn(CIRCUIT_TO_SUPPORTS, normalizedValue)
+  return Object.prototype.hasOwnProperty.call(
+    CIRCUIT_TO_SUPPORTS,
+    normalizedValue,
+  )
     ? normalizedValue
     : null;
 }
@@ -150,14 +153,70 @@ function isCompatibleSupport(circuitOrArticle: string, support: string): boolean
   );
 }
 
+function toIsoCivilDate(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? '';
+  if (!text) return null;
+
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return date.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
+  const parts = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (!parts) return null;
+  const first = Number(parts[1]);
+  const second = Number(parts[2]);
+  let year = Number(parts[3]);
+  if (parts[3]!.length <= 2) year += 2000;
+
+  const month = first > 12 ? second : first;
+  const day = first > 12 ? first : second > 12 ? second : first;
+  const resolvedMonth = first > 12 ? second : second > 12 ? first : second;
+  const date = new Date(Date.UTC(year, resolvedMonth - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== resolvedMonth - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  void month;
+  return date.toISOString().slice(0, 10);
+}
+
 function overlaps(
   campaignStart: string,
   campaignEnd: string,
   assignmentStart: string | null | undefined,
   assignmentEnd: string | null | undefined,
 ): boolean {
-  if (!assignmentStart || !assignmentEnd) return false;
-  return assignmentStart <= campaignEnd && assignmentEnd >= campaignStart;
+  const campaignStartIso = toIsoCivilDate(campaignStart);
+  const campaignEndIso = toIsoCivilDate(campaignEnd);
+  const assignmentStartIso = toIsoCivilDate(assignmentStart);
+  const assignmentEndIso = toIsoCivilDate(assignmentEnd);
+  if (
+    !campaignStartIso ||
+    !campaignEndIso ||
+    !assignmentStartIso ||
+    !assignmentEndIso
+  ) {
+    return false;
+  }
+  return (
+    assignmentStartIso <= campaignEndIso &&
+    assignmentEndIso >= campaignStartIso
+  );
 }
 
 function activeScreens(screens: readonly ScreenDoc[]): ScreenDoc[] {
