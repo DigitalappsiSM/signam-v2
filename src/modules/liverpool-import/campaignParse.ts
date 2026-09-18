@@ -17,8 +17,20 @@ export interface StoreRef {
   nombre: string;
 }
 
-/** Alcance explícito del soporte; `invalid` nunca debe consolidar pantallas. */
+/** Alcance efectivo del soporte; `invalid` nunca debe consolidar pantallas. */
 export type CampaignSupportScope = 'all' | 'selected' | 'invalid';
+
+/**
+ * Origen del alcance importado. Permite distinguir "sin comentario" de un
+ * "todas" explícito, que históricamente ambos terminaban como scope=all.
+ */
+export type CampaignSupportScopeSource =
+  | 'no-comment'
+  | 'comment-selected'
+  | 'comment-explicit-all'
+  | 'comment-ambiguous'
+  | 'resolution-selected'
+  | 'resolution-all';
 
 /** Un soporte asignado a una campaña, con sus tiendas. */
 export interface CampaignSupport {
@@ -30,6 +42,8 @@ export interface CampaignSupport {
    * `selected` si hay tiendas y `all` si la lista está vacía.
    */
   scope?: CampaignSupportScope;
+  /** Ausente en documentos legacy anteriores a esta distinción. */
+  scopeSource?: CampaignSupportScopeSource;
 }
 
 /** Compatibilidad centralizada para campañas guardadas antes de `scope`. */
@@ -256,11 +270,16 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
       );
       const stores = comment ? parseStoreComment(comment.text) : [];
       let scope: CampaignSupportScope = comment ? 'selected' : 'all';
+      let scopeSource: CampaignSupportScopeSource = comment
+        ? 'comment-selected'
+        : 'no-comment';
       if (comment && stores.length === 0) {
         if (isExplicitAllStoreComment(comment.text)) {
           scope = 'all';
+          scopeSource = 'comment-explicit-all';
         } else {
           scope = 'invalid';
+          scopeSource = 'comment-ambiguous';
           ambiguousStoreComments.push({
             id: `${operative.name}:${r + 1}:${sc.col + 1}`,
             sheet: operative.name,
@@ -278,6 +297,7 @@ export function parseCampaigns(data: WorkbookData): CampaignParseResult {
         owner: sc.owner,
         stores,
         scope,
+        scopeSource,
       });
     }
 
