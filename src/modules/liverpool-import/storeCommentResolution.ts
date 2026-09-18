@@ -152,10 +152,20 @@ export function applyStoreCommentResolutions(
       if (!issue) return support;
       const resolution = resolutions.get(issue.id);
       if (!isStoreCommentResolutionComplete(resolution)) {
-        return { ...support, stores: [], scope: 'invalid' };
+        return {
+          ...support,
+          stores: [],
+          scope: 'invalid',
+          scopeSource: 'comment-ambiguous',
+        };
       }
       if (resolution?.kind === 'all') {
-        return { ...support, stores: [], scope: 'all' };
+        return {
+          ...support,
+          stores: [],
+          scope: 'all',
+          scopeSource: 'resolution-all',
+        };
       }
       const stores = Array.from(
         new Map(
@@ -168,7 +178,12 @@ export function applyStoreCommentResolutions(
           ]),
         ).values(),
       );
-      return { ...support, stores, scope: 'selected' };
+      return {
+        ...support,
+        stores,
+        scope: 'selected',
+        scopeSource: 'resolution-selected',
+      };
     }),
   }));
 }
