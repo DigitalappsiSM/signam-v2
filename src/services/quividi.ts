@@ -44,6 +44,11 @@ export async function getQuividiCampaignAvailability(
     { campaignIds: string[] },
     { items: QuividiCampaignAvailability[] }
   >(functions(), 'quividi-campaignAvailability');
-  const result = await callable({ campaignIds: [...campaignIds] });
-  return result.data.items;
+  const items: QuividiCampaignAvailability[] = [];
+  for (let index = 0; index < campaignIds.length; index += 200) {
+    const batch = campaignIds.slice(index, index + 200);
+    const result = await callable({ campaignIds: [...batch] });
+    items.push(...result.data.items);
+  }
+  return items;
 }
