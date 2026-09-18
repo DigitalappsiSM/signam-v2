@@ -107,7 +107,11 @@ function numeric(value: number): number {
 }
 
 function weightedTime<
-  T extends { watchers: number; attentionSeconds: number; dwellSeconds: number },
+  T extends {
+    watchers: number;
+    attentionSeconds: number;
+    dwellSeconds: number;
+  },
 >(rows: readonly T[], field: 'attentionSeconds' | 'dwellSeconds'): number {
   const watchers = rows.reduce((sum, row) => sum + numeric(row.watchers), 0);
   if (watchers <= 0) return 0;
@@ -156,7 +160,7 @@ function bestWeekday(rows: readonly QuividiSupportHour[]): string {
     byDay.set(key, (byDay.get(key) ?? 0) + numeric(row.ots));
   }
   const best = Array.from(byDay.entries()).sort((a, b) => b[1] - a[1])[0];
-  return best ? WEEKDAY_LABELS[best[0]] ?? '—' : '—';
+  return best ? (WEEKDAY_LABELS[best[0]] ?? '—') : '—';
 }
 
 function bestHour(rows: readonly QuividiSupportHour[]): number | null {
@@ -164,7 +168,9 @@ function bestHour(rows: readonly QuividiSupportHour[]): number | null {
   for (const row of rows) {
     byHour.set(row.hour, (byHour.get(row.hour) ?? 0) + numeric(row.ots));
   }
-  return Array.from(byHour.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return (
+    Array.from(byHour.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  );
 }
 
 export function overallSummary(
@@ -207,8 +213,8 @@ export function storeSummaries(
     return {
       storeNumber,
       storeName: rows[0]?.storeName ?? '',
-      supports: Array.from(new Set(rows.map((row) => row.support))).sort((a, b) =>
-        a.localeCompare(b, 'es'),
+      supports: Array.from(new Set(rows.map((row) => row.support))).sort(
+        (a, b) => a.localeCompare(b, 'es'),
       ),
       ...aggregated,
       measurementPercent: rows.length > 0 ? (measured / rows.length) * 100 : 0,
@@ -340,8 +346,20 @@ export function peakMoments(
 const TIME_BANDS = [
   { key: 'early', label: 'Madrugada', range: '00:00–06:00', start: 0, end: 6 },
   { key: 'morning', label: 'Mañana', range: '06:00–12:00', start: 6, end: 12 },
-  { key: 'midday', label: 'Mediodía', range: '12:00–16:00', start: 12, end: 16 },
-  { key: 'afternoon', label: 'Tarde', range: '16:00–20:00', start: 16, end: 20 },
+  {
+    key: 'midday',
+    label: 'Mediodía',
+    range: '12:00–16:00',
+    start: 12,
+    end: 16,
+  },
+  {
+    key: 'afternoon',
+    label: 'Tarde',
+    range: '16:00–20:00',
+    start: 16,
+    end: 20,
+  },
   { key: 'night', label: 'Noche', range: '20:00–24:00', start: 20, end: 24 },
 ] as const;
 
@@ -378,7 +396,10 @@ function demographicSummaries(
     const key = row[field];
     groups.set(key, (groups.get(key) ?? 0) + numeric(row.watchers));
   }
-  const total = Array.from(groups.values()).reduce((sum, value) => sum + value, 0);
+  const total = Array.from(groups.values()).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   return Array.from(groups, ([key, watchers]) => ({
     key,
     label: labels[key] ?? `Código ${key}`,
