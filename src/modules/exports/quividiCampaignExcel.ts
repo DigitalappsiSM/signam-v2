@@ -323,12 +323,7 @@ function addScopeDetail(wb: Workbook, report: QuividiCampaignReport): void {
       origin.pairCount,
     ]);
   }
-  sheet.columns = [
-    { width: 28 },
-    { width: 42 },
-    { width: 18 },
-    { width: 22 },
-  ];
+  sheet.columns = [{ width: 28 }, { width: 42 }, { width: 18 }, { width: 22 }];
   applyBaseSheet(sheet);
 }
 
