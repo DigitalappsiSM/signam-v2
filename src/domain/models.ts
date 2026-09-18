@@ -53,6 +53,11 @@ export interface SignamMetadata {
    * oficiales del maestro. Vacío si aún no se ha mapeado.
    */
   calendarSupport: string;
+  /**
+   * Nombre/label de la cámara Quividi relacionada con esta pantalla. Se usa
+   * para resolver el locationId estable vía Topology API. Vacío si no aplica.
+   */
+  quividiCameraName: string;
 }
 
 /** Pantalla del catálogo Admira: campos originales + metadatos SIGNAM. */
