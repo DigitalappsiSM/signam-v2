@@ -10,7 +10,11 @@ import {
   query,
 } from 'firebase/firestore';
 import { getFirebase } from './firebase';
-import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
+import {
+  ADMIRA_CATALOG_HEADERS,
+  type AdmiraScreen,
+  type AdmiraScreenOriginal,
+} from '@/domain';
 import {
   bumpMetadata,
   newScreenMetadata,
@@ -49,6 +53,7 @@ export async function createScreen(
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
   calendarSupport = '',
+  quividiCameraName = '',
 ): Promise<string> {
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
@@ -57,6 +62,7 @@ export async function createScreen(
     metadata: {
       ...newScreenMetadata(actor, now),
       calendarSupport: calendarSupport.trim(),
+      quividiCameraName: quividiCameraName.trim(),
     },
   });
   return ref.id;
@@ -68,6 +74,7 @@ export async function updateScreen(
   original: Partial<AdmiraScreenOriginal>,
   actor: Actor,
   calendarSupport?: string,
+  quividiCameraName?: string,
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
@@ -75,9 +82,14 @@ export async function updateScreen(
       screen.metadata,
       actor,
       Date.now(),
-      calendarSupport === undefined
-        ? {}
-        : { calendarSupport: calendarSupport.trim() },
+      {
+        ...(calendarSupport === undefined
+          ? {}
+          : { calendarSupport: calendarSupport.trim() }),
+        ...(quividiCameraName === undefined
+          ? {}
+          : { quividiCameraName: quividiCameraName.trim() }),
+      },
     ),
   });
 }
@@ -133,6 +145,7 @@ export async function importMasterScreens(
           sourceSheet: source.sheet,
           sourceRow: row.sourceRow,
           calendarSupport: row.calendarSupport.trim(),
+          quividiCameraName: row.quividiCameraName.trim(),
         },
       });
       created += 1;
@@ -176,4 +189,68 @@ export async function reactivateScreen(
       deactivationReason: null,
     }),
   });
+}
+
+
+function masterRowKey(original: AdmiraScreenOriginal): string {
+  return JSON.stringify(
+    ADMIRA_CATALOG_HEADERS.map((header) =>
+      (original[header] ?? '').trim().toLocaleLowerCase('es-MX'),
+    ),
+  );
+}
+
+export interface MasterMetadataUpdateResult {
+  updated: number;
+  unmatched: number;
+  ambiguous: number;
+}
+
+/**
+ * Actualiza únicamente metadatos SIGNAM (normalización Liverpool + cámara
+ * Quividi) a partir de un maestro, sin duplicar ni borrar pantallas.
+ */
+export async function updateScreenMetadataFromMaster(
+  rows: readonly MasterRow[],
+  actor: Actor,
+): Promise<MasterMetadataUpdateResult> {
+  const database = db();
+  const existing = await listScreens();
+  const byKey = new Map<string, AdmiraScreen[]>();
+  for (const screen of existing) {
+    const key = masterRowKey(screen.original);
+    const group = byKey.get(key) ?? [];
+    group.push(screen);
+    byKey.set(key, group);
+  }
+
+  const matches: Array<{ screen: AdmiraScreen; row: MasterRow }> = [];
+  let unmatched = 0;
+  let ambiguous = 0;
+  for (const row of rows) {
+    const candidates = byKey.get(masterRowKey(row.original)) ?? [];
+    if (candidates.length === 1) {
+      matches.push({ screen: candidates[0]!, row });
+    } else if (candidates.length === 0) {
+      unmatched += 1;
+    } else {
+      ambiguous += 1;
+    }
+  }
+
+  const now = Date.now();
+  for (let i = 0; i < matches.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(database);
+    for (const { screen, row } of matches.slice(i, i + BATCH_LIMIT)) {
+      batch.update(doc(database, COLLECTION, screen.id), {
+        metadata: bumpMetadata(screen.metadata, actor, now, {
+          calendarSupport: row.calendarSupport.trim(),
+          quividiCameraName: row.quividiCameraName.trim(),
+        }),
+      });
+    }
+    await batch.commit();
+  }
+
+  return { updated: matches.length, unmatched, ambiguous };
 }
