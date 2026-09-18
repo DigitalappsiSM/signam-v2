@@ -29,7 +29,7 @@ function datesInclusive(start: string, end: string): string[] {
 }
 
 function sum(values: Array<number | null>): number {
-  return values.reduce((acc, value) => acc + (value ?? 0), 0);
+  return values.reduce<number>((acc, value) => acc + (value ?? 0), 0);
 }
 
 function weightedByWatchers(
