@@ -127,7 +127,6 @@ function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'campana';
 }
 
-
 function quividiScopeLabel(
   availability: QuividiCampaignAvailability | undefined,
 ): string {
