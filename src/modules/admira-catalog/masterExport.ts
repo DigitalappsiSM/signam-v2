@@ -107,10 +107,7 @@ function setStoreCellText(sheet: Worksheet, rowNumber: number): void {
 }
 
 /** Encabezados de la hoja `Consolidado` según las opciones. */
-function headerRow(
-  includeMapping: boolean,
-  includeQuividi: boolean,
-): string[] {
+function headerRow(includeMapping: boolean, includeQuividi: boolean): string[] {
   const headers = [...ADMIRA_CATALOG_HEADERS] as string[];
   if (includeMapping) headers.push(MAPPING_EXPORT_HEADER);
   if (includeQuividi) headers.push(QUIVIDI_EXPORT_HEADER);
@@ -157,10 +154,7 @@ export async function buildCatalogWorkbook(
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet(EXPORT_SHEET_NAME);
 
-  applyColumns(
-    sheet,
-    headerWidths(includeMappingColumn, includeQuividiColumn),
-  );
+  applyColumns(sheet, headerWidths(includeMappingColumn, includeQuividiColumn));
   sheet.addRow(headerRow(includeMappingColumn, includeQuividiColumn));
 
   const selected = includeInactive
@@ -373,10 +367,7 @@ export async function buildTemplateWorkbook(
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet(EXPORT_SHEET_NAME);
 
-  applyColumns(
-    sheet,
-    headerWidths(includeMappingColumn, includeQuividiColumn),
-  );
+  applyColumns(sheet, headerWidths(includeMappingColumn, includeQuividiColumn));
   const headers = headerRow(includeMappingColumn, includeQuividiColumn);
   sheet.addRow(headers);
 

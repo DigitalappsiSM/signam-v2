@@ -50,10 +50,7 @@ function supportSummaries(report: QuividiCampaignReport): SupportSummary[] {
       (row) => row.support === coverage.support,
     );
     const ots = rows.reduce((sum, row) => sum + row.ots, 0);
-    const effectiveOts = rows.reduce(
-      (sum, row) => sum + row.effectiveOts,
-      0,
-    );
+    const effectiveOts = rows.reduce((sum, row) => sum + row.effectiveOts, 0);
     const watchers = rows.reduce((sum, row) => sum + row.watchers, 0);
     const measured = rows.filter((row) => row.status !== 'missing').length;
     const incidents = report.incidents
@@ -116,10 +113,7 @@ function numberFormat(sheet: Worksheet, column: string, format: string): void {
   sheet.getColumn(column).numFmt = format;
 }
 
-function addDashboard(
-  wb: Workbook,
-  report: QuividiCampaignReport,
-): void {
+function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Dashboard', {
     views: [{ showGridLines: false }],
   });
@@ -149,7 +143,11 @@ function addDashboard(
   const cards = [
     ['Cobertura Quividi', report.coverage.percent / 100, '0.0%'],
     ['Cobertura medición', measurementPercent / 100, '0.0%'],
-    ['Soportes con medición', report.coverage.bySupport.filter((s) => s.mappedPairs > 0).length, '0'],
+    [
+      'Soportes con medición',
+      report.coverage.bySupport.filter((s) => s.mappedPairs > 0).length,
+      '0',
+    ],
     ['Días con incidencia', incidentDays, '0'],
   ] as const;
   cards.forEach(([label, value, fmt], index) => {
@@ -327,9 +325,18 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
   numberFormat(sheet, 'L', '0.0 "s"');
   numberFormat(sheet, 'M', '0.0 "s"');
   sheet.columns = [
-    { width: 12 }, { width: 10 }, { width: 25 }, { width: 26 },
-    { width: 14 }, { width: 14 }, { width: 15 }, { width: 16 },
-    { width: 16 }, { width: 14 }, { width: 14 }, { width: 16 },
+    { width: 12 },
+    { width: 10 },
+    { width: 25 },
+    { width: 26 },
+    { width: 14 },
+    { width: 14 },
+    { width: 15 },
+    { width: 16 },
+    { width: 16 },
+    { width: 14 },
+    { width: 14 },
+    { width: 16 },
     { width: 14 },
   ];
   applyBaseSheet(sheet);
@@ -389,10 +396,22 @@ function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
   numberFormat(sheet, 'N', '#,##0.0');
   numberFormat(sheet, 'O', '#,##0.0');
   sheet.columns = [
-    { width: 12 }, { width: 10 }, { width: 24 }, { width: 25 },
-    { width: 13 }, { width: 12 }, { width: 12 }, { width: 38 },
-    { width: 16 }, { width: 14 }, { width: 13 }, { width: 16 },
-    { width: 13 }, { width: 18 }, { width: 18 }, { width: 10 },
+    { width: 12 },
+    { width: 10 },
+    { width: 24 },
+    { width: 25 },
+    { width: 13 },
+    { width: 12 },
+    { width: 12 },
+    { width: 38 },
+    { width: 16 },
+    { width: 14 },
+    { width: 13 },
+    { width: 16 },
+    { width: 13 },
+    { width: 18 },
+    { width: 18 },
+    { width: 10 },
     { width: 20 },
   ];
   applyBaseSheet(sheet);
@@ -423,8 +442,13 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
   }
   numberFormat(sheet, 'G', '#,##0.0');
   sheet.columns = [
-    { width: 12 }, { width: 10 }, { width: 25 }, { width: 26 },
-    { width: 20 }, { width: 24 }, { width: 20 },
+    { width: 12 },
+    { width: 10 },
+    { width: 25 },
+    { width: 26 },
+    { width: 20 },
+    { width: 24 },
+    { width: 20 },
   ];
   applyBaseSheet(sheet);
 }
@@ -461,8 +485,14 @@ function addQuality(wb: Workbook, report: QuividiCampaignReport): void {
     for (const camera of report.unmappedCameraNames) sheet.addRow([camera]);
   }
   sheet.columns = [
-    { width: 10 }, { width: 25 }, { width: 26 }, { width: 14 },
-    { width: 40 }, { width: 18 }, { width: 14 }, { width: 55 },
+    { width: 10 },
+    { width: 25 },
+    { width: 26 },
+    { width: 14 },
+    { width: 40 },
+    { width: 18 },
+    { width: 14 },
+    { width: 55 },
   ];
   applyBaseSheet(sheet);
 }

@@ -475,7 +475,6 @@ export function CampaignsPage() {
     }
   }
 
-
   // Desglose Excel de UNA campaña (la instancia exacta, sin mezclar homónimas).
   async function downloadExcelFor(c: StoredCampaign) {
     if (excelBusyId) return;

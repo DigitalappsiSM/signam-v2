@@ -365,7 +365,7 @@ export function CatalogPage() {
           }
           initialQuividiCameraName={
             form.mode === 'edit'
-              ? form.screen.metadata.quividiCameraName ?? ''
+              ? (form.screen.metadata.quividiCameraName ?? '')
               : ''
           }
           submitting={saving}
@@ -388,7 +388,9 @@ export function CatalogPage() {
           onClose={() => setImporting(false)}
           onImported={(created, message) => {
             setImporting(false);
-            setNotice(message ?? `Se importaron ${created} pantallas del maestro.`);
+            setNotice(
+              message ?? `Se importaron ${created} pantallas del maestro.`,
+            );
             void reload();
           }}
         />

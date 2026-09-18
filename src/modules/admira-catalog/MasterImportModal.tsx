@@ -62,7 +62,10 @@ export function MasterImportModal({
     setError(null);
     try {
       if (mode === 'metadata') {
-        const result = await updateScreenMetadataFromMaster(analysis.rows, actor);
+        const result = await updateScreenMetadataFromMaster(
+          analysis.rows,
+          actor,
+        );
         onImported(
           0,
           `Mapeos actualizados: ${result.updated}. Sin coincidencia: ${result.unmatched}. Ambiguos: ${result.ambiguous}.`,
@@ -162,7 +165,10 @@ export function MasterImportModal({
                 <dt>Cámaras Quividi</dt>
                 <dd>
                   <strong>
-                    {analysis.rows.filter((row) => row.quividiCameraName).length}
+                    {
+                      analysis.rows.filter((row) => row.quividiCameraName)
+                        .length
+                    }
                   </strong>
                 </dd>
               </div>

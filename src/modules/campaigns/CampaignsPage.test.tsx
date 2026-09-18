@@ -299,35 +299,37 @@ beforeEach(() => {
   vi.mocked(buildCampaignReportBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['xlsx']));
-  vi.mocked(getQuividiCampaignReport).mockReset().mockResolvedValue({
-    cached: false,
-    report: {
-      schemaVersion: 1,
-      campaignId: 'q1',
-      campaignName: 'CAMPAÑA QUIVIDI',
-      startDate: '2026-05-10',
-      endDate: '2026-05-20',
-      generatedAt: 1,
-      coverage: {
-        totalPairs: 1,
-        mappedPairs: 1,
-        percent: 100,
-        bySupport: [
-          {
-            support: 'MEGA MUPI DIGITAL',
-            totalPairs: 1,
-            mappedPairs: 1,
-            percent: 100,
-          },
-        ],
+  vi.mocked(getQuividiCampaignReport)
+    .mockReset()
+    .mockResolvedValue({
+      cached: false,
+      report: {
+        schemaVersion: 1,
+        campaignId: 'q1',
+        campaignName: 'CAMPAÑA QUIVIDI',
+        startDate: '2026-05-10',
+        endDate: '2026-05-20',
+        generatedAt: 1,
+        coverage: {
+          totalPairs: 1,
+          mappedPairs: 1,
+          percent: 100,
+          bySupport: [
+            {
+              support: 'MEGA MUPI DIGITAL',
+              totalPairs: 1,
+              mappedPairs: 1,
+              percent: 100,
+            },
+          ],
+        },
+        cameraDays: [],
+        supportDays: [],
+        demographics: [],
+        incidents: [],
+        unmappedCameraNames: [],
       },
-      cameraDays: [],
-      supportDays: [],
-      demographics: [],
-      incidents: [],
-      unmappedCameraNames: [],
-    },
-  });
+    });
   vi.mocked(buildQuividiCampaignBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['quividi-xlsx']));
