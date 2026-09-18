@@ -95,6 +95,12 @@ import type {
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import { can } from '@/app/permissions';
+import { getQuividiCampaignAudience } from '@/services/quividi';
+import {
+  buildQuividiCampaignReportBlob,
+  quividiReportFileName,
+} from '@/modules/quividi/reportExcel';
+import { campaignHasQuividiCoverage } from '@/modules/quividi/coverage';
 import './CampaignsPage.css';
 
 function normalize(v: string): string {
@@ -179,6 +185,8 @@ export function CampaignsPage() {
   const [excelError, setExcelError] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [quividiBusyId, setQuividiBusyId] = useState<string | null>(null);
+  const [quividiError, setQuividiError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -460,6 +468,25 @@ export function CampaignsPage() {
     }
   }
 
+  async function downloadQuividiFor(campaign: StoredCampaign) {
+    if (quividiBusyId) return;
+    setQuividiError(null);
+    setQuividiBusyId(campaign.id);
+    try {
+      const snapshot = await getQuividiCampaignAudience(campaign.id);
+      const blob = await buildQuividiCampaignReportBlob(snapshot);
+      download(blob, quividiReportFileName(snapshot));
+    } catch (reportError) {
+      setQuividiError(
+        reportError instanceof Error
+          ? reportError.message
+          : `No se pudo generar el informe Quividi de "${campaign.name}".`,
+      );
+    } finally {
+      setQuividiBusyId(null);
+    }
+  }
+
   // Desglose Excel masivo: exporta exactamente el arreglo `filtered` (respeta
   // búsqueda y periodo Desde/Hasta, tal como los ve la tabla).
   async function downloadBulkExcel() {
@@ -597,6 +624,12 @@ export function CampaignsPage() {
         </div>
       )}
 
+      {quividiError && (
+        <div className="catalog__error" role="alert">
+          {quividiError}
+        </div>
+      )}
+
       {loading ? (
         <LoadingOverlay
           variant="process"
@@ -671,6 +704,7 @@ export function CampaignsPage() {
                 const cons = consByCampaign.get(c.name) ?? [];
                 const nIssues = (issuesByCampaign.get(c.name) ?? []).length;
                 const ekon = ekonByKey.get(c.id);
+                const hasQuividi = campaignHasQuividiCoverage(c, screens);
                 return (
                   <tr key={c.id}>
                     <td>
@@ -742,6 +776,24 @@ export function CampaignsPage() {
                           onClick={() => setDetail(c)}
                         >
                           👁️
+                        </button>
+                        <button
+                          className="icon-btn"
+                          title={
+                            hasQuividi
+                              ? `Descargar métricas Quividi de ${c.name}`
+                              : 'Sin cobertura Quividi para las tiendas y soportes de esta campaña'
+                          }
+                          aria-label={
+                            hasQuividi
+                              ? `Descargar métricas Quividi de ${c.name}`
+                              : `Sin cobertura Quividi para ${c.name}`
+                          }
+                          disabled={!hasQuividi || quividiBusyId !== null}
+                          aria-busy={quividiBusyId === c.id}
+                          onClick={() => void downloadQuividiFor(c)}
+                        >
+                          {quividiBusyId === c.id ? '…' : '📊'}
                         </button>
                         <CampaignDownloadsMenu
                           campaign={c}
