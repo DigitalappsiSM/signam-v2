@@ -11,12 +11,13 @@ import {
   type EffectiveSupportPair,
   type ScreenDoc,
 } from './effectiveScope';
+import { buildSupportHours, type SupportHour } from './hourly';
 
 const QUIVIDI_API_USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const QUIVIDI_API_TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
-const SNAPSHOT_SCHEMA_VERSION = 2;
+const SNAPSHOT_SCHEMA_VERSION = 3;
 const ACTIVE_CACHE_MS = 24 * 60 * 60 * 1000;
 const PARTIAL_DURATION_RATIO = 0.8;
 
@@ -110,7 +111,7 @@ interface Incident {
 }
 
 interface CampaignReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   campaignId: string;
   campaignName: string;
   startDate: string;
@@ -130,6 +131,7 @@ interface CampaignReport {
   };
   cameraDays: CameraDay[];
   supportDays: SupportDay[];
+  supportHours: SupportHour[];
   demographics: DemographicRow[];
   incidents: Incident[];
   unmappedCameraNames: string[];
@@ -644,21 +646,35 @@ async function generateReport(
 
   let otsRows: OtsExportRow[] = [];
   let viewerRows: ViewerExportRow[] = [];
+  let hourlyOtsRows: OtsExportRow[] = [];
+  let hourlyViewerRows: ViewerExportRow[] = [];
   if (mappedLocations.length > 0 && measuredEndDate) {
-    const common = {
+    const base = {
       locations: mappedLocations.join(','),
       start: `${startDate}T00:00:00`,
       end: `${measuredEndDate}T23:59:59`,
-      time_resolution: '1d',
     };
     otsRows = (await exportData({
-      ...common,
+      ...base,
+      time_resolution: '1d',
       data_type: 'ots',
     })) as OtsExportRow[];
     viewerRows = (await exportData({
-      ...common,
+      ...base,
+      time_resolution: '1d',
       data_type: 'viewers',
       group_by_demographics: '1',
+    })) as ViewerExportRow[];
+
+    hourlyOtsRows = (await exportData({
+      ...base,
+      time_resolution: '1h',
+      data_type: 'ots',
+    })) as OtsExportRow[];
+    hourlyViewerRows = (await exportData({
+      ...base,
+      time_resolution: '1h',
+      data_type: 'viewers',
     })) as ViewerExportRow[];
   }
 
@@ -668,8 +684,13 @@ async function generateReport(
     otsRows,
     viewerRows,
   );
+  const supportHours = buildSupportHours(
+    resolved.pairs,
+    hourlyOtsRows,
+    hourlyViewerRows,
+  );
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     campaignId,
     campaignName: campaign.name ?? '',
     startDate,
@@ -678,6 +699,7 @@ async function generateReport(
     scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
     ...measurement,
+    supportHours,
     unmappedCameraNames: resolved.unmappedCameraNames,
   };
 }
@@ -685,7 +707,7 @@ async function generateReport(
 export const campaignReport = onCall(
   {
     secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
     memory: '512MiB',
   },
   async (request): Promise<{ report: CampaignReport; cached: boolean }> => {
