@@ -41,6 +41,7 @@ describe('newScreenMetadata', () => {
       updatedAt: 1000,
       source: 'manual',
       deactivationReason: null,
+      quividiCameraName: '',
     });
   });
 });
