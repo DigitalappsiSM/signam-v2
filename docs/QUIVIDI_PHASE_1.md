@@ -85,6 +85,10 @@ Quividi no asume que una celda de soporte sin detalle de tiendas significa
 siempre circuito completo. Para construir los pares **Tienda + Soporte** se usa
 esta precedencia:
 
+Antes del cruce, los nombres comerciales del Calendario se traducen al soporte
+normalizado del catálogo: `MUPPI'S → MEGA MUPI DIGITAL` (también se tolera
+`MEGAMUPI DIGITAL`) y `PENDON → BANNER DIGITAL`.
+
 1. Si el Calendario Liverpool trae tiendas explícitas, se usan exactamente esas
    tiendas.
 2. Si el comentario confirma explícitamente **todas**, se usa el circuito
