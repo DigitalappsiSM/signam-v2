@@ -215,6 +215,24 @@ function dayList(start: string, end: string): string[] {
   return days;
 }
 
+
+function lastCompleteUtcDate(now: number): string {
+  const date = new Date(now);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function measurableEndDate(
+  startDate: string,
+  scheduledEndDate: string,
+  now: number,
+): string | null {
+  const cutoff = lastCompleteUtcDate(now);
+  const endDate = scheduledEndDate < cutoff ? scheduledEndDate : cutoff;
+  return endDate >= startDate ? endDate : null;
+}
+
 function recordDate(periodStart: unknown): string | null {
   if (typeof periodStart !== 'string') return null;
   const match = periodStart.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -722,6 +740,7 @@ async function generateReport(
   pairsWithoutLocations: Array<Omit<SupportPair, 'cameras'>>,
   startDate: string,
   endDate: string,
+  now: number,
 ): Promise<CampaignReport> {
   const topology = await quividiGet<TopologyLocation[]>('/locations/');
   const resolved = resolvePairs(pairsWithoutLocations, topology);
@@ -730,15 +749,16 @@ async function generateReport(
       resolved.pairs.flatMap((pair) => pair.cameras.map((camera) => camera.id)),
     ),
   );
-  const dates = dayList(startDate, endDate);
+  const measuredEndDate = measurableEndDate(startDate, endDate, now);
+  const dates = measuredEndDate ? dayList(startDate, measuredEndDate) : [];
 
   let otsRows: OtsExportRow[] = [];
   let viewerRows: ViewerExportRow[] = [];
-  if (mappedLocations.length > 0) {
+  if (mappedLocations.length > 0 && measuredEndDate) {
     const common = {
       locations: mappedLocations.join(','),
       start: `${startDate}T00:00:00`,
-      end: `${endDate}T23:59:59`,
+      end: `${measuredEndDate}T23:59:59`,
       time_resolution: '1d',
     };
     otsRows = (await exportData({
@@ -834,6 +854,7 @@ export const campaignReport = onCall(
       pairs,
       startDate,
       endDate,
+      now,
     );
     const compressed = gzipSync(Buffer.from(JSON.stringify(report), 'utf8'));
     if (compressed.byteLength < 900_000) {
