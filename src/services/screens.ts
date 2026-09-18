@@ -74,19 +74,14 @@ export async function updateScreen(
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
-    metadata: bumpMetadata(
-      screen.metadata,
-      actor,
-      Date.now(),
-      {
-        ...(calendarSupport === undefined
-          ? {}
-          : { calendarSupport: calendarSupport.trim() }),
-        ...(quividiCameraName === undefined
-          ? {}
-          : { quividiCameraName: quividiCameraName.trim() }),
-      },
-    ),
+    metadata: bumpMetadata(screen.metadata, actor, Date.now(), {
+      ...(calendarSupport === undefined
+        ? {}
+        : { calendarSupport: calendarSupport.trim() }),
+      ...(quividiCameraName === undefined
+        ? {}
+        : { quividiCameraName: quividiCameraName.trim() }),
+    }),
   });
 }
 

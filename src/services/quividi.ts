@@ -26,10 +26,10 @@ export async function getQuividiCampaignAudience(
 ): Promise<QuividiCampaignSnapshot> {
   const firebase = getFirebase();
   if (!firebase) throw new Error('Firebase no está configurado.');
-  const call = httpsCallable<
-    { campaignId: string },
-    QuividiCampaignSnapshot
-  >(firebase.functions, 'quividi-getCampaignAudience');
+  const call = httpsCallable<{ campaignId: string }, QuividiCampaignSnapshot>(
+    firebase.functions,
+    'quividi-getCampaignAudience',
+  );
   const response = await call({ campaignId });
   return response.data;
 }

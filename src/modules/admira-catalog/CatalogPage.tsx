@@ -85,12 +85,7 @@ export function CatalogPage() {
     setSaving(true);
     try {
       if (form.mode === 'create') {
-        await createScreen(
-          original,
-          actor,
-          calendarSupport,
-          quividiCameraName,
-        );
+        await createScreen(original, actor, calendarSupport, quividiCameraName);
       } else if (form.mode === 'edit') {
         await updateScreen(
           form.screen,

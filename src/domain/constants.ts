@@ -95,7 +95,6 @@ export const CALENDAR_MAPPING_HEADERS = [
   'SOPORTE ISM',
 ] as const;
 
-
 /**
  * Encabezados aceptados para la columna opcional que relaciona una pantalla
  * Admira con una cámara/location de Quividi. Es metadata SIGNAM: nunca forma

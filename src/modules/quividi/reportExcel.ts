@@ -137,10 +137,26 @@ export async function buildQuividiCampaignReportBlob(
   dashboard.getCell('A3').font = { size: 12, bold: true };
 
   const kpis = [
-    ['Cobertura Quividi', pct(quividiCoverage), QUIVIDI_INDICATOR_DEFINITIONS.quividiCoverage],
-    ['Cobertura de medición', pct(overallMeasurementCoverage), QUIVIDI_INDICATOR_DEFINITIONS.measurementCoverage],
-    ['Soportes con Quividi', snapshot.mappings.length, 'Combinaciones tienda + soporte con al menos una cámara Quividi.'],
-    ['Incidencias de cámara', incidents.length, 'Periodos donde una cámara esperada no tuvo datos disponibles.'],
+    [
+      'Cobertura Quividi',
+      pct(quividiCoverage),
+      QUIVIDI_INDICATOR_DEFINITIONS.quividiCoverage,
+    ],
+    [
+      'Cobertura de medición',
+      pct(overallMeasurementCoverage),
+      QUIVIDI_INDICATOR_DEFINITIONS.measurementCoverage,
+    ],
+    [
+      'Soportes con Quividi',
+      snapshot.mappings.length,
+      'Combinaciones tienda + soporte con al menos una cámara Quividi.',
+    ],
+    [
+      'Incidencias de cámara',
+      incidents.length,
+      'Periodos donde una cámara esperada no tuvo datos disponibles.',
+    ],
   ];
   kpis.forEach(([label, value, definition], index) => {
     const col = 1 + index;
@@ -181,7 +197,11 @@ export async function buildQuividiCampaignReportBlob(
   }
   const summaryStart = 12;
   dashboard.getRow(summaryStart).font = { bold: true };
-  for (let row = summaryStart + 1; row <= summaryStart + summaries.length; row += 1) {
+  for (
+    let row = summaryStart + 1;
+    row <= summaryStart + summaries.length;
+    row += 1
+  ) {
     dashboard.getCell(row, 5).numFmt = '0.0%';
     dashboard.getCell(row, 6).numFmt = '0.0 "s"';
     dashboard.getCell(row, 7).numFmt = '0.0 "s"';
@@ -440,7 +460,10 @@ export async function buildQuividiCampaignReportBlob(
 }
 
 export function quividiReportFileName(
-  snapshot: Pick<QuividiCampaignSnapshot, 'campaignName' | 'startDate' | 'endDate'>,
+  snapshot: Pick<
+    QuividiCampaignSnapshot,
+    'campaignName' | 'startDate' | 'endDate'
+  >,
 ): string {
   const safe = snapshot.campaignName.replace(/[\\/:*?"<>|]/g, '_').trim();
   return (

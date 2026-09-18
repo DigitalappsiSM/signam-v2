@@ -30,7 +30,9 @@ export function campaignQuividiCoverage(
           ).filter(Boolean)
         : scope === 'selected'
           ? Array.from(
-              new Set(support.stores.map((store) => normalizeStore(store.numero))),
+              new Set(
+                support.stores.map((store) => normalizeStore(store.numero)),
+              ),
             ).filter(Boolean)
           : [];
 

@@ -64,8 +64,7 @@ export const QUIVIDI_INDICATOR_DEFINITIONS = {
   effectiveOts:
     'Personas que, por su posición o recorrido, realmente pudieron ver la pantalla.',
   watchers: 'Personas que dirigieron la mirada hacia la pantalla.',
-  attentionRate:
-    'De las personas expuestas, qué porcentaje miró la pantalla.',
+  attentionRate: 'De las personas expuestas, qué porcentaje miró la pantalla.',
   attentionTime:
     'Tiempo promedio que las personas estuvieron mirando la pantalla.',
   dwellTime:
@@ -92,16 +91,12 @@ function watcherWeightedMean(
   rows: readonly QuividiDailyCameraMetrics[],
   field: 'attentionSeconds' | 'dwellSeconds',
 ): number | null {
-  const usable = rows.filter(
-    (row) => row[field] != null && row.watchers > 0,
-  );
+  const usable = rows.filter((row) => row[field] != null && row.watchers > 0);
   const watchers = usable.reduce((sum, row) => sum + row.watchers, 0);
   if (watchers <= 0) return null;
   return (
-    usable.reduce(
-      (sum, row) => sum + (row[field] ?? 0) * row.watchers,
-      0,
-    ) / watchers
+    usable.reduce((sum, row) => sum + (row[field] ?? 0) * row.watchers, 0) /
+    watchers
   );
 }
 
@@ -136,7 +131,9 @@ export function aggregateSupportDay(
   date: string,
   rows: readonly QuividiDailyCameraMetrics[],
 ): SupportDayMetrics {
-  const expectedIds = new Set(mapping.cameras.map((camera) => camera.locationId));
+  const expectedIds = new Set(
+    mapping.cameras.map((camera) => camera.locationId),
+  );
   const valid = rows.filter(
     (row) => row.date === date && expectedIds.has(row.locationId),
   );
@@ -220,7 +217,9 @@ export function buildMeasurementIncidents(
   return incidents;
 }
 
-export function measurementCoverage(days: readonly SupportDayMetrics[]): number {
+export function measurementCoverage(
+  days: readonly SupportDayMetrics[],
+): number {
   if (days.length === 0) return 0;
   return days.filter((day) => day.status !== 'missing').length / days.length;
 }
