@@ -107,6 +107,25 @@ describe('analyzeMaster — incidencias', () => {
     expect(result.rows[0]?.calendarSupport).toBe('');
   });
 
+  it('captura CAMARA QUIVIDI como metadato opcional sin marcarla extra', () => {
+    const headers = [...OFFICIAL, 'NORMALIZACION LIVERPOOL', 'CAMARA QUIVIDI'];
+    const rows = [[
+      ...sampleRow,
+      'MEGA MUPI DIGITAL',
+      '7 - L SANTA FE- DERECHO',
+    ]];
+    const result = analyzeMaster([
+      { name: 'Consolidado', rows: [headers, ...rows] },
+    ]);
+    expect(result.quividiCameraColumn).toBe('CAMARA QUIVIDI');
+    expect(result.extra).not.toContain('CAMARA QUIVIDI');
+    expect(result.rows[0]?.calendarSupport).toBe('MEGA MUPI DIGITAL');
+    expect(result.rows[0]?.quividiCameraName).toBe(
+      '7 - L SANTA FE- DERECHO',
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it('reporta columnas adicionales como advertencia (no bloquean)', () => {
     const headers = [...OFFICIAL, 'COLUMNA EXTRA'];
     const rows = [[...sampleRow, 'valor extra']];
