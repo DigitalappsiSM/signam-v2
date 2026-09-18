@@ -204,9 +204,10 @@ export function buildMeasurementIncidents(
         count = 1;
         continue;
       }
-      const prevDate = new Date(previous + 'T00:00:00Z');
+      const previousDate = previous ?? date;
+      const prevDate: Date = new Date(previousDate + 'T00:00:00Z');
       prevDate.setUTCDate(prevDate.getUTCDate() + 1);
-      const nextExpected = prevDate.toISOString().slice(0, 10);
+      const nextExpected: string = prevDate.toISOString().slice(0, 10);
       if (date !== nextExpected) flush();
       if (!start) start = date;
       previous = date;
