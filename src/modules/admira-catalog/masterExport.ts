@@ -41,6 +41,7 @@ export const EXPORT_SHEET_NAME = 'Consolidado';
  * reconoce como alias válido.
  */
 export const MAPPING_EXPORT_HEADER = CALENDAR_MAPPING_HEADERS[0];
+export const QUIVIDI_EXPORT_HEADER = 'CAMARA QUIVIDI';
 
 /** Opciones de exportación del catálogo. */
 export interface CatalogExportOptions {
@@ -51,6 +52,8 @@ export interface CatalogExportOptions {
    * Por defecto `true`, para que el mapeo también viaje en el round-trip.
    */
   includeMappingColumn?: boolean;
+  /** Incluir la relación de cámara Quividi. Por defecto true. */
+  includeQuividiColumn?: boolean;
 }
 
 /** Ancho de columna razonable por encabezado oficial (mismo orden). */
@@ -70,6 +73,7 @@ const COLUMN_WIDTHS: Record<AdmiraCatalogHeader, number> = {
 };
 
 const MAPPING_WIDTH = 24;
+const QUIVIDI_WIDTH = 34;
 
 /** Índice (1-based) de la columna `Numero de Tienda` dentro del encabezado. */
 const STORE_COLUMN_INDEX =
@@ -103,24 +107,37 @@ function setStoreCellText(sheet: Worksheet, rowNumber: number): void {
 }
 
 /** Encabezados de la hoja `Consolidado` según las opciones. */
-function headerRow(includeMapping: boolean): string[] {
-  return includeMapping
-    ? [...ADMIRA_CATALOG_HEADERS, MAPPING_EXPORT_HEADER]
-    : [...ADMIRA_CATALOG_HEADERS];
+function headerRow(
+  includeMapping: boolean,
+  includeQuividi: boolean,
+): string[] {
+  const headers = [...ADMIRA_CATALOG_HEADERS] as string[];
+  if (includeMapping) headers.push(MAPPING_EXPORT_HEADER);
+  if (includeQuividi) headers.push(QUIVIDI_EXPORT_HEADER);
+  return headers;
 }
 
 /** Anchos alineados con `headerRow`. */
-function headerWidths(includeMapping: boolean): number[] {
-  const base = ADMIRA_CATALOG_HEADERS.map((h) => COLUMN_WIDTHS[h]);
-  return includeMapping ? [...base, MAPPING_WIDTH] : base;
+function headerWidths(
+  includeMapping: boolean,
+  includeQuividi: boolean,
+): number[] {
+  const widths = ADMIRA_CATALOG_HEADERS.map((h) => COLUMN_WIDTHS[h]);
+  if (includeMapping) widths.push(MAPPING_WIDTH);
+  if (includeQuividi) widths.push(QUIVIDI_WIDTH);
+  return widths;
 }
 
 /** Convierte una pantalla en la fila de valores (12 campos + mapeo opcional). */
-function screenToRow(screen: AdmiraScreen, includeMapping: boolean): string[] {
+function screenToRow(
+  screen: AdmiraScreen,
+  includeMapping: boolean,
+  includeQuividi: boolean,
+): string[] {
   const values = ADMIRA_CATALOG_HEADERS.map((h) => screen.original[h] ?? '');
-  return includeMapping
-    ? [...values, screen.metadata.calendarSupport ?? '']
-    : values;
+  if (includeMapping) values.push(screen.metadata.calendarSupport ?? '');
+  if (includeQuividi) values.push(screen.metadata.quividiCameraName ?? '');
+  return values;
 }
 
 /**
@@ -131,24 +148,36 @@ export async function buildCatalogWorkbook(
   screens: readonly AdmiraScreen[],
   options: CatalogExportOptions = {},
 ): Promise<Workbook> {
-  const { includeInactive = false, includeMappingColumn = true } = options;
+  const {
+    includeInactive = false,
+    includeMappingColumn = true,
+    includeQuividiColumn = true,
+  } = options;
   const ExcelJS = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet(EXPORT_SHEET_NAME);
 
-  applyColumns(sheet, headerWidths(includeMappingColumn));
-  sheet.addRow(headerRow(includeMappingColumn));
+  applyColumns(
+    sheet,
+    headerWidths(includeMappingColumn, includeQuividiColumn),
+  );
+  sheet.addRow(headerRow(includeMappingColumn, includeQuividiColumn));
 
   const selected = includeInactive
     ? screens
     : screens.filter((s) => s.metadata.active);
 
   for (const screen of selected) {
-    const row = sheet.addRow(screenToRow(screen, includeMappingColumn));
+    const row = sheet.addRow(
+      screenToRow(screen, includeMappingColumn, includeQuividiColumn),
+    );
     setStoreCellText(sheet, row.number);
   }
 
-  styleSheet(sheet, headerRow(includeMappingColumn).length);
+  styleSheet(
+    sheet,
+    headerRow(includeMappingColumn, includeQuividiColumn).length,
+  );
   return wb;
 }
 
@@ -262,6 +291,13 @@ export const FIELD_GUIDE: readonly FieldGuide[] = [
       'Opcional pero recomendado. Mapeo al soporte del Calendario de Liverpool; se cruza con Numero de Tienda para asignar campañas.',
     example: 'VIDEO WALL CRIUS',
   },
+  {
+    header: QUIVIDI_EXPORT_HEADER,
+    required: false,
+    description:
+      'Nombre exacto de la location/cámara Quividi que mide este soporte.',
+    example: '7 - L SANTA FE- DERECHO',
+  },
 ];
 
 /** Filas de ejemplo (realistas) que se colocan bajo los encabezados. */
@@ -280,12 +316,15 @@ const TEMPLATE_EXAMPLE_ROWS: Record<string, string>[] = [
     ARTICULOS: 'VW 914x908',
     BRANDS: 'LIVERPOOL',
     [MAPPING_EXPORT_HEADER]: 'VIDEO WALL CRIUS',
+    [QUIVIDI_EXPORT_HEADER]: '7 - L SANTA FE- DERECHO',
   },
 ];
 
 export interface TemplateOptions {
   /** Incluir la columna de mapeo `NORMALIZACION LIVERPOOL`. Por defecto `true`. */
   includeMappingColumn?: boolean;
+  /** Incluir `CAMARA QUIVIDI`. Por defecto `true`. */
+  includeQuividiColumn?: boolean;
   /** Incluir una fila de ejemplo bajo los encabezados. Por defecto `true`. */
   includeExample?: boolean;
 }
@@ -293,13 +332,19 @@ export interface TemplateOptions {
 /** Nombre sugerido del archivo de plantilla. */
 export const TEMPLATE_FILE_NAME = 'Plantilla maestro Admira.xlsx';
 
-function addInstructionsSheet(wb: Workbook, includeMapping: boolean): void {
+function addInstructionsSheet(
+  wb: Workbook,
+  includeMapping: boolean,
+  includeQuividi: boolean,
+): void {
   const sheet = wb.addWorksheet('Instrucciones');
   applyColumns(sheet, [24, 14, 62, 24]);
   sheet.addRow(['Campo', 'Obligatorio', 'Descripción', 'Ejemplo']);
-  const guide = includeMapping
-    ? FIELD_GUIDE
-    : FIELD_GUIDE.filter((f) => f.header !== MAPPING_EXPORT_HEADER);
+  const guide = FIELD_GUIDE.filter(
+    (field) =>
+      (includeMapping || field.header !== MAPPING_EXPORT_HEADER) &&
+      (includeQuividi || field.header !== QUIVIDI_EXPORT_HEADER),
+  );
   for (const field of guide) {
     sheet.addRow([
       field.header,
@@ -319,13 +364,20 @@ function addInstructionsSheet(wb: Workbook, includeMapping: boolean): void {
 export async function buildTemplateWorkbook(
   options: TemplateOptions = {},
 ): Promise<Workbook> {
-  const { includeMappingColumn = true, includeExample = true } = options;
+  const {
+    includeMappingColumn = true,
+    includeQuividiColumn = true,
+    includeExample = true,
+  } = options;
   const ExcelJS = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet(EXPORT_SHEET_NAME);
 
-  applyColumns(sheet, headerWidths(includeMappingColumn));
-  const headers = headerRow(includeMappingColumn);
+  applyColumns(
+    sheet,
+    headerWidths(includeMappingColumn, includeQuividiColumn),
+  );
+  const headers = headerRow(includeMappingColumn, includeQuividiColumn);
   sheet.addRow(headers);
 
   if (includeExample) {
@@ -336,7 +388,7 @@ export async function buildTemplateWorkbook(
   }
 
   styleSheet(sheet, headers.length);
-  addInstructionsSheet(wb, includeMappingColumn);
+  addInstructionsSheet(wb, includeMappingColumn, includeQuividiColumn);
   return wb;
 }
 
