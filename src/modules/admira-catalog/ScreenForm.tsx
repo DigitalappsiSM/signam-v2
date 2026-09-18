@@ -13,6 +13,7 @@ export function ScreenForm({
   title,
   initial,
   initialCalendarSupport = '',
+  initialQuividiCameraName = '',
   submitting,
   onSubmit,
   onCancel,
@@ -20,8 +21,13 @@ export function ScreenForm({
   title: string;
   initial?: AdmiraScreenOriginal;
   initialCalendarSupport?: string;
+  initialQuividiCameraName?: string;
   submitting: boolean;
-  onSubmit: (original: AdmiraScreenOriginal, calendarSupport: string) => void;
+  onSubmit: (
+    original: AdmiraScreenOriginal,
+    calendarSupport: string,
+    quividiCameraName: string,
+  ) => void;
   onCancel: () => void;
 }) {
   const [values, setValues] = useState<AdmiraScreenOriginal>(
@@ -30,10 +36,13 @@ export function ScreenForm({
   const [calendarSupport, setCalendarSupport] = useState(
     initialCalendarSupport,
   );
+  const [quividiCameraName, setQuividiCameraName] = useState(
+    initialQuividiCameraName,
+  );
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    onSubmit(values, calendarSupport);
+    onSubmit(values, calendarSupport, quividiCameraName);
   }
 
   return (
@@ -68,6 +77,21 @@ export function ScreenForm({
             disabled={submitting}
             placeholder="Ej. VIDEO WALL CRIUS"
             onChange={(e) => setCalendarSupport(e.target.value)}
+            style={{ width: '100%' }}
+          />
+        </label>
+
+        <label
+          className="screen-form__field"
+          style={{ marginTop: '0.75rem', display: 'block' }}
+        >
+          <span>CÁMARA QUIVIDI</span>
+          <input
+            type="text"
+            value={quividiCameraName}
+            disabled={submitting}
+            placeholder="Ej. 7 - L SANTA FE- DERECHO"
+            onChange={(e) => setQuividiCameraName(e.target.value)}
             style={{ width: '100%' }}
           />
         </label>
