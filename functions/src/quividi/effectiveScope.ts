@@ -88,6 +88,16 @@ const FULL_CIRCUIT_WITHOUT_COMMENT = new Set([
   'VIDEO WALL POSTER LED',
 ]);
 
+
+/**
+ * Alias exclusivos del reporte Quividi. El Calendario usa nombres comerciales
+ * propios, mientras el catálogo y Ekon trabajan con NORMALIZACION LIVERPOOL.
+ */
+const CALENDAR_TO_QUIVIDI_SUPPORT: Record<string, string> = {
+  MUPPIS: 'MEGA MUPI DIGITAL',
+  PENDON: 'BANNER DIGITAL',
+};
+
 const CIRCUIT_TO_SUPPORTS: Record<string, readonly string[]> = {
   'ESPECTACULAR IN STORE': [
     'LED ALTABRISA',
@@ -130,7 +140,14 @@ export function normalizeStore(value: string): string {
 }
 
 export function normalizeSupport(value: string): string {
-  return normalized(value).toUpperCase();
+  return normalized(value)
+    .replace(/['’´`ʼ]/g, '')
+    .toUpperCase();
+}
+
+function quividiSupport(value: string): string {
+  const support = normalizeSupport(value);
+  return CALENDAR_TO_QUIVIDI_SUPPORT[support] ?? support;
 }
 
 function canonicalCircuit(value: string): string | null {
@@ -370,7 +387,7 @@ export async function buildEffectiveSupportPairs(
   };
 
   for (const item of campaign.supports ?? []) {
-    const support = normalizeSupport(item.support ?? '');
+    const support = quividiSupport(item.support ?? '');
     if (!support) continue;
     const stores = item.stores ?? [];
     const scope = item.scope ?? (stores.length === 0 ? 'all' : 'selected');
