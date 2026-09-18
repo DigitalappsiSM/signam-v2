@@ -3,6 +3,7 @@ import {
   CALENDAR_MAPPING_HEADERS,
   LEGACY_PASES_HEADER,
   REQUIRED_PASES_HEADER,
+  QUIVIDI_CAMERA_HEADERS,
   type AdmiraCatalogHeader,
   type AdmiraScreenOriginal,
   type ValidationIssue,
@@ -32,6 +33,8 @@ export interface MasterRow {
   sourceRow: number;
   /** Valor de la columna de mapeo al soporte del calendario (si existe). */
   calendarSupport: string;
+  /** Label/nombre de la cámara Quividi (si existe en el maestro). */
+  quividiCameraName: string;
 }
 
 /**
@@ -40,6 +43,9 @@ export interface MasterRow {
  */
 const MAPPING_ALIASES = new Set(
   CALENDAR_MAPPING_HEADERS.map((h) => normalizeHeader(h)),
+);
+const QUIVIDI_ALIASES = new Set(
+  QUIVIDI_CAMERA_HEADERS.map((h) => normalizeHeader(h)),
 );
 
 export interface MasterAnalysis {
@@ -52,6 +58,8 @@ export interface MasterAnalysis {
   legacyPases: boolean;
   /** Encabezado de la columna de mapeo detectada, o null si no viene. */
   mappingColumn: string | null;
+  /** Encabezado detectado de cámara Quividi, o null si no viene. */
+  quividiCameraColumn: string | null;
   rows: MasterRow[];
   issues: ValidationIssue[];
   /** true si no hay incidencias bloqueantes y hay al menos una fila. */
@@ -139,6 +147,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       extra: [],
       legacyPases: false,
       mappingColumn: null,
+      quividiCameraColumn: null,
       rows: [],
       issues,
       ok: false,
@@ -155,6 +164,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
   const extra: string[] = [];
   let mappingCol = -1;
   let mappingColumn: string | null = null;
+  let quividiCameraCol = -1;
+  let quividiCameraColumn: string | null = null;
   headerCells.forEach((cell, col) => {
     const text = cell?.trim() ?? '';
     if (text === '') return;
@@ -165,6 +176,11 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       if (mappingCol === -1) {
         mappingCol = col;
         mappingColumn = text;
+      }
+    } else if (QUIVIDI_ALIASES.has(normalizeHeader(text))) {
+      if (quividiCameraCol === -1) {
+        quividiCameraCol = col;
+        quividiCameraColumn = text;
       }
     } else {
       extra.push(text);
@@ -208,7 +224,14 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     if (isRowEmpty(original)) continue;
     const calendarSupport =
       mappingCol >= 0 ? (cells[mappingCol] ?? '').trim() : '';
-    rows.push({ original, sourceRow: r + 1, calendarSupport });
+    const quividiCameraName =
+      quividiCameraCol >= 0 ? (cells[quividiCameraCol] ?? '').trim() : '';
+    rows.push({
+      original,
+      sourceRow: r + 1,
+      calendarSupport,
+      quividiCameraName,
+    });
   }
 
   if (rows.length === 0) {
@@ -230,6 +253,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     extra,
     legacyPases,
     mappingColumn,
+    quividiCameraColumn,
     rows,
     issues,
     ok,
