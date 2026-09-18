@@ -95,6 +95,19 @@ export const CALENDAR_MAPPING_HEADERS = [
   'SOPORTE ISM',
 ] as const;
 
+
+/**
+ * Encabezados aceptados para la columna opcional que relaciona una pantalla
+ * Admira con una cámara/location de Quividi. Es metadata SIGNAM: nunca forma
+ * parte de los 12 campos oficiales del maestro Admira.
+ */
+export const QUIVIDI_CAMERA_HEADERS = [
+  'CAMARA QUIVIDI',
+  'CÁMARA QUIVIDI',
+  'QUIVIDI CAMERA',
+  'QUIVIDI LOCATION',
+] as const;
+
 /**
  * Soportes gestionados por InStore Media. En esta etapa se detectan y muestran
  * en el diagnóstico, pero se excluyen de la consolidación hasta definir su
