@@ -719,7 +719,6 @@ function buildMeasurementRows(
 async function generateReport(
   campaignId: string,
   campaign: CampaignDoc,
-  screens: ScreenDoc[],
   pairsWithoutLocations: Array<Omit<SupportPair, 'cameras'>>,
   startDate: string,
   endDate: string,
@@ -832,7 +831,6 @@ export const campaignReport = onCall(
     const report = await generateReport(
       campaignId,
       campaign,
-      screens,
       pairs,
       startDate,
       endDate,
