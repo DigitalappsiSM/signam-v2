@@ -84,6 +84,7 @@ interface SupportSig {
   support: string;
   stores: string[];
   scope: 'all' | 'selected' | 'invalid';
+  scopeSource: string;
 }
 
 function supportSignatures(c: ParsedCampaign): SupportSig[] {
@@ -91,6 +92,7 @@ function supportSignatures(c: ParsedCampaign): SupportSig[] {
     .map((s) => ({
       support: normalizeSupport(s.support),
       scope: effectiveCampaignSupportScope(s),
+      scopeSource: s.scopeSource ?? 'legacy',
       stores: Array.from(
         new Set(s.stores.map((st) => normalizeStore(st.numero))),
       ).sort(),
@@ -150,6 +152,10 @@ export function describeChanges(
     if (!osig) continue;
     if (osig.scope !== nsig.scope) {
       changes.push(`Alcance de ${name}: ${osig.scope} → ${nsig.scope}`);
+    } else if (osig.scopeSource !== nsig.scopeSource) {
+      changes.push(
+        `Origen de alcance de ${name}: ${osig.scopeSource} → ${nsig.scopeSource}`,
+      );
     }
     const added = nsig.stores.filter((s) => !osig.stores.includes(s));
     const removed = osig.stores.filter((s) => !nsig.stores.includes(s));
