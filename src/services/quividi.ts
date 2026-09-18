@@ -1,8 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
-import type {
-  QuividiCampaignReport,
-  QuividiScopeOrigin,
-} from '@/domain';
+import type { QuividiCampaignReport, QuividiScopeOrigin } from '@/domain';
 import { getFirebase } from './firebase';
 
 interface CampaignReportResponse {
@@ -27,7 +24,6 @@ export async function getQuividiCampaignReport(
   const result = await callable({ campaignId, forceRefresh });
   return result.data;
 }
-
 
 export interface QuividiCampaignAvailability {
   campaignId: string;
