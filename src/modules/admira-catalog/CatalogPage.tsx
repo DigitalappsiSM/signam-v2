@@ -386,9 +386,9 @@ export function CatalogPage() {
           actor={actor}
           existingCount={screens.length}
           onClose={() => setImporting(false)}
-          onImported={(created) => {
+          onImported={(created, message) => {
             setImporting(false);
-            setNotice(`Se importaron ${created} pantallas del maestro.`);
+            setNotice(message ?? `Se importaron ${created} pantallas del maestro.`);
             void reload();
           }}
         />
