@@ -303,9 +303,7 @@ beforeEach(() => {
   vi.mocked(buildCampaignReportBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['xlsx']));
-  vi.mocked(getQuividiCampaignAvailability)
-    .mockReset()
-    .mockResolvedValue([]);
+  vi.mocked(getQuividiCampaignAvailability).mockReset().mockResolvedValue([]);
   vi.mocked(getQuividiCampaignReport)
     .mockReset()
     .mockResolvedValue({
