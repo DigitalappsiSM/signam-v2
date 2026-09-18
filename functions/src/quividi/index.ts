@@ -363,6 +363,7 @@ function inputSignature(
     name: campaign.name ?? '',
     startDate,
     endDate,
+    scopeOrigins,
     pairs: pairs
       .map((pair) => ({
         storeNumber: pair.storeNumber,
@@ -625,7 +626,8 @@ function buildMeasurementRows(
 async function generateReport(
   campaignId: string,
   campaign: CampaignDoc,
-  pairsWithoutLocations: Array<Omit<SupportPair, 'cameras'>>,
+  pairsWithoutLocations: EffectiveSupportPair[],
+  scopeOrigins: EffectiveScopeOrigin[],
   startDate: string,
   endDate: string,
   now: number,
@@ -724,7 +726,13 @@ export const campaignReport = onCall(
       screens,
     );
     const pairs = effectiveScope.pairs;
-    const signature = inputSignature(campaign, pairs, startDate, endDate);
+    const signature = inputSignature(
+      campaign,
+      pairs,
+      effectiveScope.origins,
+      startDate,
+      endDate,
+    );
     const snapshotRef = db.collection(SNAPSHOT_COLLECTION).doc(campaignId);
     const now = Date.now();
 
