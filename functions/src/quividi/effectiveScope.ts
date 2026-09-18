@@ -98,6 +98,10 @@ const CALENDAR_TO_QUIVIDI_SUPPORT: Record<string, string> = {
   PENDON: 'BANNER DIGITAL',
 };
 
+const SUPPORT_ALIASES: Record<string, string> = {
+  'MEGAMUPI DIGITAL': 'MEGA MUPI DIGITAL',
+};
+
 const CIRCUIT_TO_SUPPORTS: Record<string, readonly string[]> = {
   'ESPECTACULAR IN STORE': [
     'LED ALTABRISA',
@@ -140,9 +144,10 @@ export function normalizeStore(value: string): string {
 }
 
 export function normalizeSupport(value: string): string {
-  return normalized(value)
+  const support = normalized(value)
     .replace(/['’´`ʼ]/g, '')
     .toUpperCase();
+  return SUPPORT_ALIASES[support] ?? support;
 }
 
 function quividiSupport(value: string): string {
