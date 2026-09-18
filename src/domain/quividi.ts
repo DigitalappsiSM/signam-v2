@@ -60,6 +60,23 @@ export interface QuividiSupportDay {
   dwellSeconds: number;
 }
 
+
+export interface QuividiSupportHour {
+  date: string;
+  hour: number;
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  configuredCameras: number;
+  measuredCameras: number;
+  status: QuividiMeasurementStatus;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
+  attentionSeconds: number;
+  dwellSeconds: number;
+}
+
 export interface QuividiDemographicRow {
   date: string;
   storeNumber: string;
@@ -95,7 +112,7 @@ export interface QuividiMeasurementIncident {
 }
 
 export interface QuividiCampaignReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   campaignId: string;
   campaignName: string;
   startDate: string;
@@ -105,6 +122,7 @@ export interface QuividiCampaignReport {
   coverage: QuividiCoverage;
   cameraDays: QuividiCameraDay[];
   supportDays: QuividiSupportDay[];
+  supportHours: QuividiSupportHour[];
   demographics: QuividiDemographicRow[];
   incidents: QuividiMeasurementIncident[];
   unmappedCameraNames: string[];
@@ -141,4 +159,6 @@ export const QUIVIDI_KPI_EXPLANATIONS = {
     'Qué parte del periodo tuvo datos de medición disponibles.',
   demographics:
     'Estimación estadística de la audiencia detectada; no identifica personas.',
+  hourly:
+    'Distribución horaria construida con agregados de una hora reportados por VidiCenter para cada ubicación.',
 } as const;
