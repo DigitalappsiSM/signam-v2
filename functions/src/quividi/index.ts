@@ -429,7 +429,7 @@ async function reconcileCameraEvaluation(
       typeof previous?.activeAlertId === 'string'
         ? previous.activeAlertId
         : null;
-    const previousStartedDate =
+    const stateStartedDate =
       typeof previous?.startedDate === 'string' ? previous.startedDate : null;
 
     const previousAlertRef = previousAlertId
@@ -441,6 +441,11 @@ async function reconcileCameraEvaluation(
     const previousAlert = previousAlertSnap?.data() as
       | Partial<CameraHealthAlertDoc>
       | undefined;
+    const previousStartedDate =
+      stateStartedDate ??
+      (typeof previousAlert?.startedDate === 'string'
+        ? previousAlert.startedDate
+        : null);
 
     const recovery =
       previousAlertId && previousStartedDate
@@ -615,9 +620,13 @@ async function retireOutOfScopeCameraStates(
       const alertRef = activeAlertId
         ? db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(activeAlertId)
         : null;
-      if (alertRef) await transaction.get(alertRef);
+      const alertSnap = alertRef ? await transaction.get(alertRef) : null;
+      const shouldRetire =
+        alertRef !== null &&
+        alertSnap?.exists === true &&
+        alertSnap.data()?.state === 'active';
 
-      if (alertRef) {
+      if (shouldRetire && alertRef) {
         transaction.set(
           alertRef,
           {
@@ -640,7 +649,7 @@ async function retireOutOfScopeCameraStates(
         },
         { merge: true },
       );
-      return Boolean(alertRef);
+      return shouldRetire;
     });
     if (didRetire) retired += 1;
   }
