@@ -1,10 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import {
-  getFirestore,
-  type DocumentData,
-  type DocumentReference,
-} from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
@@ -41,7 +37,7 @@ import {
   buildCurrentCameraHealthEvaluations,
   cameraHealthAlertId,
   daysInclusive,
-  previousCivilDate,
+  findCameraHealthRecoveryBoundary,
   type CameraHealthAlertDoc,
   type CameraHealthAlertStateDoc,
   type CameraHealthEvaluation,
@@ -261,6 +257,7 @@ interface CameraHealthComputation {
   startDate: string;
   endDate: string;
   records: CameraHealthRecord[];
+  monitoredLocationIds: number[];
   mapping: CameraHealthMappingSummary;
 }
 
@@ -314,6 +311,7 @@ async function computeCameraHealth(
       hourlyOtsRows,
       now,
     ),
+    monitoredLocationIds: scope.mappedLocationIds,
     mapping: scope.mapping,
   };
 }
@@ -348,6 +346,7 @@ interface CameraHealthAlertReconcileSummary {
   created: number;
   updated: number;
   recovered: number;
+  retired: number;
 }
 
 function cameraHealthStateDoc(
@@ -370,6 +369,8 @@ function cameraHealthStateDoc(
     latestDate: evaluation.latestDate,
     activeAlertId,
     startedDate,
+    monitored: true,
+    unmonitoredReason: null,
     expectedCoreHours: record.expectedCoreHours,
     coreMeasuredHours: record.coreMeasuredHours,
     coreOtsHours: record.coreOtsHours,
@@ -382,169 +383,158 @@ function cameraHealthStateDoc(
   };
 }
 
-function continuesExistingCameraAlert(
-  previous: Partial<CameraHealthAlertStateDoc> | undefined,
-  evaluation: CameraHealthEvaluation,
-): boolean {
-  if (
-    !previous?.activeAlertId ||
-    !previous.startedDate ||
-    evaluation.currentStatus === 'normal' ||
-    !evaluation.incidentStartDate
-  ) {
-    return false;
+function recordsByCamera(
+  records: readonly CameraHealthRecord[],
+): Map<number, CameraHealthRecord[]> {
+  const result = new Map<number, CameraHealthRecord[]>();
+  for (const record of records) {
+    const rows = result.get(record.locationId) ?? [];
+    rows.push(record);
+    result.set(record.locationId, rows);
   }
-  if (previous.startedDate === evaluation.incidentStartDate) return true;
-
-  // Si los 28 días visibles siguen anómalos, una alerta activa evaluada
-  // recientemente puede haber empezado antes de la ventana disponible.
-  return (
-    evaluation.incidentStartDate === evaluation.historyStartDate &&
-    typeof previous.latestDate === 'string' &&
-    previous.latestDate >= previousCivilDate(evaluation.historyStartDate)
-  );
+  return result;
 }
 
-async function reconcileCameraHealthAlerts(
-  records: readonly CameraHealthRecord[],
+/**
+ * Reconciliación transaccional por cámara.
+ *
+ * El documento de estado es el punto de serialización. Si el scheduler y un
+ * backfill coinciden, Firestore reintenta una de las transacciones después de
+ * que cambie ese documento, impidiendo dos incidencias activas para una misma
+ * cámara.
+ */
+async function reconcileCameraEvaluation(
+  evaluation: CameraHealthEvaluation,
+  history: readonly CameraHealthRecord[],
   latestDate: string,
   now: number,
-): Promise<CameraHealthAlertReconcileSummary> {
+): Promise<{
+  normal: number;
+  active: number;
+  created: number;
+  updated: number;
+  recovered: number;
+}> {
   const db = getFirestore();
-  const evaluations = buildCurrentCameraHealthEvaluations(records, latestDate);
-  const summary: CameraHealthAlertReconcileSummary = {
-    evaluated: evaluations.length,
-    normal: 0,
-    active: 0,
-    created: 0,
-    updated: 0,
-    recovered: 0,
-  };
-  if (evaluations.length === 0) return summary;
+  const stateRef = db
+    .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
+    .doc(String(evaluation.locationId));
 
-  const stateRefs = evaluations.map((evaluation) =>
-    db
-      .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
-      .doc(String(evaluation.locationId)),
-  );
-  const stateSnaps = await db.getAll(...stateRefs);
-  const previousStates = new Map<
-    number,
-    Partial<CameraHealthAlertStateDoc> | undefined
-  >();
-  for (let index = 0; index < evaluations.length; index += 1) {
-    previousStates.set(
-      evaluations[index]!.locationId,
-      stateSnaps[index]?.data() as Partial<CameraHealthAlertStateDoc> | undefined,
-    );
-  }
+  return db.runTransaction(async (transaction) => {
+    const stateSnap = await transaction.get(stateRef);
+    const previous = stateSnap.data() as
+      | Partial<CameraHealthAlertStateDoc>
+      | undefined;
+    const previousAlertId =
+      typeof previous?.activeAlertId === 'string'
+        ? previous.activeAlertId
+        : null;
+    const previousStartedDate =
+      typeof previous?.startedDate === 'string' ? previous.startedDate : null;
 
-  const candidateAlertIds = new Set<string>();
-  for (const evaluation of evaluations) {
-    const previous = previousStates.get(evaluation.locationId);
-    if (typeof previous?.activeAlertId === 'string') {
-      candidateAlertIds.add(previous.activeAlertId);
-    }
-    if (evaluation.incidentStartDate) {
-      candidateAlertIds.add(
-        cameraHealthAlertId(
-          evaluation.locationId,
-          evaluation.incidentStartDate,
-        ),
-      );
-    }
-  }
-  const alertRefs = Array.from(candidateAlertIds, (id) =>
-    db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(id),
-  );
-  const alertSnaps =
-    alertRefs.length > 0 ? await db.getAll(...alertRefs) : [];
-  const existingAlerts = new Map<
-    string,
-    Partial<CameraHealthAlertDoc> | undefined
-  >();
-  for (let index = 0; index < alertRefs.length; index += 1) {
-    existingAlerts.set(
-      alertRefs[index]!.id,
-      alertSnaps[index]?.data() as Partial<CameraHealthAlertDoc> | undefined,
-    );
-  }
+    const previousAlertRef = previousAlertId
+      ? db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(previousAlertId)
+      : null;
+    const previousAlertSnap = previousAlertRef
+      ? await transaction.get(previousAlertRef)
+      : null;
+    const previousAlert = previousAlertSnap?.data() as
+      | Partial<CameraHealthAlertDoc>
+      | undefined;
 
-  let batch = db.batch();
-  let pendingWrites = 0;
-  const flush = async (): Promise<void> => {
-    if (pendingWrites === 0) return;
-    await batch.commit();
-    batch = db.batch();
-    pendingWrites = 0;
-  };
-  const setDoc = (
-    ref: DocumentReference,
-    data: DocumentData,
-  ): void => {
-    batch.set(ref, data, { merge: true });
-    pendingWrites += 1;
-  };
-
-  for (const evaluation of evaluations) {
-    const previous = previousStates.get(evaluation.locationId);
-    const stateRef = db
-      .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
-      .doc(String(evaluation.locationId));
+    const recovery =
+      previousAlertId && previousStartedDate
+        ? findCameraHealthRecoveryBoundary(
+            history,
+            previousStartedDate,
+            latestDate,
+          )
+        : null;
 
     if (evaluation.currentStatus === 'normal') {
-      summary.normal += 1;
-      if (typeof previous?.activeAlertId === 'string') {
-        setDoc(
-          db
-            .collection(CAMERA_HEALTH_ALERT_COLLECTION)
-            .doc(previous.activeAlertId),
+      if (previousAlertRef && previousStartedDate) {
+        transaction.set(
+          previousAlertRef,
           {
             state: 'recovered',
-            recoveredDate: latestDate,
+            recoveredDate: recovery?.recoveredDate ?? latestDate,
+            lastAnomalousDate:
+              recovery?.lastAnomalousDate ??
+              previousAlert?.lastAnomalousDate ??
+              previousStartedDate,
             latestDate,
+            retiredAt: null,
+            retiredReason: null,
             updatedAt: now,
           },
+          { merge: true },
         );
-        summary.recovered += 1;
       }
-      setDoc(stateRef, cameraHealthStateDoc(evaluation, null, null, now));
-      if (pendingWrites >= 350) await flush();
-      continue;
+      transaction.set(
+        stateRef,
+        cameraHealthStateDoc(evaluation, null, null, now),
+        { merge: true },
+      );
+      return {
+        normal: 1,
+        active: 0,
+        created: 0,
+        updated: 0,
+        recovered: previousAlertRef ? 1 : 0,
+      };
     }
 
-    summary.active += 1;
     const currentStart = evaluation.incidentStartDate!;
-    const continues = continuesExistingCameraAlert(previous, evaluation);
-    let alertId: string;
-    let startedDate: string;
+    // Si desde la incidencia persistida no aparece ningún día normal, sigue
+    // siendo el mismo incidente aunque otro proceso haya usado un lookback
+    // distinto y haya calculado otra fecha de inicio visible.
+    const continuesPrevious =
+      previousAlertId !== null &&
+      previousStartedDate !== null &&
+      recovery === null;
 
-    if (continues) {
-      alertId = previous!.activeAlertId!;
-      startedDate = previous!.startedDate!;
-      summary.updated += 1;
-    } else {
-      if (typeof previous?.activeAlertId === 'string') {
-        setDoc(
-          db
-            .collection(CAMERA_HEALTH_ALERT_COLLECTION)
-            .doc(previous.activeAlertId),
-          {
-            state: 'recovered',
-            recoveredDate: previousCivilDate(currentStart),
-            latestDate: previousCivilDate(currentStart),
-            updatedAt: now,
-          },
-        );
-        summary.recovered += 1;
-      }
-      startedDate = currentStart;
-      alertId = cameraHealthAlertId(evaluation.locationId, startedDate);
-      summary.created += 1;
+    const alertId = continuesPrevious
+      ? previousAlertId
+      : cameraHealthAlertId(evaluation.locationId, currentStart);
+    const startedDate = continuesPrevious
+      ? previousStartedDate
+      : currentStart;
+    const alertRef = db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(alertId);
+    const alertSnap =
+      previousAlertRef?.path === alertRef.path
+        ? previousAlertSnap
+        : await transaction.get(alertRef);
+    const existing = alertSnap?.data() as
+      | Partial<CameraHealthAlertDoc>
+      | undefined;
+
+    // Todas las lecturas de la transacción terminan antes de la primera
+    // escritura, requisito de Firestore para permitir reintentos seguros.
+    if (
+      !continuesPrevious &&
+      previousAlertRef &&
+      previousStartedDate &&
+      recovery
+    ) {
+      transaction.set(
+        previousAlertRef,
+        {
+          state: 'recovered',
+          recoveredDate: recovery.recoveredDate,
+          lastAnomalousDate:
+            recovery.lastAnomalousDate ??
+            previousAlert?.lastAnomalousDate ??
+            previousStartedDate,
+          latestDate,
+          retiredAt: null,
+          retiredReason: null,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
     }
 
     const record = evaluation.latestRecord;
-    const existing = existingAlerts.get(alertId);
     const currentType = evaluation.currentStatus;
     const alert: CameraHealthAlertDoc = {
       schemaVersion: CAMERA_HEALTH_ALERT_SCHEMA_VERSION as 1,
@@ -567,7 +557,9 @@ async function reconcileCameraHealthAlerts(
       startedDate,
       lastAnomalousDate: latestDate,
       recoveredDate: null,
-      consecutiveDays: continues
+      retiredAt: null,
+      retiredReason: null,
+      consecutiveDays: continuesPrevious
         ? daysInclusive(startedDate, latestDate)
         : evaluation.consecutiveDays,
       latestDate,
@@ -584,18 +576,120 @@ async function reconcileCameraHealthAlerts(
       updatedAt: now,
     };
 
-    setDoc(
-      db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(alertId),
-      alert,
-    );
-    setDoc(
+    transaction.set(alertRef, alert, { merge: true });
+    transaction.set(
       stateRef,
       cameraHealthStateDoc(evaluation, alertId, startedDate, now),
+      { merge: true },
     );
-    if (pendingWrites >= 350) await flush();
+
+    return {
+      normal: 0,
+      active: 1,
+      created: continuesPrevious ? 0 : 1,
+      updated: continuesPrevious ? 1 : 0,
+      recovered:
+        !continuesPrevious && previousAlertRef && recovery ? 1 : 0,
+    };
+  });
+}
+
+async function retireOutOfScopeCameraStates(
+  monitoredLocationIds: ReadonlySet<number>,
+  now: number,
+): Promise<number> {
+  const db = getFirestore();
+  const states = await db.collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION).get();
+  const staleRefs = states.docs.filter(
+    (doc) => !monitoredLocationIds.has(Number(doc.id)),
+  );
+
+  let retired = 0;
+  for (const staleRef of staleRefs) {
+    const didRetire = await db.runTransaction(async (transaction) => {
+      const stateSnap = await transaction.get(staleRef.ref);
+      if (!stateSnap.exists) return false;
+      const state = stateSnap.data() as Partial<CameraHealthAlertStateDoc>;
+      const activeAlertId =
+        typeof state.activeAlertId === 'string' ? state.activeAlertId : null;
+      const alertRef = activeAlertId
+        ? db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(activeAlertId)
+        : null;
+      if (alertRef) await transaction.get(alertRef);
+
+      if (alertRef) {
+        transaction.set(
+          alertRef,
+          {
+            state: 'retired',
+            retiredAt: now,
+            retiredReason: 'out_of_scope',
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+      }
+      transaction.set(
+        staleRef.ref,
+        {
+          activeAlertId: null,
+          startedDate: null,
+          monitored: false,
+          unmonitoredReason: 'out_of_scope',
+          lastEvaluatedAt: now,
+        },
+        { merge: true },
+      );
+      return Boolean(alertRef);
+    });
+    if (didRetire) retired += 1;
   }
 
-  await flush();
+  return retired;
+}
+
+async function reconcileCameraHealthAlerts(
+  records: readonly CameraHealthRecord[],
+  monitoredLocationIds: readonly number[],
+  latestDate: string,
+  now: number,
+): Promise<CameraHealthAlertReconcileSummary> {
+  const evaluations = buildCurrentCameraHealthEvaluations(records, latestDate);
+  const history = recordsByCamera(records);
+  const summary: CameraHealthAlertReconcileSummary = {
+    evaluated: evaluations.length,
+    normal: 0,
+    active: 0,
+    created: 0,
+    updated: 0,
+    recovered: 0,
+    retired: 0,
+  };
+
+  // Cada cámara se serializa en su propia transacción. Se ejecutan en paralelo
+  // porque no comparten documentos de estado.
+  const results = await Promise.all(
+    evaluations.map((evaluation) =>
+      reconcileCameraEvaluation(
+        evaluation,
+        history.get(evaluation.locationId) ?? [],
+        latestDate,
+        now,
+      ),
+    ),
+  );
+  for (const result of results) {
+    summary.normal += result.normal;
+    summary.active += result.active;
+    summary.created += result.created;
+    summary.updated += result.updated;
+    summary.recovered += result.recovered;
+  }
+
+  summary.retired = await retireOutOfScopeCameraStates(
+    new Set(monitoredLocationIds),
+    now,
+  );
   return summary;
 }
 
@@ -842,6 +936,7 @@ export const cameraHealthBackfill = onCall(
     const written = await persistCameraHealth(health.records);
     const alerts = await reconcileCameraHealthAlerts(
       health.records,
+      health.monitoredLocationIds,
       health.endDate,
       now,
     );
@@ -886,6 +981,7 @@ export const cameraHealthDaily = onSchedule(
     const written = await persistCameraHealth(records);
     const alerts = await reconcileCameraHealthAlerts(
       health.records,
+      health.monitoredLocationIds,
       health.endDate,
       now,
     );
