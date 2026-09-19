@@ -6,6 +6,9 @@
 >
 > - Fecha de la auditoría: **2026-09-19**
 > - Commit auditado: `b58d9c1` (merge del PR #114, `feat/quividi-marketing-dashboard`)
+- Última actualización: **2026-09-19**, tras resolver F1, F2 y F5 (PRs #116,
+  #117 y #118). Los hallazgos resueltos conservan su diagnóstico original y
+  llevan una nota de cierre, para que el historial siga siendo legible.
 > - Alcance: **solo** la integración Quividi (frontend, dominio, servicio,
 >   Cloud Functions, Excel, catálogo, seguridad, pruebas).
 > - Documento funcional previo (no lo reemplaza, lo complementa):
@@ -31,23 +34,19 @@ Secret Manager y nunca llegan al navegador.
 
 Riesgos principales detectados (detalle en §9):
 
-| # | Severidad | Título |
-|---|-----------|--------|
-| F1 | Alta | `campaignAvailability` reconsulta Ekon por campaña (N+1 Firestore) |
-| F2 | Alta | **Cero pruebas automatizadas** en `functions/` (toda la lógica crítica) |
-| F3 | Media | El presupuesto de 4 exports secuenciales puede agotar los 540 s |
-| F4 | Media | Topología asumida como array plano, sin paginación ni validación |
-| F5 | Media | Sin control de rol: cualquier usuario autenticado dispara la API Quividi |
-| F6 | Media | Snapshot > 900 KB se descarta en silencio (sin señal al usuario) |
-| F7 | Media | `src/modules/campaigns/quividiCoverage.ts` es código muerto y **divergente** |
-| F8 | Baja | Zona horaria: ventana UTC vs. horario local de cada ubicación |
-| F9 | Baja | Disponibilidad no valida contra VidiCenter (icono activo sin cámara real) |
-| F10 | Baja | `buildSupportHours` recorre todo el índice por cámara (O(n·m)) |
-| F11 | Baja | README y `.env.example` no documentan la integración ni sus secretos |
-
-> **Estado**: F1 y F2 se atienden en el PR #116 (caché de asignaciones Ekon
-> compartida + 29 pruebas de caracterización de `effectiveScope` y `hourly`).
-> El resto sigue abierto. Esta auditoría describe el commit `b58d9c1`.
+| # | Severidad | Título | Estado |
+|---|-----------|--------|--------|
+| F1 | Alta | `campaignAvailability` reconsulta Ekon por campaña (N+1 Firestore) | ✅ #116 |
+| F2 | Alta | **Cero pruebas automatizadas** en `functions/` (toda la lógica crítica) | ✅ #116 + #117 |
+| F3 | Media | El presupuesto de 4 exports secuenciales puede agotar los 540 s | abierto |
+| F4 | Media | Topología asumida como array plano, sin paginación ni validación | abierto |
+| F5 | Media | Sin control de rol: cualquier usuario autenticado dispara la API Quividi | ✅ #118 |
+| F6 | Media | Snapshot > 900 KB se descarta en silencio (sin señal al usuario) | abierto |
+| F7 | Media | `src/modules/campaigns/quividiCoverage.ts` es código muerto y **divergente** | abierto |
+| F8 | Baja | Zona horaria: ventana UTC vs. horario local de cada ubicación | abierto |
+| F9 | Baja | Disponibilidad no valida contra VidiCenter (icono activo sin cámara real) | abierto |
+| F10 | Baja | `buildSupportHours` recorre todo el índice por cámara (O(n·m)) | abierto |
+| F11 | Baja | README y `.env.example` no documentan la integración ni sus secretos | abierto |
 
 ---
 
@@ -60,7 +59,9 @@ Riesgos principales detectados (detalle en §9):
 | Servicio cliente | `src/services/quividi.ts` | 50 | Dos callables: `quividi-campaignReport` y `quividi-campaignAvailability` (lotes de 200 ids). |
 | UI | `src/modules/campaigns/CampaignsPage.tsx` | — | Icono por campaña, estado de disponibilidad, descarga del Excel, errores. |
 | Cobertura (cliente) | `src/modules/campaigns/quividiCoverage.ts` | 103 | **No se usa en producción** (solo su test). Ver F7. |
-| Backend — orquestación | `functions/src/quividi/index.ts` | 876 | Callables, llamadas a VidiCenter, ponderación multi-cámara diaria, demografía, incidencias, caché comprimida. |
+| Backend — orquestación | `functions/src/quividi/index.ts` | 430 | Callables, control de acceso, llamadas a VidiCenter, orquestación del reporte y caché comprimida. |
+| Backend — medición | `functions/src/quividi/measurement.ts` | 522 | Lógica pura: tipos de medición, fechas, `resolvePairs`, `buildCoverage`, ponderación multi-cámara diaria, demografía, incidencias, firma y frescura del snapshot. Sin dependencias de Firebase. |
+| Backend — acceso | `functions/src/quividi/access.ts` | 69 | Espejo en backend de la capacidad `quividi.report` y del permiso de recálculo forzado. |
 | Backend — alcance | `functions/src/quividi/effectiveScope.ts` | 507 | Construcción de pares **Tienda + Soporte** con precedencia Calendario → «todas» → circuito completo → Ekon. |
 | Backend — horario | `functions/src/quividi/hourly.ts` | 233 | Capa `supportHours` (agregados de 1 h) con la misma regla multi-cámara. |
 | Excel — técnico | `src/modules/exports/quividiCampaignExcel.ts` | 620 | Hojas Resumen Técnico, Alcance, Detalle Soportes, Cámaras, Demografía, Calidad medición, Metodología. |
@@ -148,7 +149,7 @@ las cámaras con medición válida.
 - Estado de cámara/día: `complete`, `partial` o `missing`.
 - `partial` = la duración medida del día es **< 80 %** de la mediana de duración
   de esa misma cámara en el periodo (`PARTIAL_DURATION_RATIO = 0.8`,
-  `index.ts:22`).
+  `measurement.ts:31`).
 - Si hay cámaras `complete`, las `partial` **no se mezclan** en la ponderación.
   Si solo hay `partial`, se usan y la incidencia queda declarada.
 - Nunca se rellena con cero ni se extrapolan días ausentes.
@@ -176,12 +177,13 @@ tiendas o soportes no se deduplican individuos.
 ```
 CampaignsPage.reload()
   └─ getQuividiCampaignAvailability(ids)      services/quividi.ts:35  (lotes de 200)
-       └─ callable quividi-campaignAvailability          index.ts:820
-            ├─ exige request.auth
+       └─ callable quividi-campaignAvailability          index.ts:370
+            ├─ requireQuividiAccess(): sesión + capacidad quividi.report
             ├─ máx. 250 ids por llamada
             ├─ lee TODAS las screens una vez
             ├─ db.getAll(campaigns...)
-            └─ por campaña: buildEffectiveSupportPairs()  index.ts:856
+            ├─ una sola caché de asignaciones Ekon por solicitud
+            └─ por campaña: buildEffectiveSupportPairs()  index.ts:409
                  └─ available = (pares con cameraNames.length > 0) > 0
 ```
 
@@ -191,10 +193,10 @@ tras cambiar el vínculo Ekon (`reloadEkon`).
 ### 4.2 Reporte (descarga del Excel)
 
 ```
-CampaignsPage.downloadQuividiReport(c)         CampaignsPage.tsx:508
+CampaignsPage.downloadQuividiReport(c)         CampaignsPage.tsx:509
   └─ getQuividiCampaignReport(campaignId, false)
-       └─ callable quividi-campaignReport       index.ts:707  (540 s, 512 MiB, secrets)
-            1. auth + campaignId
+       └─ callable quividi-campaignReport       index.ts:255  (540 s, 512 MiB, secrets)
+            1. requireQuividiAccess() + campaignId; forceRefresh solo admin
             2. lee campaigns/{id}; valida fechaInicio/fechaFin (parseCivilDate)
             3. lee todas las screens
             4. buildEffectiveSupportPairs() → pairs + origins
@@ -216,7 +218,7 @@ CampaignsPage.downloadQuividiReport(c)         CampaignsPage.tsx:508
 
 ### 4.3 Protocolo VidiCenter
 
-- Base: `https://vidicenter.quividi.com/api/v1` (`index.ts:18`).
+- Base: `https://vidicenter.quividi.com/api/v1` (`index.ts:45`).
 - Auth: `Basic base64(QUIVIDI_API_USERNAME:QUIVIDI_API_TOKEN)`, secretos de
   Firebase (`defineSecret`). **Nunca** en variables `VITE_*` ni en el navegador.
 - Topology: `GET /locations/`.
@@ -225,7 +227,7 @@ CampaignsPage.downloadQuividiReport(c)         CampaignsPage.tsx:508
   `state === 'finished'`. Estados manejados: `started`, `in_progress`,
   `finished`, `failed`, HTTP 429 (espera progresiva), desconocido → `data-loss`.
   Presupuesto: 24 intentos, espera `min(8 s, 1 s + intento·0,75 s)`
-  (429: `min(10 s, 2 s + intento·0,5 s)`) — `index.ts:254`.
+  (429: `min(10 s, 2 s + intento·0,5 s)`) — `index.ts:99`.
 
 ### 4.4 Caché (`campaignAudienceSnapshots`)
 
@@ -301,21 +303,25 @@ fecha civil a mediodía UTC para evitar corrimientos.
 Lo que **está** bien resuelto:
 
 - El token Quividi nunca sale de Cloud Functions (`defineSecret`, nunca `VITE_*`).
-- Ambas callables exigen `request.auth` (`unauthenticated` en caso contrario).
+- Ambas callables exigen sesión **y** la capacidad `quividi.report`
+  (`requireQuividiAccess`, espejo de `src/app/permissions.ts` en
+  `functions/src/quividi/access.ts`). Hoy la tienen los tres roles por decisión
+  de negocio; restringirla es quitar el rol en esos dos archivos.
+- `forceRefresh` está reservado a `admin`: es la única vía para saltarse la
+  caché de ~24 h y repetir los cuatro exports a voluntad.
 - `campaignAudienceSnapshots` **no tiene regla** en `firestore.rules`, por lo que
   cae en el cierre por defecto `match /{document=**} { allow read, write: if false; }`.
   Solo el Admin SDK (que omite reglas) la escribe y la lee. Es el
   comportamiento deseado y conviene **no** añadirle una regla de lectura.
 - `campaignAvailability` está acotada a 250 ids por llamada.
 
-Lo que **falta** (ver F5, F9):
+Lo que **falta** (ver F9):
 
-- No hay comprobación de rol: `src/app/permissions.ts` no declara ninguna
-  capacidad Quividi, así que un `viewer` autenticado puede descargar el reporte
-  y provocar llamadas a la API de Quividi.
-- `forceRefresh` está expuesto en el contrato de la callable (la UI siempre
-  envía `false`, pero un cliente puede enviar `true` en bucle y saltarse la
-  caché). No hay rate limiting propio.
+- No hay *rate limiting* propio por usuario. Con la caché de ~24 h y
+  `forceRefresh` restringido a `admin` el consumo de cuota queda acotado, pero
+  un operador puede seguir pidiendo reportes de campañas distintas en serie.
+- La disponibilidad no se valida contra VidiCenter (F9), así que el icono puede
+  habilitarse para una cámara que ya no existe.
 
 ---
 
@@ -326,12 +332,20 @@ Lo que **falta** (ver F5, F9):
 | `quividiMarketingAnalytics.ts` | 5 casos (`quividiMarketingAnalytics.test.ts`) |
 | `quividiCoverage.ts` (código muerto) | 2 casos |
 | Catálogo: columna `CAMARA QUIVIDI` | cubierto en `masterImport.test.ts` / `masterExport.test.ts` |
-| `functions/src/quividi/*` (876 + 507 + 233 líneas) | **ninguna** |
+| `functions/src/quividi/effectiveScope.ts` | 20 casos (`effectiveScope.test.ts`) |
+| `functions/src/quividi/hourly.ts` | 9 casos (`hourly.test.ts`) |
+| `functions/src/quividi/measurement.ts` | 25 casos (`measurement.test.ts`) |
+| `functions/src/quividi/access.ts` | 8 casos (`access.test.ts`) |
+| `functions/src/quividi/index.ts` (orquestación e IO) | **ninguna** |
 
-`functions/package.json` no declara runner de pruebas y CI
-(`.github/workflows/ci.yml`, job `functions`) solo ejecuta `npm run build`.
-Toda la lógica de alcance efectivo, ponderación multi-cámara, medición parcial,
-caché y capa horaria viaja **sin red de seguridad**.
+El Vitest de la raíz recoge `functions/src/**/*.test.ts` sin configuración
+adicional; `functions/tsconfig.json` los excluye del `build` para que no se
+compilen a `lib/` ni se desplieguen.
+
+Sigue **sin cobertura** la capa de IO de `index.ts`: `quividiGet`, `exportData`
+(reintentos, 429, estados del export), `decodeSnapshot` y `generateReport`.
+Probarla requiere instalar las dependencias de `functions/` en el job `quality`
+de CI, o inyectar el cliente HTTP.
 
 ---
 
@@ -339,7 +353,7 @@ caché y capa horaria viaja **sin red de seguridad**.
 
 ### F1 · Alta — `campaignAvailability` reconsulta Ekon por campaña
 
-`functions/src/quividi/index.ts:856` llama a `buildEffectiveSupportPairs` dentro
+`functions/src/quividi/index.ts` llamaba a `buildEffectiveSupportPairs` dentro
 del bucle **sin pasar `assignmentCache`**. El parámetro tiene valor por defecto
 `new Map()` (`effectiveScope.ts:379`), así que cada campaña crea una caché nueva
 y vuelve a consultar `ekonAssignments`. Con 250 campañas eso son hasta 250
@@ -347,8 +361,15 @@ lecturas de `campaignEkonLinks` + 250 consultas `where(campaignNumber)` (más la
 legacy por `campaignNameKey`), todas **secuenciales** (`await` dentro de `for`).
 Se dispara en cada carga de la pantalla Campañas.
 
-**Corrección sugerida**: crear una sola `Map` fuera del bucle y pasarla en cada
-llamada; opcionalmente paralelizar con `Promise.all` por lotes.
+**Resuelto** (PR #116): se crea una sola `Map` por solicitud y se pasa en cada
+llamada. Dos pruebas de `effectiveScope.test.ts` fijan que compartirla reduce
+las consultas sin cambiar pares ni orígenes. Queda pendiente la paralelización
+con `Promise.all`, que exigiría cachear la promesa en vez del arreglo para no
+disparar consultas duplicadas en paralelo.
+
+Matiz sobre el diagnóstico original: la búsqueda Ekon es **perezosa**, así que
+el N+1 solo afectaba a las campañas que llegan a la rama 4 de la precedencia
+(sin tiendas explícitas, sin «todas» explícito y sin ser CRIUS/Poster LED).
 
 ### F2 · Alta — Sin pruebas en `functions/`
 
@@ -357,9 +378,12 @@ circuito↔soporte, umbral del 80 % de medición parcial, ponderación) no tiene
 ninguna prueba. Un cambio inocente puede alterar cifras entregadas a marcas sin
 que CI lo note.
 
-**Corrección sugerida**: añadir Vitest a `functions/` y cubrir al menos
-`buildEffectiveSupportPairs`, `buildMeasurementRows` y `buildSupportHours`; o
-mover esa lógica pura a `src/domain/quividi/` compartida y probarla ahí.
+**Resuelto** (PRs #116, #117 y #118): 62 pruebas de caracterización sobre
+`effectiveScope`, `hourly`, `measurement` y `access`. No hizo falta runner
+nuevo —el Vitest de la raíz ya recoge `functions/src`— y `measurement.ts` se
+extrajo de `index.ts` mediante traslado literal para que la lógica de medición
+quedara libre de dependencias de Firebase. Ver §8 para lo que sigue sin
+cubrir.
 
 ### F3 · Media — Presupuesto de tiempo de los exports
 
@@ -374,7 +398,7 @@ presupuesto.
 
 ### F4 · Media — Topología sin validar ni paginar
 
-`index.ts:637` hace `quividiGet<TopologyLocation[]>('/locations/')` y
+`index.ts:161` hace `quividiGet<TopologyLocation[]>('/locations/')` y
 `resolvePairs` itera el resultado directamente. Si VidiCenter devuelve un objeto
 paginado (`{count, next, results}`) o aplica un límite por defecto, el `for`
 lanza `TypeError` o se pierden cámaras **en silencio** (aparecerían como
@@ -385,14 +409,19 @@ lanza `TypeError` o se pierden cámaras **en silencio** (aparecerían como
 
 ### F5 · Media — Sin control de rol
 
-Ver §7. Añadir una capacidad (p. ej. `quividi.report`) a
-`src/app/permissions.ts` y validarla también en la callable con
-`request.auth.token.role`, coherente con la nota de `CLAUDE.md`: esconder
-botones no es control de acceso.
+Ver §7. `firestore.rules` no aplica a las callables, así que ambas comprobaban
+solo la sesión y el cliente no declaraba ninguna capacidad Quividi.
+
+**Resuelto** (PR #118): capacidad `quividi.report` en `src/app/permissions.ts`,
+espejo en `functions/src/quividi/access.ts` y validación en ambas callables
+(`requireQuividiAccess`). La tienen los tres roles por decisión de negocio; el
+rol se resuelve del custom claim con `viewer` por defecto, así que un token sin
+claim aprovisionado conserva el acceso. `forceRefresh` sí queda reservado a
+`admin`, por ser la única vía de saltarse la caché a voluntad.
 
 ### F6 · Media — Snapshot descartado en silencio
 
-`index.ts:786`: si el gzip supera 900 000 bytes no se persiste nada y la función
+`index.ts:338`: si el gzip supera 900 000 bytes no se persiste nada y la función
 devuelve el reporte con `cached: false`. Una campaña grande (muchas tiendas ×
 muchos días × 24 h) recalculará **siempre** desde cero, con el coste de API
 correspondiente, y ni el usuario ni el log lo indican.
@@ -486,6 +515,9 @@ contener los secretos, pero tampoco los nombra. El único punto de entrada es
 9. `campaignAudienceSnapshots` es de backend; no abrirla a lectura de cliente.
 10. Alias exclusivos del reporte: `MUPPI'S → MEGA MUPI DIGITAL`,
     `PENDON → BANNER DIGITAL`. No propagarlos a consolidación ni a CSV.
+11. Las callables validan el rol por su cuenta: `firestore.rules` no las cubre.
+    Si cambia la matriz de `src/app/permissions.ts`, cambiar también
+    `functions/src/quividi/access.ts`.
 
 ---
 
@@ -513,6 +545,8 @@ firebase deploy --only functions:quividi
 
 **Diagnóstico cuando el icono no aparece**
 
+0. ¿El usuario tiene la capacidad `quividi.report`? Hoy la tienen los tres
+   roles, así que esto solo descarta una matriz de permisos modificada.
 1. ¿La campaña tiene soportes con alcance resoluble? Revisar `scopeOrigins`
    (`unresolved` = sin comentario, sin CRIUS/Poster LED y sin Ekon vinculado).
 2. ¿Las pantallas del par están **activas** y tienen `calendarSupport`?

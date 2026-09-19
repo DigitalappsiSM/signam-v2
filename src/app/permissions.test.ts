@@ -40,6 +40,12 @@ describe('permisos por rol', () => {
     expect(can('viewer', 'tracking.read')).toBe(true);
   });
 
+  it('el informe de audiencia Quividi está disponible para los tres roles', () => {
+    expect(can('admin', 'quividi.report')).toBe(true);
+    expect(can('operator', 'quividi.report')).toBe(true);
+    expect(can('viewer', 'quividi.report')).toBe(true);
+  });
+
   it('reporting está disponible para los tres roles', () => {
     expect(can('admin', 'reporting.read')).toBe(true);
     expect(can('operator', 'reporting.read')).toBe(true);

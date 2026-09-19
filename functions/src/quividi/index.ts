@@ -2,7 +2,11 @@ import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  HttpsError,
+  onCall,
+  type CallableRequest,
+} from 'firebase-functions/v2/https';
 import {
   buildEffectiveSupportPairs,
   type CampaignDoc,
@@ -11,6 +15,11 @@ import {
   type EkonAssignmentDoc,
   type ScreenDoc,
 } from './effectiveScope';
+import {
+  canForceRefreshQuividi,
+  canReportQuividi,
+  roleFromClaims,
+} from './access';
 import { buildSupportHours, type SupportHour } from './hourly';
 import {
   buildCoverage,
@@ -219,6 +228,30 @@ async function generateReport(
   };
 }
 
+type CallableAuth = NonNullable<CallableRequest['auth']>;
+
+/**
+ * Exige sesión y la capacidad `quividi.report`, y devuelve la identidad.
+ *
+ * Las reglas de Firestore no aplican a las callables: sin esta comprobación
+ * cualquier usuario autenticado podría disparar llamadas a la API de pago de
+ * Quividi. El reparto por rol vive en `access.ts`, espejo de la matriz del
+ * cliente.
+ */
+function requireQuividiAccess(request: CallableRequest): CallableAuth {
+  const auth = request.auth;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  if (!canReportQuividi(roleFromClaims(auth.token))) {
+    throw new HttpsError(
+      'permission-denied',
+      'Tu rol no permite consultar el reporte de audiencia Quividi.',
+    );
+  }
+  return auth;
+}
+
 export const campaignReport = onCall(
   {
     secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
@@ -226,15 +259,19 @@ export const campaignReport = onCall(
     memory: '512MiB',
   },
   async (request): Promise<{ report: CampaignReport; cached: boolean }> => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
-    }
+    const auth = requireQuividiAccess(request);
     const data = request.data as
       | { campaignId?: unknown; forceRefresh?: unknown }
       | undefined;
     const campaignId =
       typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
     const forceRefresh = data?.forceRefresh === true;
+    if (forceRefresh && !canForceRefreshQuividi(roleFromClaims(auth.token))) {
+      throw new HttpsError(
+        'permission-denied',
+        'Solo un administrador puede forzar el recálculo del reporte Quividi.',
+      );
+    }
     if (!campaignId) {
       throw new HttpsError('invalid-argument', 'Falta campaignId.');
     }
@@ -309,11 +346,9 @@ export const campaignReport = onCall(
           generatedAt: report.generatedAt,
           coverage: report.coverage,
           compressedReport: compressed,
-          updatedByUid: request.auth.uid,
+          updatedByUid: auth.uid,
           updatedByEmail:
-            typeof request.auth.token.email === 'string'
-              ? request.auth.token.email
-              : '',
+            typeof auth.token.email === 'string' ? auth.token.email : '',
         },
         { merge: true },
       );
@@ -334,9 +369,7 @@ interface CampaignAvailabilityItem {
 
 export const campaignAvailability = onCall(
   async (request): Promise<{ items: CampaignAvailabilityItem[] }> => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
-    }
+    requireQuividiAccess(request);
     const rawIds = (request.data as { campaignIds?: unknown } | undefined)
       ?.campaignIds;
     if (!Array.isArray(rawIds)) {
