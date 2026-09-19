@@ -208,6 +208,12 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   **costo fijo**, no por CPM/CPC, así que no se incluyen coste por mil, coste por
   impacto ni derivados. Una cifra así induciría a comparar contra un modelo de venta
   que no se ofrece.
+- **El informe de marca no nombra la plataforma de medición**: se presenta como
+  medición de audiencia propia de in-Store Media. Ningún texto, pie de página ni
+  el nombre del archivo citan al proveedor; el PDF se descarga como
+  `Audiencia_<campaña>_<inicio>_<fin>.pdf`. En el código la integración sigue
+  llamándose `quividi*` —es su origen técnico— y el Excel conserva sus hojas
+  técnicas: la regla rige lo que ve el cliente, no la implementación.
 - **Terminología Quividi en el informe de marca**: se conservan los nombres que ya
   se manejan con el cliente —`OTS`, `Watchers`, `Conversion ratio`,
   `Attention time`, `Dwell time`— sin traducirlos a equivalentes propios. Cada

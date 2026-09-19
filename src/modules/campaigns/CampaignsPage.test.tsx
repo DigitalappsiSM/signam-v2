@@ -38,6 +38,7 @@ import {
   getQuividiCampaignReport,
 } from '@/services/quividi';
 import { buildQuividiCampaignBlob } from '@/modules/exports/quividiCampaignExcel';
+import { buildQuividiCampaignPdfBlob } from '@/modules/exports/quividiCampaignPdf';
 import {
   initializeTrackingForImport,
   listOperationalTracking,
@@ -86,6 +87,16 @@ vi.mock('@/services/quividi', () => ({
   getQuividiCampaignAvailability: vi.fn(),
   getQuividiCampaignReport: vi.fn(),
 }));
+
+vi.mock('@/modules/exports/quividiCampaignPdf', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/exports/quividiCampaignPdf')
+  >('@/modules/exports/quividiCampaignPdf');
+  return {
+    ...actual,
+    buildQuividiCampaignPdfBlob: vi.fn(),
+  };
+});
 
 vi.mock('@/modules/exports/quividiCampaignExcel', async () => {
   const actual = await vi.importActual<
@@ -347,6 +358,9 @@ beforeEach(() => {
   vi.mocked(buildQuividiCampaignBlob)
     .mockReset()
     .mockResolvedValue(new Blob(['quividi-xlsx']));
+  vi.mocked(buildQuividiCampaignPdfBlob)
+    .mockReset()
+    .mockResolvedValue(new Blob(['quividi-pdf']));
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
 });
@@ -654,7 +668,7 @@ describe('CampaignsPage — métricas Quividi', () => {
     await screen.findByText('BUEN FIN');
     expect(
       screen.getByRole('button', {
-        name: /Descargar métricas Quividi de BUEN FIN/i,
+        name: /Informe de audiencia de BUEN FIN/i,
       }),
     ).toBeDisabled();
   });
@@ -696,7 +710,7 @@ describe('CampaignsPage — métricas Quividi', () => {
     render(<CampaignsPage />);
     await screen.findByText('COCOMERCIAL');
     const button = screen.getByRole('button', {
-      name: /Descargar métricas Quividi de COCOMERCIAL/i,
+      name: /Informe de audiencia de COCOMERCIAL/i,
     });
     expect(button).toBeEnabled();
     expect(button).toHaveAttribute(
@@ -705,7 +719,7 @@ describe('CampaignsPage — métricas Quividi', () => {
     );
   });
 
-  it('habilita y descarga el informe cuando existe Tienda + Soporte + cámara', async () => {
+  it('ofrece PDF y Excel cuando existe Tienda + Soporte + cámara', async () => {
     vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
     vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
     vi.mocked(consolidate).mockReturnValue({
@@ -734,17 +748,68 @@ describe('CampaignsPage — métricas Quividi', () => {
     render(<CampaignsPage />);
     await screen.findByText('CAMPAÑA QUIVIDI');
     const button = screen.getByRole('button', {
-      name: /Descargar métricas Quividi de CAMPAÑA QUIVIDI/i,
+      name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
     });
     expect(button).toBeEnabled();
 
     await userEvent.click(button);
+    const menu = screen.getByRole('menu', {
+      name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
+    });
+    const items = within(menu).getAllByRole('menuitem');
+    expect(items[0]).toHaveTextContent('Informe ejecutivo (PDF)');
+    expect(items[1]).toHaveTextContent('Datos completos (Excel)');
+
+    await userEvent.click(items[0]!);
     await waitFor(() =>
       expect(getQuividiCampaignReport).toHaveBeenCalledWith('q1'),
     );
     await waitFor(() =>
+      expect(buildQuividiCampaignPdfBlob).toHaveBeenCalledTimes(1),
+    );
+    expect(buildQuividiCampaignBlob).not.toHaveBeenCalled();
+  });
+
+  it('descarga el Excel de datos desde el mismo menú', async () => {
+    vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
+    vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
+    vi.mocked(consolidate).mockReturnValue({
+      consolidations: [],
+      issues: [],
+      excludedInstore: [],
+      ismExcludedCount: 0,
+    });
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'q1',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [
+          {
+            support: 'MEGA MUPI DIGITAL',
+            source: 'calendar-selected',
+            pairCount: 1,
+            ekonNumber: null,
+          },
+        ],
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await screen.findByText('CAMPAÑA QUIVIDI');
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: /Datos completos \(Excel\)/i }),
+    );
+    await waitFor(() =>
       expect(buildQuividiCampaignBlob).toHaveBeenCalledTimes(1),
     );
+    expect(buildQuividiCampaignPdfBlob).not.toHaveBeenCalled();
   });
 });
 
