@@ -185,7 +185,19 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   tiendas encienden sus cámaras hasta las 11:00. La salud futura debe evaluarse
   al cierre del día, no generar una alerta inmediata por ausencia a las 10:xx.
   `measurementStatus` y `hasOts` son señales distintas: **OTS = 0 no equivale
-  por sí solo a avería técnica**. Esta fase no crea alertas ni tickets.
+  por sí solo a avería técnica**.
+- **Motor de salud Quividi (Fase 2.2)**: la salud vigente se decide **solo con el
+  último día completo**. El histórico se usa únicamente para calcular desde
+  cuándo persiste una anomalía; una caída antigua ya recuperada **no crea alerta
+  retroactiva**. La evaluación usa la ventana núcleo 11:00–22:00 y conserva
+  10:00–11:00 como tolerancia de arranque. Estados: `normal`,
+  `no_measurement` (0 horas núcleo con medición), `partial_measurement`
+  (cobertura núcleo <80%) y `no_ots` (cobertura suficiente pero OTS núcleo = 0).
+  Una sola incidencia puede cambiar de tipo mientras siga sin existir un día
+  normal entre medias. `quividiCameraHealthAlertState/{locationId}` mantiene el
+  estado actual/puntero y `quividiCameraHealthAlerts/{locationId__inicio}`
+  conserva cada incidente. Al volver a normal, la incidencia activa pasa a
+  `recovered`; **no se abre ningún ticket automáticamente**.
 - **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
   tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
   **nunca como reach único**. El análisis horario usa exports VidiCenter de
