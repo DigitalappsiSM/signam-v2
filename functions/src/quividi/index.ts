@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { getFirestore } from 'firebase-admin/firestore';
+import {
+  getFirestore,
+  type DocumentData,
+  type DocumentReference,
+} from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
@@ -33,6 +37,16 @@ import {
   type CameraHealthMappingSummary,
 } from './cameraHealth';
 import {
+  CAMERA_HEALTH_ALERT_SCHEMA_VERSION,
+  buildCurrentCameraHealthEvaluations,
+  cameraHealthAlertId,
+  daysInclusive,
+  previousCivilDate,
+  type CameraHealthAlertDoc,
+  type CameraHealthAlertStateDoc,
+  type CameraHealthEvaluation,
+} from './cameraAlerts';
+import {
   buildCoverage,
   buildMeasurementRows,
   dayList,
@@ -57,6 +71,8 @@ const QUIVIDI_API_TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
+const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
+const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
 const SNAPSHOT_SCHEMA_VERSION = 3;
 
 interface CampaignReport {
@@ -324,6 +340,265 @@ async function persistCameraHealth(
   return records.length;
 }
 
+
+interface CameraHealthAlertReconcileSummary {
+  evaluated: number;
+  normal: number;
+  active: number;
+  created: number;
+  updated: number;
+  recovered: number;
+}
+
+function cameraHealthStateDoc(
+  evaluation: CameraHealthEvaluation,
+  activeAlertId: string | null,
+  startedDate: string | null,
+  now: number,
+): CameraHealthAlertStateDoc {
+  const record = evaluation.latestRecord;
+  return {
+    schemaVersion: CAMERA_HEALTH_ALERT_SCHEMA_VERSION as 1,
+    source: 'quividi',
+    locationId: record.locationId,
+    locationName: record.locationName,
+    storeNumber: record.storeNumber,
+    storeName: record.storeName,
+    support: record.support,
+    currentStatus: evaluation.currentStatus,
+    severity: evaluation.severity,
+    latestDate: evaluation.latestDate,
+    activeAlertId,
+    startedDate,
+    expectedCoreHours: record.expectedCoreHours,
+    coreMeasuredHours: record.coreMeasuredHours,
+    coreOtsHours: record.coreOtsHours,
+    coreOts: record.coreOts,
+    firstMeasuredHour: record.firstMeasuredHour,
+    lastMeasuredHour: record.lastMeasuredHour,
+    firstOtsHour: record.firstOtsHour,
+    lastOtsHour: record.lastOtsHour,
+    lastEvaluatedAt: now,
+  };
+}
+
+function continuesExistingCameraAlert(
+  previous: Partial<CameraHealthAlertStateDoc> | undefined,
+  evaluation: CameraHealthEvaluation,
+): boolean {
+  if (
+    !previous?.activeAlertId ||
+    !previous.startedDate ||
+    evaluation.currentStatus === 'normal' ||
+    !evaluation.incidentStartDate
+  ) {
+    return false;
+  }
+  if (previous.startedDate === evaluation.incidentStartDate) return true;
+
+  // Si los 28 días visibles siguen anómalos, una alerta activa evaluada
+  // recientemente puede haber empezado antes de la ventana disponible.
+  return (
+    evaluation.incidentStartDate === evaluation.historyStartDate &&
+    typeof previous.latestDate === 'string' &&
+    previous.latestDate >= previousCivilDate(evaluation.historyStartDate)
+  );
+}
+
+async function reconcileCameraHealthAlerts(
+  records: readonly CameraHealthRecord[],
+  latestDate: string,
+  now: number,
+): Promise<CameraHealthAlertReconcileSummary> {
+  const db = getFirestore();
+  const evaluations = buildCurrentCameraHealthEvaluations(records, latestDate);
+  const summary: CameraHealthAlertReconcileSummary = {
+    evaluated: evaluations.length,
+    normal: 0,
+    active: 0,
+    created: 0,
+    updated: 0,
+    recovered: 0,
+  };
+  if (evaluations.length === 0) return summary;
+
+  const stateRefs = evaluations.map((evaluation) =>
+    db
+      .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
+      .doc(String(evaluation.locationId)),
+  );
+  const stateSnaps = await db.getAll(...stateRefs);
+  const previousStates = new Map<
+    number,
+    Partial<CameraHealthAlertStateDoc> | undefined
+  >();
+  for (let index = 0; index < evaluations.length; index += 1) {
+    previousStates.set(
+      evaluations[index]!.locationId,
+      stateSnaps[index]?.data() as Partial<CameraHealthAlertStateDoc> | undefined,
+    );
+  }
+
+  const candidateAlertIds = new Set<string>();
+  for (const evaluation of evaluations) {
+    const previous = previousStates.get(evaluation.locationId);
+    if (typeof previous?.activeAlertId === 'string') {
+      candidateAlertIds.add(previous.activeAlertId);
+    }
+    if (evaluation.incidentStartDate) {
+      candidateAlertIds.add(
+        cameraHealthAlertId(
+          evaluation.locationId,
+          evaluation.incidentStartDate,
+        ),
+      );
+    }
+  }
+  const alertRefs = Array.from(candidateAlertIds, (id) =>
+    db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(id),
+  );
+  const alertSnaps =
+    alertRefs.length > 0 ? await db.getAll(...alertRefs) : [];
+  const existingAlerts = new Map<
+    string,
+    Partial<CameraHealthAlertDoc> | undefined
+  >();
+  for (let index = 0; index < alertRefs.length; index += 1) {
+    existingAlerts.set(
+      alertRefs[index]!.id,
+      alertSnaps[index]?.data() as Partial<CameraHealthAlertDoc> | undefined,
+    );
+  }
+
+  let batch = db.batch();
+  let pendingWrites = 0;
+  const flush = async (): Promise<void> => {
+    if (pendingWrites === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    pendingWrites = 0;
+  };
+  const setDoc = (
+    ref: DocumentReference,
+    data: DocumentData,
+  ): void => {
+    batch.set(ref, data, { merge: true });
+    pendingWrites += 1;
+  };
+
+  for (const evaluation of evaluations) {
+    const previous = previousStates.get(evaluation.locationId);
+    const stateRef = db
+      .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
+      .doc(String(evaluation.locationId));
+
+    if (evaluation.currentStatus === 'normal') {
+      summary.normal += 1;
+      if (typeof previous?.activeAlertId === 'string') {
+        setDoc(
+          db
+            .collection(CAMERA_HEALTH_ALERT_COLLECTION)
+            .doc(previous.activeAlertId),
+          {
+            state: 'recovered',
+            recoveredDate: latestDate,
+            latestDate,
+            updatedAt: now,
+          },
+        );
+        summary.recovered += 1;
+      }
+      setDoc(stateRef, cameraHealthStateDoc(evaluation, null, null, now));
+      if (pendingWrites >= 350) await flush();
+      continue;
+    }
+
+    summary.active += 1;
+    const currentStart = evaluation.incidentStartDate!;
+    const continues = continuesExistingCameraAlert(previous, evaluation);
+    let alertId: string;
+    let startedDate: string;
+
+    if (continues) {
+      alertId = previous!.activeAlertId!;
+      startedDate = previous!.startedDate!;
+      summary.updated += 1;
+    } else {
+      if (typeof previous?.activeAlertId === 'string') {
+        setDoc(
+          db
+            .collection(CAMERA_HEALTH_ALERT_COLLECTION)
+            .doc(previous.activeAlertId),
+          {
+            state: 'recovered',
+            recoveredDate: previousCivilDate(currentStart),
+            latestDate: previousCivilDate(currentStart),
+            updatedAt: now,
+          },
+        );
+        summary.recovered += 1;
+      }
+      startedDate = currentStart;
+      alertId = cameraHealthAlertId(evaluation.locationId, startedDate);
+      summary.created += 1;
+    }
+
+    const record = evaluation.latestRecord;
+    const existing = existingAlerts.get(alertId);
+    const currentType = evaluation.currentStatus;
+    const alert: CameraHealthAlertDoc = {
+      schemaVersion: CAMERA_HEALTH_ALERT_SCHEMA_VERSION as 1,
+      source: 'quividi',
+      alertId,
+      locationId: record.locationId,
+      locationName: record.locationName,
+      storeNumber: record.storeNumber,
+      storeName: record.storeName,
+      support: record.support,
+      state: 'active',
+      initialType:
+        existing?.initialType ??
+        (currentType as Exclude<typeof currentType, 'normal'>),
+      currentType,
+      severity: evaluation.severity as Exclude<
+        typeof evaluation.severity,
+        'none'
+      >,
+      startedDate,
+      lastAnomalousDate: latestDate,
+      recoveredDate: null,
+      consecutiveDays: continues
+        ? daysInclusive(startedDate, latestDate)
+        : evaluation.consecutiveDays,
+      latestDate,
+      expectedCoreHours: record.expectedCoreHours,
+      coreMeasuredHours: record.coreMeasuredHours,
+      coreOtsHours: record.coreOtsHours,
+      coreOts: record.coreOts,
+      firstMeasuredHour: record.firstMeasuredHour,
+      lastMeasuredHour: record.lastMeasuredHour,
+      firstOtsHour: record.firstOtsHour,
+      lastOtsHour: record.lastOtsHour,
+      createdAt:
+        typeof existing?.createdAt === 'number' ? existing.createdAt : now,
+      updatedAt: now,
+    };
+
+    setDoc(
+      db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(alertId),
+      alert,
+    );
+    setDoc(
+      stateRef,
+      cameraHealthStateDoc(evaluation, alertId, startedDate, now),
+    );
+    if (pendingWrites >= 350) await flush();
+  }
+
+  await flush();
+  return summary;
+}
+
 type CallableAuth = NonNullable<CallableRequest['auth']>;
 
 /**
@@ -537,6 +812,7 @@ export const cameraHealthBackfill = onCall(
     days: number;
     written: number;
     mapping: CameraHealthMappingSummary;
+    alerts: CameraHealthAlertReconcileSummary;
   }> => {
     const auth = requireQuividiAccess(request);
     if (!canForceRefreshQuividi(roleFromClaims(auth.token))) {
@@ -561,14 +837,21 @@ export const cameraHealthBackfill = onCall(
       );
     }
 
-    const health = await computeCameraHealth(days, Date.now());
+    const now = Date.now();
+    const health = await computeCameraHealth(days, now);
     const written = await persistCameraHealth(health.records);
+    const alerts = await reconcileCameraHealthAlerts(
+      health.records,
+      health.endDate,
+      now,
+    );
     return {
       startDate: health.startDate,
       endDate: health.endDate,
       days,
       written,
       mapping: health.mapping,
+      alerts,
     };
   },
 );
@@ -590,9 +873,10 @@ export const cameraHealthDaily = onSchedule(
     memory: '512MiB',
   },
   async () => {
+    const now = Date.now();
     const health = await computeCameraHealth(
       CAMERA_HEALTH_LOOKBACK_DAYS,
-      Date.now(),
+      now,
     );
     const db = getFirestore();
     const existing = await db.collection(CAMERA_HEALTH_COLLECTION).limit(1).get();
@@ -600,6 +884,11 @@ export const cameraHealthDaily = onSchedule(
       ? health.records
       : health.records.filter((record) => record.date === health.endDate);
     const written = await persistCameraHealth(records);
+    const alerts = await reconcileCameraHealthAlerts(
+      health.records,
+      health.endDate,
+      now,
+    );
 
     console.info('Quividi camera health persisted.', {
       startDate: health.startDate,
@@ -607,6 +896,7 @@ export const cameraHealthDaily = onSchedule(
       initialBackfill: existing.empty,
       written,
       mapping: health.mapping,
+      alerts,
     });
   },
 );
