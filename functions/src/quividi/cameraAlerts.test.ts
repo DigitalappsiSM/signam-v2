@@ -4,7 +4,7 @@ import {
   cameraHealthAlertId,
   classifyCameraHealth,
   daysInclusive,
-  previousCivilDate,
+  findCameraHealthRecoveryBoundary,
 } from './cameraAlerts';
 import type { CameraHealthRecord } from './cameraHealth';
 
@@ -54,21 +54,23 @@ function healthRecord(
   };
 }
 
+function noMeasurement(date: string): CameraHealthRecord {
+  return healthRecord(date, {
+    coreMeasuredHours: 0,
+    coreOtsHours: 0,
+    coreOts: 0,
+  });
+}
+
 describe('classifyCameraHealth', () => {
   it('tolera que la cámara arranque a las 11 si cubre la ventana núcleo', () => {
     expect(classifyCameraHealth(healthRecord('2026-09-18'))).toBe('normal');
   });
 
   it('clasifica ausencia total de medición en 11–22', () => {
-    expect(
-      classifyCameraHealth(
-        healthRecord('2026-09-18', {
-          coreMeasuredHours: 0,
-          coreOtsHours: 0,
-          coreOts: 0,
-        }),
-      ),
-    ).toBe('no_measurement');
+    expect(classifyCameraHealth(noMeasurement('2026-09-18'))).toBe(
+      'no_measurement',
+    );
   });
 
   it('clasifica como parcial una cobertura inferior al 80%', () => {
@@ -99,16 +101,8 @@ describe('classifyCameraHealth', () => {
 describe('buildCurrentCameraHealthEvaluations', () => {
   it('no genera una anomalía actual por una caída histórica ya recuperada', () => {
     const records = [
-      healthRecord('2026-09-12', {
-        coreMeasuredHours: 0,
-        coreOtsHours: 0,
-        coreOts: 0,
-      }),
-      healthRecord('2026-09-13', {
-        coreMeasuredHours: 0,
-        coreOtsHours: 0,
-        coreOts: 0,
-      }),
+      noMeasurement('2026-09-12'),
+      noMeasurement('2026-09-13'),
       healthRecord('2026-09-14'),
       healthRecord('2026-09-15'),
       healthRecord('2026-09-16'),
@@ -129,11 +123,7 @@ describe('buildCurrentCameraHealthEvaluations', () => {
   it('usa el histórico solo para calcular desde cuándo continúa una anomalía vigente', () => {
     const records = [
       healthRecord('2026-09-12'),
-      healthRecord('2026-09-13', {
-        coreMeasuredHours: 0,
-        coreOtsHours: 0,
-        coreOts: 0,
-      }),
+      noMeasurement('2026-09-13'),
       healthRecord('2026-09-14', {
         coreMeasuredHours: 3,
         coreOtsHours: 3,
@@ -149,16 +139,8 @@ describe('buildCurrentCameraHealthEvaluations', () => {
         coreOtsHours: 0,
         coreOts: 0,
       }),
-      healthRecord('2026-09-17', {
-        coreMeasuredHours: 0,
-        coreOtsHours: 0,
-        coreOts: 0,
-      }),
-      healthRecord('2026-09-18', {
-        coreMeasuredHours: 0,
-        coreOtsHours: 0,
-        coreOts: 0,
-      }),
+      noMeasurement('2026-09-17'),
+      noMeasurement('2026-09-18'),
     ];
 
     const evaluation = buildCurrentCameraHealthEvaluations(
@@ -174,10 +156,7 @@ describe('buildCurrentCameraHealthEvaluations', () => {
 
   it('corta la antigüedad al encontrar el último día normal', () => {
     const records = [
-      healthRecord('2026-09-14', {
-        coreMeasuredHours: 0,
-        coreOts: 0,
-      }),
+      noMeasurement('2026-09-14'),
       healthRecord('2026-09-15'),
       healthRecord('2026-09-16', {
         coreMeasuredHours: 9,
@@ -215,10 +194,56 @@ describe('buildCurrentCameraHealthEvaluations', () => {
   });
 });
 
+describe('findCameraHealthRecoveryBoundary', () => {
+  it('recupera en el primer día normal y conserva el último día anómalo real', () => {
+    const records = [
+      noMeasurement('2026-09-20'),
+      noMeasurement('2026-09-21'),
+      noMeasurement('2026-09-22'),
+      healthRecord('2026-09-23'),
+      healthRecord('2026-09-24'),
+      healthRecord('2026-09-25'),
+    ];
+
+    expect(
+      findCameraHealthRecoveryBoundary(records, '2026-09-20', '2026-09-25'),
+    ).toEqual({
+      recoveredDate: '2026-09-23',
+      lastAnomalousDate: '2026-09-22',
+    });
+  });
+
+  it('usa el primer normal visible si la incidencia empezó antes de la ventana', () => {
+    const records = [
+      healthRecord('2026-09-23'),
+      healthRecord('2026-09-24'),
+    ];
+
+    expect(
+      findCameraHealthRecoveryBoundary(records, '2026-09-01', '2026-09-24'),
+    ).toEqual({
+      recoveredDate: '2026-09-23',
+      lastAnomalousDate: null,
+    });
+  });
+
+  it('no devuelve recuperación cuando toda la ventana sigue anómala', () => {
+    expect(
+      findCameraHealthRecoveryBoundary(
+        [
+          noMeasurement('2026-09-20'),
+          noMeasurement('2026-09-21'),
+        ],
+        '2026-09-20',
+        '2026-09-21',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('camera alert helpers', () => {
-  it('genera ids estables y fechas civiles', () => {
+  it('genera ids estables y duraciones inclusivas', () => {
     expect(cameraHealthAlertId(101, '2026-09-16')).toBe('101__2026-09-16');
-    expect(previousCivilDate('2026-09-16')).toBe('2026-09-15');
     expect(daysInclusive('2026-09-13', '2026-09-18')).toBe(6);
   });
 });
