@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { getFirestore } from 'firebase-admin/firestore';
+import {
+  getFirestore,
+  type DocumentData,
+  type DocumentReference,
+} from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
@@ -475,8 +479,8 @@ async function reconcileCameraHealthAlerts(
     pendingWrites = 0;
   };
   const setDoc = (
-    ref: FirebaseFirestore.DocumentReference,
-    data: FirebaseFirestore.DocumentData,
+    ref: DocumentReference,
+    data: DocumentData,
   ): void => {
     batch.set(ref, data, { merge: true });
     pendingWrites += 1;
