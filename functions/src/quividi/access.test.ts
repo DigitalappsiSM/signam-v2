@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  QUIVIDI_FORCE_REFRESH_ROLES,
   QUIVIDI_REPORT_ROLES,
+  canForceRefreshQuividi,
   canReportQuividi,
   roleFromClaims,
 } from './access';
@@ -44,5 +46,27 @@ describe('canReportQuividi', () => {
       'operator',
       'viewer',
     ]);
+  });
+});
+
+describe('canForceRefreshQuividi', () => {
+  it('reserva el recálculo forzado a admin', () => {
+    expect(canForceRefreshQuividi('admin')).toBe(true);
+    expect(canForceRefreshQuividi('operator')).toBe(false);
+    expect(canForceRefreshQuividi('viewer')).toBe(false);
+  });
+
+  it('un token sin claim aprovisionado no puede forzar el recálculo', () => {
+    expect(canForceRefreshQuividi(roleFromClaims(undefined))).toBe(false);
+    expect(canForceRefreshQuividi(roleFromClaims({ role: 'superadmin' }))).toBe(
+      false,
+    );
+  });
+
+  it('es más restrictivo que la consulta del informe', () => {
+    expect(QUIVIDI_FORCE_REFRESH_ROLES).toEqual(['admin']);
+    for (const role of QUIVIDI_FORCE_REFRESH_ROLES) {
+      expect(QUIVIDI_REPORT_ROLES).toContain(role);
+    }
   });
 });

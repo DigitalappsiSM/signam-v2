@@ -15,7 +15,11 @@ import {
   type EkonAssignmentDoc,
   type ScreenDoc,
 } from './effectiveScope';
-import { canReportQuividi, roleFromClaims } from './access';
+import {
+  canForceRefreshQuividi,
+  canReportQuividi,
+  roleFromClaims,
+} from './access';
 import { buildSupportHours, type SupportHour } from './hourly';
 import {
   buildCoverage,
@@ -262,6 +266,12 @@ export const campaignReport = onCall(
     const campaignId =
       typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
     const forceRefresh = data?.forceRefresh === true;
+    if (forceRefresh && !canForceRefreshQuividi(roleFromClaims(auth.token))) {
+      throw new HttpsError(
+        'permission-denied',
+        'Solo un administrador puede forzar el recálculo del reporte Quividi.',
+      );
+    }
     if (!campaignId) {
       throw new HttpsError('invalid-argument', 'Falta campaignId.');
     }

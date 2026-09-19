@@ -47,3 +47,23 @@ export function roleFromClaims(
 export function canReportQuividi(role: Role): boolean {
   return QUIVIDI_REPORT_ROLES.includes(role);
 }
+
+/**
+ * Roles que pueden forzar el recálculo saltándose la caché.
+ *
+ * `forceRefresh` ignora el snapshot de ~24 h y vuelve a pedir los cuatro
+ * exports a VidiCenter, así que es la operación que más cuota consume y la
+ * única vía para provocar llamadas repetidas a voluntad. Queda reservada a
+ * `admin`.
+ *
+ * No tiene espejo en `src/app/permissions.ts` a propósito: esa matriz decide
+ * qué se muestra u oculta en la interfaz, y hoy ninguna pantalla ofrece forzar
+ * el recálculo (la UI siempre envía `forceRefresh: false`). Si algún día se
+ * agrega ese botón, hay que declarar allí la capacidad equivalente.
+ */
+export const QUIVIDI_FORCE_REFRESH_ROLES: readonly Role[] = ['admin'];
+
+/** Indica si un rol puede forzar el recálculo saltándose la caché. */
+export function canForceRefreshQuividi(role: Role): boolean {
+  return QUIVIDI_FORCE_REFRESH_ROLES.includes(role);
+}
