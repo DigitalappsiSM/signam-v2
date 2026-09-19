@@ -200,6 +200,10 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   y se reutiliza en cada informe; el PDF lo embebe al generar. Sin logo disponible
   el bloque **se colapsa** —la portada queda con la identidad in-Store Media sola—,
   nunca se deja un hueco ni un marcador de posición visible.
+- **El informe de marca no publica comparativos entre periodos**: cada informe
+  reporta su propia vigencia, sin deltas contra el periodo anterior, el flight
+  previo ni el promedio del circuito. Las cifras se presentan en absoluto y, cuando
+  hace falta contexto, con el índice por tienda dentro del mismo periodo.
 - **El informe de marca no publica métricas de costo**: la comercialización es a
   **costo fijo**, no por CPM/CPC, así que no se incluyen coste por mil, coste por
   impacto ni derivados. Una cifra así induciría a comparar contra un modelo de venta
