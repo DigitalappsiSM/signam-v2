@@ -5,6 +5,7 @@ import {
   classifyCameraHealth,
   daysInclusive,
   findCameraHealthRecoveryBoundary,
+  hasContinuousCameraHealthCoverage,
 } from './cameraAlerts';
 import type { CameraHealthRecord } from './cameraHealth';
 
@@ -238,6 +239,42 @@ describe('findCameraHealthRecoveryBoundary', () => {
         '2026-09-21',
       ),
     ).toBeNull();
+  });
+});
+
+describe('camera health history coverage', () => {
+  it('acepta continuidad cuando están todos los días desde la evaluación previa', () => {
+    expect(
+      hasContinuousCameraHealthCoverage(
+        [
+          noMeasurement('2026-09-16'),
+          noMeasurement('2026-09-17'),
+          noMeasurement('2026-09-18'),
+        ],
+        '2026-09-15',
+        '2026-09-18',
+      ),
+    ).toBe(true);
+  });
+
+  it('rechaza un backfill corto cuando faltan días intermedios', () => {
+    expect(
+      hasContinuousCameraHealthCoverage(
+        [noMeasurement('2026-09-18')],
+        '2026-09-14',
+        '2026-09-18',
+      ),
+    ).toBe(false);
+  });
+
+  it('acepta re-evaluar la misma fecha sin exigir días adicionales', () => {
+    expect(
+      hasContinuousCameraHealthCoverage(
+        [noMeasurement('2026-09-18')],
+        '2026-09-18',
+        '2026-09-18',
+      ),
+    ).toBe(true);
   });
 });
 
