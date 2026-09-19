@@ -186,14 +186,21 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 - **El circuito no se comercializa por franja horaria ni por día específico**: el
   informe para marca **nunca** recomienda segmentar la pauta por horas o días
   («pesar la pauta de jueves a domingo», «reservar la franja matutina»). La curva
-  horaria y el reparto semanal son contexto descriptivo del comportamiento de la
-  audiencia; las recomendaciones se formulan sobre las palancas que sí se venden:
-  número de tiendas, duración del flight y creatividad.
+  horaria y el reparto semanal **sí se publican**, con otra finalidad: orientan
+  dónde reforzar **promotoría** y activaciones en punto de venta, que es una
+  palanca de venta real. Las recomendaciones de medios se formulan sobre lo que sí
+  se vende: número de tiendas, duración del flight y creatividad.
 - **Tono del informe PDF para marca**: es un reporte de resultados para equipos de
   marketing. No incluye metodología de medición, reglas internas de agregación,
   incidencias de cámaras ni lecturas en negativo; se comunica por **tienda +
   soporte**, nunca por cámara («derecho/izquierdo»). La trazabilidad técnica
   —cobertura, incidencias y detalle por cámara— vive en el Excel.
+- **Terminología Quividi en el informe de marca**: se conservan los nombres que ya
+  se manejan con el cliente —`OTS`, `Watchers`, `Conversion ratio`,
+  `Attention time`, `Dwell time`— sin traducirlos a equivalentes propios. Cada
+  término se explica en **una línea embebida** junto a la cifra o la gráfica que lo
+  usa (pie de KPI, subtítulo de gráfica, nota de tabla). El informe **no lleva
+  glosario** ni sección de definiciones.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
