@@ -293,6 +293,7 @@ export function CampaignsPage() {
   }, [reload]);
 
   const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
+  const canReportQuividi = can(user?.role ?? 'viewer', 'quividi.report');
 
   const trackingCampaignIds = useMemo(
     () =>
@@ -771,11 +772,13 @@ export function CampaignsPage() {
                 const ekon = ekonByKey.get(c.id);
                 const quividi = quividiAvailability.get(c.id);
                 const hasQuividi = quividi?.available === true;
-                const quividiTitle = !quividiAvailabilityLoaded
-                  ? 'Verificando cobertura Quividi…'
-                  : hasQuividi
-                    ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
-                    : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
+                const quividiTitle = !canReportQuividi
+                  ? 'Tu rol no permite descargar métricas Quividi'
+                  : !quividiAvailabilityLoaded
+                    ? 'Verificando cobertura Quividi…'
+                    : hasQuividi
+                      ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
+                      : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
                 return (
                   <tr key={c.id}>
                     <td>
@@ -814,6 +817,7 @@ export function CampaignsPage() {
                           title={quividiTitle}
                           aria-label={`Descargar métricas Quividi de ${c.name}`}
                           disabled={
+                            !canReportQuividi ||
                             quividiBusyId !== null ||
                             !quividiAvailabilityLoaded ||
                             !hasQuividi

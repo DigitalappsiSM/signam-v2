@@ -18,6 +18,7 @@ export type Permission =
   | 'tracking.read'
   | 'tracking.write'
   | 'reporting.read'
+  | 'quividi.report'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
   | 'digitalOperations.track'
@@ -30,6 +31,12 @@ export type Permission =
 // partir de datos que cualquier usuario autenticado ya puede leer) y no
 // contienen información que deba resguardarse. Es distinto de `export.csv`, que
 // cubre las exportaciones de catálogo/campañas y sí queda restringido.
+// `quividi.report` lo tienen los TRES roles por decisión de negocio: el informe
+// de audiencia es material de lectura para marcas/marketing, igual que el resto
+// de `reporting.read`. La capacidad existe por separado porque su descarga sí
+// consume la API de pago de Quividi, así que si en el futuro se decide
+// restringirla basta con quitarla de un rol aquí y del espejo en
+// `functions/src/quividi/access.ts`.
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     'catalog.read',
@@ -44,6 +51,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tracking.read',
     'tracking.write',
     'reporting.read',
+    'quividi.report',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -62,6 +70,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tracking.read',
     'tracking.write',
     'reporting.read',
+    'quividi.report',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -73,6 +82,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'reporting.read',
+    'quividi.report',
     'digitalOperations.read',
   ],
 };
