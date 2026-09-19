@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
   HttpsError,
   onCall,
@@ -22,10 +23,21 @@ import {
 } from './access';
 import { buildSupportHours, type SupportHour } from './hourly';
 import {
+  CAMERA_HEALTH_LOOKBACK_DAYS,
+  CAMERA_HEALTH_MAX_BACKFILL_DAYS,
+  buildCameraHealthRecords,
+  cameraHealthDocumentId,
+  lookbackStartDate,
+  prepareCameraHealthScope,
+  type CameraHealthRecord,
+  type CameraHealthMappingSummary,
+} from './cameraHealth';
+import {
   buildCoverage,
   buildMeasurementRows,
   dayList,
   inputSignature,
+  lastCompleteUtcDate,
   measurableEndDate,
   parseCivilDate,
   resolvePairs,
@@ -44,6 +56,7 @@ const QUIVIDI_API_USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const QUIVIDI_API_TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
+const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
 const SNAPSHOT_SCHEMA_VERSION = 3;
 
 interface CampaignReport {
@@ -226,6 +239,89 @@ async function generateReport(
     supportHours,
     unmappedCameraNames: resolved.unmappedCameraNames,
   };
+}
+
+interface CameraHealthComputation {
+  startDate: string;
+  endDate: string;
+  records: CameraHealthRecord[];
+  mapping: CameraHealthMappingSummary;
+}
+
+async function computeCameraHealth(
+  days: number,
+  now: number,
+): Promise<CameraHealthComputation> {
+  const db = getFirestore();
+  const screensSnap = await db.collection('screens').get();
+  const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
+  const topology = await quividiGet<TopologyLocation[]>('/locations/');
+  const scope = prepareCameraHealthScope(screens, topology);
+  const endDate = lastCompleteUtcDate(now);
+  const startDate = lookbackStartDate(endDate, days);
+  const dates = dayList(startDate, endDate);
+
+  let otsRows: OtsExportRow[] = [];
+  let viewerRows: ViewerExportRow[] = [];
+  let hourlyOtsRows: OtsExportRow[] = [];
+  if (scope.mappedLocationIds.length > 0) {
+    const base = {
+      locations: scope.mappedLocationIds.join(','),
+      start: `${startDate}T00:00:00`,
+      end: `${endDate}T23:59:59`,
+    };
+    otsRows = (await exportData({
+      ...base,
+      time_resolution: '1d',
+      data_type: 'ots',
+    })) as OtsExportRow[];
+    viewerRows = (await exportData({
+      ...base,
+      time_resolution: '1d',
+      data_type: 'viewers',
+    })) as ViewerExportRow[];
+    hourlyOtsRows = (await exportData({
+      ...base,
+      time_resolution: '1h',
+      data_type: 'ots',
+    })) as OtsExportRow[];
+  }
+
+  return {
+    startDate,
+    endDate,
+    records: buildCameraHealthRecords(
+      scope,
+      dates,
+      otsRows,
+      viewerRows,
+      hourlyOtsRows,
+      now,
+    ),
+    mapping: scope.mapping,
+  };
+}
+
+async function persistCameraHealth(
+  records: readonly CameraHealthRecord[],
+): Promise<number> {
+  const db = getFirestore();
+  const batchSize = 400;
+
+  for (let offset = 0; offset < records.length; offset += batchSize) {
+    const batch = db.batch();
+    for (const record of records.slice(offset, offset + batchSize)) {
+      batch.set(
+        db
+          .collection(CAMERA_HEALTH_COLLECTION)
+          .doc(cameraHealthDocumentId(record.date, record.locationId)),
+        record,
+      );
+    }
+    await batch.commit();
+  }
+
+  return records.length;
 }
 
 type CallableAuth = NonNullable<CallableRequest['auth']>;
@@ -428,3 +524,90 @@ export const campaignAvailability = onCall(
     return { items };
   },
 );
+
+export const cameraHealthBackfill = onCall(
+  {
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async (request): Promise<{
+    startDate: string;
+    endDate: string;
+    days: number;
+    written: number;
+    mapping: CameraHealthMappingSummary;
+  }> => {
+    const auth = requireQuividiAccess(request);
+    if (!canForceRefreshQuividi(roleFromClaims(auth.token))) {
+      throw new HttpsError(
+        'permission-denied',
+        'Solo un administrador puede ejecutar el backfill de salud Quividi.',
+      );
+    }
+
+    const rawDays = (request.data as { days?: unknown } | undefined)?.days;
+    const days =
+      rawDays === undefined ? CAMERA_HEALTH_LOOKBACK_DAYS : rawDays;
+    if (
+      typeof days !== 'number' ||
+      !Number.isInteger(days) ||
+      days < 1 ||
+      days > CAMERA_HEALTH_MAX_BACKFILL_DAYS
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        `days debe ser un entero entre 1 y ${CAMERA_HEALTH_MAX_BACKFILL_DAYS}.`,
+      );
+    }
+
+    const health = await computeCameraHealth(days, Date.now());
+    const written = await persistCameraHealth(health.records);
+    return {
+      startDate: health.startDate,
+      endDate: health.endDate,
+      days,
+      written,
+      mapping: health.mapping,
+    };
+  },
+);
+
+/**
+ * Salud operativa diaria de cámaras Quividi.
+ *
+ * Consulta una ventana móvil de 28 días para que la regla de medición parcial
+ * conserve el mismo baseline por cámara que el reporte. En régimen normal solo
+ * persiste el último día completo. Si la colección aún está vacía, el primer
+ * ciclo deja cargada la ventana completa como backfill inicial.
+ */
+export const cameraHealthDaily = onSchedule(
+  {
+    schedule: '15 8 * * *',
+    timeZone: 'America/Mexico_City',
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async () => {
+    const health = await computeCameraHealth(
+      CAMERA_HEALTH_LOOKBACK_DAYS,
+      Date.now(),
+    );
+    const db = getFirestore();
+    const existing = await db.collection(CAMERA_HEALTH_COLLECTION).limit(1).get();
+    const records = existing.empty
+      ? health.records
+      : health.records.filter((record) => record.date === health.endDate);
+    const written = await persistCameraHealth(records);
+
+    console.info('Quividi camera health persisted.', {
+      startDate: health.startDate,
+      endDate: health.endDate,
+      initialBackfill: existing.empty,
+      written,
+      mapping: health.mapping,
+    });
+  },
+);
+
