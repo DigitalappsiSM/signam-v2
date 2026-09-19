@@ -195,6 +195,15 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   incidencias de cámaras ni lecturas en negativo; se comunica por **tienda +
   soporte**, nunca por cámara («derecho/izquierdo»). La trazabilidad técnica
   —cobertura, incidencias y detalle por cámara— vive en el Excel.
+- **Co-branding en la portada del informe de marca**: la portada reserva un bloque
+  para el logo del retailer y el de la marca. El logo se carga **una vez por marca**
+  y se reutiliza en cada informe; el PDF lo embebe al generar. Sin logo disponible
+  el bloque **se colapsa** —la portada queda con la identidad in-Store Media sola—,
+  nunca se deja un hueco ni un marcador de posición visible.
+- **El informe de marca no publica métricas de costo**: la comercialización es a
+  **costo fijo**, no por CPM/CPC, así que no se incluyen coste por mil, coste por
+  impacto ni derivados. Una cifra así induciría a comparar contra un modelo de venta
+  que no se ofrece.
 - **Terminología Quividi en el informe de marca**: se conservan los nombres que ya
   se manejan con el cliente —`OTS`, `Watchers`, `Conversion ratio`,
   `Attention time`, `Dwell time`— sin traducirlos a equivalentes propios. Cada
