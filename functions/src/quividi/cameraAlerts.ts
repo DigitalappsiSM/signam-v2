@@ -10,6 +10,10 @@ export type CameraOperationalHealth =
   | 'no_ots';
 
 export type CameraHealthSeverity = 'none' | 'medium' | 'high' | 'critical';
+export type CameraHealthAlertLifecycleState =
+  | 'active'
+  | 'recovered'
+  | 'retired';
 
 export interface CameraHealthEvaluation {
   locationId: number;
@@ -20,6 +24,11 @@ export interface CameraHealthEvaluation {
   incidentStartDate: string | null;
   consecutiveDays: number;
   latestRecord: CameraHealthRecord;
+}
+
+export interface CameraHealthRecoveryBoundary {
+  recoveredDate: string;
+  lastAnomalousDate: string | null;
 }
 
 export interface CameraHealthAlertStateDoc {
@@ -35,6 +44,8 @@ export interface CameraHealthAlertStateDoc {
   latestDate: string;
   activeAlertId: string | null;
   startedDate: string | null;
+  monitored: boolean;
+  unmonitoredReason: 'out_of_scope' | null;
   expectedCoreHours: number;
   coreMeasuredHours: number;
   coreOtsHours: number;
@@ -55,13 +66,15 @@ export interface CameraHealthAlertDoc {
   storeNumber: string;
   storeName: string;
   support: string;
-  state: 'active' | 'recovered';
+  state: CameraHealthAlertLifecycleState;
   initialType: Exclude<CameraOperationalHealth, 'normal'>;
   currentType: Exclude<CameraOperationalHealth, 'normal'>;
   severity: Exclude<CameraHealthSeverity, 'none'>;
   startedDate: string;
   lastAnomalousDate: string;
   recoveredDate: string | null;
+  retiredAt: number | null;
+  retiredReason: 'out_of_scope' | null;
   consecutiveDays: number;
   latestDate: string;
   expectedCoreHours: number;
@@ -178,6 +191,27 @@ export function buildCurrentCameraHealthEvaluations(
   return evaluations.sort((a, b) => a.locationId - b.locationId);
 }
 
+/**
+ * Busca la primera recuperación observada después del inicio de una incidencia
+ * ya persistida. Permite cerrar con la fecha real aun cuando el scheduler haya
+ * omitido varios días y la reconciliación se ejecute más tarde.
+ */
+export function findCameraHealthRecoveryBoundary(
+  records: readonly CameraHealthRecord[],
+  startedDate: string,
+  latestDate: string,
+): CameraHealthRecoveryBoundary | null {
+  let lastAnomalousDate: string | null = null;
+  for (const row of sortByDate(records)) {
+    if (row.date < startedDate || row.date > latestDate) continue;
+    if (classifyCameraHealth(row) === 'normal') {
+      return { recoveredDate: row.date, lastAnomalousDate };
+    }
+    lastAnomalousDate = row.date;
+  }
+  return null;
+}
+
 export function daysInclusive(startDate: string, endDate: string): number {
   const start = new Date(`${startDate}T00:00:00Z`).getTime();
   const end = new Date(`${endDate}T00:00:00Z`).getTime();
@@ -185,10 +219,4 @@ export function daysInclusive(startDate: string, endDate: string): number {
     return 0;
   }
   return Math.floor((end - start) / 86_400_000) + 1;
-}
-
-export function previousCivilDate(date: string): string {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - 1);
-  return value.toISOString().slice(0, 10);
 }
