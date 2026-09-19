@@ -263,21 +263,28 @@ async function computeCameraHealth(
 
   let otsRows: OtsExportRow[] = [];
   let viewerRows: ViewerExportRow[] = [];
+  let hourlyOtsRows: OtsExportRow[] = [];
   if (scope.mappedLocationIds.length > 0) {
     const base = {
       locations: scope.mappedLocationIds.join(','),
       start: `${startDate}T00:00:00`,
       end: `${endDate}T23:59:59`,
-      time_resolution: '1d',
     };
     otsRows = (await exportData({
       ...base,
+      time_resolution: '1d',
       data_type: 'ots',
     })) as OtsExportRow[];
     viewerRows = (await exportData({
       ...base,
+      time_resolution: '1d',
       data_type: 'viewers',
     })) as ViewerExportRow[];
+    hourlyOtsRows = (await exportData({
+      ...base,
+      time_resolution: '1h',
+      data_type: 'ots',
+    })) as OtsExportRow[];
   }
 
   return {
@@ -288,6 +295,7 @@ async function computeCameraHealth(
       dates,
       otsRows,
       viewerRows,
+      hourlyOtsRows,
       now,
     ),
     mapping: scope.mapping,
