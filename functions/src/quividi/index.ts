@@ -38,6 +38,7 @@ import {
   cameraHealthAlertId,
   daysInclusive,
   findCameraHealthRecoveryBoundary,
+  hasContinuousCameraHealthCoverage,
   type CameraHealthAlertDoc,
   type CameraHealthAlertStateDoc,
   type CameraHealthEvaluation,
@@ -414,6 +415,7 @@ async function reconcileCameraEvaluation(
   created: number;
   updated: number;
   recovered: number;
+  retired: number;
 }> {
   const db = getFirestore();
   const stateRef = db
@@ -431,6 +433,9 @@ async function reconcileCameraEvaluation(
         : null;
     const stateStartedDate =
       typeof previous?.startedDate === 'string' ? previous.startedDate : null;
+    const previousLatestDate =
+      typeof previous?.latestDate === 'string' ? previous.latestDate : null;
+    const wasUnmonitored = previous?.monitored === false;
 
     const previousAlertRef = previousAlertId
       ? db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(previousAlertId)
@@ -455,6 +460,13 @@ async function reconcileCameraEvaluation(
             latestDate,
           )
         : null;
+    const continuityKnown =
+      previousLatestDate !== null &&
+      hasContinuousCameraHealthCoverage(
+        history,
+        previousLatestDate,
+        latestDate,
+      );
 
     if (evaluation.currentStatus === 'normal') {
       if (previousAlertRef && previousStartedDate) {
@@ -486,32 +498,71 @@ async function reconcileCameraEvaluation(
         created: 0,
         updated: 0,
         recovered: previousAlertRef ? 1 : 0,
+        retired: 0,
       };
     }
 
-    const currentStart = evaluation.incidentStartDate!;
-    // Si desde la incidencia persistida no aparece ningún día normal, sigue
-    // siendo el mismo incidente aunque otro proceso haya usado un lookback
-    // distinto y haya calculado otra fecha de inicio visible.
+    const gapBreak =
+      previousAlertId !== null &&
+      previousStartedDate !== null &&
+      recovery === null &&
+      !wasUnmonitored &&
+      !continuityKnown;
     const continuesPrevious =
       previousAlertId !== null &&
       previousStartedDate !== null &&
-      recovery === null;
+      recovery === null &&
+      !wasUnmonitored &&
+      continuityKnown;
 
-    const alertId = continuesPrevious
-      ? previousAlertId
-      : cameraHealthAlertId(evaluation.locationId, currentStart);
-    const startedDate = continuesPrevious
-      ? previousStartedDate
-      : currentStart;
-    const alertRef = db.collection(CAMERA_HEALTH_ALERT_COLLECTION).doc(alertId);
-    const alertSnap =
-      previousAlertRef?.path === alertRef.path
-        ? previousAlertSnap
-        : await transaction.get(alertRef);
-    const existing = alertSnap?.data() as
-      | Partial<CameraHealthAlertDoc>
-      | undefined;
+    // Si la cámara reaparece después de estar fuera de scope, o existe un hueco
+    // temporal que impide demostrar continuidad, la incidencia nueva empieza
+    // en el último día observado. No se hereda una antigüedad que no podemos
+    // demostrar.
+    const currentStart =
+      wasUnmonitored || gapBreak
+        ? latestDate
+        : evaluation.incidentStartDate!;
+
+    let alertId: string;
+    let startedDate: string;
+    let alertRef: FirebaseFirestore.DocumentReference;
+    let existing: Partial<CameraHealthAlertDoc> | undefined;
+
+    if (continuesPrevious && previousAlertRef && previousStartedDate) {
+      alertId = previousAlertId!;
+      startedDate = previousStartedDate;
+      alertRef = previousAlertRef;
+      existing = previousAlert;
+    } else {
+      startedDate = currentStart;
+      const candidateId = cameraHealthAlertId(
+        evaluation.locationId,
+        currentStart,
+      );
+      const candidateRef = db
+        .collection(CAMERA_HEALTH_ALERT_COLLECTION)
+        .doc(candidateId);
+      const candidateSnap =
+        previousAlertRef?.path === candidateRef.path
+          ? previousAlertSnap
+          : await transaction.get(candidateRef);
+
+      // Un ID histórico recuperado/retirado nunca se reactiva. Si el mismo
+      // locationId+fecha ya existe, se conserva y la nueva incidencia recibe
+      // un sufijo único de esta reconciliación.
+      if (candidateSnap?.exists) {
+        alertId = `${candidateId}__${now}`;
+        alertRef = db
+          .collection(CAMERA_HEALTH_ALERT_COLLECTION)
+          .doc(alertId);
+        existing = undefined;
+      } else {
+        alertId = candidateId;
+        alertRef = candidateRef;
+        existing = undefined;
+      }
+    }
 
     // Todas las lecturas de la transacción terminan antes de la primera
     // escritura, requisito de Firestore para permitir reintentos seguros.
@@ -533,6 +584,17 @@ async function reconcileCameraEvaluation(
           latestDate,
           retiredAt: null,
           retiredReason: null,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+    } else if (gapBreak && previousAlertRef) {
+      transaction.set(
+        previousAlertRef,
+        {
+          state: 'retired',
+          retiredAt: now,
+          retiredReason: 'history_gap',
           updatedAt: now,
         },
         { merge: true },
@@ -566,7 +628,9 @@ async function reconcileCameraEvaluation(
       retiredReason: null,
       consecutiveDays: continuesPrevious
         ? daysInclusive(startedDate, latestDate)
-        : evaluation.consecutiveDays,
+        : startedDate === latestDate
+          ? 1
+          : evaluation.consecutiveDays,
       latestDate,
       expectedCoreHours: record.expectedCoreHours,
       coreMeasuredHours: record.coreMeasuredHours,
@@ -595,6 +659,7 @@ async function reconcileCameraEvaluation(
       updated: continuesPrevious ? 1 : 0,
       recovered:
         !continuesPrevious && previousAlertRef && recovery ? 1 : 0,
+      retired: gapBreak ? 1 : 0,
     };
   });
 }
@@ -693,9 +758,10 @@ async function reconcileCameraHealthAlerts(
     summary.created += result.created;
     summary.updated += result.updated;
     summary.recovered += result.recovered;
+    summary.retired += result.retired;
   }
 
-  summary.retired = await retireOutOfScopeCameraStates(
+  summary.retired += await retireOutOfScopeCameraStates(
     new Set(monitoredLocationIds),
     now,
   );
