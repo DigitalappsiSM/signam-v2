@@ -179,6 +179,11 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   día completo; si la colección está vacía, el primer ciclo carga los 28 días.
   Existe un backfill administrativo explícito de 1–90 días. Un nombre de cámara
   asignado a más de una tienda/soporte se excluye y se reporta como ambigüedad.
+  Además del resumen diario, se consulta OTS a resolución `1h` y se persiste la
+  cobertura operativa de **10:00–22:00**, separando la ventana núcleo
+  **11:00–22:00**: la hora 10:00–11:00 es tolerancia de arranque porque algunas
+  tiendas encienden sus cámaras hasta las 11:00. La salud futura debe evaluarse
+  al cierre del día, no generar una alerta inmediata por ausencia a las 10:xx.
   `measurementStatus` y `hasOts` son señales distintas: **OTS = 0 no equivale
   por sí solo a avería técnica**. Esta fase no crea alertas ni tickets.
 - **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
