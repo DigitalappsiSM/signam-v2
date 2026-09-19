@@ -551,10 +551,24 @@ async function reconcileCameraEvaluation(
           ? previousAlertSnap
           : await transaction.get(candidateRef);
 
-      // Un ID histórico recuperado/retirado nunca se reactiva. Si el mismo
-      // locationId+fecha ya existe, se conserva y la nueva incidencia recibe
-      // un sufijo único de esta reconciliación.
-      if (candidateSnap?.exists) {
+      const candidate = candidateSnap?.data() as
+        | Partial<CameraHealthAlertDoc>
+        | undefined;
+      const canRepairOrphan =
+        candidateSnap?.exists === true &&
+        candidate?.state === 'active' &&
+        !gapBreak &&
+        !wasUnmonitored;
+
+      // Un activo huérfano con el mismo locationId+inicio se puede reutilizar
+      // para reparar el puntero de estado. En cambio, un documento histórico
+      // recovered/retired nunca se reactiva: la nueva incidencia recibe un ID
+      // distinto y el historial queda intacto.
+      if (canRepairOrphan) {
+        alertId = candidateId;
+        alertRef = candidateRef;
+        existing = candidate;
+      } else if (candidateSnap?.exists) {
         alertId = `${candidateId}__${now}`;
         alertRef = db
           .collection(CAMERA_HEALTH_ALERT_COLLECTION)
