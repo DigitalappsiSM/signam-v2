@@ -1,6 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { getFirestore } from 'firebase-admin/firestore';
+import {
+  getFirestore,
+  type DocumentReference,
+} from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
@@ -526,7 +529,7 @@ async function reconcileCameraEvaluation(
 
     let alertId: string;
     let startedDate: string;
-    let alertRef: FirebaseFirestore.DocumentReference;
+    let alertRef: DocumentReference;
     let existing: Partial<CameraHealthAlertDoc> | undefined;
 
     if (continuesPrevious && previousAlertRef && previousStartedDate) {
