@@ -176,6 +176,24 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   `1h` y replica la ponderación multi-cámara del dato diario; no fuerza una
   zona horaria única para todas las tiendas. Las hojas técnicas y la calidad de
   medición permanecen disponibles para auditoría.
+- **Horario de exhibición reportado (Quividi)**: las tiendas Liverpool operan de
+  11:00 a 21:00 y el informe para marca reporta la ventana **10:00–22:00**, que
+  absorbe el margen de apertura y cierre. Excepción: **Polanco**, cuyo MUPI con
+  cámara está en el área de restaurante y reporta **08:00–22:00**. Fuera de esa
+  ventana no se comunica actividad: horas sin operación generan ruido en el
+  cliente. La regla rige la comunicación; el detalle horario completo permanece
+  en el Excel técnico.
+- **El circuito no se comercializa por franja horaria ni por día específico**: el
+  informe para marca **nunca** recomienda segmentar la pauta por horas o días
+  («pesar la pauta de jueves a domingo», «reservar la franja matutina»). La curva
+  horaria y el reparto semanal son contexto descriptivo del comportamiento de la
+  audiencia; las recomendaciones se formulan sobre las palancas que sí se venden:
+  número de tiendas, duración del flight y creatividad.
+- **Tono del informe PDF para marca**: es un reporte de resultados para equipos de
+  marketing. No incluye metodología de medición, reglas internas de agregación,
+  incidencias de cámaras ni lecturas en negativo; se comunica por **tienda +
+  soporte**, nunca por cámara («derecho/izquierdo»). La trazabilidad técnica
+  —cobertura, incidencias y detalle por cámara— vive en el Excel.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
