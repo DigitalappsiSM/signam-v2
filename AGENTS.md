@@ -203,7 +203,13 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   `lastAnomalousDate` el último día anómalo previo. Si una cámara deja el scope
   activo (inactiva, borrada, ambigua o sin mapeo Quividi), su incidencia no se
   marca como recuperada: pasa a `retired` con razón `out_of_scope` y su estado
-  queda `monitored:false`. **No se abre ningún ticket automáticamente**.
+  queda `monitored:false`. Si faltan días entre la última evaluación persistida
+  y el histórico recibido (por ejemplo, un backfill demasiado corto), SIGNAM no
+  asume continuidad: retira la incidencia previa con `history_gap` y abre una
+  nueva desde el último día observado. Una cámara que vuelve al scope después de
+  estar `monitored:false` también inicia una incidencia nueva y nunca reactiva
+  un documento histórico `recovered`/`retired`. **No se abre ningún ticket
+  automáticamente**.
 - **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
   tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
   **nunca como reach único**. El análisis horario usa exports VidiCenter de
