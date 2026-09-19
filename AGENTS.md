@@ -195,9 +195,15 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   (cobertura núcleo <80%) y `no_ots` (cobertura suficiente pero OTS núcleo = 0).
   Una sola incidencia puede cambiar de tipo mientras siga sin existir un día
   normal entre medias. `quividiCameraHealthAlertState/{locationId}` mantiene el
-  estado actual/puntero y `quividiCameraHealthAlerts/{locationId__inicio}`
-  conserva cada incidente. Al volver a normal, la incidencia activa pasa a
-  `recovered`; **no se abre ningún ticket automáticamente**.
+  estado actual/puntero y es además el **punto de serialización transaccional por
+  cámara**: scheduler y backfill no pueden dejar dos incidencias activas para el
+  mismo `locationId`. `quividiCameraHealthAlerts/{locationId__inicio}` conserva
+  cada incidente. Al volver a normal, la incidencia activa pasa a `recovered`
+  usando como `recoveredDate` el **primer día normal observado** y como
+  `lastAnomalousDate` el último día anómalo previo. Si una cámara deja el scope
+  activo (inactiva, borrada, ambigua o sin mapeo Quividi), su incidencia no se
+  marca como recuperada: pasa a `retired` con razón `out_of_scope` y su estado
+  queda `monitored:false`. **No se abre ningún ticket automáticamente**.
 - **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
   tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
   **nunca como reach único**. El análisis horario usa exports VidiCenter de
