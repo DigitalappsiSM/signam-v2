@@ -9,6 +9,7 @@ import {
   type CampaignDoc,
   type EffectiveScopeOrigin,
   type EffectiveSupportPair,
+  type EkonAssignmentDoc,
   type ScreenDoc,
 } from './effectiveScope';
 import { buildSupportHours, type SupportHour } from './hourly';
@@ -849,6 +850,11 @@ export const campaignAvailability = onCall(
     const refs = campaignIds.map((id) => db.collection('campaigns').doc(id));
     const campaignSnaps = await db.getAll(...refs);
     const items: CampaignAvailabilityItem[] = [];
+    // Las asignaciones Ekon solo dependen del número de campaña, así que una
+    // caché compartida entre campañas de la misma solicitud evita repetir la
+    // consulta para campañas que apuntan al mismo número. La callable es de
+    // solo lectura: no hay escrituras intermedias que la vuelvan obsoleta.
+    const assignmentCache = new Map<number, EkonAssignmentDoc[]>();
 
     for (const snap of campaignSnaps) {
       if (!snap.exists) continue;
@@ -858,6 +864,7 @@ export const campaignAvailability = onCall(
         snap.id,
         campaign,
         screens,
+        assignmentCache,
       );
       const mappedPairs = effectiveScope.pairs.filter(
         (pair) => pair.cameraNames.length > 0,

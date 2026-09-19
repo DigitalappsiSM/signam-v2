@@ -49,7 +49,7 @@ interface CampaignEkonLinkDoc {
   ekonCampaignNumber?: number;
 }
 
-interface EkonAssignmentDoc {
+export interface EkonAssignmentDoc {
   campaignNumber?: string;
   active?: boolean;
   conflict?: string | null;
