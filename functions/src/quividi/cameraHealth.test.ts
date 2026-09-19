@@ -59,6 +59,22 @@ function ots(
   };
 }
 
+function hourlyOts(
+  locationId: number,
+  date: string,
+  hour: number,
+  duration: number,
+  otsCount: number,
+): OtsExportRow {
+  return {
+    location_id: locationId,
+    period_start: `${date}T${String(hour).padStart(2, '0')}:00:00`,
+    duration,
+    ots_count: otsCount,
+    effective_ots_count: otsCount / 2,
+  };
+}
+
 function viewer(
   locationId: number,
   date: string,
@@ -148,6 +164,7 @@ describe('buildCameraHealthRecords', () => {
       dates,
       otsRows,
       viewerRows,
+      [],
       1234,
     );
 
@@ -187,6 +204,7 @@ describe('buildCameraHealthRecords', () => {
       ['2026-09-17', '2026-09-18'],
       [ots(1, '2026-09-17', 100, 100)],
       [],
+      [],
       1,
     );
 
@@ -195,6 +213,78 @@ describe('buildCameraHealthRecords', () => {
       measurementStatus: 'missing',
       hasMeasurement: false,
       hasOts: false,
+      operationalMeasuredHours: 0,
+      coreMeasuredHours: 0,
+    });
+  });
+
+  it('tolera arranque a las 11 y conserva completa la ventana núcleo 11–22', () => {
+    const date = '2026-09-18';
+    const scope = prepareCameraHealthScope(
+      [screen('7', 'Santa Fe', 'BANNER DIGITAL', 'CAM-A')],
+      [topology(1, 'CAM-A')],
+    );
+    const hourlyRows = Array.from({ length: 11 }, (_, index) =>
+      hourlyOts(1, date, 11 + index, 3600, 100),
+    );
+
+    const records = buildCameraHealthRecords(
+      scope,
+      [date],
+      [ots(1, date, 39600, 1100)],
+      [viewer(1, date, 50)],
+      hourlyRows,
+      1,
+    );
+
+    expect(records[0]).toMatchObject({
+      operationalWindowStartHour: 10,
+      operationalGraceUntilHour: 11,
+      operationalWindowEndHour: 22,
+      expectedOperationalHours: 12,
+      expectedCoreHours: 11,
+      operationalMeasuredHours: 11,
+      operationalOtsHours: 11,
+      coreMeasuredHours: 11,
+      coreOtsHours: 11,
+      firstMeasuredHour: 11,
+      lastMeasuredHour: 21,
+      firstOtsHour: 11,
+      lastOtsHour: 21,
+      operationalOts: 1100,
+      coreOts: 1100,
+    });
+  });
+
+  it('ignora datos horarios fuera de 10–22 para la salud operativa', () => {
+    const date = '2026-09-18';
+    const scope = prepareCameraHealthScope(
+      [screen('7', 'Santa Fe', 'BANNER DIGITAL', 'CAM-A')],
+      [topology(1, 'CAM-A')],
+    );
+
+    const records = buildCameraHealthRecords(
+      scope,
+      [date],
+      [ots(1, date, 3600, 100)],
+      [],
+      [
+        hourlyOts(1, date, 8, 3600, 50),
+        hourlyOts(1, date, 10, 3600, 25),
+        hourlyOts(1, date, 22, 3600, 25),
+      ],
+      1,
+    );
+
+    expect(records[0]).toMatchObject({
+      operationalMeasuredHours: 1,
+      operationalOtsHours: 1,
+      coreMeasuredHours: 0,
+      coreOtsHours: 0,
+      firstMeasuredHour: 10,
+      lastMeasuredHour: 10,
+      operationalOts: 25,
+      coreOts: 0,
     });
   });
 });
