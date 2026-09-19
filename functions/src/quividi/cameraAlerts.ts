@@ -35,6 +35,14 @@ export interface CameraHealthAlertStateDoc {
   latestDate: string;
   activeAlertId: string | null;
   startedDate: string | null;
+  expectedCoreHours: number;
+  coreMeasuredHours: number;
+  coreOtsHours: number;
+  coreOts: number;
+  firstMeasuredHour: number | null;
+  lastMeasuredHour: number | null;
+  firstOtsHour: number | null;
+  lastOtsHour: number | null;
   lastEvaluatedAt: number;
 }
 
