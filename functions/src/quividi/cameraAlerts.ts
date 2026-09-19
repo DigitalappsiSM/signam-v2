@@ -74,7 +74,7 @@ export interface CameraHealthAlertDoc {
   lastAnomalousDate: string;
   recoveredDate: string | null;
   retiredAt: number | null;
-  retiredReason: 'out_of_scope' | null;
+  retiredReason: 'out_of_scope' | 'history_gap' | null;
   consecutiveDays: number;
   latestDate: string;
   expectedCoreHours: number;
@@ -210,6 +210,38 @@ export function findCameraHealthRecoveryBoundary(
     lastAnomalousDate = row.date;
   }
   return null;
+}
+
+/**
+ * Confirma que no falte ningún día entre la última evaluación persistida y la
+ * fecha actual. Un slice corto de backfill no puede demostrar continuidad si
+ * deja días intermedios sin observar.
+ */
+export function hasContinuousCameraHealthCoverage(
+  records: readonly CameraHealthRecord[],
+  previousLatestDate: string,
+  latestDate: string,
+): boolean {
+  const previous = new Date(`${previousLatestDate}T00:00:00Z`);
+  const latest = new Date(`${latestDate}T00:00:00Z`);
+  if (
+    Number.isNaN(previous.getTime()) ||
+    Number.isNaN(latest.getTime()) ||
+    previous > latest
+  ) {
+    return false;
+  }
+  if (previousLatestDate === latestDate) return true;
+
+  const dates = new Set(records.map((record) => record.date));
+  const cursor = new Date(previous);
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
+  while (cursor <= latest) {
+    const date = cursor.toISOString().slice(0, 10);
+    if (!dates.has(date)) return false;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return true;
 }
 
 export function daysInclusive(startDate: string, endDate: string): number {
