@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -62,7 +54,6 @@ import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
 import { campaignIdentity, type StoredCampaign } from './campaignDiff';
 import { parseEkonNumber, otherCampaignsWithEkonNumber } from './ekon';
-import { computeMenuPlacement, type MenuPlacement } from './menuPlacement';
 import {
   analyzeLowOccupancy,
   todayIsoDate,
@@ -104,6 +95,11 @@ import {
   buildQuividiCampaignBlob,
   quividiCampaignFileName,
 } from '@/modules/exports/quividiCampaignExcel';
+import {
+  buildQuividiCampaignPdfBlob,
+  quividiCampaignPdfFileName,
+} from '@/modules/exports/quividiCampaignPdf';
+import { useAnchoredMenu } from './useAnchoredMenu';
 import './CampaignsPage.css';
 
 function normalize(v: string): string {
@@ -146,6 +142,7 @@ function quividiScopeLabel(
 }
 
 /** Icono estilizado de PowerPoint (recreado con formas, sin logo propietario). */
+/** Gráfico de barras a color: identifica el informe de audiencia. */
 function MetricsIcon() {
   return (
     <svg
@@ -155,10 +152,49 @@ function MetricsIcon() {
       aria-hidden="true"
       focusable="false"
     >
+      <path d="M4 20V10h4v10H4Z" fill="#4c86f0" />
+      <path d="M10 20V4h4v16h-4Z" fill="#1d4ed8" />
+      <path d="M16 20v-7h4v7h-4Z" fill="#e6007e" />
+    </svg>
+  );
+}
+
+/** Documento con el color del formato: PDF en rojo, Excel en verde. */
+function DocFormatIcon({ kind }: { kind: QuividiReportFormat }) {
+  const color = kind === 'pdf' ? '#d92d20' : '#1d8a4e';
+  return (
+    <svg
+      width="16"
+      height="18"
+      viewBox="0 0 20 22"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path
-        d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z"
-        fill="currentColor"
+        d="M2.5 1.5h10l5 5v14a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-18a1 1 0 0 1 1-1Z"
+        fill="#fff"
+        stroke={color}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
       />
+      <path
+        d="M12.5 1.5v5h5"
+        fill="none"
+        stroke={color}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <rect x="1" y="11" width="18" height="8" rx="1.6" fill={color} />
+      <text
+        x="10"
+        y="17.2"
+        fill="#fff"
+        fontSize="6.2"
+        fontWeight="700"
+        textAnchor="middle"
+      >
+        {kind === 'pdf' ? 'PDF' : 'XLS'}
+      </text>
     </svg>
   );
 }
@@ -224,6 +260,7 @@ export function CampaignsPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [quividiBusyId, setQuividiBusyId] = useState<string | null>(null);
+  const [quividiMenuId, setQuividiMenuId] = useState<string | null>(null);
   const [quividiError, setQuividiError] = useState<string | null>(null);
   const [quividiAvailability, setQuividiAvailability] = useState<
     Map<string, QuividiCampaignAvailability>
@@ -506,19 +543,32 @@ export function CampaignsPage() {
       csvFileName(cons),
     );
   }
-  async function downloadQuividiReport(c: StoredCampaign) {
+  async function downloadQuividiReport(
+    c: StoredCampaign,
+    format: QuividiReportFormat,
+  ) {
     if (quividiBusyId) return;
     setQuividiError(null);
+    setQuividiMenuId(null);
     setQuividiBusyId(c.id);
     try {
       const { report } = await getQuividiCampaignReport(c.id);
-      const blob = await buildQuividiCampaignBlob(report);
-      download(blob, quividiCampaignFileName(report));
+      // El PDF es el informe para marca; el Excel, el detalle de operación.
+      const blob =
+        format === 'pdf'
+          ? await buildQuividiCampaignPdfBlob(report)
+          : await buildQuividiCampaignBlob(report);
+      download(
+        blob,
+        format === 'pdf'
+          ? quividiCampaignPdfFileName(report)
+          : quividiCampaignFileName(report),
+      );
     } catch (reportError) {
       const message =
         reportError instanceof Error && reportError.message
           ? reportError.message
-          : 'No se pudo generar el informe Quividi.';
+          : 'No se pudo generar el informe de audiencia.';
       setQuividiError(`${c.name}: ${message}`);
     } finally {
       setQuividiBusyId(null);
@@ -812,25 +862,24 @@ export function CampaignsPage() {
                     <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
                     <td>
                       <div className="campaign-actions">
-                        <button
-                          className="icon-btn"
+                        <QuividiReportMenu
+                          campaign={c}
                           title={quividiTitle}
-                          aria-label={`Descargar métricas Quividi de ${c.name}`}
+                          busy={quividiBusyId === c.id}
                           disabled={
                             !canReportQuividi ||
                             quividiBusyId !== null ||
                             !quividiAvailabilityLoaded ||
                             !hasQuividi
                           }
-                          aria-busy={quividiBusyId === c.id}
-                          onClick={() => void downloadQuividiReport(c)}
-                        >
-                          {quividiBusyId === c.id ? (
-                            <span className="ppt-generating">…</span>
-                          ) : (
-                            <MetricsIcon />
-                          )}
-                        </button>
+                          open={quividiMenuId === c.id}
+                          onOpenChange={(o) =>
+                            setQuividiMenuId(o ? c.id : null)
+                          }
+                          onPick={(format) =>
+                            void downloadQuividiReport(c, format)
+                          }
+                        />
                         <button
                           className="icon-btn"
                           title={`Descargar PPT de evidencias de ${c.name}`}
@@ -1495,6 +1544,102 @@ function EkonEditor({
  * `computeMenuPlacement` (abre hacia abajo o hacia arriba) y se cierra al pulsar
  * fuera, con Escape o al hacer scroll/resize.
  */
+/** Formatos del informe de audiencia de una campaña. */
+export type QuividiReportFormat = 'pdf' | 'excel';
+
+/**
+ * Menú del informe de audiencia: el PDF es el documento que se comparte con la
+ * marca y el Excel, el detalle de operación. Cuelga del mismo icono de la fila
+ * para no añadir botones nuevos.
+ */
+function QuividiReportMenu({
+  campaign,
+  title,
+  busy,
+  disabled,
+  open,
+  onOpenChange,
+  onPick,
+}: {
+  campaign: StoredCampaign;
+  title: string;
+  busy: boolean;
+  disabled: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPick: (format: QuividiReportFormat) => void;
+}) {
+  const panelId = `quividi-menu-${campaign.id}`;
+  const label = `Informe de audiencia de ${campaign.name}`;
+  const { btnRef, panelRef, placement, style } = useAnchoredMenu({
+    open,
+    onOpenChange,
+    menuWidth: 264,
+    estimatedHeight: 140,
+  });
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="icon-btn"
+        title={title}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        disabled={disabled}
+        aria-busy={busy}
+        onClick={() => onOpenChange(!open)}
+      >
+        {busy ? <span className="ppt-generating">…</span> : <MetricsIcon />}
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="menu"
+            aria-label={label}
+            className={
+              placement
+                ? 'csv-menu__panel csv-menu__panel--in'
+                : 'csv-menu__panel'
+            }
+            style={style}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="csv-menu__item report-menu__item"
+              onClick={() => onPick('pdf')}
+            >
+              <DocFormatIcon kind="pdf" />
+              <span>
+                Informe ejecutivo (PDF)
+                <small>Resultados de campaña para la marca.</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="csv-menu__item report-menu__item"
+              onClick={() => onPick('excel')}
+            >
+              <DocFormatIcon kind="excel" />
+              <span>
+                Datos completos (Excel)
+                <small>Detalle por pantalla, día y hora.</small>
+              </span>
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 function CampaignDownloadsMenu({
   campaign,
   cons,
@@ -1516,69 +1661,13 @@ function CampaignDownloadsMenu({
   onDownloadCsv: (cn: Consolidation) => void;
   onDownloadZip: () => void;
 }) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState<MenuPlacement | null>(null);
   const panelId = `csv-menu-${campaign.id}`;
-
-  const reposition = useCallback(() => {
-    const el = btnRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPlacement(
-      computeMenuPlacement({
-        anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        menuWidth: 240,
-        estimatedHeight: Math.min(320, 64 + (cons.length + 1) * 38),
-      }),
-    );
-  }, [cons.length]);
-
-  useLayoutEffect(() => {
-    if (open) reposition();
-    else setPlacement(null);
-  }, [open, reposition]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = () => onOpenChange(false);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false);
-        btnRef.current?.focus();
-      }
-    };
-    const onPointerDown = (e: Event) => {
-      const t = e.target as Node;
-      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
-      onOpenChange(false);
-    };
-    // Cerrar (en vez de recolocar) al desplazar o redimensionar: es preferible
-    // cerrar de forma segura a dejar el panel desalineado.
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-    };
-  }, [open, onOpenChange]);
-
-  const style: CSSProperties = placement
-    ? {
-        left: placement.left,
-        ...(placement.top !== undefined ? { top: placement.top } : {}),
-        ...(placement.bottom !== undefined ? { bottom: placement.bottom } : {}),
-        ...(placement.maxHeight ? { maxHeight: placement.maxHeight } : {}),
-        // El panel se alinea al borde derecho del botón; escala desde esa
-        // esquina, arriba o abajo según hacia dónde abra.
-        transformOrigin: placement.openUp ? 'bottom right' : 'top right',
-      }
-    : { visibility: 'hidden' };
+  const { btnRef, panelRef, placement, style } = useAnchoredMenu({
+    open,
+    onOpenChange,
+    menuWidth: 240,
+    estimatedHeight: Math.min(320, 64 + (cons.length + 1) * 38),
+  });
 
   return (
     <>

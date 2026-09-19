@@ -70,3 +70,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Menú del informe de audiencia: icono de formato + texto con apoyo. */
+.report-menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.report-menu__item small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}

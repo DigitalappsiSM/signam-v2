@@ -176,6 +176,50 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   `1h` y replica la ponderación multi-cámara del dato diario; no fuerza una
   zona horaria única para todas las tiendas. Las hojas técnicas y la calidad de
   medición permanecen disponibles para auditoría.
+- **Horario de exhibición reportado (Quividi)**: las tiendas Liverpool operan de
+  11:00 a 21:00 y el informe para marca reporta la ventana **10:00–22:00**, que
+  absorbe el margen de apertura y cierre. Excepción: **Polanco**, cuyo MUPI con
+  cámara está en el área de restaurante y reporta **08:00–22:00**. Fuera de esa
+  ventana no se comunica actividad: horas sin operación generan ruido en el
+  cliente. La regla rige la comunicación; el detalle horario completo permanece
+  en el Excel técnico.
+- **El circuito no se comercializa por franja horaria ni por día específico**: el
+  informe para marca **nunca** recomienda segmentar la pauta por horas o días
+  («pesar la pauta de jueves a domingo», «reservar la franja matutina»). La curva
+  horaria y el reparto semanal **sí se publican**, con otra finalidad: orientan
+  dónde reforzar **promotoría** y activaciones en punto de venta, que es una
+  palanca de venta real. Las recomendaciones de medios se formulan sobre lo que sí
+  se vende: número de tiendas, duración del flight y creatividad.
+- **Tono del informe PDF para marca**: es un reporte de resultados para equipos de
+  marketing. No incluye metodología de medición, reglas internas de agregación,
+  incidencias de cámaras ni lecturas en negativo; se comunica por **tienda +
+  soporte**, nunca por cámara («derecho/izquierdo»). La trazabilidad técnica
+  —cobertura, incidencias y detalle por cámara— vive en el Excel.
+- **Co-branding en la portada del informe de marca**: la portada reserva un bloque
+  para el logo del retailer y el de la marca. El logo se carga **una vez por marca**
+  y se reutiliza en cada informe; el PDF lo embebe al generar. Sin logo disponible
+  el bloque **se colapsa** —la portada queda con la identidad in-Store Media sola—,
+  nunca se deja un hueco ni un marcador de posición visible.
+- **El informe de marca no publica comparativos entre periodos**: cada informe
+  reporta su propia vigencia, sin deltas contra el periodo anterior, el flight
+  previo ni el promedio del circuito. Las cifras se presentan en absoluto y, cuando
+  hace falta contexto, con el índice por tienda dentro del mismo periodo.
+- **El informe de marca no publica métricas de costo**: la comercialización es a
+  **costo fijo**, no por CPM/CPC, así que no se incluyen coste por mil, coste por
+  impacto ni derivados. Una cifra así induciría a comparar contra un modelo de venta
+  que no se ofrece.
+- **El informe de marca no nombra la plataforma de medición**: se presenta como
+  medición de audiencia propia de in-Store Media. Ningún texto, pie de página ni
+  el nombre del archivo citan al proveedor; el PDF se descarga como
+  `Audiencia_<campaña>_<inicio>_<fin>.pdf`. En el código la integración sigue
+  llamándose `quividi*` —es su origen técnico— y el Excel conserva sus hojas
+  técnicas: la regla rige lo que ve el cliente, no la implementación.
+- **Terminología Quividi en el informe de marca**: se conservan los nombres que ya
+  se manejan con el cliente —`OTS`, `Watchers`, `Conversion ratio`,
+  `Attention time`, `Dwell time`— sin traducirlos a equivalentes propios. Cada
+  término se explica en **una línea embebida** junto a la cifra o la gráfica que lo
+  usa (pie de KPI, subtítulo de gráfica, nota de tabla). El informe **no lleva
+  glosario** ni sección de definiciones.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
