@@ -1,4 +1,5 @@
 import type { Row, Workbook, Worksheet } from 'exceljs';
+import { addQuividiMarketingSheets } from './quividiMarketingSheets';
 import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
@@ -137,7 +138,7 @@ function numberFormat(sheet: Worksheet, column: string, format: string): void {
 }
 
 function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
-  const sheet = wb.addWorksheet('Dashboard', {
+  const sheet = wb.addWorksheet('Resumen Técnico', {
     views: [{ showGridLines: false }],
   });
   sheet.mergeCells('A1:J2');
@@ -592,7 +593,8 @@ export async function buildQuividiCampaignWorkbook(
   const ExcelJS = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'SIGNAM';
-  wb.subject = 'Reporte de audiencia Quividi por campaña';
+  wb.subject = 'Reporte ejecutivo de audiencia Quividi por campaña';
+  addQuividiMarketingSheets(wb, report);
   addDashboard(wb, report);
   addScopeDetail(wb, report);
   addSupportDetail(wb, report);

@@ -309,7 +309,7 @@ beforeEach(() => {
     .mockResolvedValue({
       cached: false,
       report: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         campaignId: 'q1',
         campaignName: 'CAMPAÑA QUIVIDI',
         startDate: '2026-05-10',
@@ -338,6 +338,7 @@ beforeEach(() => {
         },
         cameraDays: [],
         supportDays: [],
+        supportHours: [],
         demographics: [],
         incidents: [],
         unmappedCameraNames: [],
