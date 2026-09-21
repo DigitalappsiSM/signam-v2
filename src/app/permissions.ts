@@ -11,6 +11,8 @@ export type Permission =
   | 'catalog.deactivate'
   | 'calendar.import'
   | 'campaign.correct'
+  | 'campaign.downloadOperational'
+  | 'campaign.linkEkon'
   | 'ekon.import'
   | 'reconciliation.read'
   | 'export.csv'
@@ -26,12 +28,11 @@ export type Permission =
   | 'digitalCatalog.manage'
   | 'users.manage';
 
-// `export.occupancyCsv` lo tienen TODOS los roles a propósito: los CSV de las
-// alertas de baja ocupación son 100% operativos (se generan en el navegador a
-// partir de datos que cualquier usuario autenticado ya puede leer) y no
-// contienen información que deba resguardarse. Es distinto de `export.csv`, que
-// cubre las exportaciones de catálogo/campañas y sí queda restringido.
-// `quividi.report` lo tienen los TRES roles por decisión de negocio: el informe
+// `export.occupancyCsv` lo conservan los tres roles históricos: los CSV de las
+// alertas de baja ocupación son operativos. Comercial queda excluido porque su
+// única descarga autorizada es Quividi. Es distinto de `export.csv`, que cubre
+// las exportaciones de catálogo/campañas y también queda restringido.
+// `quividi.report` lo tienen los CUATRO roles por decisión de negocio: el informe
 // de audiencia es material de lectura para marcas/marketing, igual que el resto
 // de `reporting.read`. La capacidad existe por separado porque su descarga sí
 // consume la API de pago de Quividi, así que si en el futuro se decide
@@ -44,6 +45,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.deactivate',
     'calendar.import',
     'campaign.correct',
+    'campaign.downloadOperational',
+    'campaign.linkEkon',
     'ekon.import',
     'reconciliation.read',
     'export.csv',
@@ -63,6 +66,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.read',
     'calendar.import',
     'campaign.correct',
+    'campaign.downloadOperational',
+    'campaign.linkEkon',
     'ekon.import',
     'reconciliation.read',
     'export.csv',
@@ -78,6 +83,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   viewer: [
     'catalog.read',
+    'campaign.downloadOperational',
+    'campaign.linkEkon',
     'reconciliation.read',
     'export.occupancyCsv',
     'tracking.read',
@@ -85,6 +92,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quividi.report',
     'digitalOperations.read',
   ],
+  commercial: ['tracking.read', 'quividi.report'],
 };
 
 /** Indica si un rol tiene un permiso dado. */

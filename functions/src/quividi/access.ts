@@ -6,13 +6,13 @@
  * `src/app/permissions.ts`: si allí se restringe un rol, hay que quitarlo
  * también de `QUIVIDI_REPORT_ROLES` — ocultar el botón no es control de acceso.
  *
- * Decisión vigente: los tres roles pueden descargar el informe, porque es
+ * Decisión vigente: los cuatro roles pueden descargar el informe, porque es
  * material de lectura para marcas/marketing. La capacidad existe por separado
  * de `reporting.read` porque su descarga sí consume la API de pago de Quividi.
  */
 
 /** Roles válidos. Espejo de `USER_ROLES` en `src/domain/constants.ts`. */
-const ROLES = ['admin', 'operator', 'viewer'] as const;
+const ROLES = ['admin', 'operator', 'viewer', 'commercial'] as const;
 
 export type Role = (typeof ROLES)[number];
 
@@ -21,6 +21,7 @@ export const QUIVIDI_REPORT_ROLES: readonly Role[] = [
   'admin',
   'operator',
   'viewer',
+  'commercial',
 ];
 
 function isRole(value: unknown): value is Role {
@@ -46,6 +47,17 @@ export function roleFromClaims(
 /** Indica si un rol puede consultar el reporte de audiencia. */
 export function canReportQuividi(role: Role): boolean {
   return QUIVIDI_REPORT_ROLES.includes(role);
+}
+
+/** Capacidades operativas Quividi ajenas al informe comercial por campaña. */
+export const QUIVIDI_OPERATIONS_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+  'viewer',
+];
+
+export function canUseQuividiOperations(role: Role): boolean {
+  return QUIVIDI_OPERATIONS_ROLES.includes(role);
 }
 
 /**

@@ -4,12 +4,14 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { Icon, type IconName } from '@/components/Icon';
 import { NAV_ROUTES } from '@/app/routes';
+import { canAccessRoute } from '@/app/routes';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import { listOperationalTracking } from '@/services/campaignOperationalTracking';
 import type { AdmiraScreen } from '@/domain';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
+import type { UserRole } from '@/domain/constants';
 import {
   buildTrackingRows,
   criticalAlerts,
@@ -163,10 +165,13 @@ function selectionToDetail(sel: Selection): DetailData {
 }
 
 /** Panel inicial: resumen operativo, alertas y puntos de entrada a los módulos. */
-export function DashboardPage() {
-  const modules = NAV_ROUTES.filter((r) => r.path !== '/');
+export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
+  const visibleRoutes = NAV_ROUTES.filter((route) =>
+    canAccessRoute(role, route),
+  );
+  const modules = visibleRoutes.filter((r) => r.path !== '/');
   const quickActions = QUICK_ACTION_PATHS.map((path) =>
-    NAV_ROUTES.find((route) => route.path === path),
+    visibleRoutes.find((route) => route.path === path),
   ).filter((route): route is (typeof NAV_ROUTES)[number] => Boolean(route));
   const { theme } = useTheme();
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);

@@ -2,15 +2,10 @@ rules_version = '2';
 
 // Reglas de seguridad de Cloud Firestore para SIGNAM V2.
 //
-// FASE ACTUAL (pre-lanzamiento, en pruebas): cualquier usuario autenticado
-// (creado por el administrador en Firebase Authentication) puede leer y escribir
-// las colecciones de trabajo. La app es privada y de acceso por invitación.
-//
-// OBJETIVO antes de liberar al equipo: control por ROL (admin/operator/viewer).
-// Cuando exista el modelo de roles (documento `users/{uid}` con `role`, o custom
-// claims), se sustituirá `isSignedIn()` por las funciones de rol de abajo, que
-// ya quedan preparadas. La eliminación física de pantallas se prohíbe incluso
-// en pruebas (se inactivan conservando su historial).
+// El rol `commercial` es de consulta y usa una superficie de datos cerrada para
+// Panel, Campañas y Seguimiento. No puede escribir en ninguna colección. Los
+// roles históricos conservan el régimen de pre-lanzamiento salvo donde ya
+// existe una matriz explícita más restrictiva (p. ej. tracking.write).
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -26,15 +21,24 @@ service cloud.firestore {
     function isOperator() {
       return isSignedIn() && request.auth.token.get('role', '') == 'operator';
     }
-    // FASE ACTUAL (pre-lanzamiento): homologada al resto de colecciones de
-    // trabajo — cualquier usuario autenticado (invitado por el administrador)
+    function isCommercial() {
+      return isSignedIn() && request.auth.token.get('role', '') == 'commercial';
+    }
+    function canWriteWorkspace() {
+      return isSignedIn() && !isCommercial();
+    }
+    function canReadBackoffice() {
+      return isSignedIn() && !isCommercial();
+    }
+    // FASE ACTUAL (pre-lanzamiento): homologada al resto de roles históricos —
+    // cualquier usuario no comercial autenticado
     // puede operar la importación Digital, igual que Liverpool y Ekon. Esto
     // evita depender de que el custom claim de rol ya esté provisionado en el
     // token. Antes de liberar al equipo se restringirá a admin/operator
     // restaurando `isAdmin() || isOperator()` (ver digitalOperations.import en
     // permissions.ts). Las validaciones estructurales de cada colección se
     // conservan.
-    function canOperateDigital() { return isSignedIn(); }
+    function canOperateDigital() { return canWriteWorkspace(); }
     function validDigitalLifecycle(data) {
       return data.lifecycleStatus in ['active', 'cancelled']
         && (data.cancellationReason == null || data.cancellationReason is string);
@@ -43,7 +47,7 @@ service cloud.firestore {
     // Operación Digital Signage multirretailer. Estas colecciones son un límite
     // explícito: ninguna regla ni escritura reutiliza campaigns/screens/Admira.
     match /digitalSupportCatalog/{profileId} {
-      allow read: if isSignedIn();
+      allow read: if canReadBackoffice();
       allow create: if isAdmin() && request.resource.data.sourceSchema == 'ekon-campaign-tracking-v1'
         && request.resource.data.active is bool;
       allow update: if isAdmin() && request.resource.data.sourceSchema == resource.data.sourceSchema
@@ -51,14 +55,14 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /digitalImportBatches/{batchId} {
-      allow read: if isSignedIn();
+      allow read: if canReadBackoffice();
       allow create, update: if canOperateDigital() && request.resource.data.status in
         ['analyzing','pending-scope','pending-resolutions','processing','completed','failed']
         && request.resource.data.sourceSchema == 'ekon-campaign-tracking-v1';
       allow delete: if false;
     }
     match /digitalPlacementRows/{rowId} {
-      allow read: if isSignedIn();
+      allow read: if canReadBackoffice();
       allow create: if canOperateDigital() && request.resource.data.recordKey is string;
       allow update: if canOperateDigital()
         && request.resource.data.recordKey == resource.data.recordKey
@@ -84,13 +88,13 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /digitalImportResolutions/{resolutionId} {
-      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+      allow read: if canReadBackoffice(); allow create: if canOperateDigital(); allow update, delete: if false;
     }
     match /digitalPlacementRevisions/{revisionId} {
-      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+      allow read: if canReadBackoffice(); allow create: if canOperateDigital(); allow update, delete: if false;
     }
     match /digitalReportExports/{exportId} {
-      allow read: if isSignedIn(); allow create: if canOperateDigital(); allow update, delete: if false;
+      allow read: if canReadBackoffice(); allow create: if canOperateDigital(); allow update, delete: if false;
     }
 
     // --- Preparado para el control por rol (aún no aplicado en esta fase) ---
@@ -117,15 +121,15 @@ service cloud.firestore {
     // referenciadas por exportaciones. Antes de liberar, se restringirá a admin.
     match /screens/{screenId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow create, update, delete: if canWriteWorkspace();
     }
 
     // Diagnóstico vigente del reporte de pases Admira. El cliente publica un
     // snapshot completo, cambia el puntero `current` y elimina el reemplazado;
     // no existe una consulta de históricos ni se conserva el Excel original.
     match /admiraPassAnalysisState/current {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace()
         && request.resource.data.snapshotId is string
         && request.resource.data.updatedAt is int
         && request.resource.data.updatedByUid == request.auth.uid
@@ -133,16 +137,17 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /admiraPassAnalysisSnapshots/{snapshotId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace()
         && request.resource.data.status in ['processing', 'completed', 'failed']
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdByEmail is string
         && request.resource.data.schemaVersion == 1;
-      allow delete: if isSignedIn();
+      allow delete: if canWriteWorkspace();
 
       match /units/{unitId} {
-        allow read, create, delete: if isSignedIn();
+        allow read: if canReadBackoffice();
+        allow create, delete: if canWriteWorkspace();
         allow update: if false;
       }
     }
@@ -150,12 +155,12 @@ service cloud.firestore {
     // Campañas importadas del calendario Liverpool.
     match /campaigns/{campaignId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow create, update, delete: if canWriteWorkspace();
 
       // Bitácora append-only de correcciones manuales. El documento padre se
       // actualiza en la misma transacción; el historial nunca se edita ni borra.
       match /corrections/{correctionId} {
-        allow read: if isSignedIn();
+        allow read: if canReadBackoffice();
         allow create: if (isAdmin() || isOperator())
           && request.resource.data.campaignId == campaignId
           && request.resource.data.reason is string
@@ -172,8 +177,8 @@ service cloud.firestore {
     // incluyen números de tienda. Evita pedir la misma confirmación en cada
     // reimportación; nunca concede por sí sola acceso a campañas o pantallas.
     match /storeCommentResolutions/{resolutionId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace();
       allow delete: if false;
     }
 
@@ -184,16 +189,13 @@ service cloud.firestore {
     // flight no modifica a los demás.
     match /campaignEkonLinks/{campaignId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow create, update, delete: if canWriteWorkspace();
     }
 
     // Seguimiento operativo de campañas: colección INDEPENDIENTE de `campaigns`.
     //
-    // FASE ACTUAL (pre-lanzamiento): igual que el resto de colecciones, cualquier
-    // usuario autenticado puede escribir. El control por ROL (write solo
-    // admin/operator, ver `tracking.write` en permissions.ts) se aplicará antes
-    // de liberar, cuando los custom claims de rol estén provisionados —
-    // sustituyendo `isSignedIn()` por la comprobación de rol de abajo.
+    // Escritura reservada a admin/operator (`tracking.write`). Viewer y
+    // commercial consultan el seguimiento sin modificarlo.
     //
     // Se conservan ya las validaciones estructurales: sin eliminación física
     // desde el cliente y `campaignNameKey`/`createdAt`/`createdBy*` inmutables
@@ -205,11 +207,9 @@ service cloud.firestore {
     // texto vacío, que se guarda como `null`. La lectura NO valida estos campos,
     // por lo que los documentos anteriores siguen siendo legibles.
     //
-    // function canWriteTracking() {
-    //   return isSignedIn() &&
-    //     (request.auth.token.get('role', '') == 'admin'
-    //      || request.auth.token.get('role', '') == 'operator');
-    // }
+    function canWriteTracking() {
+      return isAdmin() || isOperator();
+    }
     function validLifecycle(data) {
       return data.lifecycleStatus in ['active', 'cancelled']
         && data.lifecycleUpdatedAt is int
@@ -223,14 +223,14 @@ service cloud.firestore {
     }
     match /campaignOperationalTracking/{campaignId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
+      allow create: if canWriteTracking()
         && request.resource.data.campaignNameKey is string
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
         && validCampaignReference(request.resource.data)
         && validLifecycle(request.resource.data);
-      allow update: if isSignedIn()
+      allow update: if canWriteTracking()
         && request.resource.data.classification in ['institutional', 'provider']
         && request.resource.data.campaignNameKey == resource.data.campaignNameKey
         && request.resource.data.createdAt == resource.data.createdAt
@@ -256,8 +256,8 @@ service cloud.firestore {
     // vive en el documento; conciliación y fallback consumen solo completados.
     // No se persiste el archivo crudo en Firestore (ver ekonImports.ts).
     match /ekonImportBatches/{batchId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace()
         && request.resource.data.status in
            ['parsing', 'pending_confirmation', 'processing', 'completed', 'failed'];
       // Sin borrado físico desde el cliente (conserva historial auditable).
@@ -267,50 +267,50 @@ service cloud.firestore {
     // Asignaciones Ekon vigentes (id = huella estable de la asignación). Las
     // ausentes se conservan con active:false (No incluida); no se borran.
     match /ekonAssignments/{assignmentId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace();
       allow delete: if false;
     }
 
     // Historial de revisiones de asignaciones Ekon: append-only e inmutable.
     match /ekonRevisions/{revisionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create: if canWriteWorkspace();
       allow update, delete: if false;
     }
 
     // Validaciones de importación: creadas por quien importa; inmutables luego.
     match /importValidations/{importId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create: if canWriteWorkspace();
       allow update, delete: if false;
     }
 
     // Consolidaciones.
     match /consolidations/{consolidationId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow write: if canWriteWorkspace();
     }
 
     // Exportaciones CSV: snapshot inmutable una vez creado.
     match /csvExports/{exportId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create: if canWriteWorkspace();
       allow update, delete: if false;
     }
 
     // Auditoría: inmutable (solo se agrega, nunca se edita ni se borra).
     match /auditEvents/{eventId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create: if canWriteWorkspace();
       allow update, delete: if false;
     }
 
     // Resoluciones de fechas ambiguas confirmadas al importar (memoria estable
     // para que la reimportación las respete). Se crean/actualizan; no se borran.
     match /dateResolutions/{resolutionId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if canReadBackoffice();
+      allow create, update: if canWriteWorkspace();
       allow delete: if false;
     }
 

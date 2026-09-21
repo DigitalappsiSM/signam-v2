@@ -18,7 +18,7 @@ import { recordAuditEvent } from '../audit/recordAuditEvent';
  */
 
 /** Roles válidos. Espejo de `USER_ROLES` en `src/domain/constants.ts`. */
-const ROLES = ['admin', 'operator', 'viewer'] as const;
+const ROLES = ['admin', 'operator', 'viewer', 'commercial'] as const;
 type Role = (typeof ROLES)[number];
 
 function isRole(value: unknown): value is Role {

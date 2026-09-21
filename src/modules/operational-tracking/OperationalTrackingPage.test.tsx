@@ -155,6 +155,31 @@ function cancelledTracking(c: StoredCampaign) {
 }
 
 describe('OperationalTrackingPage', () => {
+  it('mantiene al perfil Comercial completamente en modo lectura', async () => {
+    authState.role = 'commercial';
+    await renderAllPeriods();
+    await screen.findByText('BUEN FIN');
+
+    expect(screen.getByText(/Solo lectura/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Clasificación de BUEN FIN')).toBeDisabled();
+    expect(
+      screen.getByLabelText('Link de descarga de BUEN FIN'),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Cancelar' }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /Detalle de BUEN FIN/i }),
+    );
+    expect(
+      screen.queryByPlaceholderText(/Escribe un comentario/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Agregar' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('la campaña con tipo desconocido queda con clasificación pendiente', async () => {
     await renderAllPeriods();
     await screen.findByText('REGRESO');

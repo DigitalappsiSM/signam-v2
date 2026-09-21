@@ -1,4 +1,5 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatusScreen } from '@/components/StatusScreen';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -19,6 +20,22 @@ import { DigitalOperationsPage } from '@/modules/digital-operations/DigitalOpera
 import { DigitalCatalogPage } from '@/modules/digital-operations/DigitalCatalogPage';
 import { ReportingPage } from '@/modules/reporting/ReportingPage';
 import { CameraHealthPage } from '@/modules/camera-health/CameraHealthPage';
+import { canAccessRoute, routeByPath } from './routes';
+
+function RouteAccess({
+  path,
+  children,
+}: {
+  path: string;
+  children: ReactNode;
+}) {
+  const { user } = useAuth();
+  const route = routeByPath(path);
+  if (!user || !route || !canAccessRoute(user.role, route)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
 
 /**
  * Componente raíz. Controla el acceso:
@@ -56,21 +73,105 @@ export function App() {
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/importar" element={<ImportPage />} />
-        <Route path="/catalogo" element={<CatalogPage />} />
-        <Route path="/importar-ekon" element={<EkonImportPage />} />
-        <Route path="/importar-digital" element={<DigitalImportPage />} />
-        <Route path="/operacion-digital" element={<DigitalOperationsPage />} />
-        <Route path="/catalogo-digital" element={<DigitalCatalogPage />} />
+        <Route path="/" element={<DashboardPage role={user.role} />} />
+        <Route
+          path="/importar"
+          element={
+            <RouteAccess path="/importar">
+              <ImportPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/catalogo"
+          element={
+            <RouteAccess path="/catalogo">
+              <CatalogPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/importar-ekon"
+          element={
+            <RouteAccess path="/importar-ekon">
+              <EkonImportPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/importar-digital"
+          element={
+            <RouteAccess path="/importar-digital">
+              <DigitalImportPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/operacion-digital"
+          element={
+            <RouteAccess path="/operacion-digital">
+              <DigitalOperationsPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/catalogo-digital"
+          element={
+            <RouteAccess path="/catalogo-digital">
+              <DigitalCatalogPage />
+            </RouteAccess>
+          }
+        />
         <Route path="/campanas" element={<CampaignsPage />} />
-        <Route path="/conciliacion" element={<ReconciliationPage />} />
+        <Route
+          path="/conciliacion"
+          element={
+            <RouteAccess path="/conciliacion">
+              <ReconciliationPage />
+            </RouteAccess>
+          }
+        />
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
-        <Route path="/reporting" element={<ReportingPage />} />
-        <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
-        <Route path="/salud-camaras" element={<CameraHealthPage />} />
-        <Route path="/usuarios" element={<UsersPage />} />
-        <Route path="/historial" element={<AuditPage />} />
+        <Route
+          path="/reporting"
+          element={
+            <RouteAccess path="/reporting">
+              <ReportingPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/alertas-ocupacion"
+          element={
+            <RouteAccess path="/alertas-ocupacion">
+              <LowOccupancyPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/salud-camaras"
+          element={
+            <RouteAccess path="/salud-camaras">
+              <CameraHealthPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/usuarios"
+          element={
+            <RouteAccess path="/usuarios">
+              <UsersPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/historial"
+          element={
+            <RouteAccess path="/historial">
+              <AuditPage />
+            </RouteAccess>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppLayout>

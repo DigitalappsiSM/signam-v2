@@ -119,5 +119,10 @@ export const GUADALAJARA_GALERIAS_EXCEPTION = {
 } as const;
 
 /** Roles de la aplicación. Las reglas de Firestore deben aplicar estos permisos. */
-export const USER_ROLES = ['admin', 'operator', 'viewer'] as const;
+export const USER_ROLES = [
+  'admin',
+  'operator',
+  'viewer',
+  'commercial',
+] as const;
 export type UserRole = (typeof USER_ROLES)[number];

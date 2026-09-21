@@ -164,6 +164,34 @@ describe('App — con sesión activa', () => {
     ).toBeInTheDocument();
   });
 
+  it('Comercial solo navega por Panel, Seguimiento y Campañas', () => {
+    signIn();
+    authState.user!.role = 'commercial';
+    renderAt('/');
+    const nav = within(
+      screen.getByRole('navigation', { name: /Navegación principal/i }),
+    );
+    expect(nav.getByRole('link', { name: /Panel/i })).toBeInTheDocument();
+    expect(
+      nav.getByRole('link', { name: /Seguimiento operativo/i }),
+    ).toBeInTheDocument();
+    expect(nav.getByRole('link', { name: /Campañas/i })).toBeInTheDocument();
+    expect(nav.getAllByRole('link')).toHaveLength(3);
+    expect(screen.getByText('Comercial')).toBeInTheDocument();
+  });
+
+  it('redirige a Panel cuando Comercial escribe una ruta no autorizada', () => {
+    signIn();
+    authState.user!.role = 'commercial';
+    renderAt('/usuarios');
+    expect(
+      screen.getByRole('heading', { name: /Panel SIGNAM V2/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Usuarios y permisos/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it('la Importación Ekon arranca en modo degradado (sin Firebase)', () => {
     signIn();
     authState.configured = false;

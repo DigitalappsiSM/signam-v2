@@ -331,6 +331,11 @@ export function CampaignsPage() {
 
   const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
   const canReportQuividi = can(user?.role ?? 'viewer', 'quividi.report');
+  const canDownloadOperational = can(
+    user?.role ?? 'viewer',
+    'campaign.downloadOperational',
+  );
+  const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
 
   const trackingCampaignIds = useMemo(
     () =>
@@ -626,7 +631,11 @@ export function CampaignsPage() {
     <>
       <PageHeader
         title="Campañas"
-        description="Campañas guardadas y su cruce contra el catálogo. Desde aquí puedes corregir datos con motivo e historial, generar evidencias, exportar errores, descargar CSV y asociar el número de campaña Ekon."
+        description={
+          canDownloadOperational
+            ? 'Campañas guardadas y su cruce contra el catálogo. Desde aquí puedes corregir datos con motivo e historial, generar evidencias, exportar errores, descargar CSV y asociar el número de campaña Ekon.'
+            : 'Consulta de campañas, cobertura, tiendas, soportes e informes de audiencia.'
+        }
         actions={
           <button className="btn btn-secondary" onClick={() => void reload()}>
             Actualizar
@@ -648,14 +657,19 @@ export function CampaignsPage() {
           <span>
             Se detectaron {lowOccupancyToday}{' '}
             {lowOccupancyToday === 1 ? 'pantalla' : 'pantallas'} con baja
-            ocupación para hoy. La exportación puede continuar.
+            ocupación para hoy.
+            {canDownloadOperational
+              ? ' La exportación puede continuar.'
+              : ' Consulta el Panel para revisar el contexto.'}
           </span>
-          <Link
-            className="btn btn-secondary"
-            to={`/alertas-ocupacion?fecha=${today}`}
-          >
-            Ver alertas de baja ocupación
-          </Link>
+          {canDownloadOperational && (
+            <Link
+              className="btn btn-secondary"
+              to={`/alertas-ocupacion?fecha=${today}`}
+            >
+              Ver alertas de baja ocupación
+            </Link>
+          )}
         </div>
       )}
 
@@ -690,19 +704,21 @@ export function CampaignsPage() {
             Limpiar filtros
           </button>
         )}
-        <button
-          className="btn btn-primary"
-          onClick={() => void downloadBulkExcel()}
-          disabled={bulkBusy || perError !== null || filtered.length === 0}
-          aria-busy={bulkBusy}
-          title="Exportar el desglose Excel de las campañas visibles"
-        >
-          {bulkBusy
-            ? 'Generando Excel…'
-            : filtersActive
-              ? `Exportar filtradas (${filtered.length})`
-              : `Exportar todas (${filtered.length})`}
-        </button>
+        {canDownloadOperational && (
+          <button
+            className="btn btn-primary"
+            onClick={() => void downloadBulkExcel()}
+            disabled={bulkBusy || perError !== null || filtered.length === 0}
+            aria-busy={bulkBusy}
+            title="Exportar el desglose Excel de las campañas visibles"
+          >
+            {bulkBusy
+              ? 'Generando Excel…'
+              : filtersActive
+                ? `Exportar filtradas (${filtered.length})`
+                : `Exportar todas (${filtered.length})`}
+          </button>
+        )}
         <span className="text-muted" style={{ alignSelf: 'center' }}>
           {filtersActive
             ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
@@ -842,7 +858,7 @@ export function CampaignsPage() {
                     <td>{formatCivilString(c.fechaInicio)}</td>
                     <td>{formatCivilString(c.fechaFin)}</td>
                     <td>
-                      {c.link && c.link.trim() ? (
+                      {c.link && c.link.trim() && canDownloadOperational ? (
                         <a
                           className="btn btn-secondary"
                           href={c.link}
@@ -855,6 +871,8 @@ export function CampaignsPage() {
                         >
                           Descargar contenido
                         </a>
+                      ) : c.link && c.link.trim() ? (
+                        <span className="text-muted">Disponible</span>
                       ) : (
                         <span className="text-muted">Link pendiente</span>
                       )}
@@ -880,28 +898,32 @@ export function CampaignsPage() {
                             void downloadQuividiReport(c, format)
                           }
                         />
-                        <button
-                          className="icon-btn"
-                          title={`Descargar PPT de evidencias de ${c.name}`}
-                          aria-label={`Descargar PPT de evidencias de ${c.name}`}
-                          disabled={pptBusyName !== null}
-                          aria-busy={pptBusyName === c.name}
-                          onClick={() => void downloadPpt(c)}
-                        >
-                          {pptBusyName === c.name ? (
-                            <span className="ppt-generating">…</span>
-                          ) : (
-                            <PptIcon />
-                          )}
-                        </button>
-                        <button
-                          className="icon-btn"
-                          title="Exportar PDF de errores"
-                          disabled={nIssues === 0}
-                          onClick={() => void downloadPdf(c)}
-                        >
-                          📄
-                        </button>
+                        {canDownloadOperational && (
+                          <>
+                            <button
+                              className="icon-btn"
+                              title={`Descargar PPT de evidencias de ${c.name}`}
+                              aria-label={`Descargar PPT de evidencias de ${c.name}`}
+                              disabled={pptBusyName !== null}
+                              aria-busy={pptBusyName === c.name}
+                              onClick={() => void downloadPpt(c)}
+                            >
+                              {pptBusyName === c.name ? (
+                                <span className="ppt-generating">…</span>
+                              ) : (
+                                <PptIcon />
+                              )}
+                            </button>
+                            <button
+                              className="icon-btn"
+                              title="Exportar PDF de errores"
+                              disabled={nIssues === 0}
+                              onClick={() => void downloadPdf(c)}
+                            >
+                              📄
+                            </button>
+                          </>
+                        )}
                         {canCorrectCampaign && (
                           <button
                             className="icon-btn"
@@ -919,20 +941,22 @@ export function CampaignsPage() {
                         >
                           👁️
                         </button>
-                        <CampaignDownloadsMenu
-                          campaign={c}
-                          cons={cons}
-                          open={openMenuId === c.id}
-                          zipBusy={zipBusyName === c.name}
-                          excelBusy={excelBusyId === c.id}
-                          onOpenChange={(o) => setOpenMenuId(o ? c.id : null)}
-                          onDownloadExcel={() => void downloadExcelFor(c)}
-                          onDownloadCsv={(cn) => {
-                            downloadCsvFor(cn);
-                            setOpenMenuId(null);
-                          }}
-                          onDownloadZip={() => downloadZipFor(c, cons)}
-                        />
+                        {canDownloadOperational && (
+                          <CampaignDownloadsMenu
+                            campaign={c}
+                            cons={cons}
+                            open={openMenuId === c.id}
+                            zipBusy={zipBusyName === c.name}
+                            excelBusy={excelBusyId === c.id}
+                            onOpenChange={(o) => setOpenMenuId(o ? c.id : null)}
+                            onDownloadExcel={() => void downloadExcelFor(c)}
+                            onDownloadCsv={(cn) => {
+                              downloadCsvFor(cn);
+                              setOpenMenuId(null);
+                            }}
+                            onDownloadZip={() => downloadZipFor(c, cons)}
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -950,6 +974,7 @@ export function CampaignsPage() {
           ekonNumber={ekonByKey.get(detail.id) ?? null}
           ekonLinks={ekonLinks}
           actor={actor}
+          canEditEkon={canLinkEkon}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
         />
@@ -1245,6 +1270,7 @@ function CampaignDetail({
   ekonNumber,
   ekonLinks,
   actor,
+  canEditEkon,
   onChanged,
   onClose,
 }: {
@@ -1253,6 +1279,7 @@ function CampaignDetail({
   ekonNumber: number | null;
   ekonLinks: CampaignEkonLink[];
   actor: Actor;
+  canEditEkon: boolean;
   onChanged: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -1280,13 +1307,20 @@ function CampaignDetail({
           {formatCivilString(campaign.fechaFin)}
         </p>
 
-        <EkonEditor
-          campaign={campaign}
-          ekonNumber={ekonNumber}
-          ekonLinks={ekonLinks}
-          actor={actor}
-          onChanged={onChanged}
-        />
+        {canEditEkon ? (
+          <EkonEditor
+            campaign={campaign}
+            ekonNumber={ekonNumber}
+            ekonLinks={ekonLinks}
+            actor={actor}
+            onChanged={onChanged}
+          />
+        ) : (
+          <section className="ekon-editor" aria-label="Campaña Ekon">
+            <span className="ekon-editor__label"># campaña Ekon</span>
+            <strong>{ekonNumber ?? 'Sin asociación'}</strong>
+          </section>
+        )}
 
         {campaign.supports.length === 0 && (
           <p className="text-muted">La campaña no tiene soportes asignados.</p>

@@ -38,12 +38,22 @@ describe('permisos por rol', () => {
     expect(can('admin', 'tracking.read')).toBe(true);
     expect(can('operator', 'tracking.read')).toBe(true);
     expect(can('viewer', 'tracking.read')).toBe(true);
+    expect(can('commercial', 'tracking.read')).toBe(true);
+    expect(can('commercial', 'tracking.write')).toBe(false);
   });
 
-  it('el informe de audiencia Quividi está disponible para los tres roles', () => {
+  it('el informe de audiencia Quividi está disponible para los cuatro roles', () => {
     expect(can('admin', 'quividi.report')).toBe(true);
     expect(can('operator', 'quividi.report')).toBe(true);
     expect(can('viewer', 'quividi.report')).toBe(true);
+    expect(can('commercial', 'quividi.report')).toBe(true);
+  });
+
+  it('Comercial no puede descargar operación ni editar vínculos Ekon', () => {
+    expect(can('commercial', 'campaign.downloadOperational')).toBe(false);
+    expect(can('commercial', 'campaign.linkEkon')).toBe(false);
+    expect(can('commercial', 'campaign.correct')).toBe(false);
+    expect(can('commercial', 'export.csv')).toBe(false);
   });
 
   it('reporting está disponible para los tres roles', () => {

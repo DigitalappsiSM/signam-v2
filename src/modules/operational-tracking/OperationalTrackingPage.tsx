@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { can } from '@/app/permissions';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain';
@@ -137,9 +138,7 @@ function checkTitle(row: TrackingRow, key: CheckKey, label: string): string {
 
 export function OperationalTrackingPage() {
   const { user } = useAuth();
-  // Fase pre-lanzamiento: cualquier usuario autenticado puede editar (el control
-  // por rol se activará antes de liberar; ver permissions.ts / firestore.rules).
-  const canWrite = user != null;
+  const canWrite = can(user?.role ?? 'viewer', 'tracking.write');
   const actor = { uid: user?.uid ?? '', email: user?.email ?? '' };
 
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);

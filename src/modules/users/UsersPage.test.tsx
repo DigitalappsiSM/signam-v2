@@ -82,6 +82,15 @@ describe('UsersPage — administración', () => {
     expect(rows).toHaveLength(3);
   });
 
+  it('permite asignar el perfil Comercial a otro usuario', async () => {
+    render(<UsersPage />);
+    await screen.findByText('oper@signam.mx');
+    const otherRow = screen.getByText('oper@signam.mx').closest('tr')!;
+    expect(
+      within(otherRow).getByRole('option', { name: 'Comercial' }),
+    ).toBeInTheDocument();
+  });
+
   it('no permite cambiar el propio rol', async () => {
     render(<UsersPage />);
     await screen.findByText('oper@signam.mx');

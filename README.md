@@ -550,20 +550,31 @@ Archivos versionados: `firebase.json`, `firestore.rules`,
 ### Roles y seguridad
 
 Los roles se resuelven desde los **custom claims** del token
-(`request.auth.token.role`): `admin`, `operator`, `viewer`. La matriz de
+(`request.auth.token.role`): `admin`, `operator`, `viewer`, `commercial`. La matriz de
 permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 **reglas de Firestore y Storage** son la fuente de verdad del control de acceso
 (ocultar botones no es suficiente).
 
-| Acción                      | admin | operator | viewer |
-| --------------------------- | :---: | :------: | :----: |
-| Leer catálogo               |   ✓   |    ✓     |   ✓    |
-| Editar / inactivar catálogo |   ✓   |          |        |
-| Importar calendarios        |   ✓   |    ✓     |        |
-| Importar Ekon               |   ✓   |    ✓     |        |
-| Ver conciliación            |   ✓   |    ✓     |   ✓    |
-| Exportar CSV                |   ✓   |    ✓     |        |
-| Administrar usuarios        |   ✓   |          |        |
+| Acción                              | admin | operator | viewer | commercial |
+| ----------------------------------- | :---: | :------: | :----: | :--------: |
+| Ver Panel, Campañas y Seguimiento   |   ✓   |    ✓     |   ✓    |     ✓      |
+| Editar seguimiento                  |   ✓   |    ✓     |        |            |
+| Descargar informes Quividi PDF/XLSX |   ✓   |    ✓     |   ✓    |     ✓      |
+| Descargar operación de Campañas     |   ✓   |    ✓     |   ✓    |            |
+| Editar vínculo Ekon de campaña      |   ✓   |    ✓     |   ✓    |            |
+| Leer catálogo                       |   ✓   |    ✓     |   ✓    |            |
+| Editar / inactivar catálogo         |   ✓   |          |        |            |
+| Importar calendarios                |   ✓   |    ✓     |        |            |
+| Importar Ekon                       |   ✓   |    ✓     |        |            |
+| Ver conciliación                    |   ✓   |    ✓     |   ✓    |            |
+| Exportar CSV                        |   ✓   |    ✓     |        |            |
+| Administrar usuarios                |   ✓   |          |        |            |
+
+`commercial` usa una lista cerrada de rutas: `/`, `/campanas` y
+`/seguimiento`. Puede consultar todas las campañas, sus detalles y la bitácora
+operativa. Quividi es su única descarga permitida; no puede abrir el contenido,
+generar exportaciones operativas ni modificar datos. Las rutas restantes se
+ocultan y también se bloquean cuando se escriben directamente.
 
 ### Colecciones e índices Ekon
 
