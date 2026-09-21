@@ -82,7 +82,7 @@ const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
 const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
 const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
-const SNAPSHOT_SCHEMA_VERSION = 3;
+const SNAPSHOT_SCHEMA_VERSION = 4;
 
 interface CampaignReport {
   schemaVersion: 3;
