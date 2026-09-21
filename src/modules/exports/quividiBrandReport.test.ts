@@ -106,10 +106,34 @@ describe('informe comercial agregado de audiencia', () => {
         }),
       ],
       cameraDays: [
-        cameraDay({ date, storeNumber: '10', storeName: 'INSURGENTES', locationId: 1, ots: 100 }),
-        cameraDay({ date, storeNumber: '10', storeName: 'INSURGENTES', locationId: 2, ots: 200 }),
-        cameraDay({ date, storeNumber: '11', storeName: 'SANTA FE', locationId: 3, ots: 400 }),
-        cameraDay({ date, storeNumber: '11', storeName: 'SANTA FE', locationId: 4, ots: 600 }),
+        cameraDay({
+          date,
+          storeNumber: '10',
+          storeName: 'INSURGENTES',
+          locationId: 1,
+          ots: 100,
+        }),
+        cameraDay({
+          date,
+          storeNumber: '10',
+          storeName: 'INSURGENTES',
+          locationId: 2,
+          ots: 200,
+        }),
+        cameraDay({
+          date,
+          storeNumber: '11',
+          storeName: 'SANTA FE',
+          locationId: 3,
+          ots: 400,
+        }),
+        cameraDay({
+          date,
+          storeNumber: '11',
+          storeName: 'SANTA FE',
+          locationId: 4,
+          ots: 600,
+        }),
       ],
     });
 
