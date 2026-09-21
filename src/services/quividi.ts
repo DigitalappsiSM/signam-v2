@@ -1,5 +1,9 @@
 import { httpsCallable } from 'firebase/functions';
-import type { QuividiCampaignReport, QuividiScopeOrigin } from '@/domain';
+import type {
+  QuividiCameraHealthOverview,
+  QuividiCampaignReport,
+  QuividiScopeOrigin,
+} from '@/domain';
 import { getFirebase } from './firebase';
 
 interface CampaignReportResponse {
@@ -47,4 +51,32 @@ export async function getQuividiCampaignAvailability(
     items.push(...result.data.items);
   }
   return items;
+}
+
+
+export interface QuividiLocationLookup {
+  id: number;
+  name: string;
+  active: boolean;
+  lastSeen: string | null;
+}
+
+export async function validateQuividiLocation(
+  locationId: number,
+): Promise<QuividiLocationLookup> {
+  const callable = httpsCallable<
+    { locationId: number },
+    { location: QuividiLocationLookup }
+  >(functions(), 'quividi-locationLookup');
+  const result = await callable({ locationId });
+  return result.data.location;
+}
+
+export async function getQuividiCameraHealthOverview(): Promise<QuividiCameraHealthOverview> {
+  const callable = httpsCallable<Record<string, never>, QuividiCameraHealthOverview>(
+    functions(),
+    'quividi-cameraHealthOverview',
+  );
+  const result = await callable({});
+  return result.data;
 }
