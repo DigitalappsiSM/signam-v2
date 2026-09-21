@@ -90,6 +90,13 @@ export interface BrandShare {
   share: number;
 }
 
+/** Reparto porcentual de los OTS entre franjas horarias del día. */
+export interface BrandTimeBand {
+  label: string;
+  hours: string;
+  share: number;
+}
+
 /** Aportación de una tienda a la cifra publicada, para la hoja de auditoría. */
 export interface BrandStoreAudit {
   storeNumber: string;
@@ -476,4 +483,54 @@ export function brandStoreAudit(
       measuredOts: sum(measured.map((row) => row.ots)),
     };
   }).sort((a, b) => a.completenessPercent - b.completenessPercent);
+}
+
+/**
+ * Bandas horarias del informe comercial. Cubren las 24 horas sin solapes: la
+ * madrugada se agrupa con la noche porque el circuito está cerrado y sus OTS
+ * son residuales, pero no se descartan para que los porcentajes sumen 100.
+ */
+const BRAND_TIME_BANDS = [
+  {
+    label: 'Mañana',
+    hours: '06:00 — 12:00',
+    covers: (hour: number) => hour >= 6 && hour < 12,
+  },
+  {
+    label: 'Tarde',
+    hours: '12:00 — 18:00',
+    covers: (hour: number) => hour >= 12 && hour < 18,
+  },
+  {
+    label: 'Noche',
+    hours: '18:00 — 06:00',
+    covers: (hour: number) => hour >= 18 || hour < 6,
+  },
+] as const;
+
+/**
+ * Reparto de los OTS medidos entre mañana, tarde y noche.
+ *
+ * Se calcula sobre `supportHours`, que no todos los reportes traen: cuando
+ * falta, devuelve una lista vacía y el informe omite el bloque en vez de
+ * dibujar ceros.
+ */
+export function brandTimeOfDay(report: QuividiCampaignReport): BrandTimeBand[] {
+  const measured = report.supportHours.filter(
+    (row) => row.status !== 'missing',
+  );
+  if (measured.length === 0) return [];
+
+  const totals = BRAND_TIME_BANDS.map((band) =>
+    sum(measured.filter((row) => band.covers(row.hour)).map((row) => row.ots)),
+  );
+
+  const total = sum(totals);
+  if (total <= 0) return [];
+
+  return BRAND_TIME_BANDS.map((band, index) => ({
+    label: band.label,
+    hours: band.hours,
+    share: ((totals[index] ?? 0) / total) * 100,
+  }));
 }

@@ -7,35 +7,57 @@ import {
   brandDaily,
   brandGender,
   brandHeader,
+  brandTimeOfDay,
+  formatCivilDate,
   formatCount,
   formatPercent,
-  type BrandShare,
 } from './quividiBrandReport';
+import {
+  BLUE,
+  BLUE_LIGHT,
+  BLUE_MID,
+  BLUE_PALE,
+  CANVAS_H,
+  CANVAS_W,
+  GRAY,
+  HAIR,
+  MUTED,
+  NAVY,
+  PINK,
+  PINK_PALE,
+  SKY,
+  SOFT,
+  WHITE,
+  block,
+  donut,
+  fade,
+  paragraph,
+  photoCover,
+  storeGlyph,
+  text,
+  textWidth,
+  u,
+  type AlphaStop,
+  type RGB,
+} from './quividiPdfKit';
 
 /**
  * Informe comercial de audiencia para marcas.
  *
- * El PDF es deliberadamente agregado: comunica OTS, cobertura, extrapolación y
- * perfil porcentual de audiencia. No publica el proveedor de medición, métricas
- * de mirada/conversión ni rendimiento de una tienda individual. El Excel
- * técnico conserva el detalle operativo original.
+ * El documento es deliberadamente agregado: comunica OTS, cobertura, perfil de
+ * audiencia y el criterio con que se completa el universo contratado. No
+ * publica el proveedor de medición, las métricas de mirada ni el rendimiento de
+ * una tienda concreta; ese detalle vive en el Excel técnico, cuya hoja
+ * «Auditoría de cifras» reconstruye paso a paso la cifra que aquí se publica.
+ *
+ * El maquetado está en píxeles de un lienzo A4 a 96 dpi y `quividiPdfKit` lo
+ * traduce a milímetros.
  */
 
-type RGB = readonly [number, number, number];
-
-const NAVY: RGB = [17, 38, 78];
-const BLUE: RGB = [0, 126, 203];
-const SKY: RGB = [233, 246, 253];
-const PINK: RGB = [226, 18, 111];
-const INK: RGB = [25, 31, 44];
-const MUTED: RGB = [91, 104, 125];
-const HAIR: RGB = [222, 230, 239];
-const SOFT: RGB = [247, 250, 253];
-const WHITE: RGB = [255, 255, 255];
-const GRAY: RGB = [197, 208, 220];
-
-const M = 16;
 const PAGE_COUNT = 5;
+const M = 48;
+const CONTENT_W = CANVAS_W - M * 2;
+
 const COVER_PHOTO_PATH = '/report-assets/liverpool-mupi-cover.jpg';
 const CLOSING_PHOTO_PATH = '/report-assets/liverpool-banner-closing.jpg';
 
@@ -43,185 +65,6 @@ interface PdfAssets {
   logo: string | null;
   cover: string | null;
   closing: string | null;
-}
-
-interface KpiCardData {
-  label: string;
-  value: string;
-  note?: string;
-}
-
-function fill(doc: jsPDF, color: RGB): void {
-  doc.setFillColor(color[0], color[1], color[2]);
-}
-
-function stroke(doc: jsPDF, color: RGB): void {
-  doc.setDrawColor(color[0], color[1], color[2]);
-}
-
-function ink(doc: jsPDF, color: RGB): void {
-  doc.setTextColor(color[0], color[1], color[2]);
-}
-
-function text(
-  doc: jsPDF,
-  value: string,
-  x: number,
-  y: number,
-  options: {
-    size?: number;
-    color?: RGB;
-    bold?: boolean;
-    align?: 'left' | 'center' | 'right';
-  } = {},
-): void {
-  doc.setFont('helvetica', options.bold ? 'bold' : 'normal');
-  doc.setFontSize(options.size ?? 9);
-  ink(doc, options.color ?? INK);
-  doc.text(value, x, y, { align: options.align ?? 'left' });
-}
-
-function paragraph(
-  doc: jsPDF,
-  value: string,
-  x: number,
-  y: number,
-  width: number,
-  options: {
-    size?: number;
-    color?: RGB;
-    bold?: boolean;
-    lineHeight?: number;
-  } = {},
-): number {
-  const size = options.size ?? 8;
-  doc.setFont('helvetica', options.bold ? 'bold' : 'normal');
-  doc.setFontSize(size);
-  ink(doc, options.color ?? MUTED);
-  const lines = doc.splitTextToSize(value, width) as string[];
-  const lineHeight = options.lineHeight ?? size * 0.42 + 1.3;
-  doc.text(lines, x, y, { lineHeightFactor: 1.2 });
-  return y + Math.max(1, lines.length) * lineHeight;
-}
-
-function pageHeader(
-  doc: jsPDF,
-  assets: PdfAssets,
-  title: string,
-  page: number,
-): number {
-  const pageW = doc.internal.pageSize.getWidth();
-  if (assets.logo) {
-    try {
-      fill(doc, NAVY);
-      doc.roundedRect(M - 2, 4.8, 66, 12.6, 1.5, 1.5, 'F');
-      doc.addImage(assets.logo, 'PNG', M, 7.5, 61, 8.3, undefined, 'FAST');
-    } catch {
-      text(doc, 'in-Store Media', M, 13, { size: 11, bold: true, color: NAVY });
-    }
-  } else {
-    text(doc, 'in-Store Media', M, 13, { size: 11, bold: true, color: NAVY });
-  }
-  text(doc, 'Reporte de Campaña', pageW - M, 10, {
-    size: 6.5,
-    color: MUTED,
-    align: 'right',
-  });
-  text(doc, title, pageW - M, 14, {
-    size: 6.5,
-    color: MUTED,
-    align: 'right',
-  });
-  stroke(doc, HAIR);
-  doc.setLineWidth(0.25);
-  doc.line(M, 19, pageW - M, 19);
-  text(doc, String(page).padStart(2, '0'), pageW - M, 286, {
-    size: 7,
-    bold: true,
-    color: NAVY,
-    align: 'right',
-  });
-  return 29;
-}
-
-function pageFooter(doc: jsPDF): void {
-  const pageW = doc.internal.pageSize.getWidth();
-  stroke(doc, HAIR);
-  doc.setLineWidth(0.2);
-  doc.line(M, 278, pageW - M, 278);
-  text(doc, 'in-Store Media', M, 283, { size: 6.2, bold: true, color: NAVY });
-  text(doc, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.', M + 28, 283, {
-    size: 5.8,
-    color: MUTED,
-  });
-}
-
-function sectionEyebrow(doc: jsPDF, label: string, y: number): number {
-  fill(doc, PINK);
-  doc.rect(M, y - 2.2, 8, 0.9, 'F');
-  text(doc, label.toUpperCase(), M, y + 2.5, {
-    size: 6.6,
-    bold: true,
-    color: BLUE,
-  });
-  return y + 8;
-}
-
-function card(doc: jsPDF, x: number, y: number, w: number, h: number): void {
-  fill(doc, SOFT);
-  stroke(doc, HAIR);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(x, y, w, h, 2.2, 2.2, 'FD');
-}
-
-function kpiCard(
-  doc: jsPDF,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  data: KpiCardData,
-): void {
-  card(doc, x, y, w, h);
-  fill(doc, BLUE);
-  doc.circle(x + 8, y + 9, 3.2, 'F');
-  text(doc, data.label, x + 15, y + 7.2, {
-    size: 6.6,
-    bold: true,
-    color: NAVY,
-  });
-  text(doc, data.value, x + 15, y + 16.2, {
-    size: 15.5,
-    bold: true,
-    color: BLUE,
-  });
-  if (data.note) {
-    paragraph(doc, data.note, x + 15, y + 21, w - 19, {
-      size: 5.6,
-      color: MUTED,
-    });
-  }
-}
-
-function infoBox(
-  doc: jsPDF,
-  value: string,
-  x: number,
-  y: number,
-  w: number,
-): number {
-  fill(doc, SKY);
-  doc.roundedRect(x, y, w, 22, 2.2, 2.2, 'F');
-  fill(doc, BLUE);
-  doc.circle(x + 8, y + 11, 3.2, 'F');
-  text(doc, 'i', x + 8, y + 12.2, {
-    size: 8,
-    bold: true,
-    color: WHITE,
-    align: 'center',
-  });
-  paragraph(doc, value, x + 15, y + 7, w - 20, { size: 7, color: NAVY });
-  return y + 22;
 }
 
 async function assetDataUrl(path: string): Promise<string | null> {
@@ -248,164 +91,142 @@ async function loadAssets(): Promise<PdfAssets> {
     assetDataUrl(COVER_PHOTO_PATH),
     assetDataUrl(CLOSING_PHOTO_PATH),
   ]);
-  return {
-    logo: INSTORE_MEDIA_LOGO_DATA_URL,
-    cover,
-    closing,
-  };
+  return { logo: INSTORE_MEDIA_LOGO_DATA_URL, cover, closing };
 }
 
-function lineChart(
+/** Etiqueta corta de periodo para la cabecera: `Junio — Julio 2026`. */
+function periodLabel(report: QuividiCampaignReport): string {
+  const months = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
+  const from = report.startDate.split('-');
+  const to = report.endDate.split('-');
+  const fromMonth = months[Number(from[1]) - 1];
+  const toMonth = months[Number(to[1]) - 1];
+  if (!fromMonth || !toMonth) return '';
+  if (fromMonth === toMonth && from[0] === to[0])
+    return `${fromMonth} ${to[0]}`;
+  return `${fromMonth} — ${toMonth} ${to[0]}`;
+}
+
+function logo(
   doc: jsPDF,
+  assets: PdfAssets,
   x: number,
   y: number,
   w: number,
-  h: number,
-  labels: string[],
-  values: number[],
 ): void {
-  const max = Math.max(1, ...values);
-  stroke(doc, HAIR);
-  doc.setLineWidth(0.2);
-  for (let tick = 0; tick <= 4; tick += 1) {
-    const ty = y + h - (h * tick) / 4;
-    doc.line(x, ty, x + w, ty);
-    text(doc, formatCount((max * tick) / 4), x - 2, ty + 1.3, {
-      size: 5.4,
-      color: MUTED,
-      align: 'right',
-    });
+  const h = (w * 108) / 799;
+  if (assets.logo) {
+    try {
+      doc.addImage(
+        assets.logo,
+        'PNG',
+        u(x),
+        u(y),
+        u(w),
+        u(h),
+        undefined,
+        'FAST',
+      );
+      return;
+    } catch {
+      // Sin logotipo utilizable, el nombre lo sustituye.
+    }
   }
-  if (values.length === 0) return;
-  const step = values.length > 1 ? w / (values.length - 1) : w;
-  stroke(doc, BLUE);
-  doc.setLineWidth(0.8);
-  values.forEach((value, index) => {
-    const px = x + step * index;
-    const py = y + h - (value / max) * h;
-    if (index > 0) {
-      const previous = values[index - 1] ?? 0;
-      const ppx = x + step * (index - 1);
-      const ppy = y + h - (previous / max) * h;
-      doc.line(ppx, ppy, px, py);
-    }
-    fill(doc, WHITE);
-    stroke(doc, BLUE);
-    doc.circle(px, py, 1.2, 'FD');
-  });
-  labels.forEach((label, index) => {
-    if (index !== 0 && index !== labels.length - 1 && index % 3 !== 0) return;
-    text(doc, label, x + step * index, y + h + 5, {
-      size: 5.7,
-      color: MUTED,
-      align: 'center',
-    });
-  });
-}
-
-function donut(
-  doc: jsPDF,
-  cx: number,
-  cy: number,
-  radius: number,
-  percent: number,
-): void {
-  const clamped = Math.max(0, Math.min(100, percent));
-  const drawArc = (from: number, to: number, color: RGB) => {
-    stroke(doc, color);
-    doc.setLineWidth(6.2);
-    const steps = Math.max(2, Math.ceil(Math.abs(to - from) * 20));
-    let previousX = cx + Math.cos(from) * radius;
-    let previousY = cy + Math.sin(from) * radius;
-    for (let i = 1; i <= steps; i += 1) {
-      const angle = from + ((to - from) * i) / steps;
-      const currentX = cx + Math.cos(angle) * radius;
-      const currentY = cy + Math.sin(angle) * radius;
-      doc.line(previousX, previousY, currentX, currentY);
-      previousX = currentX;
-      previousY = currentY;
-    }
-  };
-  const start = -Math.PI / 2;
-  const measuredEnd = start + Math.PI * 2 * (clamped / 100);
-  drawArc(start, start + Math.PI * 2, GRAY);
-  if (clamped > 0) drawArc(start, measuredEnd, BLUE);
-  doc.setLineWidth(0.2);
-  text(doc, formatPercent(clamped), cx, cy - 1, {
+  text(doc, 'in-Store Media', x, y + h * 0.75, {
     size: 16,
     bold: true,
-    color: BLUE,
-    align: 'center',
+    color: NAVY,
   });
-  text(doc, 'cobertura', cx, cy + 5, {
-    size: 6.2,
+}
+
+/** Cabecera común de las páginas interiores. */
+function pageHeader(
+  doc: jsPDF,
+  assets: PdfAssets,
+  report: QuividiCampaignReport,
+): void {
+  logo(doc, assets, M, 34, 192);
+  text(doc, report.campaignName.toUpperCase(), CANVAS_W - M, 45, {
+    size: 9,
+    bold: true,
+    color: PINK,
+    align: 'right',
+    tracking: 2,
+  });
+  text(
+    doc,
+    `${formatCivilDate(report.startDate)} — ${formatCivilDate(report.endDate)} · ${brandHeader(report).days} días`,
+    CANVAS_W - M,
+    62,
+    { size: 9, color: MUTED, align: 'right' },
+  );
+  block(doc, M, 88, CONTENT_W, 1, HAIR);
+}
+
+function pageFooter(doc: jsPDF, page: number, note: string): void {
+  block(doc, M, CANVAS_H - 62, CONTENT_W, 1, HAIR);
+  text(doc, 'in-Store Media', M, CANVAS_H - 36, {
+    size: 9.5,
+    bold: true,
+    color: NAVY,
+  });
+  text(doc, note, M + 84, CANVAS_H - 36, {
+    size: 8.5,
     color: MUTED,
+    tracking: 1,
+  });
+  block(doc, CANVAS_W - M - 30, CANVAS_H - 54, 30, 30, NAVY);
+  text(doc, String(page).padStart(2, '0'), CANVAS_W - M - 15, CANVAS_H - 34, {
+    size: 12,
+    bold: true,
+    color: WHITE,
     align: 'center',
   });
 }
 
-function audienceDonut(
-  doc: jsPDF,
-  cx: number,
-  cy: number,
-  radius: number,
-  shares: readonly BrandShare[],
-  colors: readonly RGB[],
-): void {
-  if (shares.length === 0) {
-    stroke(doc, GRAY);
-    doc.setLineWidth(6);
-    doc.circle(cx, cy, radius, 'S');
-    text(doc, 'Sin datos', cx, cy + 1.5, {
-      size: 7,
-      color: MUTED,
-      align: 'center',
-    });
-    return;
-  }
-  let start = -Math.PI / 2;
-  shares.forEach((part, index) => {
-    const radians = Math.PI * 2 * (part.share / 100);
-    const end = start + radians;
-    stroke(doc, colors[index % colors.length] ?? BLUE);
-    doc.setLineWidth(7.5);
-    const steps = Math.max(2, Math.ceil(Math.abs(end - start) * 18));
-    let previousX = cx + Math.cos(start) * radius;
-    let previousY = cy + Math.sin(start) * radius;
-    for (let step = 1; step <= steps; step += 1) {
-      const angle = start + ((end - start) * step) / steps;
-      const currentX = cx + Math.cos(angle) * radius;
-      const currentY = cy + Math.sin(angle) * radius;
-      doc.line(previousX, previousY, currentX, currentY);
-      previousX = currentX;
-      previousY = currentY;
-    }
-    start = end;
+/** Barra rosa más rótulo de sección. */
+function eyebrow(doc: jsPDF, label: string, y: number): void {
+  block(doc, M, y, 26, 4, PINK);
+  text(doc, label, M + 36, y + 7, {
+    size: 10,
+    bold: true,
+    color: BLUE,
+    tracking: 2.4,
   });
-  doc.setLineWidth(0.2);
 }
 
-function legendShares(
+function sectionLabel(doc: jsPDF, label: string, x: number, y: number): void {
+  text(doc, label, x, y, { size: 9, bold: true, color: NAVY, tracking: 1.6 });
+}
+
+/** Cita destacada sobre fondo rosa pálido o azul marino. */
+function quote(
   doc: jsPDF,
-  x: number,
+  value: string,
   y: number,
-  shares: readonly BrandShare[],
-  colors: readonly RGB[],
-  maxWidth: number,
+  height: number,
+  dark = false,
 ): void {
-  let cursor = y;
-  shares.forEach((part, index) => {
-    const color = colors[index % colors.length] ?? BLUE;
-    fill(doc, color);
-    doc.circle(x + 1.4, cursor - 1, 1.4, 'F');
-    text(doc, part.label, x + 5, cursor, { size: 6.5, color: NAVY });
-    text(doc, formatPercent(part.share), x + maxWidth, cursor, {
-      size: 6.5,
-      bold: true,
-      color: NAVY,
-      align: 'right',
-    });
-    cursor += 6;
+  block(doc, M, y, CONTENT_W, height, dark ? NAVY : PINK_PALE);
+  if (!dark) block(doc, M, y, 5, height, PINK);
+  text(doc, '"', M + 26, y + 44, { size: 46, bold: true, color: PINK });
+  paragraph(doc, value, M + 62, y + 28, CONTENT_W - 86, {
+    size: 11.5,
+    color: dark ? WHITE : NAVY,
+    lineHeight: 18,
   });
 }
 
@@ -414,104 +235,155 @@ function coverPage(
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
+  const summary = brandCampaignSummary(report);
   const header = brandHeader(report);
 
-  fill(doc, WHITE);
-  doc.rect(0, 0, pageW, pageH, 'F');
+  logo(doc, assets, M, 34, 236);
+  block(doc, CANVAS_W - M - 26, 34, 26, 3, PINK);
+  text(doc, 'REPORTE DE CAMPAÑA', CANVAS_W - M, 51, {
+    size: 9,
+    bold: true,
+    color: PINK,
+    align: 'right',
+    tracking: 2.2,
+  });
+  text(doc, periodLabel(report), CANVAS_W - M, 68, {
+    size: 10,
+    bold: true,
+    color: NAVY,
+    align: 'right',
+  });
+
+  block(doc, 0, 104, CANVAS_W, 616, NAVY);
+
   if (assets.cover) {
-    doc.addImage(
-      assets.cover,
-      'JPEG',
-      115,
-      0,
-      pageW - 115,
-      pageH,
-      undefined,
-      'FAST',
-    );
-    fill(doc, WHITE);
-    doc.triangle(76, 0, 124, 0, 115, pageH, 'F');
-    fill(doc, PINK);
-    doc.triangle(105, 108, 116, 102, 113, 190, 'F');
-  } else {
-    fill(doc, SKY);
-    doc.rect(120, 0, pageW - 120, pageH, 'F');
+    photoCover(doc, assets.cover, 'JPEG', 384, 104, 410, 456, 0.82, 0.5);
+    const toRight: AlphaStop[] = [
+      [0, 1],
+      [0.16, 0.9],
+      [0.48, 0.42],
+      [1, 0.1],
+    ];
+    const toBottom: AlphaStop[] = [
+      [0, 0],
+      [0.34, 0],
+      [0.7, 0.55],
+      [1, 1],
+    ];
+    fade(doc, 384, 104, 410, 456, NAVY, toRight, 'right');
+    fade(doc, 384, 104, 410, 456, NAVY, toBottom, 'down');
   }
 
-  if (assets.logo) {
-    try {
-      fill(doc, NAVY);
-      doc.roundedRect(M - 2, 9.5, 77, 16, 1.8, 1.8, 'F');
-      doc.addImage(assets.logo, 'PNG', M, 13, 72, 9.7, undefined, 'FAST');
-    } catch {
-      text(doc, 'in-Store Media', M, 20, { size: 13, bold: true, color: NAVY });
-    }
-  } else {
-    text(doc, 'in-Store Media', M, 20, { size: 13, bold: true, color: NAVY });
-  }
-
-  fill(doc, PINK);
-  doc.rect(M, 34, 13, 0.9, 'F');
-  text(doc, 'REPORTE DE CAMPAÑA', M, 41, {
-    size: 6.4,
+  block(doc, M, 168, 34, 4, PINK);
+  text(doc, 'AUDIENCIA MEDIDA', M, 196, {
+    size: 9,
     bold: true,
-    color: BLUE,
+    color: BLUE_LIGHT,
+    tracking: 3,
   });
-  text(doc, 'Reporte de Audiencia', M, 55, {
-    size: 19,
+  text(doc, 'EN PUNTO DE VENTA', M, 211, {
+    size: 9,
     bold: true,
-    color: NAVY,
+    color: BLUE_LIGHT,
+    tracking: 3,
   });
-  text(doc, 'y Resultados de Campaña', M, 64, {
-    size: 19,
-    bold: true,
-    color: NAVY,
-  });
-  paragraph(
+  const nameEnd = paragraph(
     doc,
-    'Conectando marcas con personas en el momento real.',
+    report.campaignName.toUpperCase(),
     M,
-    74,
-    78,
-    { size: 9, color: MUTED },
+    260,
+    324,
+    { size: 30, bold: true, color: WHITE, lineHeight: 35 },
   );
+  // Un nombre largo no puede empujar los metadatos sobre la cifra principal.
+  const metaTop = Math.min(nameEnd + 18, 470);
+  text(doc, `Circuito Liverpool · ${header.totalStores} tiendas`, M, metaTop, {
+    size: 10.5,
+    color: BLUE_PALE,
+  });
+  const supports = header.supports.join(' · ');
+  if (supports) {
+    text(doc, supports, M, metaTop + 17, { size: 10.5, color: BLUE_PALE });
+  }
 
-  const metadata = [
-    ['Marca / campaña', header.campaignName],
-    ['Retailer', 'Liverpool'],
-    ['Periodo', header.periodLabel],
-    ['Formato', header.supports.join(' · ') || 'Pantallas In-Store'],
-    ['Tiendas', `${header.totalStores} tiendas`],
-  ] as const;
-  let y = 101;
-  metadata.forEach(([label, value]) => {
-    fill(doc, BLUE);
-    doc.circle(M + 3, y - 1, 2.2, 'F');
-    text(doc, label, M + 9, y, { size: 6.8, bold: true, color: NAVY });
-    y =
-      paragraph(doc, value, M + 9, y + 4.2, 75, { size: 7.3, color: MUTED }) +
-      6;
+  const hero = formatCount(summary.estimatedOts);
+  text(doc, hero, M, 638, { size: 78, bold: true, color: WHITE });
+  const heroEnd = M + textWidth(doc, hero, 78, true) + 22;
+  block(doc, heroEnd, 570, 34, 4, PINK);
+  text(doc, 'OPORTUNIDADES', heroEnd, 597, {
+    size: 11,
+    bold: true,
+    color: BLUE_LIGHT,
+    tracking: 1.8,
+  });
+  text(doc, 'DE VER · OTS', heroEnd, 614, {
+    size: 11,
+    bold: true,
+    color: BLUE_LIGHT,
+    tracking: 1.8,
   });
 
-  fill(doc, PINK);
-  doc.rect(M, 253, 13, 0.9, 'F');
-  text(doc, 'AUDIENCIAS REALES.', M, 261, {
-    size: 6.3,
+  const tiles: Array<[string, string, RGB, RGB]> = [
+    [formatCount(summary.dailyAverage), 'OTS PROMEDIO DIARIO', SKY, BLUE],
+    [String(header.totalStores), 'TIENDAS LIVERPOOL', SKY, BLUE],
+    [
+      formatPercent(summary.coverage.storeDayPercent, 1),
+      'MEDICIÓN DIRECTA',
+      PINK_PALE,
+      PINK,
+    ],
+  ];
+  const tileW = (CONTENT_W - 28) / 3;
+  tiles.forEach(([value, label, background, accent], index) => {
+    const x = M + index * (tileW + 14);
+    block(doc, x, 756, tileW, 86, background);
+    block(doc, x, 756, 4, 86, accent);
+    text(doc, value, x + 18, 806, { size: 30, bold: true, color: NAVY });
+    text(doc, label, x + 18, 826, {
+      size: 9,
+      bold: true,
+      color: accent,
+      tracking: 1.2,
+    });
+  });
+
+  const meta: Array<[string, string]> = [
+    ['RETAILER', 'Liverpool'],
+    [
+      'VIGENCIA',
+      `${formatCivilDate(report.startDate)} — ${formatCivilDate(report.endDate)} · ${header.days} días`,
+    ],
+    ['FORMATOS', header.supports.join(' · ') || 'Pantallas In-Store'],
+  ];
+  let metaX = M;
+  meta.forEach(([label, value]) => {
+    text(doc, label, metaX, 897, {
+      size: 9,
+      bold: true,
+      color: MUTED,
+      tracking: 1.4,
+    });
+    text(doc, value, metaX, 917, { size: 13, bold: true, color: NAVY });
+    metaX +=
+      Math.max(
+        textWidth(doc, value, 13, true),
+        textWidth(doc, label, 9, true),
+      ) + 40;
+  });
+
+  block(doc, M, CANVAS_H - 84, 40, 4, PINK);
+  text(doc, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.', M, CANVAS_H - 59, {
+    size: 12,
     bold: true,
     color: NAVY,
+    tracking: 2.4,
   });
-  text(doc, 'OPORTUNIDADES REALES.', M, 266, {
-    size: 6.3,
-    bold: true,
-    color: NAVY,
-  });
-  text(doc, '01', pageW - M, pageH - 11, {
-    size: 8,
+  block(doc, CANVAS_W - M - 30, CANVAS_H - 74, 30, 30, NAVY);
+  text(doc, '01', CANVAS_W - M - 15, CANVAS_H - 54, {
+    size: 12,
     bold: true,
     color: WHITE,
-    align: 'right',
+    align: 'center',
   });
 }
 
@@ -520,58 +392,208 @@ function summaryPage(
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  let y = pageHeader(doc, assets, 'Resumen', 2);
+  pageHeader(doc, assets, report);
   const summary = brandCampaignSummary(report);
-  y = sectionEyebrow(doc, '01. Resumen', y);
-  text(doc, 'Resumen Ejecutivo', M, y, { size: 18, bold: true, color: NAVY });
-  y = paragraph(
-    doc,
-    'La campaña consolidó sus resultados de audiencia en una lectura agregada del circuito, combinando medición directa y estimación únicamente donde no existe cobertura.',
-    M,
-    y + 7,
-    176,
-    { size: 8, color: MUTED },
-  );
-
-  const gap = 5;
-  const cardW = (178 - gap) / 2;
-  const cards: KpiCardData[] = [
-    {
-      label: 'OTS estimados campaña',
-      value: formatCount(summary.estimatedOts),
-    },
-    { label: 'OTS promedio diario', value: formatCount(summary.dailyAverage) },
-    {
-      label: 'OTS promedio diario / tienda',
-      value: formatCount(summary.dailyPerStore),
-    },
-    {
-      label: 'OTS promedio diario / soporte',
-      value: formatCount(summary.dailyPerSupport),
-      note: 'Promedio por tienda-soporte del universo de campaña.',
-    },
-  ];
-  y += 5;
-  cards.forEach((item, index) => {
-    const row = Math.floor(index / 2);
-    const col = index % 2;
-    kpiCard(doc, M + col * (cardW + gap), y + row * 34, cardW, 29, item);
-  });
-  kpiCard(doc, M, y + 70, 178, 29, {
-    label: 'Cobertura de medición',
-    value: formatPercent(summary.coverage.storeDayPercent),
-    note: `${summary.coverage.measuredStoreDays} de ${summary.coverage.totalStoreDays} tienda-día con medición directa.`,
-  });
-
   const { coverage, basis } = summary;
-  infoBox(
+
+  eyebrow(doc, '01 · RESUMEN EJECUTIVO', 118);
+  text(doc, 'La campaña en una cifra', M, 158, {
+    size: 31,
+    bold: true,
+    color: NAVY,
+  });
+  paragraph(
     doc,
-    `${coverage.measuredStores} de ${coverage.totalStores} tiendas cuentan con cámara y midieron durante la vigencia. Medido sobre los ${basis.days} días de campaña, ${coverage.measuredStoreDays} de ${coverage.totalStoreDays} tienda-día tienen dato directo (${formatPercent(coverage.storeDayPercent)}). El resto del universo se estima aplicando el promedio de OTS observado en los días que sí se midieron.`,
+    'Resultado agregado del circuito Liverpool durante la vigencia. Combina medición directa en tienda con estimación sobre la parte del universo contratado que no se midió.',
     M,
-    y + 106,
-    178,
+    190,
+    560,
+    { size: 11.5, lineHeight: 18 },
   );
-  pageFooter(doc);
+
+  block(doc, M, 262, CONTENT_W, 206, NAVY);
+  const hero = formatCount(summary.estimatedOts);
+  text(doc, hero, M + 32, 348, { size: 62, bold: true, color: WHITE });
+  const heroEnd = M + 32 + textWidth(doc, hero, 62, true) + 18;
+  text(doc, 'OTS ESTIMADOS', heroEnd, 328, {
+    size: 10,
+    bold: true,
+    color: BLUE_LIGHT,
+    tracking: 1.8,
+  });
+  text(doc, 'DE CAMPAÑA', heroEnd, 343, {
+    size: 10,
+    bold: true,
+    color: BLUE_LIGHT,
+    tracking: 1.8,
+  });
+
+  // Reparto medido / extrapolado, proporcional a los OTS y no a las tiendas.
+  const barW = CONTENT_W - 64;
+  const measuredShare =
+    summary.estimatedOts > 0 ? summary.measuredOts / summary.estimatedOts : 0;
+  const measuredW = Math.max(0, Math.min(barW, barW * measuredShare));
+  block(doc, M + 32, 388, measuredW, 26, BLUE);
+  block(doc, M + 32 + measuredW, 388, barW - measuredW, 26, BLUE_MID);
+  text(doc, formatCount(summary.measuredOts), M + 32, 436, {
+    size: 15,
+    bold: true,
+    color: WHITE,
+  });
+  text(doc, 'OTS MEDIDOS', M + 32, 452, {
+    size: 9,
+    bold: true,
+    color: BLUE_PALE,
+    tracking: 1.2,
+  });
+  // La etiqueta derecha sigue al corte de la barra, sin salirse de la caja.
+  const rightX = Math.min(
+    M + 32 + Math.max(measuredW, 120),
+    M + CONTENT_W - 170,
+  );
+  text(doc, formatCount(summary.extrapolatedOts), rightX, 436, {
+    size: 15,
+    bold: true,
+    color: WHITE,
+  });
+  text(doc, 'OTS EXTRAPOLADOS', rightX, 452, {
+    size: 9,
+    bold: true,
+    color: BLUE_PALE,
+    tracking: 1.2,
+  });
+
+  const stats: Array<[string, string, string]> = [
+    [
+      formatCount(summary.dailyAverage),
+      'OTS / DÍA',
+      `Promedio sobre los ${basis.days} días de vigencia.`,
+    ],
+    [
+      formatCount(summary.dailyPerStore),
+      'OTS / DÍA / TIENDA',
+      `Repartido entre las ${coverage.totalStores} tiendas del universo.`,
+    ],
+    [
+      formatCount(summary.dailyPerSupport),
+      'OTS / DÍA / SOPORTE',
+      `Sobre los ${basis.totalPairs} pares tienda-soporte.`,
+    ],
+  ];
+  const statW = (CONTENT_W - 28) / 3;
+  stats.forEach(([value, label, note], index) => {
+    const x = M + index * (statW + 14);
+    block(doc, x, 488, statW, 132, SOFT);
+    block(doc, x, 488, statW, 4, BLUE);
+    text(doc, value, x + 20, 536, { size: 28, bold: true, color: NAVY });
+    text(doc, label, x + 20, 556, {
+      size: 9,
+      bold: true,
+      color: BLUE,
+      tracking: 1.2,
+    });
+    paragraph(doc, note, x + 20, 578, statW - 40, { size: 9, lineHeight: 13 });
+  });
+
+  block(doc, M, 640, 258, 270, SOFT);
+  sectionLabel(doc, 'COMPLETITUD DE MEDICIÓN', M + 22, 674);
+  donut(doc, M + 129, 787, 60, 26, coverage.storeDayPercent);
+  text(doc, formatPercent(coverage.storeDayPercent, 1), M + 129, 795, {
+    size: 32,
+    bold: true,
+    color: NAVY,
+    align: 'center',
+  });
+  text(doc, 'tienda-día medidos', M + 129, 814, {
+    size: 10,
+    color: MUTED,
+    align: 'center',
+  });
+  paragraph(
+    doc,
+    `${formatCount(coverage.measuredStoreDays)} de ${formatCount(coverage.totalStoreDays)} tienda-día con dato directo. El resto se estima.`,
+    M + 22,
+    880,
+    214,
+    { size: 9.5, align: 'center', lineHeight: 14 },
+  );
+
+  const rightCardX = M + 272;
+  const rightCardW = CONTENT_W - 272;
+  block(doc, rightCardX, 640, rightCardW, 270, SOFT);
+  sectionLabel(doc, 'DESPLIEGUE DE CÁMARAS', rightCardX + 22, 674);
+  text(doc, String(coverage.measuredStores), rightCardX + 22, 720, {
+    size: 44,
+    bold: true,
+    color: BLUE,
+  });
+  const deployedEnd =
+    rightCardX +
+    22 +
+    textWidth(doc, String(coverage.measuredStores), 44, true) +
+    14;
+  text(doc, `de ${coverage.totalStores} tiendas`, deployedEnd, 703, {
+    size: 11,
+    bold: true,
+    color: NAVY,
+  });
+  text(doc, 'tienen cámara instalada', deployedEnd, 718, {
+    size: 11,
+    bold: true,
+    color: NAVY,
+  });
+
+  // Una tienda por icono: los llenos midieron, los grises no tienen cámara.
+  // Por encima de 48 no caben sin mentir por omisión, así que se dibuja la
+  // proporción como barra.
+  const perRow = 12;
+  const glyph = 21;
+  const glyphGap = 7;
+  const asGlyphs = coverage.totalStores > 0 && coverage.totalStores <= 48;
+  let legendY: number;
+  if (asGlyphs) {
+    for (let i = 0; i < coverage.totalStores; i += 1) {
+      storeGlyph(
+        doc,
+        rightCardX + 22 + (i % perRow) * (glyph + glyphGap),
+        742 + Math.floor(i / perRow) * (glyph + glyphGap),
+        glyph,
+        i < coverage.measuredStores ? BLUE : GRAY,
+        SOFT,
+      );
+    }
+    legendY =
+      742 + Math.ceil(coverage.totalStores / perRow) * (glyph + glyphGap) + 18;
+  } else {
+    const track = rightCardW - 44;
+    const filled =
+      coverage.totalStores > 0
+        ? (coverage.measuredStores / coverage.totalStores) * track
+        : 0;
+    block(doc, rightCardX + 22, 748, track, 26, GRAY);
+    if (filled > 0) block(doc, rightCardX + 22, 748, filled, 26, BLUE);
+    legendY = 810;
+  }
+  block(doc, rightCardX + 22, legendY - 9, 9, 9, BLUE);
+  text(doc, 'Con medición', rightCardX + 38, legendY, { size: 9, color: NAVY });
+  block(doc, rightCardX + 130, legendY - 9, 9, 9, GRAY);
+  text(doc, 'Sin cámara', rightCardX + 146, legendY, { size: 9, color: NAVY });
+  paragraph(
+    doc,
+    'El despliegue describe dónde hay cámara. La completitud, a la izquierda, mide cuántos días esa cámara realmente reportó.',
+    rightCardX + 22,
+    legendY + 24,
+    rightCardW - 44,
+    { size: 9.5, lineHeight: 14 },
+  );
+
+  quote(
+    doc,
+    `${formatPercent(coverage.storeDayPercent, 0)} de los tienda-día se midieron directamente en punto de venta. La parte restante del universo contratado se estima con el promedio real observado, nunca con un supuesto de mercado.`,
+    926,
+    84,
+  );
+  pageFooter(doc, 2, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.');
 }
 
 function coveragePage(
@@ -579,85 +601,183 @@ function coveragePage(
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  let y = pageHeader(doc, assets, 'Cobertura y evolución', 3);
-  const summary = brandCampaignSummary(report);
+  pageHeader(doc, assets, report);
+  const { basis } = brandCampaignSummary(report);
   const daily = brandDaily(report);
-  y = sectionEyebrow(doc, '02. Cobertura y evolución', y);
-  text(doc, 'Cobertura y Evolución de OTS', M, y, {
-    size: 18,
+
+  eyebrow(doc, '02 · COBERTURA Y EVOLUCIÓN', 118);
+  text(doc, 'Cómo se midió la campaña', M, 158, {
+    size: 31,
     bold: true,
     color: NAVY,
   });
-  y = paragraph(
+  paragraph(
     doc,
-    'La evolución muestra el comportamiento agregado de la campaña. La estimación completa el universo contratado sin revelar resultados de una tienda individual.',
+    `Cada tienda y cada soporte debían medirse los ${basis.days} días de vigencia. Esta es la rejilla completa y qué parte de ella tiene dato real.`,
     M,
-    y + 7,
-    176,
-    { size: 8, color: MUTED },
+    190,
+    600,
+    { size: 11.5, lineHeight: 18 },
   );
 
-  const top = y + 8;
-  card(doc, M, top, 62, 102);
-  text(doc, 'Cobertura de medición', M + 6, top + 10, {
-    size: 8,
-    bold: true,
-    color: NAVY,
-  });
-  donut(doc, M + 31, top + 42, 17, summary.coverage.storeDayPercent);
-  fill(doc, BLUE);
-  doc.circle(M + 9, top + 75, 1.6, 'F');
+  sectionLabel(doc, 'REJILLA TIENDA-SOPORTE-DÍA DE LA CAMPAÑA', M, 268);
   text(
     doc,
-    `${formatPercent(summary.coverage.storeDayPercent)} Datos medidos`,
-    M + 14,
-    top + 76.5,
-    { size: 6.6, color: NAVY },
-  );
-  fill(doc, GRAY);
-  doc.circle(M + 9, top + 84, 1.6, 'F');
-  text(
-    doc,
-    `${formatPercent(100 - summary.coverage.storeDayPercent)} Extrapolado`,
-    M + 14,
-    top + 85.5,
-    { size: 6.6, color: NAVY },
+    `${basis.totalPairs} soportes × ${basis.days} días = ${formatCount(basis.totalPairDays)}`,
+    CANVAS_W - M,
+    268,
+    { size: 9, color: MUTED, align: 'right' },
   );
 
-  card(doc, M + 67, top, 111, 102);
-  text(doc, 'OTS diarios', M + 73, top + 10, {
-    size: 8,
-    bold: true,
-    color: NAVY,
+  const segments: Array<[number, RGB, string, string, RGB]> = [
+    [
+      basis.completePairDays,
+      BLUE,
+      'MEDICIÓN COMPLETA',
+      'Todas las cámaras del soporte reportaron la jornada.',
+      BLUE,
+    ],
+    [
+      basis.partialPairDays,
+      BLUE_LIGHT,
+      'MEDICIÓN PARCIAL',
+      'Jornada incompleta. El dato se usa y se registra.',
+      BLUE,
+    ],
+    [
+      basis.missingPairDays,
+      PINK,
+      'SIN DATO',
+      'Hay cámara, pero no reportó ese día.',
+      PINK,
+    ],
+    [
+      basis.uncoveredPairDays,
+      GRAY,
+      'SIN CÁMARA',
+      'Soportes del universo aún sin medición.',
+      MUTED,
+    ],
+  ];
+  const total = Math.max(1, basis.totalPairDays);
+  let barX = M;
+  segments.forEach(([count, color], index) => {
+    const isLast = index === segments.length - 1;
+    const width = isLast
+      ? Math.max(0, M + CONTENT_W - barX)
+      : (count / total) * CONTENT_W;
+    if (width > 0) block(doc, barX, 292, width, 40, color);
+    barX += width;
   });
-  lineChart(
-    doc,
-    M + 82,
-    top + 20,
-    86,
-    58,
-    daily.map((point) => point.label),
-    daily.map((point) => point.estimatedOts),
+
+  const legendW = (CONTENT_W - 36) / 4;
+  segments.forEach(([count, color, label, note, labelColor], index) => {
+    const x = M + index * (legendW + 12);
+    block(doc, x, 352, legendW, 4, color);
+    text(doc, formatCount(count), x, 382, {
+      size: 22,
+      bold: true,
+      color: NAVY,
+    });
+    text(doc, label, x, 400, { size: 9, bold: true, color: labelColor });
+    paragraph(doc, note, x, 418, legendW, { size: 9, lineHeight: 13 });
+  });
+
+  block(doc, M, 468, CONTENT_W, 340, SOFT);
+  sectionLabel(doc, 'EVOLUCIÓN DE LA AUDIENCIA', M + 26, 502);
+  text(doc, 'OTS estimados por día de campaña', CANVAS_W - M - 26, 502, {
+    size: 9,
+    color: MUTED,
+    align: 'right',
+  });
+
+  // En vigencias largas la serie diaria se agrupa por semanas: 60 barras no
+  // caben legibles en A4 y el gerente lee tendencia, no día a día.
+  const buckets = groupDaily(daily);
+  const chartX = M + 26;
+  const chartW = CONTENT_W - 52;
+  const chartBottom = 748;
+  const chartH = 216;
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.value));
+  const slotW = chartW / Math.max(1, buckets.length);
+  const barW = Math.min(59, slotW * 0.72);
+  const peak = buckets.reduce(
+    (best, bucket) => (bucket.value > best.value ? bucket : best),
+    buckets[0] ?? { label: '', value: 0 },
   );
+
+  buckets.forEach((bucket) => {
+    const height = (bucket.value / max) * chartH;
+    const x = chartX + (buckets.indexOf(bucket) + 0.5) * slotW - barW / 2;
+    const isPeak = bucket.value === peak.value && bucket.value > 0;
+    block(doc, x, chartBottom - height, barW, height, isPeak ? PINK : BLUE);
+    text(doc, compact(bucket.value), x + barW / 2, chartBottom - height - 8, {
+      size: 10,
+      bold: true,
+      color: isPeak ? PINK : NAVY,
+      align: 'center',
+    });
+    text(doc, bucket.label, x + barW / 2, chartBottom + 18, {
+      size: 9,
+      bold: isPeak,
+      color: isPeak ? PINK : MUTED,
+      align: 'center',
+    });
+  });
+
   text(
     doc,
-    'Serie agregada de campaña, incluyendo extrapolación.',
-    M + 73,
-    top + 91,
+    'Serie agregada del circuito, incluyendo extrapolación.',
+    M + 26,
+    790,
     {
-      size: 6,
+      size: 9.5,
       color: MUTED,
     },
   );
 
-  infoBox(
+  quote(
     doc,
-    `OTS medidos: ${formatCount(summary.measuredOts)}. OTS extrapolados: ${formatCount(summary.extrapolatedOts)}. OTS estimados de campaña: ${formatCount(summary.estimatedOts)}. La cobertura se expresa por tienda-día, no por número de cámaras: ${formatCount(summary.basis.measuredPairDays)} de ${formatCount(summary.basis.totalPairDays)} tienda-soporte-día con dato directo.`,
-    M,
-    top + 111,
-    178,
+    'Cada periodo se escala por los soportes que realmente midieron en él. Así, un fallo de medición nunca se dibuja como una caída de audiencia: la curva refleja al público, no al estado de las cámaras.',
+    834,
+    84,
   );
-  pageFooter(doc);
+  pageFooter(doc, 3, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.');
+}
+
+interface Bucket {
+  label: string;
+  value: number;
+}
+
+/** Agrupa la serie diaria para que quepa legible: días, o semanas si son muchos. */
+function groupDaily(daily: ReturnType<typeof brandDaily>): Bucket[] {
+  if (daily.length === 0) return [];
+  if (daily.length <= 12) {
+    return daily.map((point) => ({
+      label: point.label,
+      value: point.estimatedOts,
+    }));
+  }
+  const perBucket = Math.ceil(daily.length / 9);
+  const buckets: Bucket[] = [];
+  for (let start = 0; start < daily.length; start += perBucket) {
+    const slice = daily.slice(start, start + perBucket);
+    if (slice.length === 0) continue;
+    const totalOts = slice.reduce((sum, point) => sum + point.estimatedOts, 0);
+    buckets.push({
+      label: `S${buckets.length + 1}`,
+      value: totalOts / slice.length,
+    });
+  }
+  return buckets;
+}
+
+/** `1,120,000` → `1.12M`; `920,000` → `920K`. Etiquetas cortas sobre barra. */
+function compact(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return formatCount(value);
 }
 
 function audiencePage(
@@ -665,145 +785,250 @@ function audiencePage(
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  let y = pageHeader(doc, assets, 'Audiencia', 4);
-  y = sectionEyebrow(doc, '03. Audiencia', y);
-  text(doc, 'Segmentos de Audiencia', M, y, {
-    size: 18,
+  pageHeader(doc, assets, report);
+  const gender = brandGender(report);
+  const age = brandAge(report).slice(0, 5);
+  const bands = brandTimeOfDay(report);
+
+  eyebrow(doc, '03 · PERFIL DE AUDIENCIA', 118);
+  text(doc, 'Quién vio la campaña', M, 158, {
+    size: 31,
     bold: true,
     color: NAVY,
   });
-  y = paragraph(
+  paragraph(
     doc,
-    'La composición se presenta exclusivamente en porcentajes para describir el perfil agregado de la audiencia durante la campaña.',
+    'Composición agregada del público alcanzado. Se expresa siempre en porcentaje: el informe no publica conteos de personas ni resultados por tienda.',
     M,
-    y + 7,
-    176,
-    { size: 8, color: MUTED },
+    190,
+    600,
+    { size: 11.5, lineHeight: 18 },
   );
 
-  const gender = brandGender(report).slice(0, 4);
-  const age = brandAge(report).slice(0, 6);
-  const colors: readonly RGB[] = [
-    BLUE,
-    [96, 183, 231],
-    [156, 205, 232],
-    GRAY,
-    [78, 111, 159],
-    PINK,
-  ];
-  const top = y + 10;
-  const cardW = 86.5;
+  block(doc, M, 244, CONTENT_W, 186, SOFT);
+  sectionLabel(doc, 'GÉNERO', M + 26, 276);
+  const topGender = gender.slice(0, 2);
+  if (topGender.length === 0) {
+    text(doc, 'Sin datos demográficos en el periodo', M + 26, 340, {
+      size: 11,
+      color: MUTED,
+    });
+  } else {
+    topGender.forEach((share, index) => {
+      const x = M + 26 + index * ((CONTENT_W - 52) / 2);
+      const accent = index === 0 ? PINK : BLUE;
+      text(doc, formatPercent(share.share, 0), x, 366, {
+        size: 52,
+        bold: true,
+        color: NAVY,
+      });
+      text(doc, share.label.toUpperCase(), x, 392, {
+        size: 11,
+        bold: true,
+        color: accent,
+        tracking: 1.4,
+      });
+      block(doc, x, 300, 34, 4, accent);
+    });
+    if (topGender.length === 2) {
+      block(doc, M + 26 + (CONTENT_W - 52) / 2 - 22, 300, 1, 96, HAIR);
+    }
+  }
 
-  card(doc, M, top, cardW, 135);
-  text(doc, 'Género', M + cardW / 2, top + 12, {
-    size: 9,
-    bold: true,
-    color: NAVY,
-    align: 'center',
+  block(doc, M, 450, CONTENT_W, 236, SOFT);
+  sectionLabel(doc, 'RANGO DE EDAD', M + 26, 482);
+  const ageColors: RGB[] = [BLUE, BLUE_LIGHT, BLUE_MID, BLUE_PALE, GRAY];
+  const trackW = 380;
+  age.forEach((share, index) => {
+    const y = 516 + index * 32;
+    text(doc, share.label, M + 26, y + 13, { size: 10.5, color: NAVY });
+    block(doc, M + 200, y, trackW, 18, HAIR);
+    const width = Math.max(0, Math.min(trackW, (share.share / 100) * trackW));
+    if (width > 0) {
+      block(doc, M + 200, y, width, 18, ageColors[index] ?? BLUE);
+    }
+    text(doc, formatPercent(share.share, 0), M + 596, y + 14, {
+      size: 14,
+      bold: true,
+      color: NAVY,
+    });
   });
-  audienceDonut(doc, M + cardW / 2, top + 50, 23, gender, colors);
-  legendShares(doc, M + 12, top + 88, gender, colors, cardW - 24);
+  if (age.length === 0) {
+    text(doc, 'Sin datos demográficos en el periodo', M + 26, 540, {
+      size: 11,
+      color: MUTED,
+    });
+  }
 
-  card(doc, M + cardW + 5, top, cardW, 135);
-  text(doc, 'Rango de edad', M + cardW + 5 + cardW / 2, top + 12, {
-    size: 9,
-    bold: true,
-    color: NAVY,
-    align: 'center',
-  });
-  audienceDonut(doc, M + cardW + 5 + cardW / 2, top + 50, 23, age, colors);
-  legendShares(doc, M + cardW + 17, top + 88, age, colors, cardW - 24);
+  sectionLabel(doc, 'MOMENTO DEL DÍA', M, 716);
+  if (bands.length === 0) {
+    block(doc, M, 730, CONTENT_W, 126, SOFT);
+    paragraph(
+      doc,
+      'El reporte de esta campaña no incluye detalle horario, por lo que no se publica el reparto por franja del día.',
+      M + 20,
+      768,
+      CONTENT_W - 40,
+      { size: 10.5, lineHeight: 16 },
+    );
+  } else {
+    const leader = bands.reduce(
+      (best, band) => (band.share > best.share ? band : best),
+      bands[0] ?? { label: '', hours: '', share: 0 },
+    );
+    const bandW = (CONTENT_W - 28) / 3;
+    bands.forEach((band, index) => {
+      const x = M + index * (bandW + 14);
+      const isLeader = band.label === leader.label;
+      const accent = isLeader ? PINK : index === 0 ? BLUE_LIGHT : BLUE_MID;
+      block(doc, x, 730, bandW, 126, isLeader ? PINK_PALE : SOFT);
+      block(doc, x, 730, bandW, 4, accent);
+      text(doc, formatPercent(band.share, 0), x + 20, 790, {
+        size: 34,
+        bold: true,
+        color: NAVY,
+      });
+      text(doc, band.label.toUpperCase(), x + 20, 812, {
+        size: 10,
+        bold: true,
+        color: isLeader ? PINK : NAVY,
+      });
+      text(doc, band.hours, x + 20, 828, { size: 9, color: MUTED });
+    });
+  }
 
-  infoBox(
+  quote(
     doc,
-    'Las gráficas muestran distribuciones porcentuales agregadas. No se incluyen conteos absolutos de personas ni resultados desglosados por tienda.',
-    M,
-    top + 145,
-    178,
+    'Las distribuciones describen el perfil agregado del público alcanzado durante toda la vigencia. No se incluyen conteos absolutos de personas ni resultados desglosados por tienda.',
+    884,
+    84,
+    true,
   );
-  pageFooter(doc);
+  pageFooter(doc, 4, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.');
 }
 
-function methodologyPage(
+function closingPage(
   doc: jsPDF,
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  let y = pageHeader(doc, assets, 'Metodología', 5);
-  const summary = brandCampaignSummary(report);
-  y = sectionEyebrow(doc, '04. Metodología', y);
-  text(doc, 'Metodología', M, y, { size: 18, bold: true, color: NAVY });
-  y = paragraph(
+  pageHeader(doc, assets, report);
+
+  eyebrow(doc, '04 · CÓMO SE OBTIENE ESTE DATO', 122);
+  paragraph(
     doc,
-    'El reporte combina medición directa y estimación para representar el universo completo de tiendas contratado durante la vigencia de la campaña.',
+    'Audiencia medida, no estimada de mercado',
     M,
-    y + 7,
-    126,
-    { size: 8, color: MUTED },
+    172,
+    CONTENT_W,
+    {
+      size: 31,
+      bold: true,
+      color: NAVY,
+      lineHeight: 36,
+    },
   );
 
-  const bullets = [
-    'La cobertura se calcula sobre el total de tienda-día de la campaña (tiendas × días de vigencia), nunca sobre el número de cámaras. Una tienda cuya cámara cae a mitad de vigencia deja de contar como cubierta durante los días sin dato.',
-    'Todo hueco del universo se estima con el promedio de OTS observado en los tienda-soporte-día que sí midieron, tanto si el soporte no tiene cámara como si la tiene y no reportó ese día.',
-    'El informe comunica resultados agregados y no publica el rendimiento individual de cada tienda.',
-    'Insurgentes es la única excepción a la consolidación habitual de varias cámaras: sus dos cámaras están en pisos distintos y sus OTS se consideran zonas independientes, por lo que no se promedian entre sí.',
-    'La estimación se identifica explícitamente para diferenciar la parte medida de la parte extrapolada del universo de campaña.',
+  const notes: Array<[string, string, string]> = [
+    [
+      '01',
+      'Se mide en tienda',
+      'La audiencia se registra en punto de venta, soporte a soporte y día a día, durante toda la vigencia contratada.',
+    ],
+    [
+      '02',
+      'El universo se completa con el dato real',
+      'La parte del circuito sin medición directa se estima con el promedio observado en lo que sí se midió, nunca con un supuesto de mercado.',
+    ],
+    [
+      '03',
+      'Los resultados son agregados',
+      'El informe reporta el circuito como conjunto y no publica el rendimiento individual de ninguna tienda.',
+    ],
   ];
-  let cursor = y + 8;
-  bullets.forEach((bullet, index) => {
-    fill(doc, BLUE);
-    doc.circle(M + 4, cursor - 1, 3.3, 'F');
-    text(doc, String(index + 1), M + 4, cursor + 0.6, {
-      size: 7,
+  const noteW = (CONTENT_W - 44) / 3;
+  notes.forEach(([number, title, body], index) => {
+    const x = M + index * (noteW + 22);
+    block(doc, x, 250, noteW, 3, HAIR);
+    text(doc, number, x, 294, { size: 26, bold: true, color: PINK });
+    paragraph(doc, title, x, 318, noteW, {
+      size: 12,
       bold: true,
-      color: WHITE,
-      align: 'center',
+      color: NAVY,
+      lineHeight: 16,
     });
-    cursor =
-      paragraph(doc, bullet, M + 11, cursor, 113, { size: 7, color: NAVY }) + 7;
+    paragraph(doc, body, x, 356, noteW, { size: 10, lineHeight: 16 });
   });
 
-  card(doc, M, 210, 119, 48);
-  text(doc, 'Fórmulas principales', M + 8, 220, {
-    size: 8.5,
+  block(doc, 0, 420, CANVAS_W, 590, NAVY);
+  if (assets.closing) {
+    photoCover(doc, assets.closing, 'JPEG', 380, 420, 414, 590, 0.36, 0.5);
+    const toRight: AlphaStop[] = [
+      [0, 1],
+      [0.15, 0.9],
+      [0.44, 0.34],
+      [1, 0.06],
+    ];
+    const vertical: AlphaStop[] = [
+      [0, 1],
+      [0.12, 0.35],
+      [0.32, 0],
+      [0.68, 0],
+      [0.88, 0.45],
+      [1, 1],
+    ];
+    fade(doc, 380, 420, 414, 590, NAVY, toRight, 'right');
+    fade(doc, 380, 420, 414, 590, NAVY, vertical, 'down');
+  }
+
+  block(doc, M, 560, 40, 4, PINK);
+  paragraph(
+    doc,
+    'Medimos lo que pasa frente a la pantalla, no lo que suponemos.',
+    M,
+    612,
+    300,
+    { size: 24, bold: true, color: WHITE, lineHeight: 31 },
+  );
+  paragraph(
+    doc,
+    'Toda la audiencia de este informe procede de medición real en punto de venta durante la vigencia contratada.',
+    M,
+    742,
+    300,
+    { size: 11, color: BLUE_PALE, lineHeight: 19 },
+  );
+  block(doc, M, 800, 90, 1, BLUE_MID);
+  text(doc, 'AUDIENCIAS REALES.', M, 834, {
+    size: 10,
     bold: true,
-    color: BLUE,
+    color: BLUE_LIGHT,
+    tracking: 2.2,
   });
-  text(doc, 'OTS estimados = OTS medidos + OTS extrapolados', M + 8, 232, {
-    size: 7.3,
+  text(doc, 'OPORTUNIDADES REALES.', M, 852, {
+    size: 10,
+    bold: true,
+    color: BLUE_LIGHT,
+    tracking: 2.2,
+  });
+
+  text(doc, 'in-Store Media', M, CANVAS_H - 36, {
+    size: 9.5,
     bold: true,
     color: NAVY,
   });
-  text(
-    doc,
-    'Cobertura = tiendas con medición / tiendas de campaña',
-    M + 8,
-    243,
-    {
-      size: 7.3,
-      bold: true,
-      color: NAVY,
-    },
-  );
-  text(
-    doc,
-    `${summary.coverage.measuredStoreDays}/${summary.coverage.totalStoreDays} tienda-día = ${formatPercent(summary.coverage.storeDayPercent)} de cobertura`,
-    M + 8,
-    252,
-    { size: 6.5, color: MUTED },
-  );
-
-  if (assets.closing) {
-    doc.addImage(assets.closing, 'JPEG', 143, 77, 51, 181, undefined, 'FAST');
-    fill(doc, WHITE);
-    doc.triangle(128, 77, 148, 77, 143, 258, 'F');
-    fill(doc, PINK);
-    doc.triangle(136, 168, 144, 158, 143, 244, 'F');
-  } else {
-    fill(doc, SKY);
-    doc.rect(143, 77, 51, 181, 'F');
-  }
-  pageFooter(doc);
+  text(doc, 'Reporte de audiencia de campaña', M + 84, CANVAS_H - 36, {
+    size: 8.5,
+    color: MUTED,
+    tracking: 1,
+  });
+  block(doc, CANVAS_W - M - 30, CANVAS_H - 54, 30, 30, NAVY);
+  text(doc, '05', CANVAS_W - M - 15, CANVAS_H - 34, {
+    size: 12,
+    bold: true,
+    color: WHITE,
+    align: 'center',
+  });
 }
 
 /** Genera el informe de audiencia de marca y lo devuelve como Blob. */
@@ -813,6 +1038,7 @@ export async function buildQuividiCampaignPdfBlob(
   const { jsPDF: JsPdf } = await import('jspdf');
   const assets = await loadAssets();
   const doc = new JsPdf({ unit: 'mm', format: 'a4' });
+  doc.setLineWidth(u(0.75));
 
   coverPage(doc, report, assets);
   doc.addPage();
@@ -822,7 +1048,7 @@ export async function buildQuividiCampaignPdfBlob(
   doc.addPage();
   audiencePage(doc, report, assets);
   doc.addPage();
-  methodologyPage(doc, report, assets);
+  closingPage(doc, report, assets);
 
   if (doc.getNumberOfPages() !== PAGE_COUNT) {
     throw new Error('El informe comercial debe contener cinco páginas.');

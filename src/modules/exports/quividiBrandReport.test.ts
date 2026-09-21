@@ -12,6 +12,7 @@ import {
   brandExtrapolationBasis,
   brandGender,
   brandSupportDays,
+  brandTimeOfDay,
   periodDays,
 } from './quividiBrandReport';
 
@@ -340,5 +341,64 @@ describe('informe comercial agregado de audiencia', () => {
       ['label', 'share'],
       ['label', 'share'],
     ]);
+  });
+});
+
+describe('reparto por franja horaria', () => {
+  function hour(
+    h: number,
+    ots: number,
+    status: 'complete' | 'missing' = 'complete',
+  ) {
+    return {
+      date: '2026-09-01',
+      hour: h,
+      storeNumber: '1',
+      storeName: 'UNO',
+      support: 'MUPI DIGITAL',
+      configuredCameras: 1,
+      measuredCameras: status === 'missing' ? 0 : 1,
+      status,
+      ots,
+      effectiveOts: ots,
+      watchers: 0,
+      attentionSeconds: 0,
+      dwellSeconds: 0,
+    };
+  }
+
+  it('reparte los OTS entre mañana, tarde y noche', () => {
+    const input = report({
+      supportHours: [hour(8, 100), hour(14, 200), hour(20, 100)],
+    });
+    const bands = brandTimeOfDay(input);
+    expect(bands.map((band) => band.label)).toEqual([
+      'Mañana',
+      'Tarde',
+      'Noche',
+    ]);
+    expect(bands.map((band) => Math.round(band.share))).toEqual([25, 50, 25]);
+  });
+
+  it('cuenta la madrugada como noche, sin descartar sus OTS', () => {
+    const input = report({ supportHours: [hour(8, 100), hour(3, 100)] });
+    const bands = brandTimeOfDay(input);
+    expect(bands[2]?.share).toBeCloseTo(50, 5);
+    // Las tres franjas cubren el día completo.
+    expect(bands.reduce((total, band) => total + band.share, 0)).toBeCloseTo(
+      100,
+      5,
+    );
+  });
+
+  it('ignora las horas sin medición', () => {
+    const input = report({
+      supportHours: [hour(8, 100), hour(14, 999, 'missing')],
+    });
+    expect(brandTimeOfDay(input)[0]?.share).toBe(100);
+  });
+
+  it('devuelve vacío cuando el reporte no trae detalle horario', () => {
+    expect(brandTimeOfDay(report({ supportHours: [] }))).toEqual([]);
   });
 });

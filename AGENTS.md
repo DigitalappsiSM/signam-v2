@@ -279,16 +279,31 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   campaña. No se muestran curvas, tablas ni comparativas por tienda. El circuito
   no se comercializa por franja horaria ni por día específico; por tanto el PDF
   no recomienda segmentar la pauta por horas o días.
-- **Tono y metodología del PDF**: es un reporte de resultados para marketing y
-  puede incluir una sección breve de metodología para explicar cobertura,
-  extrapolación, fórmulas y la excepción de Insurgentes. La metodología se
-  redacta de forma comercial y transparente, sin incidencias técnicas ni detalle
-  de cámaras.
-- **Look & feel del PDF comercial**: identidad principal de in-Store Media, fondo
-  blanco, azul/navy como colores dominantes y acentos rosa Liverpool muy
-  discretos para comunicar partnership. La portada usa una fotografía real del
-  MUPI Liverpool y la página final una fotografía real del pendón/escaleras con
-  shoppers difuminados. Los assets viven en `public/report-assets/`.
+- **Tono y metodología del PDF**: es un reporte de resultados para marketing, no
+  un documento de auditoría. La metodología se reduce a tres notas de una frase
+  —se mide en tienda, el universo se completa con el dato real, los resultados
+  son agregados— redactadas en clave comercial, sin incidencias técnicas, sin
+  detalle de cámaras y **sin la cadena aritmética**: esa reconstrucción paso a
+  paso vive en la hoja «Auditoría de cifras» del Excel. La portada presenta la
+  cifra como `OPORTUNIDADES DE VER · OTS` y no la califica de estimada; el
+  reparto medido/extrapolado se explica en el cuerpo (págs. 02, 03 y 04), que es
+  donde se cumple la obligación de declararlo explícitamente.
+- **Look & feel del PDF comercial**: lenguaje infográfico sobre fondo blanco —
+  numerales grandes como pieza principal, bloques de color sólido, pictogramas de
+  tienda, barras gruesas con el valor rotulado— con navy `#11264E` y azul ISM
+  `#007ECB` cargando el peso y rosa Liverpool `#E2126F` reservado a señalización
+  (barras de sección, categoría «sin dato», franja horaria líder y citas). Las
+  fotografías **nunca ocupan una sección completa ni se cortan en seco**: se
+  integran dentro de un bloque navy y se disuelven en él con degradados. Como
+  jsPDF no dibuja degradados, `quividiPdfKit.ts` los aproxima con tiras de
+  opacidad decreciente; las fotos se recortan al marco con `photoCover`, que
+  emula `object-fit: cover`. Los assets viven en `public/report-assets/` y deben
+  ser **JPEG o PNG con cabecera de dimensiones legible**: jsPDF no soporta WebP y,
+  si no puede leer el tamaño, la imagen se dibuja deformada al marco.
+- **El maquetado del PDF se expresa en píxeles de un lienzo A4 a 96 dpi**
+  (794 × 1123). `quividiPdfKit.ts` convierte a milímetros y puntos. Mantener la
+  unidad del diseño es lo que permite transcribir el mockup sin recalcular cada
+  posición a mano; no introducir coordenadas en mm en las páginas.
 - **El informe de marca no publica comparativos entre periodos ni métricas de
   costo**: cada informe reporta su propia vigencia, sin deltas ni CPM/CPC/coste
   por impacto. La comercialización sigue siendo a costo fijo.
