@@ -1,9 +1,10 @@
 /**
  * Tipos compartidos de la integración Quividi.
  *
- * La relación comercial se evalúa por Tienda + Soporte. Una combinación puede
- * tener una o varias cámaras (locations) y, cuando hay varias, SIGNAM promedia
- * únicamente las cámaras con medición válida en cada día.
+ * La relación técnica se evalúa por Tienda + Soporte. Una combinación puede
+ * tener una o varias cámaras y normalmente se promedian las cámaras con
+ * medición válida. Insurgentes es la única excepción: sus cámaras están en
+ * pisos distintos y sus OTS se suman como zonas independientes.
  */
 
 export type QuividiMeasurementStatus = 'complete' | 'partial' | 'missing';
@@ -97,6 +98,10 @@ export interface QuividiCoverage {
   totalPairs: number;
   mappedPairs: number;
   percent: number;
+  /** Cobertura comercial por tienda; opcional solo para snapshots legacy. */
+  totalStores?: number;
+  mappedStores?: number;
+  storePercent?: number;
   bySupport: QuividiCoverageBySupport[];
 }
 
