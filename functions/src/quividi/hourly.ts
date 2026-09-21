@@ -64,6 +64,17 @@ function average(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function aggregateOts(storeName: string, values: readonly number[]): number {
+  const independent = storeName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .includes('INSURGENTES');
+  return independent
+    ? values.reduce((sum, value) => sum + value, 0)
+    : average(values);
+}
+
 function periodKey(periodStart: unknown): string | null {
   if (typeof periodStart !== 'string') return null;
   const match = periodStart.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):/);
@@ -194,8 +205,12 @@ export function buildSupportHours(
         measuredCameras: measured.length,
         status:
           measured.length === pair.cameras.length ? 'complete' : 'partial',
-        ots: average(measured.map((item) => item.ots.ots)),
-        effectiveOts: average(
+        ots: aggregateOts(
+          pair.storeName,
+          measured.map((item) => item.ots.ots),
+        ),
+        effectiveOts: aggregateOts(
+          pair.storeName,
           measured.map((item) => item.ots.effectiveOts),
         ),
         watchers: average(
