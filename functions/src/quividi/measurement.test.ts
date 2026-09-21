@@ -262,8 +262,14 @@ describe('buildCoverage', () => {
       }),
     ]);
 
-    expect(coverage).toMatchObject({ totalPairs: 3, mappedPairs: 2 });
+    expect(coverage).toMatchObject({
+      totalPairs: 3,
+      mappedPairs: 2,
+      totalStores: 3,
+      mappedStores: 2,
+    });
     expect(coverage.percent).toBeCloseTo(66.666, 2);
+    expect(coverage.storePercent).toBeCloseTo(66.666, 2);
     expect(coverage.bySupport).toEqual([
       { support: 'BANNER DIGITAL', totalPairs: 2, mappedPairs: 1, percent: 50 },
       {
@@ -280,6 +286,9 @@ describe('buildCoverage', () => {
       totalPairs: 0,
       mappedPairs: 0,
       percent: 0,
+      totalStores: 0,
+      mappedStores: 0,
+      storePercent: 0,
       bySupport: [],
     });
   });
@@ -378,6 +387,26 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
     // (200 + 600) décimas / 50 watchers / 10 = 1.6 s
     expect(rows.supportDays[0]?.attentionSeconds).toBeCloseTo(1.6, 10);
     expect(rows.supportDays[0]?.dwellSeconds).toBeCloseTo(2.6, 10);
+  });
+
+  it('suma OTS únicamente en Insurgentes porque sus cámaras son zonas independientes', () => {
+    const insurgentes = pair({
+      storeName: 'LIVERPOOL INSURGENTES',
+      cameraNames: ['CAM-PB', 'CAM-P1'],
+      cameras: [location(1, 'CAM-PB'), location(2, 'CAM-P1')],
+    });
+    const rows = buildMeasurementRows(
+      [insurgentes],
+      dates,
+      [ots(1, dates[0]!), ots(2, dates[0]!, { ots_count: 300 })],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      status: 'complete',
+      measuredCameras: 2,
+      ots: 400,
+    });
   });
 
   it('excluye las cámaras parciales cuando existe alguna completa', () => {
