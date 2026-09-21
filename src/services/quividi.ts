@@ -53,7 +53,6 @@ export async function getQuividiCampaignAvailability(
   return items;
 }
 
-
 export interface QuividiLocationLookup {
   id: number;
   name: string;
@@ -73,10 +72,10 @@ export async function validateQuividiLocation(
 }
 
 export async function getQuividiCameraHealthOverview(): Promise<QuividiCameraHealthOverview> {
-  const callable = httpsCallable<Record<string, never>, QuividiCameraHealthOverview>(
-    functions(),
-    'quividi-cameraHealthOverview',
-  );
+  const callable = httpsCallable<
+    Record<string, never>,
+    QuividiCameraHealthOverview
+  >(functions(), 'quividi-cameraHealthOverview');
   const result = await callable({});
   return result.data;
 }
