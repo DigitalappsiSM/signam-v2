@@ -10,8 +10,8 @@ import {
  * Pruebas de caracterización de la capa horaria Quividi.
  *
  * Congelan la regla multi-cámara del dato de una hora: se promedian las
- * cámaras que realmente entregaron OTS, nunca se suman, y los tiempos se
- * ponderan por Watchers.
+ * cámaras que realmente entregaron OTS salvo Insurgentes, cuyas cámaras están
+ * en pisos distintos y se suman como zonas independientes.
  */
 
 function pair(over: Partial<HourlyPair> = {}): HourlyPair {
@@ -86,6 +86,25 @@ describe('buildSupportHours · regla multi-cámara', () => {
       ots: 200,
       effectiveOts: 80,
       watchers: 25,
+    });
+  });
+
+  it('suma OTS únicamente en Insurgentes por tratarse de pisos distintos', () => {
+    const rows = buildSupportHours(
+      [pair({ storeName: 'LIVERPOOL INSURGENTES' })],
+      [
+        ots(1, HOUR),
+        ots(2, HOUR, { ots_count: 300, effective_ots_count: 100 }),
+      ],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({
+      configuredCameras: 2,
+      measuredCameras: 2,
+      status: 'complete',
+      ots: 400,
+      effectiveOts: 160,
     });
   });
 
