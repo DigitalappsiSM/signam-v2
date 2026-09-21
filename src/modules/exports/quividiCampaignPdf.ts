@@ -1,9 +1,6 @@
 import type { jsPDF } from 'jspdf';
 import type { QuividiCampaignReport } from '@/domain';
-import {
-  INSTORE_MEDIA_LOGO_DATA_URL,
-  LIVERPOOL_LOGO_DATA_URL,
-} from '@/assets/ppt/logos';
+import { INSTORE_MEDIA_LOGO_DATA_URL } from '@/assets/ppt/logos';
 import {
   ageAudienceShares,
   campaignAudienceSummary,
