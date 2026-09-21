@@ -19,6 +19,9 @@ export interface ReportCoverage {
   totalPairs: number;
   mappedPairs: number;
   percent: number;
+  totalStores: number;
+  mappedStores: number;
+  storePercent: number;
   bySupport: Array<{
     support: string;
     totalPairs: number;
@@ -187,6 +190,28 @@ export function average(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+/**
+ * Única excepción a la ponderación multi-cámara del reporte comercial.
+ * Insurgentes tiene cámaras en pisos distintos: son zonas independientes,
+ * por lo que sus OTS se suman. El resto de tiendas conserva el promedio actual.
+ */
+export function isIndependentOtsStore(storeName: string): boolean {
+  return storeName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .includes('INSURGENTES');
+}
+
+function aggregateCameraOts(
+  storeName: string,
+  values: readonly number[],
+): number {
+  return isIndependentOtsStore(storeName)
+    ? values.reduce((sum, value) => sum + value, 0)
+    : average(values);
+}
+
 export function median(values: readonly number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -274,10 +299,20 @@ export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
     if (mapped) current.mappedPairs += 1;
     supports.set(pair.support, current);
   }
+  const stores = new Map<string, boolean>();
+  for (const pair of pairs) {
+    const key = pair.storeNumber.trim() || pair.storeName.trim();
+    stores.set(key, (stores.get(key) ?? false) || pair.cameras.length > 0);
+  }
+  const mappedStores = Array.from(stores.values()).filter(Boolean).length;
+
   return {
     totalPairs: pairs.length,
     mappedPairs,
     percent: percentage(mappedPairs, pairs.length),
+    totalStores: stores.size,
+    mappedStores,
+    storePercent: percentage(mappedStores, stores.size),
     bySupport: Array.from(supports, ([support, value]) => ({
       support,
       ...value,
@@ -477,8 +512,14 @@ export function buildMeasurementRows(
         configuredCameras: all.length,
         measuredCameras: selected.length,
         status,
-        ots: average(selected.map((row) => row.ots)),
-        effectiveOts: average(selected.map((row) => row.effectiveOts)),
+        ots: aggregateCameraOts(
+          pair.storeName,
+          selected.map((row) => row.ots),
+        ),
+        effectiveOts: aggregateCameraOts(
+          pair.storeName,
+          selected.map((row) => row.effectiveOts),
+        ),
         watchers: average(selected.map((row) => row.watchers)),
         attentionSeconds:
           watchersTotal > 0
