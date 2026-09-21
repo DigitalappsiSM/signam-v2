@@ -81,11 +81,18 @@ export function CatalogPage() {
     original: AdmiraScreenOriginal,
     calendarSupport: string,
     quividiCameraName: string,
+    quividiLocationId: number | null,
   ) {
     setSaving(true);
     try {
       if (form.mode === 'create') {
-        await createScreen(original, actor, calendarSupport, quividiCameraName);
+        await createScreen(
+          original,
+          actor,
+          calendarSupport,
+          quividiCameraName,
+          quividiLocationId,
+        );
       } else if (form.mode === 'edit') {
         await updateScreen(
           form.screen,
@@ -93,6 +100,7 @@ export function CatalogPage() {
           actor,
           calendarSupport,
           quividiCameraName,
+          quividiLocationId,
         );
       }
       setForm({ mode: 'closed' });
@@ -300,13 +308,20 @@ export function CatalogPage() {
                     )}
                   </td>
                   <td>
-                    {screen.metadata.quividiCameraName ? (
-                      <span
-                        className="badge badge-info"
-                        title={screen.metadata.quividiCameraName}
-                      >
-                        Cámara
-                      </span>
+                    {screen.metadata.quividiLocationId != null ? (
+                      <div className="catalog__quividi">
+                        <strong>ID {screen.metadata.quividiLocationId}</strong>
+                        <span title={screen.metadata.quividiCameraName ?? ''}>
+                          {screen.metadata.quividiCameraName || 'Alias pendiente'}
+                        </span>
+                      </div>
+                    ) : screen.metadata.quividiCameraName ? (
+                      <div className="catalog__quividi">
+                        <span className="badge badge-muted">Alias legacy</span>
+                        <span title={screen.metadata.quividiCameraName}>
+                          {screen.metadata.quividiCameraName}
+                        </span>
+                      </div>
                     ) : (
                       <span className="text-muted">—</span>
                     )}
@@ -367,6 +382,11 @@ export function CatalogPage() {
             form.mode === 'edit'
               ? (form.screen.metadata.quividiCameraName ?? '')
               : ''
+          }
+          initialQuividiLocationId={
+            form.mode === 'edit'
+              ? (form.screen.metadata.quividiLocationId ?? null)
+              : null
           }
           submitting={saving}
           onSubmit={handleSubmit}
