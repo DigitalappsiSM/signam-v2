@@ -17,12 +17,19 @@ function screen(
 }
 
 const screens: AdmiraScreen[] = [
-  screen('1', {
+  {
+    ...screen('1', {
     'Numero de Tienda': '78',
     'Nombre de tienda': 'L GUADALAJARA GALERIAS',
     Modelo: 'CRIUS',
-    RESOLUCION: '914 x 908',
-  }),
+      RESOLUCION: '914 x 908',
+    }),
+    metadata: {
+      ...screen('meta', {}).metadata,
+      quividiLocationId: 184,
+      quividiCameraName: '7 - L SANTA FE- DERECHO',
+    },
+  },
   screen(
     '2',
     {
@@ -74,6 +81,15 @@ describe('filterScreens', () => {
     expect(
       filterScreens(screens, { ...EMPTY_FILTERS, search: 'PERISUR' }),
     ).toEqual([expect.objectContaining({ id: '2' })]);
+  });
+
+  it('busca también por Location ID y alias Quividi', () => {
+    expect(
+      filterScreens(screens, { ...EMPTY_FILTERS, search: '184' }),
+    ).toEqual([expect.objectContaining({ id: '1' })]);
+    expect(
+      filterScreens(screens, { ...EMPTY_FILTERS, search: 'santa fe' }),
+    ).toEqual([expect.objectContaining({ id: '1' })]);
   });
 
   it('combina búsqueda con estado', () => {
