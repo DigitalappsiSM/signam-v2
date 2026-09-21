@@ -65,9 +65,7 @@ export function CameraHealthPage() {
 
   const rows = useMemo(
     () =>
-      overview
-        ? filterCameraHealthRows(overview.cameras, search, filter)
-        : [],
+      overview ? filterCameraHealthRows(overview.cameras, search, filter) : [],
     [overview, search, filter],
   );
 
@@ -103,7 +101,8 @@ export function CameraHealthPage() {
         <>
           <div className="camera-health__meta">
             <span>
-              Último día evaluado: <strong>{formatHealthDate(overview.latestDate)}</strong>
+              Último día evaluado:{' '}
+              <strong>{formatHealthDate(overview.latestDate)}</strong>
             </span>
             <span>
               La vista no vuelve a consultar Quividi; muestra el último cálculo
