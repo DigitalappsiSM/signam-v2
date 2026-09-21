@@ -57,8 +57,9 @@ describe('camera health view', () => {
         activeAlertId: null,
       }),
     ];
-    expect(filterCameraHealthRows(rows, '', 'alerts').map((row) => row.locationId))
-      .toEqual([2]);
+    expect(
+      filterCameraHealthRows(rows, '', 'alerts').map((row) => row.locationId),
+    ).toEqual([2]);
   });
 
   it('busca por tienda, alias e ID', () => {
