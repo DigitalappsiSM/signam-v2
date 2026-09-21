@@ -19,6 +19,7 @@ function screen(
   support: string,
   cameraName: string,
   active = true,
+  locationId: number | null = null,
 ): ScreenDoc {
   return {
     original: {
@@ -28,6 +29,7 @@ function screen(
     metadata: {
       active,
       calendarSupport: support,
+      quividiLocationId: locationId,
       quividiCameraName: cameraName,
     },
   };
@@ -108,6 +110,18 @@ describe('buildOperationalPairs', () => {
     });
   });
 
+  it('excluye un Location ID asignado a más de una tienda', () => {
+    const result = buildOperationalPairs([
+      screen('7', 'Santa Fe', 'BANNER DIGITAL', 'CAM-X', true, 99),
+      screen('8', 'Perisur', 'BANNER DIGITAL', 'CAM-X', true, 99),
+      screen('8', 'Perisur', 'BANNER DIGITAL', 'CAM-Y', true, 100),
+    ]);
+
+    expect(result.duplicateLocationIds).toEqual([99]);
+    expect(result.pairs).toHaveLength(1);
+    expect(result.pairs[0]?.cameraLocationIds).toEqual([100]);
+  });
+
   it('excluye un nombre de cámara asignado a más de una tienda', () => {
     const result = buildOperationalPairs([
       screen('7', 'Santa Fe', 'BANNER DIGITAL', 'CAM-X'),
@@ -122,6 +136,23 @@ describe('buildOperationalPairs', () => {
 });
 
 describe('prepareCameraHealthScope', () => {
+  it('prioriza Location ID aunque el alias haya cambiado en Quividi', () => {
+    const scope = prepareCameraHealthScope(
+      [screen('7', 'Santa Fe', 'BANNER DIGITAL', 'ALIAS ANTIGUO', true, 25)],
+      [topology(25, 'ALIAS NUEVO')],
+    );
+
+    expect(scope.mappedLocationIds).toEqual([25]);
+    expect(scope.mapping).toMatchObject({
+      configuredLocationIds: 1,
+      configuredCameraNames: 0,
+      mappedCameras: 1,
+      unmappedCameraNames: [],
+      unmappedLocationIds: [],
+    });
+    expect(scope.pairs[0]?.cameras[0]?.name).toBe('ALIAS NUEVO');
+  });
+
   it('resuelve únicamente cámaras con correspondencia única en VidiCenter', () => {
     const scope = prepareCameraHealthScope(
       [
