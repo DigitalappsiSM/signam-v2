@@ -228,56 +228,54 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Presenta resumen actual, estados por cámara y recuperaciones recientes.
   `Catálogo Admira` permite capturar y validar `quividiLocationId`; al
   validarlo contra Quividi se guarda también el alias canónico.
-- **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
-  tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
-  **nunca como reach único**. El análisis horario usa exports VidiCenter de
-  `1h` y replica la ponderación multi-cámara del dato diario; no fuerza una
-  zona horaria única para todas las tiendas. Las hojas técnicas y la calidad de
-  medición permanecen disponibles para auditoría.
-- **Horario de exhibición reportado (Quividi)**: las tiendas Liverpool operan de
-  11:00 a 21:00 y el informe para marca reporta la ventana **10:00–22:00**, que
-  absorbe el margen de apertura y cierre. Excepción: **Polanco**, cuyo MUPI con
-  cámara está en el área de restaurante y reporta **08:00–22:00**. Fuera de esa
-  ventana no se comunica actividad: horas sin operación generan ruido en el
-  cliente. La regla rige la comunicación; el detalle horario completo permanece
-  en el Excel técnico.
-- **El circuito no se comercializa por franja horaria ni por día específico**: el
-  informe para marca **nunca** recomienda segmentar la pauta por horas o días
-  («pesar la pauta de jueves a domingo», «reservar la franja matutina»). La curva
-  horaria y el reparto semanal **sí se publican**, con otra finalidad: orientan
-  dónde reforzar **promotoría** y activaciones en punto de venta, que es una
-  palanca de venta real. Las recomendaciones de medios se formulan sobre lo que sí
-  se vende: número de tiendas, duración del flight y creatividad.
-- **Tono del informe PDF para marca**: es un reporte de resultados para equipos de
-  marketing. No incluye metodología de medición, reglas internas de agregación,
-  incidencias de cámaras ni lecturas en negativo; se comunica por **tienda +
-  soporte**, nunca por cámara («derecho/izquierdo»). La trazabilidad técnica
-  —cobertura, incidencias y detalle por cámara— vive en el Excel.
-- **Co-branding en la portada del informe de marca**: la portada reserva un bloque
-  para el logo del retailer y el de la marca. El logo se carga **una vez por marca**
-  y se reutiliza en cada informe; el PDF lo embebe al generar. Sin logo disponible
-  el bloque **se colapsa** —la portada queda con la identidad in-Store Media sola—,
-  nunca se deja un hueco ni un marcador de posición visible.
-- **El informe de marca no publica comparativos entre periodos**: cada informe
-  reporta su propia vigencia, sin deltas contra el periodo anterior, el flight
-  previo ni el promedio del circuito. Las cifras se presentan en absoluto y, cuando
-  hace falta contexto, con el índice por tienda dentro del mismo periodo.
-- **El informe de marca no publica métricas de costo**: la comercialización es a
-  **costo fijo**, no por CPM/CPC, así que no se incluyen coste por mil, coste por
-  impacto ni derivados. Una cifra así induciría a comparar contra un modelo de venta
-  que no se ofrece.
-- **El informe de marca no nombra la plataforma de medición**: se presenta como
-  medición de audiencia propia de in-Store Media. Ningún texto, pie de página ni
-  el nombre del archivo citan al proveedor; el PDF se descarga como
-  `Audiencia_<campaña>_<inicio>_<fin>.pdf`. En el código la integración sigue
-  llamándose `quividi*` —es su origen técnico— y el Excel conserva sus hojas
-  técnicas: la regla rige lo que ve el cliente, no la implementación.
-- **Terminología Quividi en el informe de marca**: se conservan los nombres que ya
-  se manejan con el cliente —`OTS`, `Watchers`, `Conversion ratio`,
-  `Attention time`, `Dwell time`— sin traducirlos a equivalentes propios. Cada
-  término se explica en **una línea embebida** junto a la cifra o la gráfica que lo
-  usa (pie de KPI, subtítulo de gráfica, nota de tabla). El informe **no lleva
-  glosario** ni sección de definiciones.
+- **Reporte comercial de audiencia (PDF para marca)**: el documento es un
+  reporte agregado de resultados de campaña. La métrica pública principal es
+  **OTS**; no publica Watchers, Conversion Rate, Attention/Dwell ni conteos
+  equivalentes. Tampoco muestra tráfico, ranking, share o rendimiento por
+  tienda. La información técnica detallada y las métricas internas permanecen
+  disponibles en el Excel/auditoría y no cambian por esta regla.
+- **Cobertura comercial por tienda**: la cobertura del PDF se calcula sobre
+  **tiendas**, no sobre cámaras ni pares tienda+soporte. Una tienda cuenta una
+  sola vez aunque tenga varias cámaras o soportes. Si parte del universo de la
+  campaña no tiene medición directa, SIGNAM calcula el promedio de OTS por
+  tienda medida durante la misma vigencia y lo extrapola a las tiendas sin
+  cobertura. El PDF comunica explícitamente qué porcentaje de tiendas tiene
+  datos directos y qué porcentaje ha sido extrapolado.
+- **Ponderación multi-cámara**: se conserva la regla técnica existente para
+  todas las tiendas: se promedian las cámaras válidas de cada tienda+soporte.
+  **Única excepción: Insurgentes**. Sus dos cámaras están en pisos/zonas
+  distintos y sus OTS se suman como zonas independientes; esta excepción no se
+  generaliza a ninguna otra tienda. Insurgentes sigue contando como una sola
+  tienda para la cobertura comercial.
+- **KPIs públicos del PDF**: `OTS estimados campaña`, `OTS promedio diario`,
+  `OTS promedio diario / tienda`, `OTS promedio diario / soporte` y
+  `Cobertura de medición`. La serie temporal publicada es OTS agregado de toda
+  la campaña; nunca se presenta una serie individual por sucursal.
+- **Segmentos de audiencia**: el PDF puede usar la medición demográfica interna
+  para construir distribuciones agregadas, pero solo muestra **porcentajes** en
+  gráficas (género, rango de edad y momento del día). No expone conteos
+  absolutos de personas ni el nombre de la métrica técnica que los origina.
+- **Tono y estructura del PDF para marca**: cinco páginas: portada, resumen
+  ejecutivo, cobertura/evolución de OTS, segmentos de audiencia y metodología.
+  La metodología explica cobertura y extrapolación de forma transparente y
+  documenta la excepción de Insurgentes, pero no expone incidencias de cámaras,
+  IDs de locations ni reglas operativas internas.
+- **Look & feel del PDF**: identidad principal de in-Store Media en azul/blanco,
+  con acentos Liverpool rosa muy discretos que sugieren la colaboración. La
+  portada utiliza fotografía real de los MUPIs Liverpool y la página final una
+  fotografía real del banner/escaleras; las personas del entorno deben quedar
+  no identificables. No se generan soportes sintéticos para sustituir esas
+  fotografías.
+- **El informe de marca no publica comparativos entre periodos ni métricas de
+  costo**: cada informe reporta solo su propia vigencia, sin deltas contra
+  flights anteriores, CPM/CPC ni derivados.
+- **El informe de marca no nombra la plataforma de medición ni SIGNAM**: se
+  presenta como medición de audiencia de in-Store Media. Ningún texto, portada,
+  pie de página ni nombre de archivo cita al proveedor o a la plataforma
+  interna. El PDF se descarga como
+  `Audiencia_<campaña>_<inicio>_<fin>.pdf`. Los nombres `quividi*` se
+  conservan únicamente en la implementación técnica y el Excel conserva sus
+  hojas técnicas.
 - **Excepción de Guadalajara Galerías**: solo tienda 78 + `VIDEO WALL CRIUS`
   (ver `GUADALAJARA_GALERIAS_EXCEPTION`).
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
