@@ -74,7 +74,16 @@ export function filterScreens(
     }
 
     if (query !== '') {
-      const haystack = normalize(Object.values(screen.original).join(' '));
+      const haystack = normalize(
+        [
+          ...Object.values(screen.original),
+          screen.metadata.calendarSupport,
+          screen.metadata.quividiCameraName ?? '',
+          screen.metadata.quividiLocationId == null
+            ? ''
+            : String(screen.metadata.quividiLocationId),
+        ].join(' '),
+      );
       if (!haystack.includes(query)) return false;
     }
 

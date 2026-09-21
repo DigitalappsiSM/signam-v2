@@ -61,6 +61,15 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Operación',
   },
   {
+    path: '/salud-camaras',
+    label: 'Salud de cámaras',
+    icon: 'monitor',
+    description:
+      'Estado operativo Quividi por cámara, incidencias activas y recuperaciones.',
+    group: 'Operación',
+    permission: 'quividi.report',
+  },
+  {
     path: '/importar',
     label: 'Importar Calendario',
     icon: 'calendar',

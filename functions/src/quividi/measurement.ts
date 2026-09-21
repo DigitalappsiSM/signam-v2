@@ -206,9 +206,12 @@ export function resolvePairs(
 ): {
   pairs: SupportPair[];
   unmappedCameraNames: string[];
+  unmappedLocationIds: number[];
 } {
   const byName = new Map<string, TopologyLocation[]>();
+  const byId = new Map<number, TopologyLocation>();
   for (const location of locations) {
+    byId.set(location.id, location);
     const name = (location.name ?? location.label ?? '').trim();
     if (!name) continue;
     const group = byName.get(name) ?? [];
@@ -216,21 +219,44 @@ export function resolvePairs(
     byName.set(name, group);
   }
 
-  const unmapped = new Set<string>();
+  const unmappedNames = new Set<string>();
+  const unmappedIds = new Set<number>();
   const resolved = pairs.map((pair) => {
     const cameras: TopologyLocation[] = [];
+    const cameraIds = new Set<number>();
+
+    for (const id of pair.cameraLocationIds ?? []) {
+      const location = byId.get(id);
+      if (location) {
+        if (!cameraIds.has(location.id)) {
+          cameras.push(location);
+          cameraIds.add(location.id);
+        }
+      } else {
+        unmappedIds.add(id);
+      }
+    }
+
     for (const name of pair.cameraNames) {
       const candidates = byName.get(name) ?? [];
-      if (candidates.length === 1) cameras.push(candidates[0]!);
-      else unmapped.add(
-        candidates.length === 0 ? name : `${name} (duplicada en Quividi)`,
-      );
+      if (candidates.length === 1) {
+        const location = candidates[0]!;
+        if (!cameraIds.has(location.id)) {
+          cameras.push(location);
+          cameraIds.add(location.id);
+        }
+      } else {
+        unmappedNames.add(
+          candidates.length === 0 ? name : `${name} (duplicada en Quividi)`,
+        );
+      }
     }
     return { ...pair, cameras };
   });
   return {
     pairs: resolved,
-    unmappedCameraNames: Array.from(unmapped).sort(),
+    unmappedCameraNames: Array.from(unmappedNames).sort(),
+    unmappedLocationIds: Array.from(unmappedIds).sort((a, b) => a - b),
   };
 }
 

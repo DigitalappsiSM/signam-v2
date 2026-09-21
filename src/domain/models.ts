@@ -53,7 +53,9 @@ export interface SignamMetadata {
    * oficiales del maestro. Vacío si aún no se ha mapeado.
    */
   calendarSupport: string;
-  /** Nombre de la location/cámara Quividi asociada a esta pantalla. */
+  /** ID numérico estable de la location Quividi asociada a esta pantalla. */
+  quividiLocationId?: number | null;
+  /** Alias/nombre canónico de la location Quividi, conservado como referencia visual. */
   quividiCameraName?: string;
 }
 

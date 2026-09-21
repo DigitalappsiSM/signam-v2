@@ -47,6 +47,14 @@ import {
   type CameraHealthEvaluation,
 } from './cameraAlerts';
 import {
+  syncCatalogLocationBindings,
+  topologyLocationName,
+} from './catalog';
+import {
+  buildCameraHealthOverview,
+  type CameraHealthOverviewResponse,
+} from './healthOverview';
+import {
   buildCoverage,
   buildMeasurementRows,
   dayList,
@@ -263,6 +271,7 @@ interface CameraHealthComputation {
   records: CameraHealthRecord[];
   monitoredLocationIds: number[];
   mapping: CameraHealthMappingSummary;
+  catalogMappingsUpdated: number;
 }
 
 async function computeCameraHealth(
@@ -271,9 +280,13 @@ async function computeCameraHealth(
 ): Promise<CameraHealthComputation> {
   const db = getFirestore();
   const screensSnap = await db.collection('screens').get();
-  const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
+  const screens = screensSnap.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as ScreenDoc),
+  }));
   const topology = await quividiGet<TopologyLocation[]>('/locations/');
-  const scope = prepareCameraHealthScope(screens, topology);
+  const catalogSync = await syncCatalogLocationBindings(db, screens, topology);
+  const scope = prepareCameraHealthScope(catalogSync.screens, topology);
   const endDate = lastCompleteUtcDate(now);
   const startDate = lookbackStartDate(endDate, days);
   const dates = dayList(startDate, endDate);
@@ -317,6 +330,7 @@ async function computeCameraHealth(
     ),
     monitoredLocationIds: scope.mappedLocationIds,
     mapping: scope.mapping,
+    catalogMappingsUpdated: catalogSync.updated,
   };
 }
 
@@ -809,6 +823,67 @@ function requireQuividiAccess(request: CallableRequest): CallableAuth {
   return auth;
 }
 
+
+export const locationLookup = onCall(
+  {
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (request): Promise<{
+    location: {
+      id: number;
+      name: string;
+      active: boolean;
+      lastSeen: string | null;
+    };
+  }> => {
+    requireQuividiAccess(request);
+    const rawId = (request.data as { locationId?: unknown } | undefined)
+      ?.locationId;
+    if (
+      typeof rawId !== 'number' ||
+      !Number.isInteger(rawId) ||
+      rawId <= 0
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'locationId debe ser un entero positivo.',
+      );
+    }
+
+    const topology = await quividiGet<TopologyLocation[]>('/locations/');
+    const location = topology.find((item) => item.id === rawId);
+    if (!location) {
+      throw new HttpsError(
+        'not-found',
+        'El Location ID no existe en la topología Quividi disponible.',
+      );
+    }
+
+    return {
+      location: {
+        id: location.id,
+        name: topologyLocationName(location) || 'Location ' + location.id,
+        active: location.active !== false,
+        lastSeen:
+          typeof location.last_seen === 'string' ? location.last_seen : null,
+      },
+    };
+  },
+);
+
+export const cameraHealthOverview = onCall(
+  async (request): Promise<CameraHealthOverviewResponse> => {
+    requireQuividiAccess(request);
+    return buildCameraHealthOverview(
+      getFirestore(),
+      CAMERA_HEALTH_ALERT_STATE_COLLECTION,
+      CAMERA_HEALTH_ALERT_COLLECTION,
+    );
+  },
+);
+
 export const campaignReport = onCall(
   {
     secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
@@ -998,6 +1073,7 @@ export const cameraHealthBackfill = onCall(
     days: number;
     written: number;
     mapping: CameraHealthMappingSummary;
+    catalogMappingsUpdated: number;
     alerts: CameraHealthAlertReconcileSummary;
   }> => {
     const auth = requireQuividiAccess(request);
@@ -1038,6 +1114,7 @@ export const cameraHealthBackfill = onCall(
       days,
       written,
       mapping: health.mapping,
+      catalogMappingsUpdated: health.catalogMappingsUpdated,
       alerts,
     };
   },
@@ -1084,6 +1161,7 @@ export const cameraHealthDaily = onSchedule(
       initialBackfill: existing.empty,
       written,
       mapping: health.mapping,
+      catalogMappingsUpdated: health.catalogMappingsUpdated,
       alerts,
     });
   },

@@ -172,9 +172,13 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   tolerado `MEGAMUPI DIGITAL`) y `PENDON` como `BANNER DIGITAL`.
 - **Salud operativa Quividi por cámara**: colección backend-only
   `quividiCameraHealthDaily`, con identidad idempotente
-  `YYYY-MM-DD__locationId`. Se deriva del catálogo activo de `screens`
-  (`Numero de Tienda + calendarSupport + quividiCameraName`), nunca del alcance
-  de una campaña. El proceso diario consulta una ventana móvil de 28 días para
+  `YYYY-MM-DD__locationId`. Se deriva del catálogo activo de `screens`,
+  nunca del alcance de una campaña. La identidad preferida es
+  `Numero de Tienda + calendarSupport + quividiLocationId`; el alias
+  `quividiCameraName` queda como referencia visual y fallback temporal para
+  registros legacy. El job diario migra de forma conservadora los registros que
+  solo tienen alias cuando ese alias coincide con una única location Quividi, y
+  sincroniza el alias canónico cuando ya existe Location ID. El proceso diario consulta una ventana móvil de 28 días para
   conservar el baseline de duración de la medición existente y persiste el último
   día completo; si la colección está vacía, el primer ciclo carga los 28 días.
   Existe un backfill administrativo explícito de 1–90 días. Un nombre de cámara
@@ -210,6 +214,12 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   estar `monitored:false` también inicia una incidencia nueva y nunca reactiva
   un documento histórico `recovered`/`retired`. **No se abre ningún ticket
   automáticamente**.
+- **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. Consume
+  únicamente una callable autenticada de solo lectura sobre los estados ya
+  calculados; abrir o refrescar la pantalla **no vuelve a consultar VidiCenter**.
+  Presenta resumen actual, estados por cámara y recuperaciones recientes.
+  `Catálogo Admira` permite capturar y validar `quividiLocationId`; al
+  validarlo contra Quividi se guarda también el alias canónico.
 - **Reporte comercial Quividi**: la capa para marcas/marketing puede agregar por
   tienda, día y hora, pero OTS/Watchers se rotulan como contactos o detecciones,
   **nunca como reach único**. El análisis horario usa exports VidiCenter de

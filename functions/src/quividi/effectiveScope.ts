@@ -34,6 +34,7 @@ export interface CampaignDoc {
 }
 
 export interface ScreenDoc {
+  id?: string;
   original?: {
     'Numero de Tienda'?: string;
     'Nombre de tienda'?: string;
@@ -41,6 +42,7 @@ export interface ScreenDoc {
   metadata?: {
     active?: boolean;
     calendarSupport?: string;
+    quividiLocationId?: number | null;
     quividiCameraName?: string;
   };
 }
@@ -67,6 +69,8 @@ export interface EffectiveSupportPair {
   storeName: string;
   support: string;
   cameraNames: string[];
+  /** IDs estables Quividi. Salud operativa los prioriza sobre alias legacy. */
+  cameraLocationIds?: number[];
   source: EffectiveScopeSource;
   ekonNumber: number | null;
 }

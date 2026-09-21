@@ -18,6 +18,7 @@ import { DigitalImportPage } from '@/modules/digital-import/DigitalImportPage';
 import { DigitalOperationsPage } from '@/modules/digital-operations/DigitalOperationsPage';
 import { DigitalCatalogPage } from '@/modules/digital-operations/DigitalCatalogPage';
 import { ReportingPage } from '@/modules/reporting/ReportingPage';
+import { CameraHealthPage } from '@/modules/camera-health/CameraHealthPage';
 
 /**
  * Componente raíz. Controla el acceso:
@@ -67,6 +68,7 @@ export function App() {
         <Route path="/seguimiento" element={<OperationalTrackingPage />} />
         <Route path="/reporting" element={<ReportingPage />} />
         <Route path="/alertas-ocupacion" element={<LowOccupancyPage />} />
+        <Route path="/salud-camaras" element={<CameraHealthPage />} />
         <Route path="/usuarios" element={<UsersPage />} />
         <Route path="/historial" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />

@@ -1,0 +1,251 @@
+.camera-health {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.camera-health__error {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-fg);
+}
+
+.camera-health__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.camera-health__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.camera-health__metric {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.camera-health__metric > span {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.camera-health__metric > strong {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.camera-health__metric > small {
+  color: var(--color-text-muted);
+}
+
+.camera-health__metric--success {
+  border-color: color-mix(
+    in srgb,
+    var(--color-success) 35%,
+    var(--color-border)
+  );
+}
+
+.camera-health__metric--warning {
+  border-color: color-mix(
+    in srgb,
+    var(--color-warning) 45%,
+    var(--color-border)
+  );
+}
+
+.camera-health__metric--muted {
+  opacity: 0.82;
+}
+
+.camera-health__controls {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.camera-health__controls input,
+.camera-health__controls select {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.camera-health__controls input {
+  flex: 1 1 320px;
+}
+
+.camera-health__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.camera-health__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.camera-health__table th,
+.camera-health__table td {
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.camera-health__table th {
+  background: var(--table-head-bg);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.camera-health__table td {
+  min-width: 110px;
+}
+
+.camera-health__table td > span:not(.camera-health__status),
+.camera-health__table td > small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.camera-health__status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.camera-health__status--success {
+  color: var(--color-success-fg);
+  background: color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+
+.camera-health__status--warning {
+  color: var(--color-warning-fg);
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+
+.camera-health__status--danger {
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+.camera-health__status--muted {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.camera-health__empty {
+  padding: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.camera-health__recoveries {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.camera-health__section-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.camera-health__section-title span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.camera-health__section-title h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1.1rem;
+}
+
+.camera-health__section-title p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.camera-health__recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 0.7rem;
+}
+
+.camera-health__recovery-grid article {
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.camera-health__recovery-grid article div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.camera-health__recovery-grid article span,
+.camera-health__recovery-grid article small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.camera-health__recovered {
+  color: var(--color-success-fg);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .camera-health__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .camera-health__metrics {
+    grid-template-columns: 1fr;
+  }
+}
