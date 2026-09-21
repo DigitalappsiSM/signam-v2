@@ -312,7 +312,8 @@ export function CatalogPage() {
                       <div className="catalog__quividi">
                         <strong>ID {screen.metadata.quividiLocationId}</strong>
                         <span title={screen.metadata.quividiCameraName ?? ''}>
-                          {screen.metadata.quividiCameraName || 'Alias pendiente'}
+                          {screen.metadata.quividiCameraName ||
+                            'Alias pendiente'}
                         </span>
                       </div>
                     ) : screen.metadata.quividiCameraName ? (
