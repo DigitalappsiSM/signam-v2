@@ -15,6 +15,13 @@
 >   `docs/QUIVIDI_PHASE_1.md`. Reglas de negocio transversales: `AGENTS.md`
 >   (secciones «Alcance Quividi por cocomercialización» y «Reporte comercial
 >   Quividi»).
+>
+> **Nota de vigencia (2026-09-21):** este archivo conserva la auditoría de la
+> **Fase 1** como fotografía histórica. Desde los PR #120, #121 y #122 existe
+> además la Fase 2 de salud operativa por cámara, Location ID estable en Catálogo
+> Admira y la ruta `/salud-camaras`. El estado actual está documentado en
+> `docs/QUIVIDI_PHASE_2.md` y `AGENTS.md`. Cuando este documento contradiga
+> esos dos archivos sobre Camera Health, prevalece la documentación actual.
 
 ---
 
@@ -24,13 +31,15 @@ Quividi es la plataforma de **medición de audiencia por cámara** (VidiCenter).
 SIGNAM la usa para generar, **por campaña Liverpool**, un Excel de audiencia
 (OTS, Watchers, atención, permanencia, demografía y detalle horario).
 
-No existe un módulo «Quividi» en la navegación: la integración se **injerta en
-la pantalla Campañas** como un icono de métricas por fila.
+En la Fase 1 auditada aquí no existía un módulo «Quividi» en la navegación: la
+integración se **injertaba en la pantalla Campañas** como un icono de métricas
+por fila. Desde la Fase 2 sí existe **Operación → Salud de cámaras**.
 
-Estado general: **funcional y bien acotado**. El diseño respeta el principio
-rector del repositorio (Quividi **nunca** escribe en `campaigns`, `screens`,
-consolidaciones ni CSV Admira; solo lee y deriva). Las credenciales viven en
-Secret Manager y nunca llegan al navegador.
+Estado de la Fase 1: **funcional y bien acotado**. El reporte por campaña sigue
+sin escribir en `campaigns`, consolidaciones ni CSV Admira. La Fase 2 sí
+mantiene metadatos Quividi en `screens` y persiste colecciones backend-only de
+salud e incidencias. Las credenciales viven en Secret Manager y nunca llegan al
+navegador.
 
 Riesgos principales detectados (detalle en §9):
 
@@ -46,7 +55,7 @@ Riesgos principales detectados (detalle en §9):
 | F8 | Baja | Zona horaria: ventana UTC vs. horario local de cada ubicación | abierto |
 | F9 | Baja | Disponibilidad no valida contra VidiCenter (icono activo sin cámara real) | abierto |
 | F10 | Baja | `buildSupportHours` recorre todo el índice por cámara (O(n·m)) | abierto |
-| F11 | Baja | README y `.env.example` no documentan la integración ni sus secretos | abierto |
+| F11 | Baja | README y `.env.example` no documentan la integración ni sus secretos | parcial: README actualizado; revisar secretos/setup por separado |
 
 ---
 
@@ -499,8 +508,11 @@ contener los secretos, pero tampoco los nombra. El único punto de entrada es
 
 ## 10. Invariantes que NO deben romperse sin decisión documentada
 
-1. Quividi **solo lee**. Nunca escribe en `campaigns`, `screens`,
-   `campaignEkonLinks`, consolidaciones, exportaciones CSV ni seguimiento.
+1. El **reporte de audiencia por campaña** sigue siendo derivado y no escribe en
+   `campaigns`, `campaignEkonLinks`, consolidaciones, CSV ni seguimiento. La
+   **Fase 2** sí puede actualizar exclusivamente los metadatos Quividi de
+   `screens` (`quividiLocationId` / alias canónico) y sus propias colecciones
+   backend-only de salud e incidencias.
 2. El fallback Ekon es **derivado**: jamás persiste tiendas Ekon dentro de la
    campaña Liverpool.
 3. Varias cámaras en un mismo Tienda + Soporte **se promedian, no se suman**.
@@ -510,8 +522,10 @@ contener los secretos, pero tampoco los nombra. El único punto de entrada es
    reach único.
 6. No se rellenan faltantes con cero ni se extrapolan días o tiendas sin medición.
 7. El token Quividi nunca llega al navegador ni al repositorio.
-8. Los 12 campos oficiales del maestro Admira no cambian: `CAMARA QUIVIDI` es un
-   **metadato SIGNAM** aparte y no se exporta dentro del maestro oficial.
+8. Los 12 campos oficiales del maestro Admira no cambian. El vínculo Quividi vive
+   en metadatos SIGNAM separados: `quividiLocationId` como identidad estable y
+   `quividiCameraName` como alias. No deben confundirse con los campos
+   oficiales del maestro.
 9. `campaignAudienceSnapshots` es de backend; no abrirla a lectura de cliente.
 10. Alias exclusivos del reporte: `MUPPI'S → MEGA MUPI DIGITAL`,
     `PENDON → BANNER DIGITAL`. No propagarlos a consolidación ni a CSV.
@@ -523,15 +537,20 @@ contener los secretos, pero tampoco los nombra. El único punto de entrada es
 
 ## 11. Guía rápida de operación
 
-**Dar de alta una cámara**
+**Dar de alta o vincular una cámara — flujo vigente**
 
-1. Catálogo Admira → exportar maestro con la columna `CÁMARA QUIVIDI`.
-2. Llenar el nombre **exacto** de la location de VidiCenter.
-3. Catálogo Admira → Importar maestro → **Actualizar mapeos** → confirmar.
-   (Esta opción empareja por los 12 campos oficiales y solo actualiza
-   `NORMALIZACION LIVERPOOL` y `CAMARA QUIVIDI`; no crea ni borra pantallas.)
+1. Catálogo Admira → crear o editar la pantalla.
+2. Confirmar `NORMALIZACION LIVERPOOL`.
+3. Capturar **Quividi Location ID**.
+4. Pulsar **Validar en Quividi**.
+5. SIGNAM confirma el ID y sincroniza el alias canónico antes de guardar.
 
-Alternativa puntual: editar la pantalla en el catálogo (`ScreenForm`).
+Para registros legacy que solo tienen alias, el job diario intenta rellenar el
+Location ID automáticamente **solo cuando la coincidencia es única**. Si el alias
+es ambiguo o inexistente, no modifica el registro.
+
+El Location ID es la referencia estable. El alias ya no debe usarse como
+identidad primaria para nuevas altas.
 
 **Credenciales**
 
