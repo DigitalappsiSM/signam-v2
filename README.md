@@ -24,6 +24,9 @@ Aplicación web para operar el flujo de programación de pantallas entre
     Liverpool/Admira (ver abajo).
 13. **Reporting** ejecutivo y operativo con SLA de testigos, embudo de
     preparación, calidad de datos, conciliación y exportación Excel.
+14. **Quividi/VidiCenter** para reporte de audiencia por campaña y
+    **salud operativa de cámaras**, con Location ID estable, histórico diario,
+    incidencias vigentes y el módulo **Operación → Salud de cámaras**.
 
 ## Reporting
 
@@ -102,6 +105,52 @@ usuarios autenticados e importación/seguimiento/exportación a admin/operator.
 las filas Excel 176/177 con “Conservar una”. El smoke test esperado del archivo
 de referencia es 1,986 filas fuente, 49 en alcance, 13 campañas, 21 fijaciones,
 28 revisiones y 48 filas aceptadas tras colapsar ese duplicado.
+
+## Quividi: audiencia y salud operativa de cámaras
+
+SIGNAM integra Quividi/VidiCenter en dos capas separadas:
+
+- **Audiencia por campaña (Fase 1):** desde **Campañas**, el icono de métricas
+  genera reportes de audiencia con OTS, Watchers, atención, permanencia,
+  demografía y detalle horario. El alcance combina Calendario y Ekon según las
+  reglas documentadas.
+- **Salud de cámaras (Fase 2):** la ruta `/salud-camaras` dentro de
+  **Operación** muestra el estado técnico vigente de cada cámara, independiente
+  de campañas.
+
+En **Catálogo Admira**, cada pantalla puede guardar
+`metadata.quividiLocationId` como identidad estable y
+`metadata.quividiCameraName` como alias canónico. El formulario permite
+validar el Location ID directamente contra Quividi. Los registros legacy que
+solo tienen alias pueden migrarse automáticamente cuando la coincidencia en
+VidiCenter es única.
+
+El backend persiste:
+
+- `quividiCameraHealthDaily/{YYYY-MM-DD__locationId}` — histórico diario;
+- `quividiCameraHealthAlertState/{locationId}` — estado vigente;
+- `quividiCameraHealthAlerts/{locationId__startedDate}` — incidencias.
+
+La salud actual se decide **solo con el último día completo**. Una anomalía
+histórica ya recuperada no genera una alerta vigente. La ventana núcleo es
+**11:00–22:00** y 10:00–11:00 se conserva como tolerancia de arranque.
+
+Estados operativos: `normal`, `no_measurement`,
+`partial_measurement` y `no_ots`. Las incidencias recuperadas conservan la
+primera fecha normal observada; una cámara que sale del alcance queda
+`retired/out_of_scope`, no “recuperada”.
+
+La pantalla **Salud de cámaras** lee únicamente el último estado persistido:
+pulsar **Actualizar vista** no dispara nuevos exports de VidiCenter.
+
+Documentación:
+
+- [Fase 1 — reporte por campaña](./docs/QUIVIDI_PHASE_1.md)
+- [Fase 2 — salud operativa](./docs/QUIVIDI_PHASE_2.md)
+- [Auditoría histórica de Fase 1](./docs/QUIVIDI_AUDITORIA.md)
+
+La integración con Odoo para crear/actualizar tickets con clasificación
+`[CAMARAS]` está **pendiente**. No se crean tickets automáticamente todavía.
 
 ## Integración Ekon (Importación y Conciliación)
 
