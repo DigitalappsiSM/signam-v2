@@ -5,7 +5,8 @@
 
 .camera-health__error {
   padding: 0.7rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--color-danger) 40%, transparent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   color: var(--color-danger-fg);
@@ -54,11 +55,19 @@
 }
 
 .camera-health__metric--success {
-  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-success) 35%,
+    var(--color-border)
+  );
 }
 
 .camera-health__metric--warning {
-  border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-warning) 45%,
+    var(--color-border)
+  );
 }
 
 .camera-health__metric--muted {
