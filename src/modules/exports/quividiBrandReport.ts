@@ -18,8 +18,39 @@ export interface BrandCoverage {
   totalStores: number;
   measuredStores: number;
   estimatedStores: number;
+  /** Cobertura por tienda: tiendas con alguna medición sobre el universo. */
   measuredPercent: number;
   estimatedPercent: number;
+  /** Tiendas del universo × días de vigencia. */
+  totalStoreDays: number;
+  /** Tienda-día con al menos un soporte medido. */
+  measuredStoreDays: number;
+  /**
+   * Completitud real de la medición. A diferencia de `measuredPercent`, una
+   * tienda cuya cámara cae a mitad de vigencia deja de contar como cubierta
+   * durante los días sin dato.
+   */
+  storeDayPercent: number;
+}
+
+/**
+ * Base sobre la que se extrapola. La unidad es el par-día (tienda × soporte ×
+ * fecha) porque es la unidad en la que se acumulan los OTS.
+ */
+export interface BrandExtrapolationBasis {
+  days: number;
+  totalPairs: number;
+  measuredPairs: number;
+  totalPairDays: number;
+  /** Par-día con medición válida (completa o parcial). */
+  measuredPairDays: number;
+  completePairDays: number;
+  partialPairDays: number;
+  /** Par-día de un soporte con cámara instalada que no reportó ese día. */
+  missingPairDays: number;
+  /** Par-día de soportes del universo sin cámara instalada. */
+  uncoveredPairDays: number;
+  otsPerMeasuredPairDay: number;
 }
 
 export interface BrandHeader {
@@ -40,6 +71,7 @@ export interface BrandCampaignSummary {
   dailyPerStore: number;
   dailyPerSupport: number;
   coverage: BrandCoverage;
+  basis: BrandExtrapolationBasis;
 }
 
 export interface BrandDailyPoint {
@@ -47,11 +79,27 @@ export interface BrandDailyPoint {
   label: string;
   measuredOts: number;
   estimatedOts: number;
+  /** Pares medidos ese día; 0 significa jornada sin ninguna medición. */
+  measuredPairs: number;
+  /** Factor de extrapolación aplicado a ese día concreto. */
+  factor: number;
 }
 
 export interface BrandShare {
   label: string;
   share: number;
+}
+
+/** Aportación de una tienda a la cifra publicada, para la hoja de auditoría. */
+export interface BrandStoreAudit {
+  storeNumber: string;
+  storeName: string;
+  /** Soportes de la tienda con cámara instalada. */
+  pairs: number;
+  totalPairDays: number;
+  measuredPairDays: number;
+  completenessPercent: number;
+  measuredOts: number;
 }
 
 function numeric(value: number): number {
@@ -155,10 +203,19 @@ export function brandSupportDays(
   });
 }
 
-/** Cobertura por tienda, no por cámara ni por tienda-soporte. */
+/**
+ * Cobertura por tienda y, sobre todo, por tienda-día.
+ *
+ * `measuredPercent` cuenta una tienda como cubierta si tuvo medición en algún
+ * momento de la vigencia; es el dato que describe el despliegue de cámaras.
+ * `storeDayPercent` mide la completitud real y es el que sostiene la
+ * extrapolación: en vigencias largas una cámara caída degrada la completitud
+ * sin que el despliegue cambie.
+ */
 export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
+  const rows = report.supportDays;
   const measuredFromRows = new Set(
-    report.supportDays
+    rows
       .filter((row) => row.status !== 'missing')
       .map((row) => row.storeNumber),
   ).size;
@@ -176,12 +233,79 @@ export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
   const measuredPercent =
     totalStores > 0 ? (measuredStores / totalStores) * 100 : 0;
 
+  const days = periodDays(report);
+  const totalStoreDays = totalStores * days;
+  const measuredStoreDays = Math.min(
+    totalStoreDays,
+    new Set(
+      rows
+        .filter((row) => row.status !== 'missing')
+        .map((row) => `${row.storeNumber}|${row.date}`),
+    ).size,
+  );
+
   return {
     totalStores,
     measuredStores,
     estimatedStores,
     measuredPercent,
     estimatedPercent: totalStores > 0 ? 100 - measuredPercent : 0,
+    totalStoreDays,
+    measuredStoreDays,
+    storeDayPercent:
+      totalStoreDays > 0 ? (measuredStoreDays / totalStoreDays) * 100 : 0,
+  };
+}
+
+/**
+ * Reconstruye la rejilla par-día sobre la que se extrapola.
+ *
+ * `report.supportDays` sólo contiene filas de pares tienda-soporte con cámara
+ * instalada, una por cada fecha de la vigencia. Los pares del universo sin
+ * cámara no aparecen: su hueco se deduce restando al total contratado.
+ */
+export function brandExtrapolationBasis(
+  report: QuividiCampaignReport,
+): BrandExtrapolationBasis {
+  const rows = brandSupportDays(report);
+  const days = periodDays(report);
+  const measuredPairs = new Set(
+    rows.filter((row) => row.status !== 'missing').map(pairKey),
+  ).size;
+  const totalPairs = Math.max(
+    report.coverage.totalPairs,
+    new Set(rows.map(pairKey)).size,
+  );
+  const totalPairDays = totalPairs * days;
+
+  const completePairDays = rows.filter(
+    (row) => row.status === 'complete',
+  ).length;
+  const partialPairDays = rows.filter((row) => row.status === 'partial').length;
+  const missingPairDays = rows.filter((row) => row.status === 'missing').length;
+  const measuredPairDays = Math.min(
+    totalPairDays,
+    completePairDays + partialPairDays,
+  );
+  const measuredOts = sum(
+    rows.filter((row) => row.status !== 'missing').map((row) => row.ots),
+  );
+
+  return {
+    days,
+    totalPairs,
+    measuredPairs,
+    totalPairDays,
+    measuredPairDays,
+    completePairDays,
+    partialPairDays,
+    missingPairDays,
+    uncoveredPairDays: Math.max(
+      0,
+      totalPairDays - measuredPairDays - missingPairDays,
+    ),
+    otsPerMeasuredPairDay:
+      measuredPairDays > 0 ? measuredOts / measuredPairDays : 0,
   };
 }
 
@@ -207,24 +331,26 @@ export function brandHeader(report: QuividiCampaignReport): BrandHeader {
 }
 
 /**
- * Extrapolación comercial: el promedio de OTS por tienda medida durante la
- * vigencia se aplica únicamente a las tiendas del universo sin cobertura.
+ * Extrapolación comercial sobre la rejilla par-día.
+ *
+ * El promedio de OTS por par-día medido se aplica a TODO hueco del universo,
+ * tanto al del soporte sin cámara como al del día que una cámara instalada no
+ * reportó. Promediar por tienda en lugar de por par-día subestima la campaña:
+ * los días sin dato entran al numerador como cero y deflactan el promedio que
+ * luego rellena el resto del universo, un sesgo que crece con la vigencia.
  */
 export function brandCampaignSummary(
   report: QuividiCampaignReport,
 ): BrandCampaignSummary {
   const rows = brandSupportDays(report);
   const coverage = brandCoverage(report);
-  const measuredOts = sum(rows.map((row) => row.ots));
-  const averagePerMeasuredStore =
-    coverage.measuredStores > 0 ? measuredOts / coverage.measuredStores : 0;
-  const extrapolatedOts = averagePerMeasuredStore * coverage.estimatedStores;
-  const estimatedOts = measuredOts + extrapolatedOts;
-  const days = periodDays(report);
-  const totalPairs = Math.max(
-    report.coverage.totalPairs,
-    new Set(rows.map(pairKey)).size,
+  const basis = brandExtrapolationBasis(report);
+  const measuredOts = sum(
+    rows.filter((row) => row.status !== 'missing').map((row) => row.ots),
   );
+  const estimatedOts = basis.otsPerMeasuredPairDay * basis.totalPairDays;
+  const extrapolatedOts = Math.max(0, estimatedOts - measuredOts);
+  const days = basis.days;
 
   return {
     measuredOts,
@@ -236,31 +362,52 @@ export function brandCampaignSummary(
         ? estimatedOts / days / coverage.totalStores
         : 0,
     dailyPerSupport:
-      days > 0 && totalPairs > 0 ? estimatedOts / days / totalPairs : 0,
+      days > 0 && basis.totalPairs > 0
+        ? estimatedOts / days / basis.totalPairs
+        : 0,
     coverage,
+    basis,
   };
 }
 
-/** Evolución diaria agregada; nunca expone una tienda individual. */
+/**
+ * Evolución diaria agregada; nunca expone una tienda individual.
+ *
+ * El factor se recalcula día a día. Con un factor constante, una jornada en la
+ * que la mitad del circuito no midió se dibujaba como una caída de audiencia
+ * que nunca ocurrió; escalando por los pares realmente medidos ese día, la
+ * serie sólo refleja variación de audiencia.
+ */
 export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
   const rows = brandSupportDays(report);
-  const coverage = brandCoverage(report);
-  const factor =
-    coverage.measuredStores > 0
-      ? coverage.totalStores / coverage.measuredStores
-      : 1;
-  const groups = new Map<string, number>();
+  const basis = brandExtrapolationBasis(report);
+  const measured = new Map<string, number>();
+  const pairs = new Map<string, Set<string>>();
 
   for (const row of rows) {
-    groups.set(row.date, (groups.get(row.date) ?? 0) + numeric(row.ots));
+    if (row.status === 'missing') continue;
+    measured.set(row.date, (measured.get(row.date) ?? 0) + numeric(row.ots));
+    const seen = pairs.get(row.date) ?? new Set<string>();
+    seen.add(pairKey(row));
+    pairs.set(row.date, seen);
   }
 
-  return Array.from(groups, ([date, measuredOts]) => ({
-    date,
-    label: date.slice(8, 10),
-    measuredOts,
-    estimatedOts: measuredOts * factor,
-  })).sort((a, b) => a.date.localeCompare(b.date));
+  // Toda fecha de la vigencia aparece, incluso si nadie midió ese día.
+  const dates = Array.from(new Set(rows.map((row) => row.date))).sort();
+
+  return dates.map((date) => {
+    const measuredOts = measured.get(date) ?? 0;
+    const measuredPairs = pairs.get(date)?.size ?? 0;
+    const factor = measuredPairs > 0 ? basis.totalPairs / measuredPairs : 0;
+    return {
+      date,
+      label: date.slice(8, 10),
+      measuredOts,
+      estimatedOts: measuredOts * factor,
+      measuredPairs,
+      factor,
+    };
+  });
 }
 
 function shareBy(
@@ -292,4 +439,41 @@ export function brandGender(report: QuividiCampaignReport): BrandShare[] {
 /** Distribución porcentual de edad; no expone conteos absolutos. */
 export function brandAge(report: QuividiCampaignReport): BrandShare[] {
   return shareBy(report, 'age', QUIVIDI_AGE_LABELS);
+}
+
+/**
+ * Desglose por tienda de lo que realmente se midió.
+ *
+ * Es el detalle que sostiene la cifra agregada: cuántos par-día aportó cada
+ * tienda frente a los que le tocaban y con cuántos OTS. Sólo aparece en el
+ * Excel de auditoría; el informe comercial nunca publica tienda a tienda.
+ */
+export function brandStoreAudit(
+  report: QuividiCampaignReport,
+): BrandStoreAudit[] {
+  const rows = brandSupportDays(report);
+  const days = periodDays(report);
+  const groups = new Map<string, QuividiSupportDay[]>();
+
+  for (const row of rows) {
+    const current = groups.get(row.storeNumber) ?? [];
+    current.push(row);
+    groups.set(row.storeNumber, current);
+  }
+
+  return Array.from(groups, ([storeNumber, storeRows]) => {
+    const pairs = new Set(storeRows.map((row) => row.support)).size;
+    const totalPairDays = pairs * days;
+    const measured = storeRows.filter((row) => row.status !== 'missing');
+    return {
+      storeNumber,
+      storeName: storeRows[0]?.storeName ?? '',
+      pairs,
+      totalPairDays,
+      measuredPairDays: measured.length,
+      completenessPercent:
+        totalPairDays > 0 ? (measured.length / totalPairDays) * 100 : 0,
+      measuredOts: sum(measured.map((row) => row.ots)),
+    };
+  }).sort((a, b) => a.completenessPercent - b.completenessPercent);
 }

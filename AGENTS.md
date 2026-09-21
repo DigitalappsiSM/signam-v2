@@ -74,8 +74,8 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Proveedor**: con clasificación **pendiente** no se asume ningún régimen (no
   generan vencimientos ni alertas de testigo), muestran "Clasifica primero" y no
   ofrecen "Marcar…". Una campaña **terminada** con indicadores **aplicables**
-  incompletos (p. ej. Institucional sin CSM) sigue apareciendo como *terminada
-  con pendientes* en el Dashboard (alerta `finished-pending`), aunque los testigos
+  incompletos (p. ej. Institucional sin CSM) sigue apareciendo como _terminada
+  con pendientes_ en el Dashboard (alerta `finished-pending`), aunque los testigos
   no apliquen. En campañas **terminadas** (fecha de fin ya pasada) y **ya
   clasificadas** aparece un botón por fila: **"Marcar todas"** (Proveedor: marca
   los cinco) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
@@ -238,13 +238,38 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Los segmentos de audiencia se comunican únicamente como distribuciones
   porcentuales agregadas (por ejemplo, género y rango de edad), nunca como conteos
   absolutos.
-- **Cobertura y extrapolación del PDF**: la cobertura se calcula por **tienda
-  única**, no por cámara ni por tienda+soporte. El snapshot de reporte conserva
-  `storeCoverage` con total de tiendas y tiendas mapeadas. Si parte del universo
-  no tiene cobertura, se toma el promedio de OTS de las tiendas medidas durante
-  las mismas fechas de campaña y se aplica a las tiendas restantes. El PDF debe
-  indicar explícitamente qué porcentaje del universo es medición directa y qué
-  porcentaje es extrapolado.
+- **Cobertura y extrapolación del PDF**: la cobertura publicada se calcula sobre
+  la rejilla **tienda-día** (tiendas del universo × días de vigencia), no por
+  tienda única, ni por cámara, ni por tienda+soporte. Una tienda cuya cámara cae
+  a mitad de vigencia deja de contar como cubierta durante los días sin dato. La
+  cobertura por tienda única (`measuredPercent`) se conserva como referencia
+  operativa del despliegue de cámaras, pero **no es la cifra que publica el
+  informe**. El snapshot conserva `storeCoverage` con total de tiendas y tiendas
+  mapeadas.
+
+  La extrapolación opera sobre la rejilla **par-día** (tienda × soporte × fecha),
+  que es la unidad en la que se acumulan los OTS: se toma el promedio de OTS por
+  par-día **medido** y se aplica a la rejilla completa del universo contratado.
+  Todo hueco recibe el mismo tratamiento, sea un soporte sin cámara instalada o
+  un día que la cámara instalada no reportó. Promediar por tienda en lugar de por
+  par-día subestima la campaña, porque los días sin dato entran al numerador como
+  cero y deflactan el promedio que después rellena el resto del universo; el
+  sesgo es despreciable por debajo de ~14 días y supera el 20% a partir de 60.
+  El PDF debe indicar explícitamente qué porcentaje del universo es medición
+  directa y qué porcentaje es extrapolado.
+
+  La serie diaria escala **cada día por los pares medidos de ese día**, nunca con
+  un factor constante de campaña: con factor constante, una jornada en la que
+  media red no midió se dibuja como una caída de audiencia que nunca ocurrió.
+
+- **Hoja «Auditoría de cifras» del Excel**: el Excel técnico incluye una hoja que
+  reconstruye paso a paso la cifra del PDF — universo contratado, reparto
+  exhaustivo de la rejilla par-día (completo / parcial / sin dato / sin cámara),
+  la cadena aritmética de OTS medidos a OTS estimados, las dos lecturas de
+  cobertura y la aportación por tienda. Consume las **mismas funciones puras**
+  que el PDF (`quividiBrandReport.ts`), nunca recalcula: una discrepancia entre
+  hoja e informe debe ser imposible por construcción. Es la única vista que
+  desglosa por tienda, y existe sólo para auditar la construcción del agregado.
 - **Multi-cámara en el PDF**: se mantiene la agregación vigente de
   tienda+soporte para todo el circuito. **Única excepción: Insurgentes**. Sus dos
   cámaras están en pisos distintos y miden zonas diferentes; para la vista

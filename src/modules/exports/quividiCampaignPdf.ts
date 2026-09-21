@@ -559,16 +559,14 @@ function summaryPage(
   });
   kpiCard(doc, M, y + 70, 178, 29, {
     label: 'Cobertura de medición',
-    value: formatPercent(summary.coverage.measuredPercent),
-    note: `${summary.coverage.measuredStores} de ${summary.coverage.totalStores} tiendas con medición directa.`,
+    value: formatPercent(summary.coverage.storeDayPercent),
+    note: `${summary.coverage.measuredStoreDays} de ${summary.coverage.totalStoreDays} tienda-día con medición directa.`,
   });
 
-  const direct = summary.coverage.measuredStores;
-  const total = summary.coverage.totalStores;
-  const estimated = summary.coverage.estimatedStores;
+  const { coverage, basis } = summary;
   infoBox(
     doc,
-    `${direct} de ${total} tiendas cuentan con medición directa (${formatPercent(summary.coverage.measuredPercent)} de cobertura). Para las ${estimated} tiendas restantes (${formatPercent(summary.coverage.estimatedPercent)} del universo), los OTS se estiman usando el promedio observado en las tiendas medidas durante las mismas fechas de campaña.`,
+    `${coverage.measuredStores} de ${coverage.totalStores} tiendas cuentan con cámara y midieron durante la vigencia. Medido sobre los ${basis.days} días de campaña, ${coverage.measuredStoreDays} de ${coverage.totalStoreDays} tienda-día tienen dato directo (${formatPercent(coverage.storeDayPercent)}). El resto del universo se estima aplicando el promedio de OTS observado en los días que sí se midieron.`,
     M,
     y + 106,
     178,
@@ -606,12 +604,12 @@ function coveragePage(
     bold: true,
     color: NAVY,
   });
-  donut(doc, M + 31, top + 42, 17, summary.coverage.measuredPercent);
+  donut(doc, M + 31, top + 42, 17, summary.coverage.storeDayPercent);
   fill(doc, BLUE);
   doc.circle(M + 9, top + 75, 1.6, 'F');
   text(
     doc,
-    `${formatPercent(summary.coverage.measuredPercent)} Datos medidos`,
+    `${formatPercent(summary.coverage.storeDayPercent)} Datos medidos`,
     M + 14,
     top + 76.5,
     { size: 6.6, color: NAVY },
@@ -620,7 +618,7 @@ function coveragePage(
   doc.circle(M + 9, top + 84, 1.6, 'F');
   text(
     doc,
-    `${formatPercent(summary.coverage.estimatedPercent)} Extrapolado`,
+    `${formatPercent(100 - summary.coverage.storeDayPercent)} Extrapolado`,
     M + 14,
     top + 85.5,
     { size: 6.6, color: NAVY },
@@ -654,7 +652,7 @@ function coveragePage(
 
   infoBox(
     doc,
-    `OTS medidos: ${formatCount(summary.measuredOts)}. OTS extrapolados: ${formatCount(summary.extrapolatedOts)}. OTS estimados de campaña: ${formatCount(summary.estimatedOts)}. La cobertura se expresa por tiendas, no por número de cámaras.`,
+    `OTS medidos: ${formatCount(summary.measuredOts)}. OTS extrapolados: ${formatCount(summary.extrapolatedOts)}. OTS estimados de campaña: ${formatCount(summary.estimatedOts)}. La cobertura se expresa por tienda-día, no por número de cámaras: ${formatCount(summary.basis.measuredPairDays)} de ${formatCount(summary.basis.totalPairDays)} tienda-soporte-día con dato directo.`,
     M,
     top + 111,
     178,
@@ -745,8 +743,8 @@ function methodologyPage(
   );
 
   const bullets = [
-    'La cobertura se calcula sobre el total de tiendas de la campaña, nunca sobre el número de cámaras.',
-    'Cuando una tienda no cuenta con medición directa, su aportación se estima con el promedio de OTS observado en las tiendas medidas durante las mismas fechas de campaña.',
+    'La cobertura se calcula sobre el total de tienda-día de la campaña (tiendas × días de vigencia), nunca sobre el número de cámaras. Una tienda cuya cámara cae a mitad de vigencia deja de contar como cubierta durante los días sin dato.',
+    'Todo hueco del universo se estima con el promedio de OTS observado en los tienda-soporte-día que sí midieron, tanto si el soporte no tiene cámara como si la tiene y no reportó ese día.',
     'El informe comunica resultados agregados y no publica el rendimiento individual de cada tienda.',
     'Insurgentes es la única excepción a la consolidación habitual de varias cámaras: sus dos cámaras están en pisos distintos y sus OTS se consideran zonas independientes, por lo que no se promedian entre sí.',
     'La estimación se identifica explícitamente para diferenciar la parte medida de la parte extrapolada del universo de campaña.',
@@ -789,7 +787,7 @@ function methodologyPage(
   );
   text(
     doc,
-    `${summary.coverage.measuredStores}/${summary.coverage.totalStores} tiendas = ${formatPercent(summary.coverage.measuredPercent)} de cobertura`,
+    `${summary.coverage.measuredStoreDays}/${summary.coverage.totalStoreDays} tienda-día = ${formatPercent(summary.coverage.storeDayPercent)} de cobertura`,
     M + 8,
     252,
     { size: 6.5, color: MUTED },
