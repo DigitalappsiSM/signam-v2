@@ -11,6 +11,7 @@ import {
   brandDaily,
   brandExtrapolationBasis,
   brandGender,
+  brandGenderAge,
   brandSupportDays,
   brandTimeOfDay,
   periodDays,
@@ -400,5 +401,57 @@ describe('reparto por franja horaria', () => {
 
   it('devuelve vacío cuando el reporte no trae detalle horario', () => {
     expect(brandTimeOfDay(report({ supportHours: [] }))).toEqual([]);
+  });
+});
+
+describe('perfil cruzado de género y edad', () => {
+  function demo(gender: number, age: number, watchers: number) {
+    return {
+      date: '2026-09-01',
+      storeNumber: '1',
+      storeName: 'UNO',
+      support: 'MUPI DIGITAL',
+      gender,
+      age,
+      watchers,
+    };
+  }
+
+  it('reparte cada rango de edad entre mujer y hombre sobre el total', () => {
+    const input = report({
+      demographics: [
+        demo(2, 3, 40),
+        demo(1, 3, 20),
+        demo(2, 2, 30),
+        demo(1, 2, 10),
+      ],
+    });
+    const rows = brandGenderAge(input);
+    // Ordenado por peso total del rango: adulto (60) antes que adulto joven (40).
+    expect(rows.map((row) => row.age)).toEqual([
+      'Adulto (31–65)',
+      'Adulto joven (16–30)',
+    ]);
+    expect(rows[0]?.female).toBeCloseTo(40, 5);
+    expect(rows[0]?.male).toBeCloseTo(20, 5);
+    // Toda la tabla suma 100: son porcentajes del total, no de cada género.
+    const all = rows.reduce((sum, row) => sum + row.female + row.male, 0);
+    expect(all).toBeCloseTo(100, 5);
+  });
+
+  it('descarta el género desconocido en lugar de repartirlo', () => {
+    const input = report({
+      demographics: [demo(2, 3, 50), demo(1, 3, 50), demo(0, 3, 900)],
+    });
+    const rows = brandGenderAge(input);
+    expect(rows[0]?.female).toBeCloseTo(50, 5);
+    expect(rows[0]?.male).toBeCloseTo(50, 5);
+  });
+
+  it('devuelve vacío sin datos demográficos utilizables', () => {
+    expect(brandGenderAge(report({ demographics: [] }))).toEqual([]);
+    expect(brandGenderAge(report({ demographics: [demo(0, 1, 10)] }))).toEqual(
+      [],
+    );
   });
 });

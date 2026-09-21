@@ -108,10 +108,13 @@ export function paragraph(
   doc.setFontSize(pt(size));
   doc.setTextColor(color[0], color[1], color[2]);
   const lines = doc.splitTextToSize(value, u(width)) as string[];
+  // jsPDF ancla el texto centrado o alineado a la derecha en la `x` recibida.
+  // Aquí `x` es siempre el borde izquierdo de la caja, como en el maquetado.
+  const align = options.align ?? 'left';
+  const anchor =
+    align === 'center' ? x + width / 2 : align === 'right' ? x + width : x;
   lines.forEach((line, index) => {
-    doc.text(line, u(x), u(y + index * lineHeight), {
-      align: options.align ?? 'left',
-    });
+    doc.text(line, u(anchor), u(y + index * lineHeight), { align });
   });
   return y + Math.max(1, lines.length) * lineHeight;
 }
@@ -157,11 +160,25 @@ function alphaAt(stops: readonly AlphaStop[], t: number): number {
 }
 
 /**
- * Degradado por tiras.
+ * Degradado de un color hacia la transparencia, anclado a un borde.
  *
- * jsPDF no dibuja degradados, así que se aproximan con rectángulos finos de
- * opacidad decreciente. A 64 pasos el salto entre tiras queda por debajo de lo
- * que distingue el ojo, impreso o en pantalla.
+ * jsPDF no dibuja degradados. La aproximación evidente —tiras contiguas de
+ * opacidad decreciente— produce bandas visibles: dos rectángulos que comparten
+ * un borde se suavizan cada uno por su lado y dejan pasar un hilo de la imagen
+ * sin velar. Solaparlos tampoco sirve: donde se pisan, la opacidad se compone
+ * como `1-(1-a1)(1-a2)` y aparece una línea más oscura.
+ *
+ * Aquí los rectángulos son **acumulativos**: todos arrancan en el borde de
+ * anclaje y cada uno llega menos lejos que el anterior, de modo que se apilan
+ * sin fronteras internas. Un punto a distancia `d` queda cubierto por todos los
+ * rectángulos que lleguen hasta él, y la opacidad de cada uno se despeja para
+ * que la composición acumulada valga exactamente la del degradado pedido.
+ * Ninguna frontera puede exponer la imagen cruda, porque más allá de cada
+ * rectángulo siguen estando todos los anteriores.
+ *
+ * `stops` describe la opacidad en función de la distancia al borde de anclaje
+ * (0 en el borde, 1 en el extremo opuesto) y **debe ser no creciente**: un
+ * degradado de dos lados se compone con dos llamadas, una por borde.
  */
 export function fade(
   doc: jsPDF,
@@ -171,22 +188,33 @@ export function fade(
   h: number,
   color: RGB,
   stops: readonly AlphaStop[],
-  direction: 'right' | 'down',
-  steps = 64,
+  anchor: 'left' | 'right' | 'top' | 'bottom',
+  steps = 48,
 ): void {
-  const along = direction === 'right' ? w : h;
-  const stripe = along / steps;
+  const horizontal = anchor === 'left' || anchor === 'right';
+  const span = horizontal ? w : h;
+  if (span <= 0 || steps < 1) return;
+
   fill(doc, color);
+  // `remaining` es el producto de (1 - opacidad) ya acumulado: lo que todavía
+  // deja ver de la imagen.
+  let remaining = 1;
   for (let i = 0; i < steps; i += 1) {
-    const alpha = alphaAt(stops, (i + 0.5) / steps);
+    const far = (steps - i) / steps;
+    const near = (steps - i - 1) / steps;
+    const target = Math.max(0, Math.min(1, alphaAt(stops, (far + near) / 2)));
+    const wanted = 1 - target;
+    const alpha = remaining <= 0 ? 0 : 1 - wanted / remaining;
+    remaining = wanted;
     if (alpha <= 0.004) continue;
+
+    const reach = span * far;
     gstate(doc, Math.min(1, alpha));
-    // Se solapan 0.05 px para que no aparezca una línea blanca entre tiras.
-    if (direction === 'right') {
-      doc.rect(u(x + i * stripe), u(y), u(stripe + 0.05), u(h), 'F');
-    } else {
-      doc.rect(u(x), u(y + i * stripe), u(w), u(stripe + 0.05), 'F');
-    }
+    if (anchor === 'left') doc.rect(u(x), u(y), u(reach), u(h), 'F');
+    else if (anchor === 'right') {
+      doc.rect(u(x + w - reach), u(y), u(reach), u(h), 'F');
+    } else if (anchor === 'top') doc.rect(u(x), u(y), u(w), u(reach), 'F');
+    else doc.rect(u(x), u(y + h - reach), u(w), u(reach), 'F');
   }
   gstate(doc, 1);
 }
@@ -275,7 +303,10 @@ export function photoCover(
   }
 
   clipper.saveGraphicsState?.();
-  doc.rect(frameX, frameY, frameW, frameH);
+  // El `null` es obligatorio: sin él jsPDF traza el rectángulo y cierra el
+  // trazado, con lo que `clip` se aplica sobre un trazado vacío y recorta la
+  // página entera. La fotografía desaparece sin que nada falle.
+  doc.rect(frameX, frameY, frameW, frameH, null as unknown as string);
   clipper.clip?.();
   clipper.discardPath?.();
   doc.addImage(dataUrl, format, drawX, drawY, drawW, drawH, undefined, 'FAST');
@@ -295,6 +326,11 @@ export function arc(
 ): void {
   stroke(doc, color);
   doc.setLineWidth(u(width));
+  // El arco se compone de segmentos rectos: con remate plano, cada unión deja
+  // una muesca en el borde exterior y la dona sale dentada. El remate redondo
+  // los solapa.
+  doc.setLineCap('round');
+  doc.setLineJoin('round');
   const steps = Math.max(2, Math.ceil(Math.abs(to - from) * 24));
   let previousX = cx + Math.cos(from) * radius;
   let previousY = cy + Math.sin(from) * radius;

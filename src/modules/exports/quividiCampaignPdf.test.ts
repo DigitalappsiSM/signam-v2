@@ -7,6 +7,7 @@ import {
 } from './quividiCampaignPdf';
 import {
   brandCampaignSummary,
+  brandGenderAge,
   formatCount,
   formatPercent,
 } from './quividiBrandReport';
@@ -185,14 +186,16 @@ describe('renderizado del informe', () => {
 
   /** Sirve las fotografías del repositorio en lugar de la red. */
   function serveRepoAssets(): void {
-    const files: Record<string, Buffer> = {
-      '/report-assets/liverpool-mupi-cover.jpg': readFileSync(
-        'public/report-assets/liverpool-mupi-cover.jpg',
-      ),
-      '/report-assets/liverpool-banner-closing.jpg': readFileSync(
-        'public/report-assets/liverpool-banner-closing.jpg',
-      ),
-    };
+    const files: Record<string, Buffer> = {};
+    for (const name of [
+      'instore-media-color.png',
+      'liverpool-mupi-cover.jpg',
+      'liverpool-banner-closing.jpg',
+    ]) {
+      files[`/report-assets/${name}`] = readFileSync(
+        `public/report-assets/${name}`,
+      );
+    }
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const file = files[String(input)];
       if (!file) return { ok: false } as Response;
@@ -239,6 +242,24 @@ describe('renderizado del informe', () => {
     expect(raw).toContain('OTS ESTIMADOS');
     // Nunca se nombra la plataforma de medición.
     expect(raw.toLowerCase()).not.toContain('quividi');
+  });
+
+  it('cruza género y edad en la pirámide de audiencia', async () => {
+    serveRepoAssets();
+    const input = longCampaign();
+    const rows = brandGenderAge(input);
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(input))
+    ).toString('latin1');
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(raw).toContain('MUJERES');
+    expect(raw).toContain('HOMBRES');
+    // Cada rango aparece con su peso por género, no sólo el total de edad.
+    for (const row of rows.slice(0, 3)) {
+      expect(raw).toContain(formatPercent(row.female, 0));
+      expect(raw).toContain(formatPercent(row.male, 0));
+    }
   });
 
   it('no se rompe sin fotografías, sin demografía ni sin detalle horario', async () => {

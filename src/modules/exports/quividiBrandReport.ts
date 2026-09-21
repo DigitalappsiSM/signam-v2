@@ -97,6 +97,13 @@ export interface BrandTimeBand {
   share: number;
 }
 
+/** Cruce género × edad: una fila por rango, con el peso de cada género. */
+export interface BrandGenderAgeRow {
+  age: string;
+  female: number;
+  male: number;
+}
+
 /** Aportación de una tienda a la cifra publicada, para la hoja de auditoría. */
 export interface BrandStoreAudit {
   storeNumber: string;
@@ -533,4 +540,39 @@ export function brandTimeOfDay(report: QuividiCampaignReport): BrandTimeBand[] {
     hours: band.hours,
     share: ((totals[index] ?? 0) / total) * 100,
   }));
+}
+
+/**
+ * Perfil cruzado de género y edad.
+ *
+ * Los porcentajes se expresan sobre el total de la audiencia, no sobre cada
+ * género, de modo que «mujer adulta» y «hombre adulto» se comparan
+ * directamente y el conjunto de la tabla suma 100. Sólo se cruzan los géneros
+ * identificados: el código 0 de Quividi es «desconocido» y repartirlo entre
+ * hombre y mujer sería inventar el dato.
+ */
+export function brandGenderAge(
+  report: QuividiCampaignReport,
+): BrandGenderAgeRow[] {
+  const known = report.demographics.filter(
+    (row) => row.gender === 1 || row.gender === 2,
+  );
+  const total = sum(known.map((row) => numeric(row.watchers)));
+  if (total <= 0) return [];
+
+  const byAge = new Map<number, { female: number; male: number }>();
+  for (const row of known) {
+    const current = byAge.get(row.age) ?? { female: 0, male: 0 };
+    if (row.gender === 2) current.female += numeric(row.watchers);
+    else current.male += numeric(row.watchers);
+    byAge.set(row.age, current);
+  }
+
+  return Array.from(byAge, ([age, counts]) => ({
+    age: QUIVIDI_AGE_LABELS[age] ?? `Código ${age}`,
+    female: (counts.female / total) * 100,
+    male: (counts.male / total) * 100,
+  }))
+    .filter((row) => row.female + row.male > 0)
+    .sort((a, b) => b.female + b.male - (a.female + a.male));
 }

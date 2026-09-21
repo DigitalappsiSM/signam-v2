@@ -1,11 +1,10 @@
 import type { jsPDF } from 'jspdf';
 import type { QuividiCampaignReport } from '@/domain';
-import { INSTORE_MEDIA_LOGO_DATA_URL } from '@/assets/ppt/logos';
 import {
-  brandAge,
   brandCampaignSummary,
   brandDaily,
   brandGender,
+  brandGenderAge,
   brandHeader,
   brandTimeOfDay,
   formatCivilDate,
@@ -58,6 +57,12 @@ const PAGE_COUNT = 5;
 const M = 48;
 const CONTENT_W = CANVAS_W - M * 2;
 
+/**
+ * Logotipo a color sobre fondo claro. El de `assets/ppt` es la versión blanca,
+ * pensada para las diapositivas de fondo oscuro: sobre el blanco del informe
+ * resulta invisible.
+ */
+const LOGO_PATH = '/report-assets/instore-media-color.png';
 const COVER_PHOTO_PATH = '/report-assets/liverpool-mupi-cover.jpg';
 const CLOSING_PHOTO_PATH = '/report-assets/liverpool-banner-closing.jpg';
 
@@ -87,11 +92,12 @@ async function assetDataUrl(path: string): Promise<string | null> {
 }
 
 async function loadAssets(): Promise<PdfAssets> {
-  const [cover, closing] = await Promise.all([
+  const [logo, cover, closing] = await Promise.all([
+    assetDataUrl(LOGO_PATH),
     assetDataUrl(COVER_PHOTO_PATH),
     assetDataUrl(CLOSING_PHOTO_PATH),
   ]);
-  return { logo: INSTORE_MEDIA_LOGO_DATA_URL, cover, closing };
+  return { logo, cover, closing };
 }
 
 /** Etiqueta corta de periodo para la cabecera: `Junio — Julio 2026`. */
@@ -222,7 +228,7 @@ function quote(
 ): void {
   block(doc, M, y, CONTENT_W, height, dark ? NAVY : PINK_PALE);
   if (!dark) block(doc, M, y, 5, height, PINK);
-  text(doc, '"', M + 26, y + 44, { size: 46, bold: true, color: PINK });
+  text(doc, '\u201C', M + 26, y + 46, { size: 48, bold: true, color: PINK });
   paragraph(doc, value, M + 62, y + 28, CONTENT_W - 86, {
     size: 11.5,
     color: dark ? WHITE : NAVY,
@@ -258,20 +264,22 @@ function coverPage(
 
   if (assets.cover) {
     photoCover(doc, assets.cover, 'JPEG', 384, 104, 410, 456, 0.82, 0.5);
-    const toRight: AlphaStop[] = [
+    const fromLeft: AlphaStop[] = [
       [0, 1],
-      [0.16, 0.9],
-      [0.48, 0.42],
+      [0.06, 1],
+      [0.2, 0.9],
+      [0.5, 0.42],
       [1, 0.1],
     ];
-    const toBottom: AlphaStop[] = [
-      [0, 0],
-      [0.34, 0],
-      [0.7, 0.55],
-      [1, 1],
+    const fromBottom: AlphaStop[] = [
+      [0, 1],
+      [0.07, 1],
+      [0.34, 0.55],
+      [0.68, 0],
+      [1, 0],
     ];
-    fade(doc, 384, 104, 410, 456, NAVY, toRight, 'right');
-    fade(doc, 384, 104, 410, 456, NAVY, toBottom, 'down');
+    fade(doc, 384, 104, 410, 456, NAVY, fromLeft, 'left');
+    fade(doc, 384, 104, 410, 456, NAVY, fromBottom, 'bottom');
   }
 
   block(doc, M, 168, 34, 4, PINK);
@@ -291,19 +299,19 @@ function coverPage(
     doc,
     report.campaignName.toUpperCase(),
     M,
-    260,
+    272,
     324,
-    { size: 30, bold: true, color: WHITE, lineHeight: 35 },
+    { size: 34, bold: true, color: WHITE, lineHeight: 41 },
   );
   // Un nombre largo no puede empujar los metadatos sobre la cifra principal.
-  const metaTop = Math.min(nameEnd + 18, 470);
+  const metaTop = Math.min(nameEnd + 46, 470);
   text(doc, `Circuito Liverpool · ${header.totalStores} tiendas`, M, metaTop, {
     size: 10.5,
     color: BLUE_PALE,
   });
   const supports = header.supports.join(' · ');
   if (supports) {
-    text(doc, supports, M, metaTop + 17, { size: 10.5, color: BLUE_PALE });
+    text(doc, supports, M, metaTop + 19, { size: 10.5, color: BLUE_PALE });
   }
 
   const hero = formatCount(summary.estimatedOts);
@@ -497,7 +505,7 @@ function summaryPage(
 
   block(doc, M, 640, 258, 270, SOFT);
   sectionLabel(doc, 'COMPLETITUD DE MEDICIÓN', M + 22, 674);
-  donut(doc, M + 129, 787, 60, 26, coverage.storeDayPercent);
+  donut(doc, M + 129, 787, 62, 21, coverage.storeDayPercent);
   text(doc, formatPercent(coverage.storeDayPercent, 1), M + 129, 795, {
     size: 32,
     bold: true,
@@ -698,7 +706,7 @@ function coveragePage(
   const chartW = CONTENT_W - 52;
   const chartBottom = 748;
   const chartH = 216;
-  const max = Math.max(1, ...buckets.map((bucket) => bucket.value));
+  const max = niceCeiling(Math.max(1, ...buckets.map((b) => b.value)));
   const slotW = chartW / Math.max(1, buckets.length);
   const barW = Math.min(59, slotW * 0.72);
   const peak = buckets.reduce(
@@ -773,6 +781,24 @@ function groupDaily(daily: ReturnType<typeof brandDaily>): Bucket[] {
   return buckets;
 }
 
+/**
+ * Techo redondeado del eje.
+ *
+ * Escalar por el dato máximo hace que la barra más alta toque el borde y, con
+ * series poco variables, todas salgan iguales: la gráfica se convierte en un
+ * muro. Redondear hacia arriba a 1, 2, 2.5 o 5 por potencia de diez deja aire
+ * y devuelve la proporción respecto al cero.
+ */
+function niceCeiling(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  const step = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].find(
+    (candidate) => normalized <= candidate,
+  );
+  return (step ?? 10) * magnitude;
+}
+
 /** `1,120,000` → `1.12M`; `920,000` → `920K`. Etiquetas cortas sobre barra. */
 function compact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
@@ -787,7 +813,6 @@ function audiencePage(
 ): void {
   pageHeader(doc, assets, report);
   const gender = brandGender(report);
-  const age = brandAge(report).slice(0, 5);
   const bands = brandTimeOfDay(report);
 
   eyebrow(doc, '03 · PERFIL DE AUDIENCIA', 118);
@@ -815,48 +840,96 @@ function audiencePage(
     });
   } else {
     topGender.forEach((share, index) => {
-      const x = M + 26 + index * ((CONTENT_W - 52) / 2);
+      const center = M + (CONTENT_W / 4) * (index * 2 + 1);
       const accent = index === 0 ? PINK : BLUE;
-      text(doc, formatPercent(share.share, 0), x, 366, {
+      block(doc, center - 17, 300, 34, 4, accent);
+      text(doc, formatPercent(share.share, 0), center, 370, {
         size: 52,
         bold: true,
         color: NAVY,
+        align: 'center',
       });
-      text(doc, share.label.toUpperCase(), x, 392, {
+      text(doc, share.label.toUpperCase(), center, 396, {
         size: 11,
         bold: true,
         color: accent,
+        align: 'center',
         tracking: 1.4,
       });
-      block(doc, x, 300, 34, 4, accent);
     });
     if (topGender.length === 2) {
-      block(doc, M + 26 + (CONTENT_W - 52) / 2 - 22, 300, 1, 96, HAIR);
+      block(doc, M + CONTENT_W / 2, 300, 1, 104, HAIR);
     }
   }
 
   block(doc, M, 450, CONTENT_W, 236, SOFT);
-  sectionLabel(doc, 'RANGO DE EDAD', M + 26, 482);
-  const ageColors: RGB[] = [BLUE, BLUE_LIGHT, BLUE_MID, BLUE_PALE, GRAY];
-  const trackW = 380;
-  age.forEach((share, index) => {
-    const y = 516 + index * 32;
-    text(doc, share.label, M + 26, y + 13, { size: 10.5, color: NAVY });
-    block(doc, M + 200, y, trackW, 18, HAIR);
-    const width = Math.max(0, Math.min(trackW, (share.share / 100) * trackW));
-    if (width > 0) {
-      block(doc, M + 200, y, width, 18, ageColors[index] ?? BLUE);
-    }
-    text(doc, formatPercent(share.share, 0), M + 596, y + 14, {
-      size: 14,
-      bold: true,
-      color: NAVY,
-    });
-  });
-  if (age.length === 0) {
+  sectionLabel(doc, 'PERFIL POR GÉNERO Y EDAD', M + 26, 482);
+  const pyramid = brandGenderAge(report).slice(0, 5);
+  if (pyramid.length === 0) {
     text(doc, 'Sin datos demográficos en el periodo', M + 26, 540, {
       size: 11,
       color: MUTED,
+    });
+  } else {
+    // Pirámide de audiencia: el rango de edad ocupa el eje y cada género crece
+    // hacia su lado. Los porcentajes son del total, así que «mujer adulta» y
+    // «hombre adulto» se comparan de un vistazo.
+    const axis = CANVAS_W / 2;
+    const labelHalf = 78;
+    const maxBar = 210;
+    const peak = Math.max(
+      ...pyramid.map((row) => Math.max(row.female, row.male)),
+      1,
+    );
+    text(doc, 'MUJERES', axis - labelHalf - 8, 506, {
+      size: 9,
+      bold: true,
+      color: PINK,
+      align: 'right',
+      tracking: 1.2,
+    });
+    text(doc, 'HOMBRES', axis + labelHalf + 8, 506, {
+      size: 9,
+      bold: true,
+      color: BLUE,
+      tracking: 1.2,
+    });
+    pyramid.forEach((row, index) => {
+      const y = 518 + index * 30;
+      const femaleW = (row.female / peak) * maxBar;
+      const maleW = (row.male / peak) * maxBar;
+      if (femaleW > 0) {
+        block(doc, axis - labelHalf - femaleW, y, femaleW, 16, PINK);
+      }
+      if (maleW > 0) block(doc, axis + labelHalf, y, maleW, 16, BLUE);
+      text(
+        doc,
+        formatPercent(row.female, 0),
+        axis - labelHalf - femaleW - 7,
+        y + 13,
+        {
+          size: 10.5,
+          bold: true,
+          color: NAVY,
+          align: 'right',
+        },
+      );
+      text(
+        doc,
+        formatPercent(row.male, 0),
+        axis + labelHalf + maleW + 7,
+        y + 13,
+        {
+          size: 10.5,
+          bold: true,
+          color: NAVY,
+        },
+      );
+      text(doc, row.age, axis, y + 13, {
+        size: 9.5,
+        color: NAVY,
+        align: 'center',
+      });
     });
   }
 
@@ -946,66 +1019,61 @@ function closingPage(
       'El informe reporta el circuito como conjunto y no publica el rendimiento individual de ninguna tienda.',
     ],
   ];
-  const noteW = (CONTENT_W - 44) / 3;
   notes.forEach(([number, title, body], index) => {
-    const x = M + index * (noteW + 22);
-    block(doc, x, 250, noteW, 3, HAIR);
-    text(doc, number, x, 294, { size: 26, bold: true, color: PINK });
-    paragraph(doc, title, x, 318, noteW, {
-      size: 12,
-      bold: true,
-      color: NAVY,
-      lineHeight: 16,
+    const y = 268 + index * 130;
+    text(doc, number, M, y + 32, { size: 40, bold: true, color: PINK });
+    block(doc, M + 74, y - 6, 1, 76, HAIR);
+    text(doc, title, M + 96, y + 14, { size: 14, bold: true, color: NAVY });
+    paragraph(doc, body, M + 96, y + 40, CONTENT_W - 96, {
+      size: 11,
+      lineHeight: 18,
     });
-    paragraph(doc, body, x, 356, noteW, { size: 10, lineHeight: 16 });
   });
 
-  block(doc, 0, 420, CANVAS_W, 590, NAVY);
+  // La franja de cierre ocupa el 40% de la altura que tenía: acompaña, no domina.
+  const bandY = 700;
+  const bandH = 236;
+  block(doc, 0, bandY, CANVAS_W, bandH, NAVY);
   if (assets.closing) {
-    photoCover(doc, assets.closing, 'JPEG', 380, 420, 414, 590, 0.36, 0.5);
-    const toRight: AlphaStop[] = [
+    photoCover(doc, assets.closing, 'JPEG', 380, bandY, 414, bandH, 0.5, 0.42);
+    const fromLeft: AlphaStop[] = [
       [0, 1],
-      [0.15, 0.9],
-      [0.44, 0.34],
+      [0.06, 1],
+      [0.2, 0.9],
+      [0.46, 0.34],
       [1, 0.06],
     ];
-    const vertical: AlphaStop[] = [
-      [0, 1],
-      [0.12, 0.35],
-      [0.32, 0],
-      [0.68, 0],
-      [0.88, 0.45],
-      [1, 1],
+    const fromTop: AlphaStop[] = [
+      [0, 0.5],
+      [0.22, 0],
+      [1, 0],
     ];
-    fade(doc, 380, 420, 414, 590, NAVY, toRight, 'right');
-    fade(doc, 380, 420, 414, 590, NAVY, vertical, 'down');
+    const fromBottom: AlphaStop[] = [
+      [0, 0.55],
+      [0.26, 0],
+      [1, 0],
+    ];
+    fade(doc, 380, bandY, 414, bandH, NAVY, fromLeft, 'left');
+    fade(doc, 380, bandY, 414, bandH, NAVY, fromTop, 'top');
+    fade(doc, 380, bandY, 414, bandH, NAVY, fromBottom, 'bottom');
   }
 
-  block(doc, M, 560, 40, 4, PINK);
+  block(doc, M, bandY + 40, 34, 4, PINK);
   paragraph(
     doc,
     'Medimos lo que pasa frente a la pantalla, no lo que suponemos.',
     M,
-    612,
-    300,
-    { size: 24, bold: true, color: WHITE, lineHeight: 31 },
+    bandY + 84,
+    296,
+    { size: 19, bold: true, color: WHITE, lineHeight: 25 },
   );
-  paragraph(
-    doc,
-    'Toda la audiencia de este informe procede de medición real en punto de venta durante la vigencia contratada.',
-    M,
-    742,
-    300,
-    { size: 11, color: BLUE_PALE, lineHeight: 19 },
-  );
-  block(doc, M, 800, 90, 1, BLUE_MID);
-  text(doc, 'AUDIENCIAS REALES.', M, 834, {
+  text(doc, 'AUDIENCIAS REALES.', M, bandY + 182, {
     size: 10,
     bold: true,
     color: BLUE_LIGHT,
     tracking: 2.2,
   });
-  text(doc, 'OPORTUNIDADES REALES.', M, 852, {
+  text(doc, 'OPORTUNIDADES REALES.', M, bandY + 200, {
     size: 10,
     bold: true,
     color: BLUE_LIGHT,

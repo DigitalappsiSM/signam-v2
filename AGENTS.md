@@ -295,11 +295,30 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   (barras de sección, categoría «sin dato», franja horaria líder y citas). Las
   fotografías **nunca ocupan una sección completa ni se cortan en seco**: se
   integran dentro de un bloque navy y se disuelven en él con degradados. Como
-  jsPDF no dibuja degradados, `quividiPdfKit.ts` los aproxima con tiras de
-  opacidad decreciente; las fotos se recortan al marco con `photoCover`, que
-  emula `object-fit: cover`. Los assets viven en `public/report-assets/` y deben
-  ser **JPEG o PNG con cabecera de dimensiones legible**: jsPDF no soporta WebP y,
-  si no puede leer el tamaño, la imagen se dibuja deformada al marco.
+  jsPDF no dibuja degradados, `quividiPdfKit.ts` los compone con **rectángulos
+  acumulativos anclados a un borde**: tiras contiguas dejan bandas visibles
+  (cada borde compartido se suaviza por su lado y asoma un hilo de imagen sin
+  velar) y solaparlas produce líneas oscuras, porque la opacidad se compone
+  como `1-(1-a1)(1-a2)`. Cada `fade` cubre un solo sentido y sus `stops` deben
+  ser **no crecientes**; un degradado de dos lados son dos llamadas. Las fotos
+  se recortan con `photoCover`, que emula `object-fit: cover` y **exige pasar
+  `null` como estilo a `doc.rect`** para que el trazado sirva de recorte: sin
+  él jsPDF lo traza, cierra el trazado y `clip` recorta la página entera,
+  haciendo desaparecer la imagen sin que nada falle.
+
+  Los assets viven en `public/report-assets/` y deben ser **JPEG o PNG con
+  cabecera de dimensiones legible**: jsPDF no soporta WebP y, si no puede leer
+  el tamaño, la imagen se dibuja deformada al marco. El logotipo del informe es
+  `instore-media-color.png`, **no** el de `assets/ppt`, que es la versión blanca
+  para diapositivas oscuras y sobre el blanco del informe resulta invisible.
+
+- **Perfil de audiencia**: el informe publica el reparto de género, el cruce
+  **género × edad** como pirámide (`brandGenderAge`, porcentajes sobre el total
+  para que «mujer adulta» y «hombre adulto» se comparen entre sí, descartando el
+  género desconocido en lugar de repartirlo) y el reparto por franja horaria
+  (`brandTimeOfDay`, tres bandas que cubren las 24 horas sin descartar OTS; la
+  madrugada se agrupa con la noche). Cuando el reporte no trae detalle horario o
+  demográfico, el bloque se omite en lugar de dibujar ceros.
 - **El maquetado del PDF se expresa en píxeles de un lienzo A4 a 96 dpi**
   (794 × 1123). `quividiPdfKit.ts` convierte a milímetros y puntos. Mantener la
   unidad del diseño es lo que permite transcribir el mockup sin recalcular cada
