@@ -278,7 +278,7 @@ async function generateReport(
     hourlyViewerRows,
   );
   return {
-    schemaVersion: 3,
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     campaignId,
     campaignName: campaign.name ?? '',
     startDate,
