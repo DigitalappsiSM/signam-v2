@@ -39,6 +39,7 @@ interface OperationalPairDraft {
   storeName: string;
   support: string;
   cameraNames: Set<string>;
+  cameraLocationIds: Set<number>;
 }
 
 interface HourlyOperationalAggregate {
@@ -53,10 +54,13 @@ interface HourlyOperationalAggregate {
 export interface CameraHealthMappingSummary {
   activeConfiguredPairs: number;
   configuredCameraNames: number;
+  configuredLocationIds: number;
   mappedCameras: number;
   unconfiguredScreens: number;
   duplicateCameraNames: string[];
+  duplicateLocationIds: number[];
   unmappedCameraNames: string[];
+  unmappedLocationIds: number[];
 }
 
 export interface CameraHealthScope {
@@ -109,6 +113,7 @@ export interface OperationalPairBuildResult {
   pairs: EffectiveSupportPair[];
   unconfiguredScreens: number;
   duplicateCameraNames: string[];
+  duplicateLocationIds: number[];
 }
 
 function activeScreen(screen: ScreenDoc): boolean {
@@ -127,7 +132,8 @@ export function buildOperationalPairs(
   screens: readonly ScreenDoc[],
 ): OperationalPairBuildResult {
   const drafts = new Map<string, OperationalPairDraft>();
-  const owners = new Map<string, Set<string>>();
+  const nameOwners = new Map<string, Set<string>>();
+  const idOwners = new Map<number, Set<string>>();
   let unconfiguredScreens = 0;
 
   for (const screen of screens) {
@@ -139,8 +145,15 @@ export function buildOperationalPairs(
     const storeName = screen.original?.['Nombre de tienda']?.trim() ?? '';
     const support = normalizeSupport(screen.metadata?.calendarSupport ?? '');
     const cameraName = screen.metadata?.quividiCameraName?.trim() ?? '';
+    const rawLocationId = screen.metadata?.quividiLocationId;
+    const locationId =
+      typeof rawLocationId === 'number' &&
+      Number.isInteger(rawLocationId) &&
+      rawLocationId > 0
+        ? rawLocationId
+        : null;
 
-    if (!storeNumber || !support || !cameraName) {
+    if (!storeNumber || !support || (!locationId && !cameraName)) {
       unconfiguredScreens += 1;
       continue;
     }
@@ -151,36 +164,55 @@ export function buildOperationalPairs(
       storeName,
       support,
       cameraNames: new Set<string>(),
+      cameraLocationIds: new Set<number>(),
     };
     if (!draft.storeName && storeName) draft.storeName = storeName;
-    draft.cameraNames.add(cameraName);
-    drafts.set(key, draft);
 
-    const cameraOwners = owners.get(cameraName) ?? new Set<string>();
-    cameraOwners.add(key);
-    owners.set(cameraName, cameraOwners);
+    if (locationId !== null) {
+      draft.cameraLocationIds.add(locationId);
+      const owners = idOwners.get(locationId) ?? new Set<string>();
+      owners.add(key);
+      idOwners.set(locationId, owners);
+    } else {
+      draft.cameraNames.add(cameraName);
+      const owners = nameOwners.get(cameraName) ?? new Set<string>();
+      owners.add(key);
+      nameOwners.set(cameraName, owners);
+    }
+    drafts.set(key, draft);
   }
 
-  const duplicateCameraNames = Array.from(owners)
+  const duplicateCameraNames = Array.from(nameOwners)
     .filter(([, keys]) => keys.size > 1)
     .map(([cameraName]) => cameraName)
     .sort((a, b) => a.localeCompare(b, 'es'));
+  const duplicateLocationIds = Array.from(idOwners)
+    .filter(([, keys]) => keys.size > 1)
+    .map(([locationId]) => locationId)
+    .sort((a, b) => a - b);
 
-  const duplicates = new Set(duplicateCameraNames);
+  const duplicateNames = new Set(duplicateCameraNames);
+  const duplicateIds = new Set(duplicateLocationIds);
   const pairs: EffectiveSupportPair[] = Array.from(drafts.values())
     .map((draft) => ({
       storeNumber: draft.storeNumber,
       storeName: draft.storeName,
       support: draft.support,
       cameraNames: Array.from(draft.cameraNames)
-        .filter((name) => !duplicates.has(name))
+        .filter((name) => !duplicateNames.has(name))
         .sort((a, b) => a.localeCompare(b, 'es')),
+      cameraLocationIds: Array.from(draft.cameraLocationIds)
+        .filter((id) => !duplicateIds.has(id))
+        .sort((a, b) => a - b),
       // Campo estructural requerido por la capa de medición. En salud operativa
       // el origen real es siempre el catálogo de pantallas, no una campaña.
       source: 'calendar-all' as const,
       ekonNumber: null,
     }))
-    .filter((pair) => pair.cameraNames.length > 0)
+    .filter(
+      (pair) =>
+        pair.cameraNames.length > 0 || (pair.cameraLocationIds?.length ?? 0) > 0,
+    )
     .sort((a, b) =>
       `${a.storeNumber}|${a.support}`.localeCompare(
         `${b.storeNumber}|${b.support}`,
@@ -188,7 +220,12 @@ export function buildOperationalPairs(
       ),
     );
 
-  return { pairs, unconfiguredScreens, duplicateCameraNames };
+  return {
+    pairs,
+    unconfiguredScreens,
+    duplicateCameraNames,
+    duplicateLocationIds,
+  };
 }
 
 export function prepareCameraHealthScope(
@@ -214,10 +251,16 @@ export function prepareCameraHealthScope(
         (sum, pair) => sum + pair.cameraNames.length,
         0,
       ),
+      configuredLocationIds: operational.pairs.reduce(
+        (sum, pair) => sum + (pair.cameraLocationIds?.length ?? 0),
+        0,
+      ),
       mappedCameras: mappedLocationIds.length,
       unconfiguredScreens: operational.unconfiguredScreens,
       duplicateCameraNames: operational.duplicateCameraNames,
+      duplicateLocationIds: operational.duplicateLocationIds,
       unmappedCameraNames: resolved.unmappedCameraNames,
+      unmappedLocationIds: resolved.unmappedLocationIds,
     },
   };
 }
