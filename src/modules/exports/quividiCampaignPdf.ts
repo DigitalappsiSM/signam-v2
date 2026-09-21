@@ -1,5 +1,6 @@
 import type { jsPDF } from 'jspdf';
 import type { QuividiCampaignReport } from '@/domain';
+import { INSTORE_MEDIA_LOGO_DATA_URL } from '@/assets/ppt/logos';
 import {
   brandAge,
   brandCampaignSummary,
@@ -35,7 +36,6 @@ const GRAY: RGB = [197, 208, 220];
 
 const M = 16;
 const PAGE_COUNT = 5;
-const LOGO_PATH = '/report-assets/in-store-media-logo.png';
 const COVER_PHOTO_PATH = '/report-assets/liverpool-mupi-cover.jpg';
 const CLOSING_PHOTO_PATH = '/report-assets/liverpool-banner-closing.jpg';
 
@@ -112,7 +112,13 @@ function pageHeader(
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   if (assets.logo) {
-    doc.addImage(assets.logo, 'PNG', M, 7.5, 61, 8.3, undefined, 'FAST');
+    try {
+      fill(doc, NAVY);
+      doc.roundedRect(M - 2, 4.8, 66, 12.6, 1.5, 1.5, 'F');
+      doc.addImage(assets.logo, 'PNG', M, 7.5, 61, 8.3, undefined, 'FAST');
+    } catch {
+      text(doc, 'in-Store Media', M, 13, { size: 11, bold: true, color: NAVY });
+    }
   } else {
     text(doc, 'in-Store Media', M, 13, { size: 11, bold: true, color: NAVY });
   }
@@ -238,12 +244,15 @@ async function assetDataUrl(path: string): Promise<string | null> {
 }
 
 async function loadAssets(): Promise<PdfAssets> {
-  const [logo, cover, closing] = await Promise.all([
-    assetDataUrl(LOGO_PATH),
+  const [cover, closing] = await Promise.all([
     assetDataUrl(COVER_PHOTO_PATH),
     assetDataUrl(CLOSING_PHOTO_PATH),
   ]);
-  return { logo, cover, closing };
+  return {
+    logo: INSTORE_MEDIA_LOGO_DATA_URL,
+    cover,
+    closing,
+  };
 }
 
 function lineChart(
@@ -432,7 +441,13 @@ function coverPage(
   }
 
   if (assets.logo) {
-    doc.addImage(assets.logo, 'PNG', M, 13, 72, 9.7, undefined, 'FAST');
+    try {
+      fill(doc, NAVY);
+      doc.roundedRect(M - 2, 9.5, 77, 16, 1.8, 1.8, 'F');
+      doc.addImage(assets.logo, 'PNG', M, 13, 72, 9.7, undefined, 'FAST');
+    } catch {
+      text(doc, 'in-Store Media', M, 20, { size: 13, bold: true, color: NAVY });
+    }
   } else {
     text(doc, 'in-Store Media', M, 20, { size: 13, bold: true, color: NAVY });
   }
