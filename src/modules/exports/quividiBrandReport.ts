@@ -270,7 +270,10 @@ function shareBy(
 ): BrandShare[] {
   const groups = new Map<number, number>();
   for (const row of report.demographics) {
-    groups.set(row[field], (groups.get(row[field]) ?? 0) + numeric(row.watchers));
+    groups.set(
+      row[field],
+      (groups.get(row[field]) ?? 0) + numeric(row.watchers),
+    );
   }
   const total = sum(Array.from(groups.values()));
   return Array.from(groups, ([key, count]) => ({

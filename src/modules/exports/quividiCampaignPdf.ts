@@ -87,7 +87,12 @@ function paragraph(
   x: number,
   y: number,
   width: number,
-  options: { size?: number; color?: RGB; bold?: boolean; lineHeight?: number } = {},
+  options: {
+    size?: number;
+    color?: RGB;
+    bold?: boolean;
+    lineHeight?: number;
+  } = {},
 ): number {
   const size = options.size ?? 8;
   doc.setFont('helvetica', options.bold ? 'bold' : 'normal');
@@ -174,14 +179,31 @@ function kpiCard(
   card(doc, x, y, w, h);
   fill(doc, BLUE);
   doc.circle(x + 8, y + 9, 3.2, 'F');
-  text(doc, data.label, x + 15, y + 7.2, { size: 6.6, bold: true, color: NAVY });
-  text(doc, data.value, x + 15, y + 16.2, { size: 15.5, bold: true, color: BLUE });
+  text(doc, data.label, x + 15, y + 7.2, {
+    size: 6.6,
+    bold: true,
+    color: NAVY,
+  });
+  text(doc, data.value, x + 15, y + 16.2, {
+    size: 15.5,
+    bold: true,
+    color: BLUE,
+  });
   if (data.note) {
-    paragraph(doc, data.note, x + 15, y + 21, w - 19, { size: 5.6, color: MUTED });
+    paragraph(doc, data.note, x + 15, y + 21, w - 19, {
+      size: 5.6,
+      color: MUTED,
+    });
   }
 }
 
-function infoBox(doc: jsPDF, value: string, x: number, y: number, w: number): number {
+function infoBox(
+  doc: jsPDF,
+  value: string,
+  x: number,
+  y: number,
+  w: number,
+): number {
   fill(doc, SKY);
   doc.roundedRect(x, y, w, 22, 2.2, 2.2, 'F');
   fill(doc, BLUE);
@@ -378,7 +400,11 @@ function legendShares(
   });
 }
 
-function coverPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets): void {
+function coverPage(
+  doc: jsPDF,
+  report: QuividiCampaignReport,
+  assets: PdfAssets,
+): void {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const header = brandHeader(report);
@@ -386,7 +412,16 @@ function coverPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets)
   fill(doc, WHITE);
   doc.rect(0, 0, pageW, pageH, 'F');
   if (assets.cover) {
-    doc.addImage(assets.cover, 'JPEG', 115, 0, pageW - 115, pageH, undefined, 'FAST');
+    doc.addImage(
+      assets.cover,
+      'JPEG',
+      115,
+      0,
+      pageW - 115,
+      pageH,
+      undefined,
+      'FAST',
+    );
     fill(doc, WHITE);
     doc.triangle(76, 0, 124, 0, 115, pageH, 'F');
     fill(doc, PINK);
@@ -404,9 +439,21 @@ function coverPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets)
 
   fill(doc, PINK);
   doc.rect(M, 34, 13, 0.9, 'F');
-  text(doc, 'REPORTE DE CAMPAÑA', M, 41, { size: 6.4, bold: true, color: BLUE });
-  text(doc, 'Reporte de Audiencia', M, 55, { size: 19, bold: true, color: NAVY });
-  text(doc, 'y Resultados de Campaña', M, 64, { size: 19, bold: true, color: NAVY });
+  text(doc, 'REPORTE DE CAMPAÑA', M, 41, {
+    size: 6.4,
+    bold: true,
+    color: BLUE,
+  });
+  text(doc, 'Reporte de Audiencia', M, 55, {
+    size: 19,
+    bold: true,
+    color: NAVY,
+  });
+  text(doc, 'y Resultados de Campaña', M, 64, {
+    size: 19,
+    bold: true,
+    color: NAVY,
+  });
   paragraph(
     doc,
     'Conectando marcas con personas en el momento real.',
@@ -428,13 +475,23 @@ function coverPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets)
     fill(doc, BLUE);
     doc.circle(M + 3, y - 1, 2.2, 'F');
     text(doc, label, M + 9, y, { size: 6.8, bold: true, color: NAVY });
-    y = paragraph(doc, value, M + 9, y + 4.2, 75, { size: 7.3, color: MUTED }) + 6;
+    y =
+      paragraph(doc, value, M + 9, y + 4.2, 75, { size: 7.3, color: MUTED }) +
+      6;
   });
 
   fill(doc, PINK);
   doc.rect(M, 253, 13, 0.9, 'F');
-  text(doc, 'AUDIENCIAS REALES.', M, 261, { size: 6.3, bold: true, color: NAVY });
-  text(doc, 'OPORTUNIDADES REALES.', M, 266, { size: 6.3, bold: true, color: NAVY });
+  text(doc, 'AUDIENCIAS REALES.', M, 261, {
+    size: 6.3,
+    bold: true,
+    color: NAVY,
+  });
+  text(doc, 'OPORTUNIDADES REALES.', M, 266, {
+    size: 6.3,
+    bold: true,
+    color: NAVY,
+  });
   text(doc, '01', pageW - M, pageH - 11, {
     size: 8,
     bold: true,
@@ -443,7 +500,11 @@ function coverPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets)
   });
 }
 
-function summaryPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets): void {
+function summaryPage(
+  doc: jsPDF,
+  report: QuividiCampaignReport,
+  assets: PdfAssets,
+): void {
   let y = pageHeader(doc, assets, 'Resumen', 2);
   const summary = brandCampaignSummary(report);
   y = sectionEyebrow(doc, '01. Resumen', y);
@@ -460,7 +521,10 @@ function summaryPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsset
   const gap = 5;
   const cardW = (178 - gap) / 2;
   const cards: KpiCardData[] = [
-    { label: 'OTS estimados campaña', value: formatCount(summary.estimatedOts) },
+    {
+      label: 'OTS estimados campaña',
+      value: formatCount(summary.estimatedOts),
+    },
     { label: 'OTS promedio diario', value: formatCount(summary.dailyAverage) },
     {
       label: 'OTS promedio diario / tienda',
@@ -478,18 +542,11 @@ function summaryPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsset
     const col = index % 2;
     kpiCard(doc, M + col * (cardW + gap), y + row * 34, cardW, 29, item);
   });
-  kpiCard(
-    doc,
-    M,
-    y + 70,
-    178,
-    29,
-    {
-      label: 'Cobertura de medición',
-      value: formatPercent(summary.coverage.measuredPercent),
-      note: `${summary.coverage.measuredStores} de ${summary.coverage.totalStores} tiendas con medición directa.`,
-    },
-  );
+  kpiCard(doc, M, y + 70, 178, 29, {
+    label: 'Cobertura de medición',
+    value: formatPercent(summary.coverage.measuredPercent),
+    note: `${summary.coverage.measuredStores} de ${summary.coverage.totalStores} tiendas con medición directa.`,
+  });
 
   const direct = summary.coverage.measuredStores;
   const total = summary.coverage.totalStores;
@@ -504,7 +561,11 @@ function summaryPage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsset
   pageFooter(doc);
 }
 
-function coveragePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets): void {
+function coveragePage(
+  doc: jsPDF,
+  report: QuividiCampaignReport,
+  assets: PdfAssets,
+): void {
   let y = pageHeader(doc, assets, 'Cobertura y evolución', 3);
   const summary = brandCampaignSummary(report);
   const daily = brandDaily(report);
@@ -551,7 +612,11 @@ function coveragePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsse
   );
 
   card(doc, M + 67, top, 111, 102);
-  text(doc, 'OTS diarios', M + 73, top + 10, { size: 8, bold: true, color: NAVY });
+  text(doc, 'OTS diarios', M + 73, top + 10, {
+    size: 8,
+    bold: true,
+    color: NAVY,
+  });
   lineChart(
     doc,
     M + 82,
@@ -561,10 +626,16 @@ function coveragePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsse
     daily.map((point) => point.label),
     daily.map((point) => point.estimatedOts),
   );
-  text(doc, 'Serie agregada de campaña, incluyendo extrapolación.', M + 73, top + 91, {
-    size: 6,
-    color: MUTED,
-  });
+  text(
+    doc,
+    'Serie agregada de campaña, incluyendo extrapolación.',
+    M + 73,
+    top + 91,
+    {
+      size: 6,
+      color: MUTED,
+    },
+  );
 
   infoBox(
     doc,
@@ -576,10 +647,18 @@ function coveragePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsse
   pageFooter(doc);
 }
 
-function audiencePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAssets): void {
+function audiencePage(
+  doc: jsPDF,
+  report: QuividiCampaignReport,
+  assets: PdfAssets,
+): void {
   let y = pageHeader(doc, assets, 'Audiencia', 4);
   y = sectionEyebrow(doc, '03. Audiencia', y);
-  text(doc, 'Segmentos de Audiencia', M, y, { size: 18, bold: true, color: NAVY });
+  text(doc, 'Segmentos de Audiencia', M, y, {
+    size: 18,
+    bold: true,
+    color: NAVY,
+  });
   y = paragraph(
     doc,
     'La composición se presenta exclusivamente en porcentajes para describir el perfil agregado de la audiencia durante la campaña.',
@@ -591,7 +670,14 @@ function audiencePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsse
 
   const gender = brandGender(report).slice(0, 4);
   const age = brandAge(report).slice(0, 6);
-  const colors: readonly RGB[] = [BLUE, [96, 183, 231], [156, 205, 232], GRAY, [78, 111, 159], PINK];
+  const colors: readonly RGB[] = [
+    BLUE,
+    [96, 183, 231],
+    [156, 205, 232],
+    GRAY,
+    [78, 111, 159],
+    PINK,
+  ];
   const top = y + 10;
   const cardW = 86.5;
 
@@ -612,14 +698,7 @@ function audiencePage(doc: jsPDF, report: QuividiCampaignReport, assets: PdfAsse
     color: NAVY,
     align: 'center',
   });
-  audienceDonut(
-    doc,
-    M + cardW + 5 + cardW / 2,
-    top + 50,
-    23,
-    age,
-    colors,
-  );
+  audienceDonut(doc, M + cardW + 5 + cardW / 2, top + 50, 23, age, colors);
   legendShares(doc, M + cardW + 17, top + 88, age, colors, cardW - 24);
 
   infoBox(
@@ -667,21 +746,32 @@ function methodologyPage(
       color: WHITE,
       align: 'center',
     });
-    cursor = paragraph(doc, bullet, M + 11, cursor, 113, { size: 7, color: NAVY }) + 7;
+    cursor =
+      paragraph(doc, bullet, M + 11, cursor, 113, { size: 7, color: NAVY }) + 7;
   });
 
   card(doc, M, 210, 119, 48);
-  text(doc, 'Fórmulas principales', M + 8, 220, { size: 8.5, bold: true, color: BLUE });
+  text(doc, 'Fórmulas principales', M + 8, 220, {
+    size: 8.5,
+    bold: true,
+    color: BLUE,
+  });
   text(doc, 'OTS estimados = OTS medidos + OTS extrapolados', M + 8, 232, {
     size: 7.3,
     bold: true,
     color: NAVY,
   });
-  text(doc, 'Cobertura = tiendas con medición / tiendas de campaña', M + 8, 243, {
-    size: 7.3,
-    bold: true,
-    color: NAVY,
-  });
+  text(
+    doc,
+    'Cobertura = tiendas con medición / tiendas de campaña',
+    M + 8,
+    243,
+    {
+      size: 7.3,
+      bold: true,
+      color: NAVY,
+    },
+  );
   text(
     doc,
     `${summary.coverage.measuredStores}/${summary.coverage.totalStores} tiendas = ${formatPercent(summary.coverage.measuredPercent)} de cobertura`,
