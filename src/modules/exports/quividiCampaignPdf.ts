@@ -6,6 +6,10 @@ import type {
 } from '@/domain';
 import instoreLogoUrl from '@/assets/brand/instore-media.png';
 import liverpoolLogoUrl from '@/assets/ppt/liverpool.png';
+import {
+  LIVERPOOL_BANNER_REPORT_IMAGE,
+  LIVERPOOL_MUPI_REPORT_IMAGE,
+} from '@/assets/reports/liverpoolReportImages';
 
 /**
  * PDF comercial de audiencia para marcas.
@@ -636,24 +640,33 @@ function coverPage(
     y += 17;
   }
 
-  // Panel visual: reproduce el lenguaje del mockup sin depender de datos
-  // comerciales por tienda. La marca Liverpool aparece como partner discreto.
+  // Fotografía real del circuito Liverpool aprobada para el reporte.
   fill(doc, [247, 248, 250]);
   doc.rect(112, 0, 98, PAGE_H, 'F');
-  fill(doc, [236, 239, 243]);
-  doc.rect(129, 45, 54, 161, 'F');
-  fill(doc, NAVY);
-  doc.rect(134, 51, 44, 149, 'F');
-  fill(doc, [237, 30, 121]);
-  doc.rect(137, 55, 38, 129, 'F');
-  txt(doc, 'MARCAS', 156, 102, { size: 11, bold: true, color: WHITE, align: 'center' });
-  txt(doc, 'QUE CONECTAN', 156, 111, { size: 9, bold: true, color: WHITE, align: 'center' });
-  txt(doc, 'EN EL MOMENTO REAL', 156, 120, { size: 7, color: WHITE, align: 'center' });
-  addLiverpoolMark(doc, assets, 145, 188, 23);
+  try {
+    doc.addImage(
+      LIVERPOOL_MUPI_REPORT_IMAGE,
+      'JPEG',
+      112,
+      35,
+      98,
+      205,
+      undefined,
+      'FAST',
+    );
+  } catch {
+    fill(doc, [236, 239, 243]);
+    doc.rect(121, 45, 72, 170, 'F');
+    addLiverpoolMark(doc, assets, 143, 120, 26);
+  }
+  // Corte editorial blanco + acentos rosas discretos de partnership.
+  fill(doc, WHITE);
+  doc.triangle(112, 0, 134, 0, 112, 88, 'F');
+  doc.triangle(112, 240, 142, PAGE_H, 112, PAGE_H, 'F');
   fill(doc, PINK);
-  doc.triangle(102, 151, 112, 132, 112, 239, 'F');
+  doc.triangle(104, 151, 112, 132, 112, 232, 'F');
   fill(doc, [255, 181, 220]);
-  doc.triangle(106, 193, 112, 178, 112, 257, 'F');
+  doc.triangle(108, 194, 112, 181, 112, 250, 'F');
 
   fill(doc, PINK);
   doc.rect(M, 260, 18, 0.8, 'F');
@@ -933,26 +946,32 @@ function methodologyPage(
     align: 'center',
   });
 
-  fill(doc, [253, 241, 248]);
-  doc.roundedRect(134, 156, 61, 74, 3, 3, 'F');
-  addLiverpoolMark(doc, assets, 151, 166, 27);
+  // Cierre con la fotografía real del banner Liverpool; los shoppers de la
+  // imagen fuente ya están difuminados para el uso en reporte.
+  try {
+    doc.addImage(
+      LIVERPOOL_BANNER_REPORT_IMAGE,
+      'JPEG',
+      134,
+      156,
+      61,
+      74,
+      undefined,
+      'FAST',
+    );
+  } catch {
+    fill(doc, [253, 241, 248]);
+    doc.roundedRect(134, 156, 61, 74, 3, 3, 'F');
+    addLiverpoolMark(doc, assets, 151, 166, 27);
+  }
   fill(doc, PINK);
-  doc.rect(141, 181, 47, 1.2, 'F');
-  txt(doc, 'PARTNERS EN RETAIL MEDIA', 164.5, 192, {
-    size: 6.2,
+  doc.triangle(132, 230, 145, 202, 145, 230, 'F');
+  fill(doc, WHITE);
+  doc.roundedRect(143, 215, 46, 11, 2, 2, 'F');
+  txt(doc, `${formatPercent(metrics.coveragePercent)} cobertura directa`, 166, 222, {
+    size: 6.4,
     bold: true,
     color: NAVY,
-    align: 'center',
-  });
-  txt(doc, `${formatPercent(metrics.coveragePercent)}`, 164.5, 208, {
-    size: 18,
-    bold: true,
-    color: PINK,
-    align: 'center',
-  });
-  txt(doc, 'cobertura directa', 164.5, 216, {
-    size: 6.2,
-    color: MUTED,
     align: 'center',
   });
 
