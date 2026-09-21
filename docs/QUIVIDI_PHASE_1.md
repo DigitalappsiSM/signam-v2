@@ -1,5 +1,11 @@
 # Quividi — Fase 1: reporte de audiencia por campaña
 
+
+> **Documento de Fase 1.** Describe el reporte de audiencia por campaña.
+> Para Location ID estable, histórico operativo, incidencias y
+> **Operación → Salud de cámaras**, ver
+> [`QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
+
 ## Objetivo
 
 La Fase 1 integra Quividi en la vista **Campañas** de SIGNAM. No crea un
