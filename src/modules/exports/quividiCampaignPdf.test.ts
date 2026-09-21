@@ -122,9 +122,7 @@ describe('informe comercial de audiencia en PDF', () => {
   it('nombra el archivo por campaña y vigencia, sin citar plataformas internas', () => {
     const report = baseReport();
     const name = quividiCampaignPdfFileName(report);
-    expect(name).toBe(
-      'Audiencia_VENTA PERFUMERÍA_2026-08-11_2026-08-12.pdf',
-    );
+    expect(name).toBe('Audiencia_VENTA PERFUMERÍA_2026-08-11_2026-08-12.pdf');
     expect(name.toLowerCase()).not.toContain('quividi');
     expect(name.toLowerCase()).not.toContain('signam');
   });

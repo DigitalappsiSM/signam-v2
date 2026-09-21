@@ -144,7 +144,9 @@ function isInsurgentes(storeName: string): boolean {
   return normalize(storeName).includes('INSURGENTES');
 }
 
-function measuredSupportRows(report: QuividiCampaignReport): QuividiSupportDay[] {
+function measuredSupportRows(
+  report: QuividiCampaignReport,
+): QuividiSupportDay[] {
   return report.supportDays.filter((row) => row.status !== 'missing');
 }
 
@@ -256,7 +258,9 @@ export function buildBrandDailyEstimated(
   return Array.from(byDate, ([date, rows]) => {
     let total = 0;
     for (const coverage of report.coverage.bySupport) {
-      const supportRows = rows.filter((row) => row.support === coverage.support);
+      const supportRows = rows.filter(
+        (row) => row.support === coverage.support,
+      );
       const actual = supportRows.reduce(
         (sum, row) => sum + commercialSupportDayOts(report, row),
         0,
@@ -294,9 +298,15 @@ function demographicShares(
 ): SharePoint[] {
   const totals = new Map<number, number>();
   for (const row of report.demographics) {
-    totals.set(row[field], (totals.get(row[field]) ?? 0) + numeric(row.watchers));
+    totals.set(
+      row[field],
+      (totals.get(row[field]) ?? 0) + numeric(row.watchers),
+    );
   }
-  const total = Array.from(totals.values()).reduce((sum, value) => sum + value, 0);
+  const total = Array.from(totals.values()).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   return Array.from(totals, ([key, value]) => ({
     label: labels[key] ?? `Código ${key}`,
     share: total > 0 ? (value / total) * 100 : 0,
@@ -387,7 +397,16 @@ function addLiverpoolMark(
 ): void {
   if (assets.liverpoolLogo) {
     try {
-      doc.addImage(assets.liverpoolLogo, 'PNG', x, y, maxW, 6, undefined, 'FAST');
+      doc.addImage(
+        assets.liverpoolLogo,
+        'PNG',
+        x,
+        y,
+        maxW,
+        6,
+        undefined,
+        'FAST',
+      );
       return;
     } catch {
       // Fallback tipográfico.
@@ -611,8 +630,16 @@ function coverPage(
   addLogo(doc, assets, M, 14, 60);
   fill(doc, PINK);
   doc.rect(M, 31, 18, 0.9, 'F');
-  txt(doc, 'REPORTE DE CAMPAÑA', M, 38, { size: 6.5, bold: true, color: MUTED });
-  txt(doc, 'Reporte de Audiencia', M, 54, { size: 22, bold: true, color: NAVY });
+  txt(doc, 'REPORTE DE CAMPAÑA', M, 38, {
+    size: 6.5,
+    bold: true,
+    color: MUTED,
+  });
+  txt(doc, 'Reporte de Audiencia', M, 54, {
+    size: 22,
+    bold: true,
+    color: NAVY,
+  });
   txt(doc, 'y Resultados de Campaña', M, 65, {
     size: 22,
     bold: true,
@@ -627,7 +654,10 @@ function coverPage(
   const meta = [
     ['Marca', report.campaignName],
     ['Retailer', 'Liverpool'],
-    ['Periodo', `${civilDate(report.startDate)} – ${civilDate(report.endDate)}`],
+    [
+      'Periodo',
+      `${civilDate(report.startDate)} – ${civilDate(report.endDate)}`,
+    ],
     ['Formato', 'Pantallas In-Store'],
     ['Tiendas', `${metrics.totalStores} tiendas`],
   ];
@@ -636,7 +666,11 @@ function coverPage(
     fill(doc, BLUE);
     doc.circle(M + 2.5, y - 2.3, 2.4, 'F');
     txt(doc, label ?? '', M + 9, y - 1, { size: 7, bold: true, color: NAVY });
-    txt(doc, value ?? '', M + 9, y + 4, { size: 7, color: MUTED, maxWidth: 70 });
+    txt(doc, value ?? '', M + 9, y + 4, {
+      size: 7,
+      color: MUTED,
+      maxWidth: 70,
+    });
     y += 17;
   }
 
@@ -670,8 +704,16 @@ function coverPage(
 
   fill(doc, PINK);
   doc.rect(M, 260, 18, 0.8, 'F');
-  txt(doc, 'AUDIENCIAS REALES.', M, 269, { size: 6.2, bold: true, color: NAVY });
-  txt(doc, 'OPORTUNIDADES REALES.', M, 275, { size: 6.2, bold: true, color: NAVY });
+  txt(doc, 'AUDIENCIAS REALES.', M, 269, {
+    size: 6.2,
+    bold: true,
+    color: NAVY,
+  });
+  txt(doc, 'OPORTUNIDADES REALES.', M, 275, {
+    size: 6.2,
+    bold: true,
+    color: NAVY,
+  });
   txt(doc, '01', PAGE_W - M, PAGE_H - 9, {
     size: 7,
     bold: true,
@@ -698,11 +740,51 @@ function summaryPage(
   );
 
   const w = 84;
-  card(doc, M, 58, w, 30, 'OTS estimados campaña', formatCount(metrics.estimatedOts));
-  card(doc, M + w + 6, 58, w, 30, 'OTS promedio diario', formatCount(metrics.dailyAverage));
-  card(doc, M, 94, w, 30, 'OTS promedio diario / tienda', formatCount(metrics.dailyPerStore));
-  card(doc, M + w + 6, 94, w, 30, 'OTS promedio diario / soporte', formatCount(metrics.dailyPerSupport));
-  card(doc, M, 130, 174, 30, 'Cobertura de medición', formatPercent(metrics.coveragePercent));
+  card(
+    doc,
+    M,
+    58,
+    w,
+    30,
+    'OTS estimados campaña',
+    formatCount(metrics.estimatedOts),
+  );
+  card(
+    doc,
+    M + w + 6,
+    58,
+    w,
+    30,
+    'OTS promedio diario',
+    formatCount(metrics.dailyAverage),
+  );
+  card(
+    doc,
+    M,
+    94,
+    w,
+    30,
+    'OTS promedio diario / tienda',
+    formatCount(metrics.dailyPerStore),
+  );
+  card(
+    doc,
+    M + w + 6,
+    94,
+    w,
+    30,
+    'OTS promedio diario / soporte',
+    formatCount(metrics.dailyPerSupport),
+  );
+  card(
+    doc,
+    M,
+    130,
+    174,
+    30,
+    'Cobertura de medición',
+    formatPercent(metrics.coveragePercent),
+  );
 
   const estimatedShare = Math.max(0, 100 - metrics.coveragePercent);
   infoBox(
@@ -712,7 +794,11 @@ function summaryPage(
   );
 
   txt(doc, 'Datos directos', M, 207, { size: 7, bold: true, color: NAVY });
-  txt(doc, formatCount(metrics.actualOts), M, 218, { size: 15, bold: true, color: BLUE });
+  txt(doc, formatCount(metrics.actualOts), M, 218, {
+    size: 15,
+    bold: true,
+    color: BLUE,
+  });
   txt(doc, 'OTS observados', M, 224, { size: 6.3, color: MUTED });
 
   txt(doc, 'Estimación complementaria', 78, 207, {
@@ -727,7 +813,11 @@ function summaryPage(
   });
   txt(doc, 'OTS extrapolados', 78, 224, { size: 6.3, color: MUTED });
 
-  txt(doc, 'Universo de campaña', 151, 207, { size: 7, bold: true, color: NAVY });
+  txt(doc, 'Universo de campaña', 151, 207, {
+    size: 7,
+    bold: true,
+    color: NAVY,
+  });
   txt(doc, `${metrics.totalStores}`, 151, 218, {
     size: 15,
     bold: true,
@@ -757,7 +847,11 @@ function coveragePage(
 
   fill(doc, SOFT);
   doc.roundedRect(M, 62, 76, 112, 3, 3, 'F');
-  txt(doc, 'Cobertura de medición', M + 6, 72, { size: 8, bold: true, color: NAVY });
+  txt(doc, 'Cobertura de medición', M + 6, 72, {
+    size: 8,
+    bold: true,
+    color: NAVY,
+  });
   const real = metrics.coveragePercent;
   const extrapolated = Math.max(0, 100 - real);
   drawPie(
@@ -806,7 +900,11 @@ function coveragePage(
     'Los resultados extrapolados complementan el universo de campaña sin exponer el desempeño individual por tienda.',
   );
 
-  txt(doc, 'Lectura de cobertura', M, 223, { size: 8, bold: true, color: NAVY });
+  txt(doc, 'Lectura de cobertura', M, 223, {
+    size: 8,
+    bold: true,
+    color: NAVY,
+  });
   txt(
     doc,
     'La estimación usa exclusivamente el comportamiento promedio observado en las tiendas con medición durante las mismas fechas. No utiliza históricos de otras campañas ni rankings de sucursales.',
@@ -920,7 +1018,11 @@ function methodologyPage(
 
   fill(doc, [235, 246, 253]);
   doc.roundedRect(134, 70, 61, 76, 3, 3, 'F');
-  txt(doc, 'Fórmulas principales', 140, 82, { size: 8, bold: true, color: BLUE });
+  txt(doc, 'Fórmulas principales', 140, 82, {
+    size: 8,
+    bold: true,
+    color: BLUE,
+  });
   txt(doc, 'OTS estimados =', 164.5, 98, {
     size: 7,
     bold: true,
@@ -968,12 +1070,18 @@ function methodologyPage(
   doc.triangle(132, 230, 145, 202, 145, 230, 'F');
   fill(doc, WHITE);
   doc.roundedRect(143, 215, 46, 11, 2, 2, 'F');
-  txt(doc, `${formatPercent(metrics.coveragePercent)} cobertura directa`, 166, 222, {
-    size: 6.4,
-    bold: true,
-    color: NAVY,
-    align: 'center',
-  });
+  txt(
+    doc,
+    `${formatPercent(metrics.coveragePercent)} cobertura directa`,
+    166,
+    222,
+    {
+      size: 6.4,
+      bold: true,
+      color: NAVY,
+      align: 'center',
+    },
+  );
 
   footer(doc);
 }
