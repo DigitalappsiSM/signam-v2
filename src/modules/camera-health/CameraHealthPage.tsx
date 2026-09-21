@@ -208,7 +208,8 @@ export function CameraHealthPage() {
                       <td>{formatHealthDate(camera.startedDate)}</td>
                       <td>
                         <strong>
-                          {camera.coreMeasuredHours}/{camera.expectedCoreHours} h
+                          {camera.coreMeasuredHours}/{camera.expectedCoreHours}{' '}
+                          h
                         </strong>
                         <span>{camera.coreOtsHours} h con OTS</span>
                       </td>

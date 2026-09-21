@@ -1,14 +1,8 @@
 export type QuividiCameraOperationalHealth =
-  | 'normal'
-  | 'no_measurement'
-  | 'partial_measurement'
-  | 'no_ots';
+  'normal' | 'no_measurement' | 'partial_measurement' | 'no_ots';
 
 export type QuividiCameraHealthSeverity =
-  | 'none'
-  | 'medium'
-  | 'high'
-  | 'critical';
+  'none' | 'medium' | 'high' | 'critical';
 
 export interface QuividiCameraHealthRow {
   locationId: number;

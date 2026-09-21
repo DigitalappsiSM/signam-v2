@@ -84,9 +84,9 @@ describe('filterScreens', () => {
   });
 
   it('busca también por Location ID y alias Quividi', () => {
-    expect(
-      filterScreens(screens, { ...EMPTY_FILTERS, search: '184' }),
-    ).toEqual([expect.objectContaining({ id: '1' })]);
+    expect(filterScreens(screens, { ...EMPTY_FILTERS, search: '184' })).toEqual(
+      [expect.objectContaining({ id: '1' })],
+    );
     expect(
       filterScreens(screens, { ...EMPTY_FILTERS, search: 'santa fe' }),
     ).toEqual([expect.objectContaining({ id: '1' })]);
