@@ -19,9 +19,9 @@ function screen(
 const screens: AdmiraScreen[] = [
   {
     ...screen('1', {
-    'Numero de Tienda': '78',
-    'Nombre de tienda': 'L GUADALAJARA GALERIAS',
-    Modelo: 'CRIUS',
+      'Numero de Tienda': '78',
+      'Nombre de tienda': 'L GUADALAJARA GALERIAS',
+      Modelo: 'CRIUS',
       RESOLUCION: '914 x 908',
     }),
     metadata: {
