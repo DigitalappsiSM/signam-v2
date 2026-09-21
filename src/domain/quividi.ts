@@ -100,6 +100,13 @@ export interface QuividiCoverage {
   bySupport: QuividiCoverageBySupport[];
 }
 
+/** Cobertura comercial por tiendas únicas del universo de campaña. */
+export interface QuividiStoreCoverage {
+  totalStores: number;
+  mappedStores: number;
+  percent: number;
+}
+
 export interface QuividiMeasurementIncident {
   storeNumber: string;
   storeName: string;
@@ -111,7 +118,7 @@ export interface QuividiMeasurementIncident {
 }
 
 export interface QuividiCampaignReport {
-  schemaVersion: 3;
+  schemaVersion: 3 | 4;
   campaignId: string;
   campaignName: string;
   startDate: string;
@@ -119,6 +126,8 @@ export interface QuividiCampaignReport {
   generatedAt: number;
   scopeOrigins: QuividiScopeOrigin[];
   coverage: QuividiCoverage;
+  /** Disponible desde schema v4; permite extrapolar sin exponer tiendas individuales. */
+  storeCoverage?: QuividiStoreCoverage;
   cameraDays: QuividiCameraDay[];
   supportDays: QuividiSupportDay[];
   supportHours: QuividiSupportHour[];
