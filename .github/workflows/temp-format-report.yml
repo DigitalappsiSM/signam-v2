@@ -1,0 +1,26 @@
+name: Temp format report files
+
+on:
+  push:
+    branches:
+      - feature/quividi-brand-pdf-v2
+
+jobs:
+  format-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Formatear archivos del reporte
+        run: npx prettier --write src/modules/exports/quividiCampaignPdf.ts src/modules/exports/quividiCampaignPdf.test.ts src/assets/reports/liverpoolReportImages.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-report-files
+          path: |
+            src/modules/exports/quividiCampaignPdf.ts
+            src/modules/exports/quividiCampaignPdf.test.ts
+            src/assets/reports/liverpoolReportImages.ts
