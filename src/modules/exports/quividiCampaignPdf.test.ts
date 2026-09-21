@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { QuividiCampaignReport } from '@/domain';
 import {
   buildQuividiCampaignPdfBlob,
@@ -12,7 +12,7 @@ function report(): QuividiCampaignReport {
     { storeNumber: '7', storeName: 'SANTA FE' },
   ];
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     campaignId: 'c1',
     campaignName: 'VENTA PERFUMERÍA',
     startDate: '2026-08-11',
@@ -20,6 +20,7 @@ function report(): QuividiCampaignReport {
     generatedAt: 0,
     scopeOrigins: [],
     coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+    storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
     cameraDays: [],
     supportDays: dates.flatMap((date) =>
       stores.map((store) => ({
@@ -36,24 +37,7 @@ function report(): QuividiCampaignReport {
         dwellSeconds: 22.4,
       })),
     ),
-    supportHours: dates.flatMap((date) =>
-      stores.flatMap((store) =>
-        [9, 11, 14, 17, 20, 23].map((hour) => ({
-          date,
-          hour,
-          ...store,
-          support: 'MUPI DIGITAL',
-          configuredCameras: 1,
-          measuredCameras: 1,
-          status: 'complete' as const,
-          ots: 200,
-          effectiveOts: 150,
-          watchers: 30,
-          attentionSeconds: 2.8,
-          dwellSeconds: 22.4,
-        })),
-      ),
-    ),
+    supportHours: [],
     demographics: [1, 2].flatMap((gender) =>
       [2, 3].map((age) => ({
         date: '2026-08-11',
@@ -75,6 +59,7 @@ describe('informe de audiencia en PDF', () => {
     const name = quividiCampaignPdfFileName(report());
     expect(name).toBe('Audiencia_VENTA PERFUMERÍA_2026-08-11_2026-08-16.pdf');
     expect(name.toLowerCase()).not.toContain('quividi');
+    expect(name.toLowerCase()).not.toContain('signam');
   });
 
   it('sanea caracteres no válidos del nombre de campaña', () => {
@@ -86,15 +71,14 @@ describe('informe de audiencia en PDF', () => {
     ).toContain('VENTA_ESPECIAL_ 2026');
   });
 
-  it('genera el documento completo sin datos vacíos', async () => {
+  it('genera el documento comercial completo', async () => {
     const blob = await buildQuividiCampaignPdfBlob(report());
     expect(blob.size).toBeGreaterThan(1000);
   });
 
-  it('genera el documento aunque la campaña no tenga medición horaria', async () => {
+  it('genera el documento aunque no existan datos demográficos', async () => {
     const blob = await buildQuividiCampaignPdfBlob({
       ...report(),
-      supportHours: [],
       demographics: [],
     });
     expect(blob.size).toBeGreaterThan(1000);

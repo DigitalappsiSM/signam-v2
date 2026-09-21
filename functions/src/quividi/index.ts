@@ -82,10 +82,10 @@ const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
 const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
 const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
-const SNAPSHOT_SCHEMA_VERSION = 3;
+const SNAPSHOT_SCHEMA_VERSION = 4;
 
 interface CampaignReport {
-  schemaVersion: 3;
+  schemaVersion: 4;
   campaignId: string;
   campaignName: string;
   startDate: string;
@@ -93,6 +93,11 @@ interface CampaignReport {
   generatedAt: number;
   scopeOrigins: EffectiveScopeOrigin[];
   coverage: ReportCoverage;
+  storeCoverage: {
+    totalStores: number;
+    mappedStores: number;
+    percent: number;
+  };
   cameraDays: CameraDay[];
   supportDays: SupportDay[];
   supportHours: SupportHour[];
@@ -187,6 +192,27 @@ function decodeSnapshot(value: unknown): CampaignReport | null {
   }
 }
 
+function buildStoreCoverage(
+  pairs: readonly { storeNumber: string; cameras: readonly unknown[] }[],
+): { totalStores: number; mappedStores: number; percent: number } {
+  const stores = new Set(
+    pairs.map((pair) => pair.storeNumber.trim()).filter(Boolean),
+  );
+  const mapped = new Set(
+    pairs
+      .filter((pair) => pair.cameras.length > 0)
+      .map((pair) => pair.storeNumber.trim())
+      .filter(Boolean),
+  );
+  const totalStores = stores.size;
+  const mappedStores = mapped.size;
+  return {
+    totalStores,
+    mappedStores,
+    percent: totalStores > 0 ? (mappedStores / totalStores) * 100 : 0,
+  };
+}
+
 async function generateReport(
   campaignId: string,
   campaign: CampaignDoc,
@@ -260,6 +286,7 @@ async function generateReport(
     generatedAt: Date.now(),
     scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
+    storeCoverage: buildStoreCoverage(resolved.pairs),
     ...measurement,
     supportHours,
     unmappedCameraNames: resolved.unmappedCameraNames,
