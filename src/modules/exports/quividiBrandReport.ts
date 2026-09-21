@@ -74,13 +74,17 @@ function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + numeric(value), 0);
 }
 
-function selectedCameraRows(rows: readonly QuividiCameraDay[]): QuividiCameraDay[] {
+function selectedCameraRows(
+  rows: readonly QuividiCameraDay[],
+): QuividiCameraDay[] {
   const complete = rows.filter((row) => row.status === 'complete');
   if (complete.length > 0) return complete;
   return rows.filter((row) => row.status === 'partial');
 }
 
-function pairKey(row: Pick<QuividiSupportDay, 'storeNumber' | 'support'>): string {
+function pairKey(
+  row: Pick<QuividiSupportDay, 'storeNumber' | 'support'>,
+): string {
   return `${row.storeNumber}|${row.support}`;
 }
 
@@ -120,8 +124,12 @@ export function periodDays(report: QuividiCampaignReport): number {
  * encuentran en pisos distintos, por lo que sus OTS se suman como zonas
  * independientes en lugar de promediarse.
  */
-export function brandSupportDays(report: QuividiCampaignReport): QuividiSupportDay[] {
-  if (report.cameraDays.length === 0) return report.supportDays.map((row) => ({ ...row }));
+export function brandSupportDays(
+  report: QuividiCampaignReport,
+): QuividiSupportDay[] {
+  if (report.cameraDays.length === 0) {
+    return report.supportDays.map((row) => ({ ...row }));
+  }
 
   const camerasByKey = new Map<string, QuividiCameraDay[]>();
   for (const camera of report.cameraDays) {
@@ -134,7 +142,9 @@ export function brandSupportDays(report: QuividiCampaignReport): QuividiSupportD
 
   return report.supportDays.map((row) => {
     if (!isInsurgentes(row.storeName)) return { ...row };
-    const selected = selectedCameraRows(camerasByKey.get(supportDayKey(row)) ?? []);
+    const selected = selectedCameraRows(
+      camerasByKey.get(supportDayKey(row)) ?? [],
+    );
     if (selected.length === 0) return { ...row };
     return {
       ...row,
@@ -163,7 +173,8 @@ export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
     Math.max(report.storeCoverage?.mappedStores ?? 0, measuredFromRows),
   );
   const estimatedStores = Math.max(0, totalStores - measuredStores);
-  const measuredPercent = totalStores > 0 ? (measuredStores / totalStores) * 100 : 0;
+  const measuredPercent =
+    totalStores > 0 ? (measuredStores / totalStores) * 100 : 0;
 
   return {
     totalStores,
