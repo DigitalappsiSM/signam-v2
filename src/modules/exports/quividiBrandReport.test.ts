@@ -8,8 +8,12 @@ import {
   brandAge,
   brandCampaignSummary,
   brandCoverage,
+  brandDaily,
+  brandExtrapolationBasis,
   brandGender,
+  brandGenderAge,
   brandSupportDays,
+  brandTimeOfDay,
   periodDays,
 } from './quividiBrandReport';
 
@@ -168,12 +172,138 @@ describe('informe comercial agregado de audiencia', () => {
       estimatedStores: 5,
       measuredPercent: 75,
       estimatedPercent: 25,
+      totalStoreDays: 20,
+      measuredStoreDays: 15,
+      storeDayPercent: 75,
     });
     expect(summary.measuredOts).toBe(15_000_000);
     expect(summary.extrapolatedOts).toBe(5_000_000);
     expect(summary.estimatedOts).toBe(20_000_000);
     expect(summary.dailyPerStore).toBe(1_000_000);
     expect(summary.dailyPerSupport).toBe(1_000_000);
+  });
+
+  it('degrada la cobertura tienda-día cuando una cámara cae a mitad de vigencia', () => {
+    // 4 tiendas del universo, 10 días. Dos miden siempre, una mide 2 de 10 y
+    // la cuarta no tiene cámara.
+    const dates = Array.from(
+      { length: 10 },
+      (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`,
+    );
+    const rows = dates.flatMap((date, index) => [
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+      supportDay({ date, storeNumber: '2', storeName: 'DOS', ots: 1000 }),
+      supportDay({
+        date,
+        storeNumber: '3',
+        storeName: 'TRES',
+        ...(index < 2
+          ? { ots: 1000 }
+          : { status: 'missing' as const, measuredCameras: 0, ots: 0 }),
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 4, mappedPairs: 3, percent: 75, bySupport: [] },
+      storeCoverage: { totalStores: 4, mappedStores: 3, percent: 75 },
+      supportDays: rows,
+    });
+
+    const coverage = brandCoverage(input);
+    // El despliegue de cámaras no cambia: 3 de 4 tiendas midieron algo.
+    expect(coverage.measuredPercent).toBe(75);
+    // La completitud real sí: 22 de 40 tienda-día.
+    expect(coverage.totalStoreDays).toBe(40);
+    expect(coverage.measuredStoreDays).toBe(22);
+    expect(coverage.storeDayPercent).toBeCloseTo(55, 5);
+  });
+
+  it('no deflacta la extrapolación con los días sin medición', () => {
+    const dates = Array.from(
+      { length: 10 },
+      (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`,
+    );
+    const rows = dates.flatMap((date, index) => [
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+      supportDay({
+        date,
+        storeNumber: '2',
+        storeName: 'DOS',
+        ...(index < 2
+          ? { ots: 1000 }
+          : { status: 'missing' as const, measuredCameras: 0, ots: 0 }),
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    const basis = brandExtrapolationBasis(input);
+    expect(basis.totalPairDays).toBe(20);
+    expect(basis.measuredPairDays).toBe(12);
+    expect(basis.missingPairDays).toBe(8);
+    expect(basis.uncoveredPairDays).toBe(0);
+    // 12 par-día medidos a 1000 OTS cada uno: el promedio no baja por los huecos.
+    expect(basis.otsPerMeasuredPairDay).toBe(1000);
+
+    const summary = brandCampaignSummary(input);
+    expect(summary.measuredOts).toBe(12_000);
+    // 20 par-día del universo × 1000: los 8 huecos se rellenan al promedio real.
+    expect(summary.estimatedOts).toBe(20_000);
+    expect(summary.extrapolatedOts).toBe(8_000);
+  });
+
+  it('escala cada día por los pares medidos de ese día', () => {
+    const rows = [
+      supportDay({
+        date: '2026-09-01',
+        storeNumber: '1',
+        storeName: 'UNO',
+        ots: 1000,
+      }),
+      supportDay({
+        date: '2026-09-01',
+        storeNumber: '2',
+        storeName: 'DOS',
+        ots: 1000,
+      }),
+      // El día 2 sólo mide una de las dos tiendas: la audiencia por tienda no
+      // cambió, la medición sí.
+      supportDay({
+        date: '2026-09-02',
+        storeNumber: '1',
+        storeName: 'UNO',
+        ots: 1000,
+      }),
+      supportDay({
+        date: '2026-09-02',
+        storeNumber: '2',
+        storeName: 'DOS',
+        status: 'missing',
+        measuredCameras: 0,
+        ots: 0,
+      }),
+    ];
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-02',
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    const daily = brandDaily(input);
+    expect(daily).toHaveLength(2);
+    expect(daily[0]?.measuredPairs).toBe(2);
+    expect(daily[1]?.measuredPairs).toBe(1);
+    // Ambos días se dibujan iguales: el hueco de medición no es una caída.
+    expect(daily[0]?.estimatedOts).toBe(2000);
+    expect(daily[1]?.estimatedOts).toBe(2000);
   });
 
   it('calcula días naturales inclusivos de la campaña', () => {
@@ -212,5 +342,116 @@ describe('informe comercial agregado de audiencia', () => {
       ['label', 'share'],
       ['label', 'share'],
     ]);
+  });
+});
+
+describe('reparto por franja horaria', () => {
+  function hour(
+    h: number,
+    ots: number,
+    status: 'complete' | 'missing' = 'complete',
+  ) {
+    return {
+      date: '2026-09-01',
+      hour: h,
+      storeNumber: '1',
+      storeName: 'UNO',
+      support: 'MUPI DIGITAL',
+      configuredCameras: 1,
+      measuredCameras: status === 'missing' ? 0 : 1,
+      status,
+      ots,
+      effectiveOts: ots,
+      watchers: 0,
+      attentionSeconds: 0,
+      dwellSeconds: 0,
+    };
+  }
+
+  it('reparte los OTS entre mañana, tarde y noche', () => {
+    const input = report({
+      supportHours: [hour(8, 100), hour(14, 200), hour(20, 100)],
+    });
+    const bands = brandTimeOfDay(input);
+    expect(bands.map((band) => band.label)).toEqual([
+      'Mañana',
+      'Tarde',
+      'Noche',
+    ]);
+    expect(bands.map((band) => Math.round(band.share))).toEqual([25, 50, 25]);
+  });
+
+  it('cuenta la madrugada como noche, sin descartar sus OTS', () => {
+    const input = report({ supportHours: [hour(8, 100), hour(3, 100)] });
+    const bands = brandTimeOfDay(input);
+    expect(bands[2]?.share).toBeCloseTo(50, 5);
+    // Las tres franjas cubren el día completo.
+    expect(bands.reduce((total, band) => total + band.share, 0)).toBeCloseTo(
+      100,
+      5,
+    );
+  });
+
+  it('ignora las horas sin medición', () => {
+    const input = report({
+      supportHours: [hour(8, 100), hour(14, 999, 'missing')],
+    });
+    expect(brandTimeOfDay(input)[0]?.share).toBe(100);
+  });
+
+  it('devuelve vacío cuando el reporte no trae detalle horario', () => {
+    expect(brandTimeOfDay(report({ supportHours: [] }))).toEqual([]);
+  });
+});
+
+describe('perfil cruzado de género y edad', () => {
+  function demo(gender: number, age: number, watchers: number) {
+    return {
+      date: '2026-09-01',
+      storeNumber: '1',
+      storeName: 'UNO',
+      support: 'MUPI DIGITAL',
+      gender,
+      age,
+      watchers,
+    };
+  }
+
+  it('reparte cada rango de edad entre mujer y hombre sobre el total', () => {
+    const input = report({
+      demographics: [
+        demo(2, 3, 40),
+        demo(1, 3, 20),
+        demo(2, 2, 30),
+        demo(1, 2, 10),
+      ],
+    });
+    const rows = brandGenderAge(input);
+    // Ordenado por peso total del rango: adulto (60) antes que adulto joven (40).
+    expect(rows.map((row) => row.age)).toEqual([
+      'Adulto (31–65)',
+      'Adulto joven (16–30)',
+    ]);
+    expect(rows[0]?.female).toBeCloseTo(40, 5);
+    expect(rows[0]?.male).toBeCloseTo(20, 5);
+    // Toda la tabla suma 100: son porcentajes del total, no de cada género.
+    const all = rows.reduce((sum, row) => sum + row.female + row.male, 0);
+    expect(all).toBeCloseTo(100, 5);
+  });
+
+  it('descarta el género desconocido en lugar de repartirlo', () => {
+    const input = report({
+      demographics: [demo(2, 3, 50), demo(1, 3, 50), demo(0, 3, 900)],
+    });
+    const rows = brandGenderAge(input);
+    expect(rows[0]?.female).toBeCloseTo(50, 5);
+    expect(rows[0]?.male).toBeCloseTo(50, 5);
+  });
+
+  it('devuelve vacío sin datos demográficos utilizables', () => {
+    expect(brandGenderAge(report({ demographics: [] }))).toEqual([]);
+    expect(brandGenderAge(report({ demographics: [demo(0, 1, 10)] }))).toEqual(
+      [],
+    );
   });
 });

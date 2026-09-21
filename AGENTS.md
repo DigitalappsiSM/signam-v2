@@ -74,8 +74,8 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Proveedor**: con clasificación **pendiente** no se asume ningún régimen (no
   generan vencimientos ni alertas de testigo), muestran "Clasifica primero" y no
   ofrecen "Marcar…". Una campaña **terminada** con indicadores **aplicables**
-  incompletos (p. ej. Institucional sin CSM) sigue apareciendo como *terminada
-  con pendientes* en el Dashboard (alerta `finished-pending`), aunque los testigos
+  incompletos (p. ej. Institucional sin CSM) sigue apareciendo como _terminada
+  con pendientes_ en el Dashboard (alerta `finished-pending`), aunque los testigos
   no apliquen. En campañas **terminadas** (fecha de fin ya pasada) y **ya
   clasificadas** aparece un botón por fila: **"Marcar todas"** (Proveedor: marca
   los cinco) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
@@ -238,13 +238,38 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Los segmentos de audiencia se comunican únicamente como distribuciones
   porcentuales agregadas (por ejemplo, género y rango de edad), nunca como conteos
   absolutos.
-- **Cobertura y extrapolación del PDF**: la cobertura se calcula por **tienda
-  única**, no por cámara ni por tienda+soporte. El snapshot de reporte conserva
-  `storeCoverage` con total de tiendas y tiendas mapeadas. Si parte del universo
-  no tiene cobertura, se toma el promedio de OTS de las tiendas medidas durante
-  las mismas fechas de campaña y se aplica a las tiendas restantes. El PDF debe
-  indicar explícitamente qué porcentaje del universo es medición directa y qué
-  porcentaje es extrapolado.
+- **Cobertura y extrapolación del PDF**: la cobertura publicada se calcula sobre
+  la rejilla **tienda-día** (tiendas del universo × días de vigencia), no por
+  tienda única, ni por cámara, ni por tienda+soporte. Una tienda cuya cámara cae
+  a mitad de vigencia deja de contar como cubierta durante los días sin dato. La
+  cobertura por tienda única (`measuredPercent`) se conserva como referencia
+  operativa del despliegue de cámaras, pero **no es la cifra que publica el
+  informe**. El snapshot conserva `storeCoverage` con total de tiendas y tiendas
+  mapeadas.
+
+  La extrapolación opera sobre la rejilla **par-día** (tienda × soporte × fecha),
+  que es la unidad en la que se acumulan los OTS: se toma el promedio de OTS por
+  par-día **medido** y se aplica a la rejilla completa del universo contratado.
+  Todo hueco recibe el mismo tratamiento, sea un soporte sin cámara instalada o
+  un día que la cámara instalada no reportó. Promediar por tienda en lugar de por
+  par-día subestima la campaña, porque los días sin dato entran al numerador como
+  cero y deflactan el promedio que después rellena el resto del universo; el
+  sesgo es despreciable por debajo de ~14 días y supera el 20% a partir de 60.
+  El PDF debe indicar explícitamente qué porcentaje del universo es medición
+  directa y qué porcentaje es extrapolado.
+
+  La serie diaria escala **cada día por los pares medidos de ese día**, nunca con
+  un factor constante de campaña: con factor constante, una jornada en la que
+  media red no midió se dibuja como una caída de audiencia que nunca ocurrió.
+
+- **Hoja «Auditoría de cifras» del Excel**: el Excel técnico incluye una hoja que
+  reconstruye paso a paso la cifra del PDF — universo contratado, reparto
+  exhaustivo de la rejilla par-día (completo / parcial / sin dato / sin cámara),
+  la cadena aritmética de OTS medidos a OTS estimados, las dos lecturas de
+  cobertura y la aportación por tienda. Consume las **mismas funciones puras**
+  que el PDF (`quividiBrandReport.ts`), nunca recalcula: una discrepancia entre
+  hoja e informe debe ser imposible por construcción. Es la única vista que
+  desglosa por tienda, y existe sólo para auditar la construcción del agregado.
 - **Multi-cámara en el PDF**: se mantiene la agregación vigente de
   tienda+soporte para todo el circuito. **Única excepción: Insurgentes**. Sus dos
   cámaras están en pisos distintos y miden zonas diferentes; para la vista
@@ -254,16 +279,50 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   campaña. No se muestran curvas, tablas ni comparativas por tienda. El circuito
   no se comercializa por franja horaria ni por día específico; por tanto el PDF
   no recomienda segmentar la pauta por horas o días.
-- **Tono y metodología del PDF**: es un reporte de resultados para marketing y
-  puede incluir una sección breve de metodología para explicar cobertura,
-  extrapolación, fórmulas y la excepción de Insurgentes. La metodología se
-  redacta de forma comercial y transparente, sin incidencias técnicas ni detalle
-  de cámaras.
-- **Look & feel del PDF comercial**: identidad principal de in-Store Media, fondo
-  blanco, azul/navy como colores dominantes y acentos rosa Liverpool muy
-  discretos para comunicar partnership. La portada usa una fotografía real del
-  MUPI Liverpool y la página final una fotografía real del pendón/escaleras con
-  shoppers difuminados. Los assets viven en `public/report-assets/`.
+- **Tono y metodología del PDF**: es un reporte de resultados para marketing, no
+  un documento de auditoría. La metodología se reduce a tres notas de una frase
+  —se mide en tienda, el universo se completa con el dato real, los resultados
+  son agregados— redactadas en clave comercial, sin incidencias técnicas, sin
+  detalle de cámaras y **sin la cadena aritmética**: esa reconstrucción paso a
+  paso vive en la hoja «Auditoría de cifras» del Excel. La portada presenta la
+  cifra como `OPORTUNIDADES DE VER · OTS` y no la califica de estimada; el
+  reparto medido/extrapolado se explica en el cuerpo (págs. 02, 03 y 04), que es
+  donde se cumple la obligación de declararlo explícitamente.
+- **Look & feel del PDF comercial**: lenguaje infográfico sobre fondo blanco —
+  numerales grandes como pieza principal, bloques de color sólido, pictogramas de
+  tienda, barras gruesas con el valor rotulado— con navy `#11264E` y azul ISM
+  `#007ECB` cargando el peso y rosa Liverpool `#E2126F` reservado a señalización
+  (barras de sección, categoría «sin dato», franja horaria líder y citas). Las
+  fotografías **nunca ocupan una sección completa ni se cortan en seco**: se
+  integran dentro de un bloque navy y se disuelven en él con degradados. Como
+  jsPDF no dibuja degradados, `quividiPdfKit.ts` los compone con **rectángulos
+  acumulativos anclados a un borde**: tiras contiguas dejan bandas visibles
+  (cada borde compartido se suaviza por su lado y asoma un hilo de imagen sin
+  velar) y solaparlas produce líneas oscuras, porque la opacidad se compone
+  como `1-(1-a1)(1-a2)`. Cada `fade` cubre un solo sentido y sus `stops` deben
+  ser **no crecientes**; un degradado de dos lados son dos llamadas. Las fotos
+  se recortan con `photoCover`, que emula `object-fit: cover` y **exige pasar
+  `null` como estilo a `doc.rect`** para que el trazado sirva de recorte: sin
+  él jsPDF lo traza, cierra el trazado y `clip` recorta la página entera,
+  haciendo desaparecer la imagen sin que nada falle.
+
+  Los assets viven en `public/report-assets/` y deben ser **JPEG o PNG con
+  cabecera de dimensiones legible**: jsPDF no soporta WebP y, si no puede leer
+  el tamaño, la imagen se dibuja deformada al marco. El logotipo del informe es
+  `instore-media-color.png`, **no** el de `assets/ppt`, que es la versión blanca
+  para diapositivas oscuras y sobre el blanco del informe resulta invisible.
+
+- **Perfil de audiencia**: el informe publica el reparto de género, el cruce
+  **género × edad** como pirámide (`brandGenderAge`, porcentajes sobre el total
+  para que «mujer adulta» y «hombre adulto» se comparen entre sí, descartando el
+  género desconocido en lugar de repartirlo) y el reparto por franja horaria
+  (`brandTimeOfDay`, tres bandas que cubren las 24 horas sin descartar OTS; la
+  madrugada se agrupa con la noche). Cuando el reporte no trae detalle horario o
+  demográfico, el bloque se omite en lugar de dibujar ceros.
+- **El maquetado del PDF se expresa en píxeles de un lienzo A4 a 96 dpi**
+  (794 × 1123). `quividiPdfKit.ts` convierte a milímetros y puntos. Mantener la
+  unidad del diseño es lo que permite transcribir el mockup sin recalcular cada
+  posición a mano; no introducir coordenadas en mm en las páginas.
 - **El informe de marca no publica comparativos entre periodos ni métricas de
   costo**: cada informe reporta su propia vigencia, sin deltas ni CPM/CPC/coste
   por impacto. La comercialización sigue siendo a costo fijo.

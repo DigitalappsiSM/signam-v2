@@ -1,5 +1,6 @@
 import type { Row, Workbook, Worksheet } from 'exceljs';
 import { addQuividiMarketingSheets } from './quividiMarketingSheets';
+import { addQuividiAuditSheet } from './quividiAuditSheet';
 import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
@@ -601,6 +602,7 @@ export async function buildQuividiCampaignWorkbook(
   addCameraDetail(wb, report);
   addDemographics(wb, report);
   addQuality(wb, report);
+  addQuividiAuditSheet(wb, report);
   addMethodology(wb);
   return wb;
 }
