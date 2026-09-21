@@ -54,6 +54,7 @@ export async function createScreen(
   actor: Actor,
   calendarSupport = '',
   quividiCameraName = '',
+  quividiLocationId: number | null = null,
 ): Promise<string> {
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
@@ -62,6 +63,7 @@ export async function createScreen(
     metadata: {
       ...newScreenMetadata(actor, now),
       calendarSupport: calendarSupport.trim(),
+      quividiLocationId,
       quividiCameraName: quividiCameraName.trim(),
     },
   });
@@ -75,6 +77,7 @@ export async function updateScreen(
   actor: Actor,
   calendarSupport?: string,
   quividiCameraName?: string,
+  quividiLocationId?: number | null,
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
@@ -85,6 +88,7 @@ export async function updateScreen(
       ...(quividiCameraName === undefined
         ? {}
         : { quividiCameraName: quividiCameraName.trim() }),
+      ...(quividiLocationId === undefined ? {} : { quividiLocationId }),
     }),
   });
 }
