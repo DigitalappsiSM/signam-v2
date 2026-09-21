@@ -92,10 +92,18 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`). Objetivo de arranque =
   `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
   evidencias ni se seleccionan tiendas individuales. Permisos: la matriz reserva
-  `tracking.write` a admin/operator, pero en **pre-lanzamiento** las reglas
-  permiten escribir a cualquier autenticado (como el resto de colecciones); el
-  control por rol se activará antes de liberar. `read` requiere autenticación;
+  `tracking.write` a admin/operator y las reglas de Firestore aplican la misma
+  restricción. `viewer` y `commercial` son solo lectura. `read` requiere autenticación;
   **sin borrado físico** desde el cliente. Fechas mostradas en `dd/mm/aaaa`.
+- **Perfil Comercial**: rol `commercial`, independiente de `viewer`. Su lista
+  cerrada de rutas es Panel (`/`), Campañas (`/campanas`) y Seguimiento operativo
+  (`/seguimiento`); escribir cualquier otra ruta redirige al Panel. Ve todas las
+  campañas, el detalle completo (Ekon solo como texto), checks, vencimientos,
+  comentarios y cancelaciones. No corrige campañas, no vincula Ekon, no modifica
+  seguimiento y no accede a Storage. Su única descarga es el informe Quividi en
+  PDF o Excel; no ve contenido creativo, PPT, PDF de errores, Excel general,
+  CSV, ZIP ni exportación masiva. Firestore permite únicamente las lecturas que
+  requieren esos tres módulos y bloquea todas sus escrituras.
 - **Estado de ciclo de vida operativo (Activa/Cancelada)**: campo tipado
   `lifecycleStatus: 'active' | 'cancelled'` (más `lifecycleUpdatedAt`,
   `lifecycleUpdatedByUid/Email` y `cancellationReason: string | null`) en el

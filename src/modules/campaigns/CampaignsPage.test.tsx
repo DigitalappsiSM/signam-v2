@@ -8,7 +8,7 @@ import {
   emptyOriginal,
   newScreenMetadata,
 } from '@/modules/admira-catalog/screenFactory';
-import type { AdmiraScreen } from '@/domain';
+import type { AdmiraScreen, UserRole } from '@/domain';
 import type { StoredCampaign } from './campaignDiff';
 import {
   correctCampaign,
@@ -112,13 +112,14 @@ vi.mock('@/modules/exports/quividiCampaignExcel', async () => {
 // intenta navegar al hacer click en el enlace temporal.
 vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
+const authState = { role: 'admin' as UserRole };
 vi.mock('@/app/providers/AuthProvider', () => ({
   useAuth: () => ({
     user: {
       uid: 'u1',
       email: 'admin@signam.mx',
       displayName: null,
-      role: 'admin',
+      role: authState.role,
     },
     loading: false,
     configured: true,
@@ -255,6 +256,7 @@ function defaultConsolidation() {
 }
 
 beforeEach(() => {
+  authState.role = 'admin';
   vi.mocked(listCampaigns).mockResolvedValue([A, B]);
   vi.mocked(listScreens).mockResolvedValue([]);
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
@@ -810,6 +812,66 @@ describe('CampaignsPage — métricas Quividi', () => {
       expect(buildQuividiCampaignBlob).toHaveBeenCalledTimes(1),
     );
     expect(buildQuividiCampaignPdfBlob).not.toHaveBeenCalled();
+  });
+});
+
+describe('CampaignsPage — perfil Comercial', () => {
+  it('deja Quividi y detalle, sin edición ni descargas operativas', async () => {
+    authState.role = 'commercial';
+    vi.mocked(listCampaigns).mockResolvedValue([
+      { ...QUIVIDI_CAMPAIGN, link: 'https://example.com/contenido.zip' },
+    ]);
+    vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'q1',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [],
+      },
+    ]);
+
+    render(<CampaignsPage />);
+    await screen.findByText('CAMPAÑA QUIVIDI');
+
+    expect(
+      screen.queryByRole('button', { name: /Exportar todas/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /Descargar contenido/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Descargar PPT/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Descargas de/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Corregir datos/i }),
+    ).not.toBeInTheDocument();
+
+    const quividi = screen.getByRole('button', {
+      name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
+    });
+    expect(quividi).toBeEnabled();
+    await userEvent.click(quividi);
+    expect(
+      screen.getByRole('menuitem', { name: /Informe ejecutivo \(PDF\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: /Datos completos \(Excel\)/i }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTitle(/Ver detalle/i));
+    expect(
+      screen.getByRole('dialog', { name: /Detalle de campaña/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sin asociación')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Guardar/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

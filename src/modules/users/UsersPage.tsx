@@ -18,12 +18,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   operator: 'Operador',
   viewer: 'Consulta',
+  commercial: 'Comercial',
 };
 
 const ROLE_BADGE: Record<UserRole, string> = {
   admin: 'badge-brand',
   operator: 'badge-info',
   viewer: 'badge-muted',
+  commercial: 'badge-success',
 };
 
 /** Estado de la fila de un usuario mientras se edita/guarda su rol. */

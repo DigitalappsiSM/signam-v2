@@ -22,6 +22,7 @@ import {
 import {
   canForceRefreshQuividi,
   canReportQuividi,
+  canUseQuividiOperations,
   roleFromClaims,
 } from './access';
 import { buildSupportHours, type SupportHour } from './hourly';
@@ -823,6 +824,22 @@ function requireQuividiAccess(request: CallableRequest): CallableAuth {
   return auth;
 }
 
+function requireQuividiOperationalAccess(
+  request: CallableRequest,
+): CallableAuth {
+  const auth = request.auth;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  if (!canUseQuividiOperations(roleFromClaims(auth.token))) {
+    throw new HttpsError(
+      'permission-denied',
+      'Tu rol no permite consultar herramientas operativas Quividi.',
+    );
+  }
+  return auth;
+}
+
 
 export const locationLookup = onCall(
   {
@@ -838,7 +855,7 @@ export const locationLookup = onCall(
       lastSeen: string | null;
     };
   }> => {
-    requireQuividiAccess(request);
+    requireQuividiOperationalAccess(request);
     const rawId = (request.data as { locationId?: unknown } | undefined)
       ?.locationId;
     if (
@@ -875,7 +892,7 @@ export const locationLookup = onCall(
 
 export const cameraHealthOverview = onCall(
   async (request): Promise<CameraHealthOverviewResponse> => {
-    requireQuividiAccess(request);
+    requireQuividiOperationalAccess(request);
     return buildCameraHealthOverview(
       getFirestore(),
       CAMERA_HEALTH_ALERT_STATE_COLLECTION,
@@ -1166,4 +1183,3 @@ export const cameraHealthDaily = onSchedule(
     });
   },
 );
-

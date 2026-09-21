@@ -18,7 +18,7 @@
  *
  * Uso (desde la raíz del repo o desde functions/):
  *   GOOGLE_APPLICATION_CREDENTIALS=/ruta/serviceAccount.json \
- *     node functions/set-user-role.cjs <email-o-uid> <admin|operator|viewer>
+ *     node functions/set-user-role.cjs <email-o-uid> <admin|operator|viewer|commercial>
  *
  * Ejemplos:
  *   node functions/set-user-role.cjs esteban@empresa.com admin
@@ -30,7 +30,7 @@
 
 const admin = require('firebase-admin');
 
-const ROLES = ['admin', 'operator', 'viewer'];
+const ROLES = ['admin', 'operator', 'viewer', 'commercial'];
 
 function fail(msg) {
   console.error(`\n✖ ${msg}\n`);
@@ -43,7 +43,7 @@ async function main() {
   if (!target) {
     fail(
       'Falta el usuario.\n' +
-        'Uso: node functions/set-user-role.cjs <email-o-uid> [admin|operator|viewer]',
+        'Uso: node functions/set-user-role.cjs <email-o-uid> [admin|operator|viewer|commercial]',
     );
   }
   if (role && !ROLES.includes(role)) {

@@ -1,5 +1,6 @@
-import type { Permission } from './permissions';
+import { can, type Permission } from './permissions';
 import type { IconName } from '@/components/Icon';
+import type { UserRole } from '@/domain';
 
 /** Definición central de rutas y navegación de SIGNAM V2. */
 export interface RouteMeta {
@@ -138,7 +139,7 @@ export const NAV_ROUTES: RouteMeta[] = [
     label: 'Usuarios y permisos',
     icon: 'users',
     description:
-      'Administra los usuarios y su rol (admin, operador, consulta).',
+      'Administra los usuarios y su rol (admin, operador, consulta, comercial).',
     group: 'Administración',
     permission: 'users.manage',
   },
@@ -150,6 +151,23 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Administración',
   },
 ];
+
+const COMMERCIAL_ROUTE_PATHS = new Set(['/', '/campanas', '/seguimiento']);
+
+/**
+ * Valida navegación y acceso directo. Comercial usa una lista cerrada de
+ * módulos; el resto conserva la matriz histórica basada en permisos.
+ */
+export function canAccessRoute(role: UserRole, route: RouteMeta): boolean {
+  if (role === 'commercial' && !COMMERCIAL_ROUTE_PATHS.has(route.path)) {
+    return false;
+  }
+  return route.permission ? can(role, route.permission) : true;
+}
+
+export function routeByPath(path: string): RouteMeta | undefined {
+  return NAV_ROUTES.find((route) => route.path === path);
+}
 
 /**
  * Agrupa las rutas por sección respetando `NAV_GROUP_ORDER`. El predicado

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   QUIVIDI_FORCE_REFRESH_ROLES,
+  QUIVIDI_OPERATIONS_ROLES,
   QUIVIDI_REPORT_ROLES,
   canForceRefreshQuividi,
   canReportQuividi,
+  canUseQuividiOperations,
   roleFromClaims,
 } from './access';
 
@@ -17,6 +19,7 @@ describe('roleFromClaims', () => {
     expect(roleFromClaims({ role: 'admin' })).toBe('admin');
     expect(roleFromClaims({ role: 'operator' })).toBe('operator');
     expect(roleFromClaims({ role: 'viewer' })).toBe('viewer');
+    expect(roleFromClaims({ role: 'commercial' })).toBe('commercial');
   });
 
   it('nunca asume un rol mayor: sin claim o con basura cae en viewer', () => {
@@ -29,11 +32,22 @@ describe('roleFromClaims', () => {
   });
 });
 
+describe('canUseQuividiOperations', () => {
+  it('excluye a Comercial de catálogo y salud de cámaras', () => {
+    expect(canUseQuividiOperations('admin')).toBe(true);
+    expect(canUseQuividiOperations('operator')).toBe(true);
+    expect(canUseQuividiOperations('viewer')).toBe(true);
+    expect(canUseQuividiOperations('commercial')).toBe(false);
+    expect(QUIVIDI_OPERATIONS_ROLES).not.toContain('commercial');
+  });
+});
+
 describe('canReportQuividi', () => {
-  it('permite el informe a los tres roles', () => {
+  it('permite el informe a los cuatro roles', () => {
     expect(canReportQuividi('admin')).toBe(true);
     expect(canReportQuividi('operator')).toBe(true);
     expect(canReportQuividi('viewer')).toBe(true);
+    expect(canReportQuividi('commercial')).toBe(true);
   });
 
   it('un token sin claim aprovisionado conserva el acceso', () => {
@@ -43,6 +57,7 @@ describe('canReportQuividi', () => {
   it('declara explícitamente los roles con la capacidad', () => {
     expect([...QUIVIDI_REPORT_ROLES].sort()).toEqual([
       'admin',
+      'commercial',
       'operator',
       'viewer',
     ]);
@@ -54,6 +69,7 @@ describe('canForceRefreshQuividi', () => {
     expect(canForceRefreshQuividi('admin')).toBe(true);
     expect(canForceRefreshQuividi('operator')).toBe(false);
     expect(canForceRefreshQuividi('viewer')).toBe(false);
+    expect(canForceRefreshQuividi('commercial')).toBe(false);
   });
 
   it('un token sin claim aprovisionado no puede forzar el recálculo', () => {

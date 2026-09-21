@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { NAV_ROUTES, groupedNavRoutes } from '@/app/routes';
+import { NAV_ROUTES, canAccessRoute, groupedNavRoutes } from '@/app/routes';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { can } from '@/app/permissions';
 import { useTheme } from '@/app/theme';
 import { signOutCurrentUser } from '@/services/auth';
 import { Icon } from '@/components/Icon';
@@ -14,6 +13,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   operator: 'Operador',
   viewer: 'Consulta',
+  commercial: 'Comercial',
 };
 
 /** Botón de cambio de tema claro/oscuro con icono de sol/luna. */
@@ -62,7 +62,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // seguridad por sí solo: la página también verifica el permiso y el servidor
   // valida cada operación.
   const groups = groupedNavRoutes((route) =>
-    route.permission ? (user ? can(user.role, route.permission) : false) : true,
+    user ? canAccessRoute(user.role, route) : false,
   );
 
   // En móvil el menú es un cajón: se cierra con Escape y devuelve el foco al
