@@ -507,3 +507,90 @@
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--ring);
 }
+
+
+.screen-form__meta-field {
+  margin-top: 0.75rem;
+}
+
+.screen-form__meta-field input {
+  width: 100%;
+}
+
+.screen-form__quividi {
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  display: grid;
+  gap: 0.7rem;
+}
+
+.screen-form__quividi-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.screen-form__quividi-title strong {
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.screen-form__quividi-title span {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.screen-form__quividi-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.screen-form__validate {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.screen-form__validation {
+  font-size: 0.8rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
+.screen-form__validation--ok {
+  color: var(--color-success-fg);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+
+.screen-form__validation--error {
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.catalog__quividi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 260px;
+}
+
+.catalog__quividi strong {
+  font-size: 0.82rem;
+}
+
+.catalog__quividi > span:not(.badge) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+@media (max-width: 620px) {
+  .screen-form__quividi-row {
+    grid-template-columns: 1fr;
+  }
+}
