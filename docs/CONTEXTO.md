@@ -19,6 +19,9 @@ Herramienta web para operar la programación de pantallas entre **Liverpool** y
 7. **Alertas de baja ocupación**: detectar pantallas con baja variedad de
    proveedores para una fecha y generar CSV auxiliares **Ratio 1 / Ratio 3**.
 8. Guardar campañas, cambios y (a futuro) auditoría en **Firebase**.
+9. Integrar **Quividi/VidiCenter** para reporte de audiencia por campaña y para
+   **salud operativa de cámaras**, con histórico diario, incidencias vigentes y
+   una vista específica dentro de Operación.
 
 ## 2. Stack y arquitectura
 
@@ -28,9 +31,10 @@ Herramienta web para operar la programación de pantallas entre **Liverpool** y
 - **Backend**: Firebase — **Authentication** (correo/contraseña), **Cloud
   Firestore**, **Cloud Storage** (usado por la **Importación Digital** para
   conservar los archivos originales bajo `digital-imports/`; requiere plan Blaze)
-  y Hosting. La estructura de **Cloud Functions** existe (`functions/`, con su
-  propio `package.json`/`tsconfig` y build en CI) pero la mayor parte de la lógica
-  sigue como *stub* para iteraciones futuras; ver §7.
+  y Hosting. **Cloud Functions** (`functions/`) ejecuta, entre otros procesos,
+  la integración Quividi: reportes por campaña, sincronización de Location ID,
+  persistencia diaria de salud, reconciliación de incidencias y callables de
+  consulta. Otros procesos de servidor siguen evolucionando; ver §7.
 - **Lectura de Excel**: `xlsx` (SheetJS) para el calendario (tolera `.xls`
   antiguos) y `exceljs` para el maestro. Ambos con import dinámico.
 - **Exportación**: `jszip` (ZIP de CSV) y `jspdf` + `jspdf-autotable` (PDF).
@@ -57,6 +61,7 @@ src/
 │   ├── ekon-import/      # importación Ekon (flujo por etapas + diff por lote)
 │   ├── reconciliation/   # conciliación Ekon ↔ Liverpool (solo compara)
 │   ├── low-occupancy/    # alertas de baja ocupación → CSV Ratio 1 / Ratio 3
+│   ├── camera-health/     # Salud de cámaras Quividi: estado, filtros, recuperaciones
 │   ├── operational-tracking/ # seguimiento operativo (estados, testigos, alertas, ciclo de vida)
 │   ├── digital-import/   # importación de catorcenas EKON (La Comer / Chedraui)
 │   ├── digital-operations/ # seguimiento Digital externo + catálogo de retailer/soporte
@@ -67,7 +72,7 @@ src/
 ├── services/             # firebase, auth, screens, campaigns, env, ekon*, digital*
 ├── lib/                  # utilidades puras reutilizables (p. ej. tableSort)
 └── tests/                # pruebas de aislamiento/integración (p. ej. digitalIsolation)
-functions/                # estructura de Cloud Functions (mayormente stub; build en CI)
+functions/                # Cloud Functions; Quividi opera aquí en producción
 ```
 
 ## 3. Infraestructura y despliegue
@@ -173,12 +178,58 @@ RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
 
 - Tabla con búsqueda (tolerante a acentos/mayúsculas) y filtros (estado, tienda,
   modelo, resolución). Columna **Normalización Liverpool**.
-- Agregar/editar (formulario con los 12 campos + campo de normalización).
+- Agregar/editar (formulario con los 12 campos + metadatos SIGNAM de
+  normalización y vínculo Quividi).
+- **Quividi Location ID**: `metadata.quividiLocationId` es la identidad estable
+  de la cámara; `metadata.quividiCameraName` conserva el alias canónico como
+  referencia visual y fallback temporal para registros legacy.
+- En alta/edición, el usuario puede capturar el Location ID y pulsar
+  **Validar en Quividi**. La callable `quividi-locationLookup` confirma que la
+  location exista y devuelve el alias canónico antes de guardar.
+- El job diario de Camera Health migra de forma conservadora los registros
+  antiguos que solo tienen alias: solo rellena el Location ID cuando existe una
+  coincidencia única en VidiCenter. Nunca adivina ante alias ambiguos.
 - Inactivar/Reactivar (con motivo, conserva historial) y **Eliminar**
   (permanente, para limpiar registros de prueba/errados).
 - **Importar maestro (.xlsx)**: detecta hoja `Consolidado`, valida encabezados,
   captura `NORMALIZACION LIVERPOOL`, vista previa e incidencias, y opción
   **Agregar** o **Reemplazar todo**.
+
+### 6.1.1 Quividi — Salud de cámaras
+
+La ruta **`/salud-camaras`** vive en el grupo **Operación** y requiere la
+capacidad `quividi.report`.
+
+La Fase 2 es independiente del reporte por campaña. Su inventario proviene del
+catálogo activo `screens`, no de campañas. Cada día SIGNAM consulta la topología
+Quividi y los exports de medición para mantener:
+
+- `quividiCameraHealthDaily/{YYYY-MM-DD__locationId}`: histórico diario por
+  cámara;
+- `quividiCameraHealthAlertState/{locationId}`: estado vigente y puntero a la
+  incidencia activa;
+- `quividiCameraHealthAlerts/{locationId__startedDate}`: incidencias
+  persistentes.
+
+Ventanas de operación: **10:00–22:00**, con **10:00–11:00** como tolerancia de
+arranque y **11:00–22:00** como ventana núcleo.
+
+La regla central del motor es que **solo el último día completo determina la
+salud vigente**. El histórico se usa para duración, continuidad y recuperación,
+pero una caída antigua ya recuperada no genera una alerta actual.
+
+Estados: `normal`, `no_measurement`, `partial_measurement` y `no_ots`.
+Las incidencias se serializan transaccionalmente por `locationId` para evitar
+duplicados entre scheduler y backfill. Si la cámara vuelve a normal, la
+incidencia pasa a `recovered` con la primera fecha normal observada. Si sale del
+scope, pasa a `retired` con `out_of_scope`, no a recuperada.
+
+La UI muestra cámaras monitoreadas, normales, alertas activas, fuera de alcance,
+cobertura 11–22, OTS, antigüedad y recuperaciones recientes. El botón
+**Actualizar vista** solo lee el último estado persistido mediante
+`quividi-cameraHealthOverview`; no vuelve a consultar VidiCenter.
+
+Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
 
 ### 6.2 Importar Calendario
 
@@ -726,10 +777,15 @@ a los CSV auxiliares Ratio 1/3.
   **tiendas individuales**, y **bitácora global** de auditoría.
 - **Historial/auditoría** e **snapshot inmutable de exportaciones** en Firestore
   (y Storage para los archivos originales de calendario/maestro/Ekon).
-- **Cloud Functions**: la estructura existe y compila en CI, pero la mayor parte de
-  la lógica sigue como *stub*; llevar a producción los procesos de servidor
-  (imports, consolidación, exports, users, audit) queda pendiente. Requieren plan
-  Blaze (ya activo para el Storage de la Importación Digital).
+- **Quividi / Odoo**: pendiente integrar las incidencias de Camera Health con
+  tickets Odoo usando una clasificación `[CAMARAS]`, deduplicación por
+  Location ID y vínculo `alertId ↔ ticketId`. La primera versión no debe cerrar
+  tickets automáticamente.
+- **Quividi / caída relativa de tráfico**: pendiente calibrar con datos reales
+  una alerta contra baseline comparable; no se fija un umbral arbitrario.
+- **Cloud Functions**: Quividi ya opera en producción desde Functions. Otros
+  procesos de servidor (imports, consolidación, exports, users, audit) siguen
+  pendientes de migración o ampliación según módulo.
 
 ## 8. Estado (resumen)
 
@@ -743,6 +799,9 @@ a los CSV auxiliares Ratio 1/3.
 | Seguimiento operativo (estados, testigos, alertas, ciclo de vida) + Dashboard | ✅     |
 | Alertas de baja ocupación (Ratio 1 / Ratio 3, CSV por soporte+resolución) | ✅     |
 | Integración Ekon (importación + conciliación + fallback CSV)  | ✅     |
+| Quividi Fase 1 (audiencia por campaña)                        | ✅     |
+| Quividi Fase 2 (Location ID + salud diaria + alertas + UI)    | ✅     |
 | Operación Digital multirretailer (importación, seguimiento, catálogo, panel) | ✅     |
+| Quividi ↔ Odoo [CAMARAS] + alerta de caída relativa           | ⏳     |
 | Muppi's / ISM · Festivos/evidencias · Historial global        | ⏳     |
-| Cloud Functions (lógica de servidor)                          | ⏳     |
+| Cloud Functions (otros procesos de servidor)                  | ⏳     |
