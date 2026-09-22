@@ -3,43 +3,11 @@
   container: dashboard / inline-size;
 }
 
-.dashboard-content .dashboard-filters,
 .dashboard-content .dash-tile,
 .dashboard-content .dashboard-health {
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow-sm);
-}
-
-.dashboard-content .dashboard-filters {
-  padding: 0.75rem 1rem;
-}
-
-.dashboard-content .dashboard-filters .dashboard-panel__head > div {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
-}
-
-.dashboard-content .dashboard-filters .dashboard-eyebrow {
-  display: none;
-}
-
-.dashboard-content .dashboard-filters .occ-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 0.6rem;
-  margin-top: 0.6rem;
-}
-
-.dashboard-content .dashboard-filters .occ-field {
-  min-width: 0;
-}
-
-.dashboard-content .dashboard-filters :is(input, select) {
-  width: 100%;
-  min-width: 0;
 }
 
 .dashboard-content .dash-summary {

@@ -5,6 +5,13 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { Icon } from '@/components/Icon';
 import { SortableTh } from '@/components/SortableTh';
+import {
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import { EntityAvatar } from '@/components/EntityAvatar';
 import {
   digitalProgress,
@@ -123,6 +130,14 @@ function cancellationInfo(tracking: DigitalOperationalTracking): string {
     ? `${base} · Motivo: ${tracking.cancellationReason}`
     : base;
 }
+
+/** Etiquetas del filtro «Avance» (select y chip). */
+const PROGRESS_FILTER_LABELS = {
+  'not-started': 'Sin iniciar',
+  'in-progress': 'En curso',
+  complete: 'Completa',
+  cancelled: 'Cancelada',
+} as const;
 
 export function DigitalOperationsPage() {
   const { user } = useAuth();
@@ -436,6 +451,75 @@ export function DigitalOperationsPage() {
     }
   }
 
+  const filterChips = compactChips([
+    query.trim() !== '' && {
+      key: 'query',
+      label: 'Búsqueda',
+      value: formatFilterSearch(query),
+      onRemove: () => setQuery(''),
+    },
+    source !== '' && {
+      key: 'source',
+      label: 'Fuente',
+      value: 'EKON · Seguimiento Campañas',
+      onRemove: () => setSource(''),
+    },
+    retailer !== '' && {
+      key: 'retailer',
+      label: 'Retailer',
+      value: retailers.find(([code]) => code === retailer)?.[1] ?? retailer,
+      onRemove: () => setRetailer(''),
+    },
+    support !== '' && {
+      key: 'support',
+      label: 'Soporte',
+      value: supports.find(([code]) => code === support)?.[1] ?? support,
+      onRemove: () => setSupport(''),
+    },
+    period !== 'window' && {
+      key: 'period',
+      label: 'Catorcena',
+      value:
+        period === 'all'
+          ? 'Todas'
+          : (periods.find((entry) => entry.key === period)?.label ?? period),
+      onRemove: () => setPeriod('window'),
+    },
+    placementMode !== '' && {
+      key: 'mode',
+      label: 'Modo',
+      value: placementMode === 'fixation' ? 'Fijación' : 'Continua',
+      onRemove: () => setPlacementMode(''),
+    },
+    lifecycle !== '' && {
+      key: 'lifecycle',
+      label: 'Estado operativo',
+      value: lifecycle === 'active' ? 'Activas' : 'Canceladas',
+      onRemove: () => setLifecycle(''),
+    },
+    sourceState !== '' && {
+      key: 'sourceState',
+      label: 'Estado de fuente',
+      value: sourceState === 'active' ? 'Vigentes' : 'Inactivos',
+      onRemove: () => setSourceState(''),
+    },
+    progressStatus !== '' && {
+      key: 'progress',
+      label: 'Avance',
+      value:
+        PROGRESS_FILTER_LABELS[
+          progressStatus as keyof typeof PROGRESS_FILTER_LABELS
+        ] ?? progressStatus,
+      onRemove: () => setProgressStatus(''),
+    },
+    party !== '' && {
+      key: 'party',
+      label: 'Cliente / anunciante',
+      value: party,
+      onRemove: () => setParty(''),
+    },
+  ]);
+
   function resetFilters() {
     setQuery('');
     setSource('');
@@ -524,151 +608,123 @@ export function DigitalOperationsPage() {
         </section>
       )}
 
-      <div className="catalog__filters do-filters">
-        <input
-          className="catalog__search"
-          type="search"
-          aria-label="Buscar campaña o creatividad"
+      <FilterBar
+        label="Filtros de la operación digital"
+        chips={filterChips}
+        onClear={resetFilters}
+        extra={
+          <>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setPeriod('all')}
+            >
+              Ver todo
+            </button>
+            <span className="fb-note">
+              {filtered.length} de {rows.length} operaciones
+            </span>
+          </>
+        }
+      >
+        <FilterSearch
+          label="Buscar"
+          ariaLabel="Buscar campaña o creatividad"
           placeholder="Campaña o creatividad…"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={setQuery}
         />
-        <label className="do-filter">
-          <span className="text-muted">Fuente</span>
-          <select
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-          >
-            <option value="">Todas</option>
-            {sources.map((entry) => (
-              <option key={entry} value={entry}>
-                EKON · Seguimiento Campañas
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Retailer</span>
-          <select
-            value={retailer}
-            onChange={(event) => setRetailer(event.target.value)}
-          >
-            <option value="">Todos</option>
-            {retailers.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Soporte</span>
-          <select
-            value={support}
-            onChange={(event) => setSupport(event.target.value)}
-          >
-            <option value="">Todos</option>
-            {supports.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Catorcena</span>
-          <select
-            value={period}
-            onChange={(event) => setPeriod(event.target.value)}
-          >
-            <option value="window">Anterior + actual + siguiente</option>
-            <option value="all">Todas</option>
-            {periods.map((entry) => (
-              <option key={entry.key} value={entry.key}>
-                {entry.label} · {formatDigitalDate(entry.start)}–
-                {formatDigitalDate(entry.end)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Modo</span>
-          <select
-            value={placementMode}
-            onChange={(event) => setPlacementMode(event.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="fixation">Fijación</option>
-            <option value="continuous">Continua</option>
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Estado operativo</span>
-          <select
-            value={lifecycle}
-            onChange={(event) => setLifecycle(event.target.value)}
-          >
-            <option value="">Activas y canceladas</option>
-            <option value="active">Activas</option>
-            <option value="cancelled">Canceladas</option>
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Estado de fuente</span>
-          <select
-            value={sourceState}
-            onChange={(event) => setSourceState(event.target.value)}
-          >
-            <option value="">Vigentes e inactivos</option>
-            <option value="active">Vigentes</option>
-            <option value="inactive">Inactivos</option>
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Avance</span>
-          <select
-            value={progressStatus}
-            onChange={(event) => setProgressStatus(event.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="not-started">Sin iniciar</option>
-            <option value="in-progress">En curso</option>
-            <option value="complete">Completa</option>
-            <option value="cancelled">Cancelada</option>
-          </select>
-        </label>
-        <label className="do-filter">
-          <span className="text-muted">Cliente / anunciante</span>
-          <select
-            value={party}
-            onChange={(event) => setParty(event.target.value)}
-          >
-            <option value="">Todos</option>
-            {parties.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="btn btn-secondary"
-          type="button"
-          onClick={resetFilters}
+        <FilterSelect label="Fuente" value={source} onChange={setSource}>
+          <option value="">Todas</option>
+          {sources.map((entry) => (
+            <option key={entry} value={entry}>
+              EKON · Seguimiento Campañas
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Retailer" value={retailer} onChange={setRetailer}>
+          <option value="">Todos</option>
+          {retailers.map(([code, label]) => (
+            <option key={code} value={code}>
+              {label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Soporte" value={support} onChange={setSupport}>
+          <option value="">Todos</option>
+          {supports.map(([code, label]) => (
+            <option key={code} value={code}>
+              {label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect
+          label="Catorcena"
+          value={period}
+          active={period !== 'window'}
+          onChange={setPeriod}
         >
-          Restablecer
-        </button>
-        <button
-          className="btn btn-secondary"
-          type="button"
-          onClick={() => setPeriod('all')}
+          <option value="window">Anterior + actual + siguiente</option>
+          <option value="all">Todas</option>
+          {periods.map((entry) => (
+            <option key={entry.key} value={entry.key}>
+              {entry.label} · {formatDigitalDate(entry.start)}–
+              {formatDigitalDate(entry.end)}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect
+          label="Modo"
+          value={placementMode}
+          onChange={setPlacementMode}
         >
-          Ver todo
-        </button>
-        <span className="text-muted do-count">
-          {filtered.length} de {rows.length} operaciones
-        </span>
-      </div>
+          <option value="">Todos</option>
+          <option value="fixation">Fijación</option>
+          <option value="continuous">Continua</option>
+        </FilterSelect>
+        <FilterSelect
+          label="Estado operativo"
+          value={lifecycle}
+          onChange={setLifecycle}
+        >
+          <option value="">Activas y canceladas</option>
+          <option value="active">Activas</option>
+          <option value="cancelled">Canceladas</option>
+        </FilterSelect>
+        <FilterSelect
+          label="Estado de fuente"
+          value={sourceState}
+          onChange={setSourceState}
+        >
+          <option value="">Vigentes e inactivos</option>
+          <option value="active">Vigentes</option>
+          <option value="inactive">Inactivos</option>
+        </FilterSelect>
+        <FilterSelect
+          label="Avance"
+          value={progressStatus}
+          onChange={setProgressStatus}
+        >
+          <option value="">Todos</option>
+          {Object.entries(PROGRESS_FILTER_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect
+          label="Cliente / anunciante"
+          value={party}
+          onChange={setParty}
+        >
+          <option value="">Todos</option>
+          {parties.map((entry) => (
+            <option key={entry} value={entry}>
+              {entry}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterBar>
 
       {loading ? (
         <LoadingOverlay

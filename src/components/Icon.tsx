@@ -32,7 +32,10 @@ export type IconName =
   | 'check-circle'
   | 'circle-dot'
   | 'minus'
-  | 'ban';
+  | 'ban'
+  | 'search'
+  | 'filter'
+  | 'rotate-ccw';
 
 /** Contenido (`<path>`, etc.) de cada icono en un viewBox 0 0 24 24. */
 const PATHS: Record<IconName, JSX.Element> = {
@@ -136,6 +139,19 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="m6 6 12 12" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ),
+  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  'rotate-ccw': (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
     </>
   ),
 };
