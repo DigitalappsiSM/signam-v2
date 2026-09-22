@@ -44,6 +44,15 @@ npx vitest run -t "consolida por resolución"
 **Before committing, the full gate is:** `npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build`.
 CI (`.github/workflows/ci.yml`) runs exactly this on every push to `main` and every PR, plus a separate Cloud Functions build.
 
+**Docs-drift guard.** On pull requests CI also runs `scripts/check-docs-freshness.mjs`, which **fails the build**
+when a PR touches load-bearing code (domain rules, the Admira CSV, the Quividi commercial report, Ekon, Digital,
+access control) without touching the document that specifies it. The mapping code→doc lives in that script's
+`RULES`, with a colocated `*.test.mjs`. This exists because the documentation here is not decorative: `CLAUDE.md`
+is loaded into every AI session and `AGENTS.md` is the authoritative spec, so code that drifts from them leaves
+false instructions in circulation — which already happened once, with the report's extrapolation rules. The guard
+cannot judge whether the prose is *correct*, only that someone opened the right file. If a change genuinely alters
+nothing documented, put `[skip-docs]` in the PR body; it stays on the record.
+
 Cloud Functions live in `functions/` with their **own** `package.json`/`tsconfig`:
 
 ```bash

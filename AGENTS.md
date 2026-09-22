@@ -2,6 +2,25 @@
 
 Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
 
+## Deriva entre código y documentación
+
+Este documento y `CLAUDE.md` no son material de apoyo: `CLAUDE.md` se carga
+automáticamente en cada sesión de IA y este fichero es la especificación
+autoritativa de las reglas de negocio. Cuando el código cambia y ellos no, la
+siguiente persona o la siguiente IA actúa sobre reglas falsas. Ya pasó: durante
+días la documentación afirmó que el informe «no extrapola» mientras el código
+extrapolaba.
+
+Por eso CI ejecuta en cada pull request `scripts/check-docs-freshness.mjs`, que
+**bloquea el merge** si se toca código sensible sin abrir el documento que lo
+especifica. El mapeo vive en las `RULES` de ese script y se prueba en
+`scripts/check-docs-freshness.test.mjs`; al añadir una regla de negocio nueva,
+añade también su entrada.
+
+El guardia no valida el contenido —ninguna máquina puede— sino que alguien
+revisara el fichero correcto. Si un cambio de verdad no altera nada documentado,
+`[skip-docs]` en el cuerpo del PR lo omite y deja constancia de quién lo decidió.
+
 ## Reglas de trabajo
 
 - Confirma que `origin` apunta a `DigitalappsiSM/signam-v2`.
