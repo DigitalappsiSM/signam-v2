@@ -532,23 +532,18 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
 - **Separación de soportes** (`support.ts`): todos los soportes del calendario
   son de Liverpool **excepto** `MUPPI'S` y `PENDON` (InStore Media), que se
   detectan pero se excluyen de la consolidación en esta etapa.
-- **Nombre de campaña Admira** (`campaignName.ts`): formato
-  `<Campaña Liverpool>_ <ARTICULOS>`; múltiples artículos distintos se
-  concatenan con `+`, deduplicando y conservando el orden de aparición.
-- **Llave de consolidación** (`consolidationKey.ts`): `Campaña + RESOLUCION`.
-  No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
-- **Serialización CSV de Admira** (`csv.ts`): Admira ignora la primera columna,
-  por lo que la columna A se usa como columna "guarda" (vacía en los datos, con
-  `LIVERPOOL` en `A1`) y las columnas reales empiezan en B. La fila 1 es
-  `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`.
-  Orden de columnas reales confirmado
-  `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape
-  RFC 4180 y UTF-8 con BOM opcional. `RETAILERS` es constante = `LIVERPOOL`. El
-  encabezado escrito rotula la última columna como `Tipo de Pases`; la llave
-  interna y el encabezado del maestro siguen siendo `TIPO DE PASES`.
-- **Encabezados del catálogo** (`constants.ts`): orden autoritativo del maestro.
-  El encabezado definitivo es `TIPO DE PASES`; la estructura antigua `Pases` se
-  reporta como faltante en lugar de corregirse en silencio.
+- **Nombre de campaña Admira** (`campaignName.ts`), **llave de consolidación**
+  (`consolidationKey.ts`), **serialización del CSV de Admira** (`csv.ts`) y
+  **encabezados del maestro** (`constants.ts`).
+
+> Estas reglas **no se detallan aquí**. Su redacción autoritativa —literales
+> exactos, orden de columnas, escape y excepciones— vive en `AGENTS.md`, y
+> `src/tests/docsInvariants.test.ts` comprueba que coincida con el código.
+>
+> Repetirlas en este README obligaba a mantener la misma regla en cuatro
+> ficheros a la vez, y ya provocó deriva: durante un tiempo este documento
+> describía el separador de artículos como `+` cuando el código une con
+> espacio-más-espacio.
 
 ## Firebase
 

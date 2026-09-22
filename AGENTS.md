@@ -21,6 +21,18 @@ El guardia no valida el contenido —ninguna máquina puede— sino que alguien
 revisara el fichero correcto. Si un cambio de verdad no altera nada documentado,
 `[skip-docs]` en el cuerpo del PR lo omite y deja constancia de quién lo decidió.
 
+Lo que sí es comprobable lo comprueba `src/tests/docsInvariants.test.ts`: ata los
+**literales** de este documento y de `CLAUDE.md` a las constantes del código —la
+fila 1 del CSV tal y como la escribe el serializador, el encabezado definitivo y
+el heredado, el valor constante de `RETAILERS` y un ejemplo de nombre de campaña
+generado por `buildAdmiraCampaignName`—. Si el código cambia y aquí no, falla.
+
+Por eso este fichero es la **única fuente normativa**. `README.md` y
+`docs/CONTEXTO.md` describen qué hace la aplicación y enlazan aquí en lugar de
+repetir las reglas; la misma prueba comprueba que no vuelvan a copiarlas. La
+duplicación no era teórica: la misma regla llegó a vivir en cuatro ficheros y
+tres de ellos describían mal el separador de artículos.
+
 ## Reglas de trabajo
 
 - Confirma que `origin` apunta a `DigitalappsiSM/signam-v2`.
@@ -44,8 +56,11 @@ revisara el fichero correcto. Si un cambio de verdad no altera nada documentado,
   del maestro (ver `AdmiraScreen` en `src/domain/models.ts`).
 - **Consolidación**: la llave es `Campaña + RESOLUCION`. No separar por circuito,
   soporte, `ARTICULOS` ni `TIPO DE PASES`.
-- **Nombre de campaña Admira**: `<Campaña>_ <ARTICULOS>` (espacio tras `_`),
-  varios artículos con `+`, deduplicando en orden de aparición.
+- **Nombre de campaña Admira**: `<Campaña>_ <ARTICULOS>` (espacio tras `_`).
+  Varios artículos se unen con **espacio, signo más y espacio**, deduplicando en
+  orden de aparición. El ejemplo canónico, generado por el propio código y atado
+  por `src/tests/docsInvariants.test.ts`, es:
+  `Nike Verano_ ARTICULO 1 + ARTICULO 2`.
 - **`TIPO DE PASES`**: informativo, va en cada fila del CSV; no divide campañas
   ni forma parte del nombre.
 - **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen

@@ -120,7 +120,8 @@ logic. The load-bearing ones:
 - **Consolidation key** is `Campaña + RESOLUCION` (`consolidationKey.ts`). Do **not** split by circuit, support,
   `ARTICULOS`, or `TIPO DE PASES`.
 - **Admira campaign name**: `<Campaña>_ <ARTICULOS>` (space after `_`), multiple articles joined with a
-  space-plus-space separator, deduped in order of appearance (`campaignName.ts`).
+  space-plus-space separator, deduped in order of appearance (`campaignName.ts`). Canonical example, generated
+  by the code itself and pinned by `src/tests/docsInvariants.test.ts`: `Nike Verano_ ARTICULO 1 + ARTICULO 2`.
 - **Admira CSV** (`csv.ts`): Admira ignores the first column, so **column A is a guard column** — empty in data
   rows, header `LIVERPOOL` in `A1`. Real columns start at B; row 1 is
   `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`. `RETAILERS` is constant
