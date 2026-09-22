@@ -286,11 +286,8 @@ del cruce campaña ↔ catálogo, de dos formas:
   inclusiva de vigencias). Se deshabilita mientras genera, con periodo inválido o
   sin resultados.
 
-El filtro **Clasificación** (Todas / Proveedor / Institucional / Pendiente) usa el
-mismo criterio que Seguimiento operativo: la clasificación guardada ahí (incluidas
-las correcciones manuales) y, si no existe, la deducida de **Tipo de Campaña** del
-calendario (`ISM/PROVEEDOR`, `ISM/INSTITUCIONAL 1`). Nunca se asume Proveedor: lo
-ambiguo queda como **Pendiente**.
+El filtro **Clasificación** (Todas / Proveedor / Institucional / Pendiente) usa la
+misma clasificación que Seguimiento operativo; las reglas están en `AGENTS.md`.
 
 El libro tiene hasta tres hojas:
 
