@@ -132,6 +132,15 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
+- **Quividi has two separate layers.** The **technical Excel** keeps measurement as it was recorded and never
+  extrapolates. The **commercial PDF** (`quividiBrandReport.ts` → `quividiCampaignPdf.ts`) does estimate, and its
+  figure covers **only support formats that had measurement** during the flight; formats with no camera at all stay
+  out of the OTS and are reported as additional reach. Within that measurable circuit it extrapolates **per format**,
+  each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
+  a mupi's performance. Averages divide by **measured** pair-days, never the full grid: missing days entering the
+  numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. The Excel's
+  **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure functions*, so sheet and
+  report cannot disagree. See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete

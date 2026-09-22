@@ -9,6 +9,13 @@
 - Última actualización: **2026-09-19**, tras resolver F1, F2 y F5 (PRs #116,
   #117 y #118). Los hallazgos resueltos conservan su diagnóstico original y
   llevan una nota de cierre, para que el historial siga siendo legible.
+- **Nota posterior (2026-09-22, PRs #129 y #130):** donde este documento afirma
+  que SIGNAM «no extrapola» días o tiendas sin medición, describe la **capa de
+  medición**, que sigue siendo cierta: el Excel técnico y el snapshot conservan
+  el dato tal cual se midió. Después se añadió el **informe comercial en PDF**,
+  una capa aparte que sí completa el circuito, limitando la cifra a los formatos
+  con medición y extrapolando formato a formato. Sus reglas están en
+  `docs/QUIVIDI_PHASE_1.md` (*Informe comercial de audiencia*) y en `AGENTS.md`.
 > - Alcance: **solo** la integración Quividi (frontend, dominio, servicio,
 >   Cloud Functions, Excel, catálogo, seguridad, pruebas).
 > - Documento funcional previo (no lo reemplaza, lo complementa):

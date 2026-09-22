@@ -83,7 +83,11 @@ La cobertura se calcula tanto de forma general como por soporte:
 
 `pares Tienda+Soporte con Quividi / pares Tienda+Soporte de la campaña`
 
-Las tiendas sin Quividi no se extrapolan.
+Las tiendas sin Quividi **no se extrapolan en la capa de medición**: ni el Excel
+técnico ni el snapshot rellenan lo que no se midió. La estimación existe sólo en
+el informe comercial en PDF, que es una capa aparte y declara explícitamente qué
+parte de la cifra es medida y cuál estimada (ver *Informe comercial de
+audiencia*, más abajo).
 
 ## Alcance efectivo y cocomercialización
 
@@ -155,7 +159,9 @@ Cuando existen cámaras completas para ese soporte/día, las parciales no se
 mezclan en la ponderación. Si sólo existen cámaras parciales, se utilizan las
 disponibles y la incidencia queda declarada.
 
-SIGNAM no rellena los faltantes con cero y no extrapola los días ausentes.
+SIGNAM no rellena los faltantes con cero y no extrapola los días ausentes **en
+el dato técnico**. El informe comercial sí completa el circuito, con las reglas
+de la sección *Informe comercial de audiencia*.
 
 ## Agregaciones
 
@@ -213,6 +219,71 @@ Definiciones mostradas al usuario:
 - **Attention Time**: tiempo promedio mirando la pantalla.
 - **Dwell Time**: tiempo promedio permaneciendo frente o cerca del soporte.
 - **Demografía**: estimación estadística; no identifica personas.
+
+## Informe comercial de audiencia
+
+El PDF que se comparte con la marca es una **capa distinta** del Excel técnico.
+El Excel conserva el dato tal cual se midió; el PDF publica una lectura agregada
+del circuito y, para eso, sí estima la parte no medida.
+
+### Circuito medible
+
+La cifra publicada cubre **únicamente los formatos de soporte con medición**
+durante la vigencia. Un formato sin ninguna cámara —CRIUS, Poster LED, un video
+wall no instrumentado— **queda fuera del OTS** y se reporta como alcance
+adicional: suma exhibición, no audiencia estimada.
+
+El motivo es que aplicarle el promedio de otro formato supondría que un pasillo
+y un atrio ven pasar a la misma gente. El código no asume dónde hay cámaras:
+detecta por campaña qué formatos tuvieron medición, de modo que un video wall
+instrumentado entra con su propio promedio.
+
+### Extrapolación formato a formato
+
+Dentro del circuito medible, cada formato se completa con **su propio** promedio
+de OTS por par-día medido, nunca con un promedio único del circuito.
+
+Ese promedio se calcula sobre los par-día **medidos** y no sobre la rejilla
+completa del formato. Si los días sin dato entraran al numerador como cero,
+deflactarían el promedio que después rellena el resto: un sesgo que crece con la
+vigencia —despreciable por debajo de ~14 días, por encima del 20% a partir de
+60—. Todo hueco dentro de un formato medible recibe el mismo tratamiento, sea un
+soporte sin cámara o un día que la cámara instalada no reportó.
+
+### Qué publica el PDF y qué no
+
+- **Publica**: el reparto medido / estimado en porcentaje sobre el circuito
+  medible, el desglose de soportes por formato señalando cuáles entran en la
+  cifra, el perfil de audiencia (género, cruce género × edad y franja horaria) y
+  tres notas de metodología.
+- **No publica**: incidencias de medición. Qué soporte falló un día concreto es
+  operación interna y de cara a la marca sólo añade ruido. El reparto completo /
+  parcial / sin dato / sin cámara vive en la hoja «Auditoría de cifras» del
+  Excel.
+- La serie diaria se limita al circuito medible y escala **cada día por los
+  pares medidos de ese día**. Con un factor constante, una jornada en la que
+  media red no midió se dibujaría como una caída de audiencia que nunca ocurrió.
+
+### Hoja «Auditoría de cifras»
+
+El Excel incluye una hoja que reconstruye paso a paso la cifra del PDF: circuito
+contratado frente a circuito medible, reparto exhaustivo de la rejilla par-día,
+la cadena aritmética formato a formato, el desglose del circuito con los no
+medibles marcados, las dos lecturas de cobertura y la aportación por tienda.
+
+Consume las **mismas funciones puras** que el PDF (`quividiBrandReport.ts`), de
+modo que una discrepancia entre hoja e informe es imposible por construcción.
+
+### Dónde vive
+
+- `src/modules/exports/quividiBrandReport.ts` — capa pura: circuito medible,
+  extrapolación, cobertura, perfil de audiencia.
+- `src/modules/exports/quividiCampaignPdf.ts` — las cinco páginas del informe.
+- `src/modules/exports/quividiPdfKit.ts` — primitivas de dibujo sobre jsPDF.
+- `src/modules/exports/quividiAuditSheet.ts` — la hoja de auditoría.
+
+Las reglas de diseño y las trampas de jsPDF (degradados acumulativos, recorte de
+fotografía, formatos de asset admitidos) están en `AGENTS.md`.
 
 ## Snapshot
 

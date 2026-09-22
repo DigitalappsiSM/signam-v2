@@ -113,10 +113,27 @@ SIGNAM integra Quividi/VidiCenter en dos capas separadas:
 - **Audiencia por campaña (Fase 1):** desde **Campañas**, el icono de métricas
   genera reportes de audiencia con OTS, Watchers, atención, permanencia,
   demografía y detalle horario. El alcance combina Calendario y Ekon según las
-  reglas documentadas.
+  reglas documentadas. La descarga tiene dos piezas: el **Excel técnico**, que
+  conserva el dato tal cual se midió, y el **informe comercial en PDF** que se
+  comparte con la marca.
 - **Salud de cámaras (Fase 2):** la ruta `/salud-camaras` dentro de
   **Operación** muestra el estado técnico vigente de cada cámara, independiente
   de campañas.
+
+El **informe comercial en PDF** es una capa aparte del Excel: publica una
+lectura agregada del circuito y estima la parte no medida. Su cifra cubre
+**sólo los formatos de soporte con medición** durante la vigencia, y dentro de
+ellos extrapola **formato a formato**, cada uno con su propio promedio de OTS
+por soporte-día medido. Los formatos sin ninguna cámara quedan fuera del OTS y
+se reportan como alcance adicional: aplicarles el promedio de otro formato
+supondría que un pasillo y un atrio ven pasar a la misma gente.
+
+El PDF declara qué porcentaje es medición directa y cuál estimación, y desglosa
+los soportes por formato señalando cuáles entran en la cifra. No publica
+incidencias de cámara: ese detalle, junto con la reconstrucción paso a paso de
+la cifra, vive en la hoja **«Auditoría de cifras»** del Excel, que consume las
+mismas funciones puras que el PDF. Las reglas completas están en
+`docs/QUIVIDI_PHASE_1.md` y `AGENTS.md`.
 
 En **Catálogo Admira**, cada pantalla puede guardar
 `metadata.quividiLocationId` como identidad estable y

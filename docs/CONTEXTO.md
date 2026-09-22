@@ -66,7 +66,7 @@ src/
 │   ├── digital-import/   # importación de catorcenas EKON (La Comer / Chedraui)
 │   ├── digital-operations/ # seguimiento Digital externo + catálogo de retailer/soporte
 │   ├── digital-dashboard/  # panel de métricas Digital (aislado)
-│   ├── exports/          # CSV/ZIP + reporte PDF + PPT
+│   ├── exports/          # CSV/ZIP + reporte PDF + PPT + informe Quividi (PDF comercial + Excel + auditoría)
 │   ├── dashboard/        # panel: resumen operativo + carga por tienda/soporte
 │   └── audit/            # historial (placeholder)
 ├── services/             # firebase, auth, screens, campaigns, env, ekon*, digital*
@@ -800,6 +800,7 @@ a los CSV auxiliares Ratio 1/3.
 | Alertas de baja ocupación (Ratio 1 / Ratio 3, CSV por soporte+resolución) | ✅     |
 | Integración Ekon (importación + conciliación + fallback CSV)  | ✅     |
 | Quividi Fase 1 (audiencia por campaña)                        | ✅     |
+| Informe comercial de audiencia (PDF infografía + hoja de auditoría) | ✅     |
 | Quividi Fase 2 (Location ID + salud diaria + alertas + UI)    | ✅     |
 | Operación Digital multirretailer (importación, seguimiento, catálogo, panel) | ✅     |
 | Quividi ↔ Odoo [CAMARAS] + alerta de caída relativa           | ⏳     |
