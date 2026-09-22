@@ -72,6 +72,7 @@ export interface BrandCampaignSummary {
   dailyPerSupport: number;
   coverage: BrandCoverage;
   basis: BrandExtrapolationBasis;
+  scope: BrandMeasurableScope;
 }
 
 export interface BrandDailyPoint {
@@ -88,6 +89,41 @@ export interface BrandDailyPoint {
 export interface BrandShare {
   label: string;
   share: number;
+}
+
+/** Un formato de soporte del circuito y cuánto se midió de él. */
+export interface BrandSupportFormat {
+  support: string;
+  /** Soportes de ese formato en el universo contratado. */
+  pairs: number;
+  /** Soportes de ese formato con cámara instalada. */
+  mappedPairs: number;
+  pairDays: number;
+  measuredPairDays: number;
+  measuredOts: number;
+  /** Hubo al menos una jornada medida en este formato durante la vigencia. */
+  measurable: boolean;
+}
+
+/**
+ * Reparto del circuito entre lo que se puede medir y lo que no.
+ *
+ * La cifra publicada cubre únicamente los formatos con medición: extrapolar la
+ * audiencia de un mupi a un video wall o a un CRIUS supondría que un pasillo y
+ * un atrio ven pasar a la misma gente. Los formatos sin ninguna cámara se
+ * reportan como alcance adicional, nunca dentro del OTS.
+ */
+export interface BrandMeasurableScope {
+  days: number;
+  formats: BrandSupportFormat[];
+  measurable: BrandSupportFormat[];
+  excluded: BrandSupportFormat[];
+  measurablePairs: number;
+  excludedPairs: number;
+  measurablePairDays: number;
+  measuredPairDays: number;
+  /** Porcentaje del circuito medible con dato directo. */
+  measuredPercent: number;
 }
 
 /** Reparto porcentual de los OTS entre franjas horarias del día. */
@@ -272,54 +308,53 @@ export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
 }
 
 /**
- * Reconstruye la rejilla par-día sobre la que se extrapola.
+ * Rejilla par-día sobre la que se extrapola: la del circuito medible.
  *
- * `report.supportDays` sólo contiene filas de pares tienda-soporte con cámara
- * instalada, una por cada fecha de la vigencia. Los pares del universo sin
- * cámara no aparecen: su hueco se deduce restando al total contratado.
+ * `report.supportDays` sólo contiene filas de soportes con cámara instalada,
+ * una por fecha. Los soportes del universo sin cámara no aparecen, y los
+ * formatos que no tienen ninguna cámara quedan fuera de la cifra por completo:
+ * su hueco se reporta como alcance adicional, no se rellena.
  */
 export function brandExtrapolationBasis(
   report: QuividiCampaignReport,
 ): BrandExtrapolationBasis {
   const rows = brandSupportDays(report);
-  const days = periodDays(report);
-  const measuredPairs = new Set(
-    rows.filter((row) => row.status !== 'missing').map(pairKey),
-  ).size;
-  const totalPairs = Math.max(
-    report.coverage.totalPairs,
-    new Set(rows.map(pairKey)).size,
+  const scope = brandMeasurableScope(report);
+  const measurableSupports = new Set(
+    scope.measurable.map((format) => format.support),
   );
-  const totalPairDays = totalPairs * days;
+  const inScope = rows.filter((row) => measurableSupports.has(row.support));
 
-  const completePairDays = rows.filter(
+  const completePairDays = inScope.filter(
     (row) => row.status === 'complete',
   ).length;
-  const partialPairDays = rows.filter((row) => row.status === 'partial').length;
-  const missingPairDays = rows.filter((row) => row.status === 'missing').length;
-  const measuredPairDays = Math.min(
-    totalPairDays,
-    completePairDays + partialPairDays,
-  );
+  const partialPairDays = inScope.filter(
+    (row) => row.status === 'partial',
+  ).length;
+  const missingPairDays = inScope.filter(
+    (row) => row.status === 'missing',
+  ).length;
   const measuredOts = sum(
-    rows.filter((row) => row.status !== 'missing').map((row) => row.ots),
+    inScope.filter((row) => row.status !== 'missing').map((row) => row.ots),
   );
 
   return {
-    days,
-    totalPairs,
-    measuredPairs,
-    totalPairDays,
-    measuredPairDays,
+    days: scope.days,
+    totalPairs: scope.measurablePairs,
+    measuredPairs: new Set(
+      inScope.filter((row) => row.status !== 'missing').map(pairKey),
+    ).size,
+    totalPairDays: scope.measurablePairDays,
+    measuredPairDays: scope.measuredPairDays,
     completePairDays,
     partialPairDays,
     missingPairDays,
     uncoveredPairDays: Math.max(
       0,
-      totalPairDays - measuredPairDays - missingPairDays,
+      scope.measurablePairDays - scope.measuredPairDays - missingPairDays,
     ),
     otsPerMeasuredPairDay:
-      measuredPairDays > 0 ? measuredOts / measuredPairDays : 0,
+      scope.measuredPairDays > 0 ? measuredOts / scope.measuredPairDays : 0,
   };
 }
 
@@ -345,42 +380,55 @@ export function brandHeader(report: QuividiCampaignReport): BrandHeader {
 }
 
 /**
- * Extrapolación comercial sobre la rejilla par-día.
+ * Extrapolación comercial, formato a formato, dentro del circuito medible.
  *
- * El promedio de OTS por par-día medido se aplica a TODO hueco del universo,
- * tanto al del soporte sin cámara como al del día que una cámara instalada no
- * reportó. Promediar por tienda en lugar de por par-día subestima la campaña:
- * los días sin dato entran al numerador como cero y deflactan el promedio que
- * luego rellena el resto del universo, un sesgo que crece con la vigencia.
+ * Cada formato con medición se completa con **su propio** promedio de OTS por
+ * par-día medido: aplicar un promedio único a todo el circuito haría que un
+ * video wall heredara el rendimiento de un mupi. Los formatos sin ninguna
+ * cámara no entran en la cifra.
+ *
+ * Dentro de cada formato, el promedio se calcula sobre los par-día medidos y no
+ * sobre la rejilla completa: si los días sin dato entraran al numerador como
+ * cero, deflactarían el promedio que luego rellena el resto, un sesgo que crece
+ * con la vigencia.
  */
 export function brandCampaignSummary(
   report: QuividiCampaignReport,
 ): BrandCampaignSummary {
-  const rows = brandSupportDays(report);
   const coverage = brandCoverage(report);
+  const scope = brandMeasurableScope(report);
   const basis = brandExtrapolationBasis(report);
-  const measuredOts = sum(
-    rows.filter((row) => row.status !== 'missing').map((row) => row.ots),
+
+  const measuredOts = sum(scope.measurable.map((format) => format.measuredOts));
+  const estimatedOts = sum(
+    scope.measurable.map((format) =>
+      format.measuredPairDays > 0
+        ? (format.measuredOts / format.measuredPairDays) * format.pairDays
+        : 0,
+    ),
   );
-  const estimatedOts = basis.otsPerMeasuredPairDay * basis.totalPairDays;
   const extrapolatedOts = Math.max(0, estimatedOts - measuredOts);
-  const days = basis.days;
+  const days = scope.days;
+  // El divisor por tienda sigue siendo el universo de campaña. Una tienda que
+  // sólo tenga formatos no medibles no aporta OTS a la cifra, así que el
+  // reparto queda conservador; es el sentido seguro para un dato que va a
+  // marca, y evita inventar cuántas tiendas tienen soporte medible, dato que
+  // el reporte no desglosa.
+  const stores = coverage.totalStores;
 
   return {
     measuredOts,
     extrapolatedOts,
     estimatedOts,
     dailyAverage: days > 0 ? estimatedOts / days : 0,
-    dailyPerStore:
-      days > 0 && coverage.totalStores > 0
-        ? estimatedOts / days / coverage.totalStores
-        : 0,
+    dailyPerStore: days > 0 && stores > 0 ? estimatedOts / days / stores : 0,
     dailyPerSupport:
-      days > 0 && basis.totalPairs > 0
-        ? estimatedOts / days / basis.totalPairs
+      days > 0 && scope.measurablePairs > 0
+        ? estimatedOts / days / scope.measurablePairs
         : 0,
     coverage,
     basis,
+    scope,
   };
 }
 
@@ -393,7 +441,13 @@ export function brandCampaignSummary(
  * serie sólo refleja variación de audiencia.
  */
 export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
-  const rows = brandSupportDays(report);
+  const scope = brandMeasurableScope(report);
+  const measurableSupports = new Set(
+    scope.measurable.map((format) => format.support),
+  );
+  const rows = brandSupportDays(report).filter((row) =>
+    measurableSupports.has(row.support),
+  );
   const basis = brandExtrapolationBasis(report);
   const measured = new Map<string, number>();
   const pairs = new Map<string, Set<string>>();
@@ -575,4 +629,101 @@ export function brandGenderAge(
   }))
     .filter((row) => row.female + row.male > 0)
     .sort((a, b) => b.female + b.male - (a.female + a.male));
+}
+
+/**
+ * Desglose del circuito por formato de soporte.
+ *
+ * El universo por formato sale de `coverage.bySupport`, que lo resuelve el
+ * backend a partir del alcance de campaña. Cuando ese desglose falta —reportes
+ * antiguos—, se reconstruye desde las filas medidas, que sólo existen para
+ * soportes con cámara: en ese caso el circuito sin medición queda fuera del
+ * detalle, nunca dentro de la cifra.
+ */
+export function brandSupportFormats(
+  report: QuividiCampaignReport,
+): BrandSupportFormat[] {
+  const rows = brandSupportDays(report);
+  const days = periodDays(report);
+
+  const measured = new Map<string, { pairDays: number; ots: number }>();
+  const mapped = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const seen = mapped.get(row.support) ?? new Set<string>();
+    seen.add(row.storeNumber);
+    mapped.set(row.support, seen);
+    if (row.status === 'missing') continue;
+    const current = measured.get(row.support) ?? { pairDays: 0, ots: 0 };
+    current.pairDays += 1;
+    current.ots += numeric(row.ots);
+    measured.set(row.support, current);
+  }
+
+  const universe = new Map<string, { pairs: number; mappedPairs: number }>();
+  for (const entry of report.coverage.bySupport ?? []) {
+    universe.set(entry.support, {
+      pairs: entry.totalPairs,
+      mappedPairs: entry.mappedPairs,
+    });
+  }
+  for (const [support, stores] of mapped) {
+    if (universe.has(support)) continue;
+    universe.set(support, { pairs: stores.size, mappedPairs: stores.size });
+  }
+
+  // Sin `bySupport` no se sabe a qué formato pertenecen los soportes del
+  // universo sin cámara, que no dejan fila. Con un único formato no hay
+  // ambigüedad y se le atribuyen todos; con varios se quedan fuera de la cifra
+  // antes que repartirlos a ojo.
+  const onlyFormat = universe.size === 1 ? [...universe.keys()][0] : undefined;
+  const entry = onlyFormat ? universe.get(onlyFormat) : undefined;
+  if (onlyFormat && entry && report.coverage.totalPairs > entry.pairs) {
+    universe.set(onlyFormat, {
+      pairs: report.coverage.totalPairs,
+      mappedPairs: entry.mappedPairs,
+    });
+  }
+
+  return Array.from(universe, ([support, counts]) => {
+    const stats = measured.get(support);
+    return {
+      support,
+      pairs: counts.pairs,
+      mappedPairs: counts.mappedPairs,
+      pairDays: counts.pairs * days,
+      measuredPairDays: stats?.pairDays ?? 0,
+      measuredOts: stats?.ots ?? 0,
+      measurable: (stats?.pairDays ?? 0) > 0,
+    };
+  }).sort(
+    (a, b) => b.pairs - a.pairs || a.support.localeCompare(b.support, 'es'),
+  );
+}
+
+/** Separa el circuito medible del que no lo es. */
+export function brandMeasurableScope(
+  report: QuividiCampaignReport,
+): BrandMeasurableScope {
+  const formats = brandSupportFormats(report);
+  const measurable = formats.filter((format) => format.measurable);
+  const excluded = formats.filter((format) => !format.measurable);
+  const measurablePairDays = sum(measurable.map((format) => format.pairDays));
+  const measuredPairDays = sum(
+    measurable.map((format) => format.measuredPairDays),
+  );
+
+  return {
+    days: periodDays(report),
+    formats,
+    measurable,
+    excluded,
+    measurablePairs: sum(measurable.map((format) => format.pairs)),
+    excludedPairs: sum(excluded.map((format) => format.pairs)),
+    measurablePairDays,
+    measuredPairDays,
+    measuredPercent:
+      measurablePairDays > 0
+        ? (measuredPairDays / measurablePairDays) * 100
+        : 0,
+  };
 }

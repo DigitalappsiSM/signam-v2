@@ -109,7 +109,7 @@ export function addQuividiAuditSheet(
   sheet.properties.tabColor = { argb: COLORS.amber };
 
   const summary = brandCampaignSummary(report);
-  const { basis, coverage } = summary;
+  const { basis, coverage, scope } = summary;
 
   sheet.mergeCells('A1:E2');
   const title = sheet.getCell('A1');
@@ -139,23 +139,37 @@ export function addQuividiAuditSheet(
   row = factRow(
     sheet,
     row,
-    'Pares tienda-soporte',
-    basis.totalPairs,
-    'Una tienda con dos soportes cuenta como dos pares: los OTS se acumulan por soporte.',
+    'Soportes contratados',
+    scope.measurablePairs + scope.excludedPairs,
+    'Todos los soportes del circuito, de cualquier formato. Una tienda con dos soportes cuenta dos veces.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Soportes de formatos con medición',
+    scope.measurablePairs,
+    'Los que entran en la cifra publicada.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Soportes de formatos sin medición',
+    scope.excludedPairs,
+    'Suman exhibición pero quedan FUERA del OTS: extrapolarles la audiencia de otro formato supondría que rinden igual.',
   );
   row = factRow(
     sheet,
     row,
     'Días de vigencia',
-    basis.days,
+    scope.days,
     'Días naturales, ambos extremos incluidos.',
   );
   row = factRow(
     sheet,
     row,
-    'Par-día del universo',
-    basis.totalPairDays,
-    `${basis.totalPairs} pares × ${basis.days} días. Es la rejilla completa que debía medirse.`,
+    'Par-día del circuito medible',
+    scope.measurablePairDays,
+    `${scope.measurablePairs} soportes × ${scope.days} días. Es la rejilla sobre la que se calcula la cifra.`,
     { strong: true },
   );
 
@@ -199,42 +213,70 @@ export function addQuividiAuditSheet(
   );
 
   row += 1;
-  row = bandTitle(sheet, row, '3 · CONSTRUCCIÓN DE LA CIFRA PUBLICADA');
+  row = bandTitle(
+    sheet,
+    row,
+    '3 · CONSTRUCCIÓN DE LA CIFRA, FORMATO A FORMATO',
+  );
+  const chainHeaders = [
+    'Formato',
+    'Par-día medidos',
+    'OTS medidos',
+    'OTS por par-día',
+    'Par-día del formato',
+  ];
+  chainHeaders.forEach((label, index) => {
+    const cell = sheet.getCell(row, index + 1);
+    cell.value = label;
+    cell.font = { bold: true, color: { argb: COLORS.white }, size: 9 };
+    cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+    fill(cell, COLORS.blue);
+  });
+  sheet.getRow(row).height = 24;
+  row += 1;
+
+  // Cada formato se completa con SU promedio: un único promedio para todo el
+  // circuito haría que un video wall heredara el rendimiento de un mupi.
+  for (const format of scope.measurable) {
+    const perPairDay =
+      format.measuredPairDays > 0
+        ? format.measuredOts / format.measuredPairDays
+        : 0;
+    const cells: Array<[number, number | string, string?]> = [
+      [1, format.support],
+      [2, format.measuredPairDays, INT],
+      [3, format.measuredOts, INT],
+      [4, perPairDay, INT],
+      [5, format.pairDays, INT],
+    ];
+    for (const [column, value, format_] of cells) {
+      const cell = sheet.getCell(row, column);
+      cell.value = value;
+      if (format_) cell.numFmt = format_;
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: column === 1 ? 'left' : 'right',
+        indent: 1,
+      };
+    }
+    sheet.getRow(row).height = 20;
+    row += 1;
+  }
+
+  row += 1;
   row = factRow(
     sheet,
     row,
     'OTS medidos',
     summary.measuredOts,
-    'Suma directa de los par-día con medición. No incluye ninguna estimación.',
-  );
-  row = factRow(
-    sheet,
-    row,
-    '÷ Par-día medidos',
-    basis.measuredPairDays,
-    'Se divide por lo medido, nunca por la rejilla completa.',
-  );
-  row = factRow(
-    sheet,
-    row,
-    '= OTS por par-día medido',
-    basis.otsPerMeasuredPairDay,
-    'Promedio observado. Los días sin dato no entran como cero y por tanto no lo deflactan.',
-    { strong: true },
-  );
-  row = factRow(
-    sheet,
-    row,
-    '× Par-día del universo',
-    basis.totalPairDays,
-    'El promedio observado se aplica a la rejilla completa.',
+    'Suma directa de los par-día con medición del circuito medible. Sin ninguna estimación.',
   );
   row = factRow(
     sheet,
     row,
     '= OTS estimados de campaña',
     summary.estimatedOts,
-    'Cifra que publica el informe comercial.',
+    'Suma de aplicar, en cada formato, su propio promedio a su propia rejilla. Es la cifra que publica el informe.',
     { strong: true },
   );
   row = factRow(
@@ -242,11 +284,56 @@ export function addQuividiAuditSheet(
     row,
     'De los cuales, extrapolados',
     summary.extrapolatedOts,
-    `${basis.totalPairDays - basis.measuredPairDays} par-día sin medición rellenados al promedio observado.`,
+    `${scope.measurablePairDays - scope.measuredPairDays} par-día sin medición, completados con el promedio de su formato.`,
   );
 
   row += 1;
-  row = bandTitle(sheet, row, '4 · COBERTURA — DOS LECTURAS DISTINTAS');
+  row = bandTitle(sheet, row, '4 · EL CIRCUITO POR FORMATO');
+  const formatHeaders = [
+    'Formato',
+    'Soportes',
+    'Con cámara',
+    'Par-día medidos',
+    'Entra en la cifra',
+  ];
+  formatHeaders.forEach((label, index) => {
+    const cell = sheet.getCell(row, index + 1);
+    cell.value = label;
+    cell.font = { bold: true, color: { argb: COLORS.white }, size: 9 };
+    cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+    fill(cell, COLORS.blue);
+  });
+  sheet.getRow(row).height = 24;
+  row += 1;
+
+  for (const format of scope.formats) {
+    const cells: Array<[number, number | string]> = [
+      [1, format.support],
+      [2, format.pairs],
+      [3, format.mappedPairs],
+      [4, format.measuredPairDays],
+      [5, format.measurable ? 'Sí' : 'No'],
+    ];
+    for (const [column, value] of cells) {
+      const cell = sheet.getCell(row, column);
+      cell.value = value;
+      if (typeof value === 'number' && column > 1) cell.numFmt = INT;
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: column === 1 ? 'left' : 'right',
+        indent: 1,
+      };
+      if (!format.measurable) {
+        fill(cell, COLORS.amberPale);
+        cell.font = { color: { argb: COLORS.amber } };
+      }
+    }
+    sheet.getRow(row).height = 20;
+    row += 1;
+  }
+
+  row += 1;
+  row = bandTitle(sheet, row, '5 · COBERTURA — DOS LECTURAS DISTINTAS');
   row = factRow(
     sheet,
     row,
@@ -265,7 +352,7 @@ export function addQuividiAuditSheet(
   );
 
   row += 1;
-  row = bandTitle(sheet, row, '5 · DERIVADOS DEL INFORME');
+  row = bandTitle(sheet, row, '6 · DERIVADOS DEL INFORME');
   row = factRow(
     sheet,
     row,
@@ -289,7 +376,7 @@ export function addQuividiAuditSheet(
   );
 
   row += 1;
-  row = bandTitle(sheet, row, '6 · APORTACIÓN POR TIENDA');
+  row = bandTitle(sheet, row, '7 · APORTACIÓN POR TIENDA');
   const headers = [
     'Tienda',
     'Completitud',
@@ -355,11 +442,11 @@ export function addQuividiAuditSheet(
   }
 
   row += 1;
-  row = bandTitle(sheet, row, '7 · REGLA APLICADA');
+  row = bandTitle(sheet, row, '8 · REGLA APLICADA');
   sheet.mergeCells(row, 1, row + 2, 5);
   const rule = sheet.getCell(row, 1);
   rule.value =
-    'Todo hueco de la rejilla par-día se rellena con el promedio de OTS observado en los par-día que sí midieron, sea el hueco un soporte sin cámara o un día que la cámara instalada no reportó. Ambos huecos son el mismo problema — universo contratado sin medir — y reciben el mismo tratamiento.\n\nLa cobertura se comunica por tienda-día porque es la que refleja la completitud real de la vigencia. La cobertura por tienda describe el despliegue de cámaras y se conserva sólo como referencia operativa.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla anterior existe únicamente para auditar la construcción de la cifra agregada.';
+    'La cifra publicada cubre únicamente los formatos con medición. Dentro de cada uno, todo hueco de su rejilla par-día se rellena con el promedio de OTS observado en los par-día de ESE MISMO formato que sí midieron, sea el hueco un soporte sin cámara o un día que la cámara instalada no reportó.\n\nLos formatos sin ninguna medición quedan fuera del OTS y se reportan como alcance adicional: aplicarles el promedio de otro formato supondría que un pasillo y un atrio ven pasar a la misma gente.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla de aportación existe únicamente para auditar la construcción de la cifra agregada.';
   rule.font = { color: { argb: COLORS.text }, size: 9.5 };
   rule.alignment = { vertical: 'top', wrapText: true, indent: 1 };
   for (let offset = 0; offset <= 2; offset += 1) {
