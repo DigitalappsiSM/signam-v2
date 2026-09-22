@@ -260,10 +260,10 @@ function coverPage(
     align: 'right',
   });
 
-  block(doc, 0, 104, CANVAS_W, 616, NAVY);
+  block(doc, 0, 104, CANVAS_W, 462, NAVY);
 
   if (assets.cover) {
-    photoCover(doc, assets.cover, 'JPEG', 384, 104, 410, 456, 0.82, 0.5);
+    photoCover(doc, assets.cover, 'JPEG', 384, 104, 410, 330, 0.82, 0.5);
     const fromLeft: AlphaStop[] = [
       [0, 1],
       [0.06, 1],
@@ -278,18 +278,18 @@ function coverPage(
       [0.68, 0],
       [1, 0],
     ];
-    fade(doc, 384, 104, 410, 456, NAVY, fromLeft, 'left');
-    fade(doc, 384, 104, 410, 456, NAVY, fromBottom, 'bottom');
+    fade(doc, 384, 104, 410, 330, NAVY, fromLeft, 'left');
+    fade(doc, 384, 104, 410, 330, NAVY, fromBottom, 'bottom');
   }
 
-  block(doc, M, 168, 34, 4, PINK);
-  text(doc, 'AUDIENCIA MEDIDA', M, 196, {
+  block(doc, M, 156, 34, 4, PINK);
+  text(doc, 'AUDIENCIA MEDIDA', M, 184, {
     size: 9,
     bold: true,
     color: BLUE_LIGHT,
     tracking: 3,
   });
-  text(doc, 'EN PUNTO DE VENTA', M, 211, {
+  text(doc, 'EN PUNTO DE VENTA', M, 199, {
     size: 9,
     bold: true,
     color: BLUE_LIGHT,
@@ -299,12 +299,12 @@ function coverPage(
     doc,
     report.campaignName.toUpperCase(),
     M,
-    272,
+    248,
     324,
-    { size: 34, bold: true, color: WHITE, lineHeight: 41 },
+    { size: 30, bold: true, color: WHITE, lineHeight: 36 },
   );
   // Un nombre largo no puede empujar los metadatos sobre la cifra principal.
-  const metaTop = Math.min(nameEnd + 46, 470);
+  const metaTop = Math.min(nameEnd + 30, 364);
   text(doc, `Circuito Liverpool · ${header.totalStores} tiendas`, M, metaTop, {
     size: 10.5,
     color: BLUE_PALE,
@@ -315,16 +315,16 @@ function coverPage(
   }
 
   const hero = formatCount(summary.estimatedOts);
-  text(doc, hero, M, 638, { size: 78, bold: true, color: WHITE });
-  const heroEnd = M + textWidth(doc, hero, 78, true) + 22;
-  block(doc, heroEnd, 570, 34, 4, PINK);
-  text(doc, 'OPORTUNIDADES', heroEnd, 597, {
+  text(doc, hero, M, 508, { size: 66, bold: true, color: WHITE });
+  const heroEnd = M + textWidth(doc, hero, 66, true) + 22;
+  block(doc, heroEnd, 452, 34, 4, PINK);
+  text(doc, 'OPORTUNIDADES', heroEnd, 479, {
     size: 11,
     bold: true,
     color: BLUE_LIGHT,
     tracking: 1.8,
   });
-  text(doc, 'DE VER · OTS', heroEnd, 614, {
+  text(doc, 'DE VER · OTS', heroEnd, 496, {
     size: 11,
     bold: true,
     color: BLUE_LIGHT,
@@ -335,7 +335,7 @@ function coverPage(
     [formatCount(summary.dailyAverage), 'OTS PROMEDIO DIARIO', SKY, BLUE],
     [String(header.totalStores), 'TIENDAS LIVERPOOL', SKY, BLUE],
     [
-      formatPercent(summary.coverage.storeDayPercent, 1),
+      formatPercent(summary.scope.measuredPercent, 0),
       'MEDICIÓN DIRECTA',
       PINK_PALE,
       PINK,
@@ -344,10 +344,10 @@ function coverPage(
   const tileW = (CONTENT_W - 28) / 3;
   tiles.forEach(([value, label, background, accent], index) => {
     const x = M + index * (tileW + 14);
-    block(doc, x, 756, tileW, 86, background);
-    block(doc, x, 756, 4, 86, accent);
-    text(doc, value, x + 18, 806, { size: 30, bold: true, color: NAVY });
-    text(doc, label, x + 18, 826, {
+    block(doc, x, 730, tileW, 96, background);
+    block(doc, x, 730, 4, 96, accent);
+    text(doc, value, x + 18, 784, { size: 32, bold: true, color: NAVY });
+    text(doc, label, x + 18, 806, {
       size: 9,
       bold: true,
       color: accent,
@@ -365,13 +365,13 @@ function coverPage(
   ];
   let metaX = M;
   meta.forEach(([label, value]) => {
-    text(doc, label, metaX, 897, {
+    text(doc, label, metaX, 886, {
       size: 9,
       bold: true,
       color: MUTED,
       tracking: 1.4,
     });
-    text(doc, value, metaX, 917, { size: 13, bold: true, color: NAVY });
+    text(doc, value, metaX, 906, { size: 13, bold: true, color: NAVY });
     metaX +=
       Math.max(
         textWidth(doc, value, 13, true),
@@ -504,22 +504,22 @@ function summaryPage(
   });
 
   block(doc, M, 640, 258, 270, SOFT);
-  sectionLabel(doc, 'COMPLETITUD DE MEDICIÓN', M + 22, 674);
-  donut(doc, M + 129, 787, 62, 21, coverage.storeDayPercent);
-  text(doc, formatPercent(coverage.storeDayPercent, 1), M + 129, 795, {
+  sectionLabel(doc, 'MEDICIÓN DIRECTA', M + 22, 674);
+  donut(doc, M + 129, 787, 62, 21, summary.scope.measuredPercent);
+  text(doc, formatPercent(summary.scope.measuredPercent, 0), M + 129, 795, {
     size: 32,
     bold: true,
     color: NAVY,
     align: 'center',
   });
-  text(doc, 'tienda-día medidos', M + 129, 814, {
+  text(doc, 'del circuito medido', M + 129, 814, {
     size: 10,
     color: MUTED,
     align: 'center',
   });
   paragraph(
     doc,
-    `${formatCount(coverage.measuredStoreDays)} de ${formatCount(coverage.totalStoreDays)} tienda-día con dato directo. El resto se estima.`,
+    `${formatCount(summary.scope.measuredPairDays)} de ${formatCount(summary.scope.measurablePairDays)} soporte-día con dato directo. El resto se estima.`,
     M + 22,
     880,
     214,
@@ -597,7 +597,7 @@ function summaryPage(
 
   quote(
     doc,
-    `${formatPercent(coverage.storeDayPercent, 0)} de los tienda-día se midieron directamente en punto de venta. La parte restante del universo contratado se estima con el promedio real observado, nunca con un supuesto de mercado.`,
+    `${formatPercent(summary.scope.measuredPercent, 0)} de la campaña se midió directamente en punto de venta. El resto se estima con el promedio de los soportes del mismo formato medidos en esta misma vigencia, nunca con un supuesto de mercado.`,
     926,
     84,
   );
@@ -610,8 +610,9 @@ function coveragePage(
   assets: PdfAssets,
 ): void {
   pageHeader(doc, assets, report);
-  const { basis } = brandCampaignSummary(report);
+  const summary = brandCampaignSummary(report);
   const daily = brandDaily(report);
+  const scope = summary.scope;
 
   eyebrow(doc, '02 · COBERTURA Y EVOLUCIÓN', 118);
   text(doc, 'Cómo se midió la campaña', M, 158, {
@@ -621,91 +622,136 @@ function coveragePage(
   });
   paragraph(
     doc,
-    `Cada tienda y cada soporte debían medirse los ${basis.days} días de vigencia. Esta es la rejilla completa y qué parte de ella tiene dato real.`,
+    `La audiencia reportada procede de los soportes del circuito que cuentan con medición, a lo largo de los ${scope.days} días de vigencia.`,
     M,
     190,
     600,
     { size: 11.5, lineHeight: 18 },
   );
 
-  sectionLabel(doc, 'REJILLA TIENDA-SOPORTE-DÍA DE LA CAMPAÑA', M, 268);
+  const measuredShare = Math.max(0, Math.min(100, scope.measuredPercent));
+
+  // El informe no desglosa incidencias de cámara: qué soporte falló un día
+  // concreto es operación interna y de cara a la marca sólo añade ruido. Aquí
+  // se publica el reparto entre lo medido y lo estimado; el detalle vive en la
+  // hoja «Auditoría de cifras» del Excel.
+  sectionLabel(doc, 'ORIGEN DE LA AUDIENCIA REPORTADA', M, 268);
   text(
     doc,
-    `${basis.totalPairs} soportes × ${basis.days} días = ${formatCount(basis.totalPairDays)}`,
+    `${formatCount(scope.measurablePairs)} soportes × ${scope.days} días`,
     CANVAS_W - M,
     268,
     { size: 9, color: MUTED, align: 'right' },
   );
 
-  const segments: Array<[number, RGB, string, string, RGB]> = [
-    [
-      basis.completePairDays,
-      BLUE,
-      'MEDICIÓN COMPLETA',
-      'Todas las cámaras del soporte reportaron la jornada.',
-      BLUE,
-    ],
-    [
-      basis.partialPairDays,
-      BLUE_LIGHT,
-      'MEDICIÓN PARCIAL',
-      'Jornada incompleta. El dato se usa y se registra.',
-      BLUE,
-    ],
-    [
-      basis.missingPairDays,
-      PINK,
-      'SIN DATO',
-      'Hay cámara, pero no reportó ese día.',
-      PINK,
-    ],
-    [
-      basis.uncoveredPairDays,
-      GRAY,
-      'SIN CÁMARA',
-      'Soportes del universo aún sin medición.',
-      MUTED,
-    ],
-  ];
-  const total = Math.max(1, basis.totalPairDays);
-  let barX = M;
-  segments.forEach(([count, color], index) => {
-    const isLast = index === segments.length - 1;
-    const width = isLast
-      ? Math.max(0, M + CONTENT_W - barX)
-      : (count / total) * CONTENT_W;
-    if (width > 0) block(doc, barX, 292, width, 40, color);
-    barX += width;
-  });
+  const measuredW = (measuredShare / 100) * CONTENT_W;
+  block(doc, M, 292, CONTENT_W, 40, BLUE_MID);
+  if (measuredW > 0) block(doc, M, 292, measuredW, 40, BLUE);
 
-  const legendW = (CONTENT_W - 36) / 4;
-  segments.forEach(([count, color, label, note, labelColor], index) => {
-    const x = M + index * (legendW + 12);
-    block(doc, x, 352, legendW, 4, color);
-    text(doc, formatCount(count), x, 382, {
-      size: 22,
+  text(doc, formatPercent(measuredShare, 0), M, 372, {
+    size: 30,
+    bold: true,
+    color: BLUE,
+  });
+  text(doc, 'MEDIDO EN TIENDA', M, 392, {
+    size: 9,
+    bold: true,
+    color: BLUE,
+    tracking: 1.2,
+  });
+  paragraph(
+    doc,
+    'Audiencia registrada directamente por la medición del soporte durante la vigencia.',
+    M,
+    412,
+    300,
+    { size: 9.5, lineHeight: 14 },
+  );
+
+  const rightCol = M + 352;
+  text(doc, formatPercent(100 - measuredShare, 0), rightCol, 372, {
+    size: 30,
+    bold: true,
+    color: BLUE_MID,
+  });
+  text(doc, 'ESTIMADO', rightCol, 392, {
+    size: 9,
+    bold: true,
+    color: BLUE_MID,
+    tracking: 1.2,
+  });
+  paragraph(
+    doc,
+    'Completado con el promedio observado en los soportes del mismo formato medidos en esta misma vigencia.',
+    rightCol,
+    412,
+    300,
+    { size: 9.5, lineHeight: 14 },
+  );
+
+  // Desglose del circuito por formato: cuántos soportes se contrataron de cada
+  // uno y cuáles entran en la cifra. Es la respuesta a «¿qué son 66 soportes?».
+  sectionLabel(doc, 'SOPORTES POR FORMATO', M, 480);
+  const columns = 4;
+  const formatW = (CONTENT_W - (columns - 1) * 12) / columns;
+  scope.formats.slice(0, 8).forEach((format, index) => {
+    const x = M + (index % columns) * (formatW + 12);
+    const y = 494 + Math.floor(index / columns) * 74;
+    const accent = format.measurable ? BLUE : GRAY;
+    block(doc, x, y, formatW, 3, accent);
+    text(doc, String(format.pairs), x, y + 32, {
+      size: 24,
       bold: true,
       color: NAVY,
     });
-    text(doc, label, x, 400, { size: 9, bold: true, color: labelColor });
-    paragraph(doc, note, x, 418, legendW, { size: 9, lineHeight: 13 });
+    paragraph(doc, format.support, x, y + 48, formatW, {
+      size: 9,
+      bold: true,
+      color: NAVY,
+      lineHeight: 12,
+    });
+    text(doc, format.measurable ? 'Con medición' : 'Sin medición', x, y + 68, {
+      size: 8.5,
+      color: format.measurable ? BLUE : MUTED,
+    });
   });
 
-  block(doc, M, 468, CONTENT_W, 340, SOFT);
-  sectionLabel(doc, 'EVOLUCIÓN DE LA AUDIENCIA', M + 26, 502);
-  text(doc, 'OTS estimados por día de campaña', CANVAS_W - M - 26, 502, {
-    size: 9,
-    color: MUTED,
-    align: 'right',
-  });
+  const formatRows = Math.ceil(Math.min(scope.formats.length, 8) / columns);
+  let chartTop = 494 + formatRows * 74 + 10;
+
+  if (scope.excluded.length > 0) {
+    paragraph(
+      doc,
+      `${formatCount(scope.excludedPairs)} soportes de formatos sin medición forman parte del circuito contratado y suman exhibición, pero su audiencia no se estima ni se incluye en la cifra reportada.`,
+      M,
+      chartTop + 14,
+      CONTENT_W,
+      { size: 9.5, lineHeight: 14 },
+    );
+    chartTop += 44;
+  }
+
+  block(doc, M, chartTop, CONTENT_W, 318, SOFT);
+  sectionLabel(doc, 'EVOLUCIÓN DE LA AUDIENCIA', M + 26, chartTop + 34);
+  text(
+    doc,
+    'OTS estimados por día de campaña',
+    CANVAS_W - M - 26,
+    chartTop + 34,
+    {
+      size: 9,
+      color: MUTED,
+      align: 'right',
+    },
+  );
 
   // En vigencias largas la serie diaria se agrupa por semanas: 60 barras no
   // caben legibles en A4 y el gerente lee tendencia, no día a día.
   const buckets = groupDaily(daily);
   const chartX = M + 26;
   const chartW = CONTENT_W - 52;
-  const chartBottom = 748;
-  const chartH = 216;
+  const chartBottom = chartTop + 252;
+  const chartH = 168;
   const max = niceCeiling(Math.max(1, ...buckets.map((b) => b.value)));
   const slotW = chartW / Math.max(1, buckets.length);
   const barW = Math.min(59, slotW * 0.72);
@@ -725,7 +771,7 @@ function coveragePage(
       color: isPeak ? PINK : NAVY,
       align: 'center',
     });
-    text(doc, bucket.label, x + barW / 2, chartBottom + 18, {
+    text(doc, bucket.label, x + barW / 2, chartBottom + 20, {
       size: 9,
       bold: isPeak,
       color: isPeak ? PINK : MUTED,
@@ -735,19 +781,16 @@ function coveragePage(
 
   text(
     doc,
-    'Serie agregada del circuito, incluyendo extrapolación.',
+    'Serie agregada de los soportes con medición, incluyendo su estimación.',
     M + 26,
-    790,
-    {
-      size: 9.5,
-      color: MUTED,
-    },
+    chartTop + 300,
+    { size: 9.5, color: MUTED },
   );
 
   quote(
     doc,
     'Cada periodo se escala por los soportes que realmente midieron en él. Así, un fallo de medición nunca se dibuja como una caída de audiencia: la curva refleja al público, no al estado de las cámaras.',
-    834,
+    Math.min(chartTop + 344, CANVAS_H - 156),
     84,
   );
   pageFooter(doc, 3, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.');
@@ -1011,7 +1054,7 @@ function closingPage(
     [
       '02',
       'El universo se completa con el dato real',
-      'La parte del circuito sin medición directa se estima con el promedio observado en lo que sí se midió, nunca con un supuesto de mercado.',
+      'Los soportes sin medición directa se completan con el promedio observado en los soportes de su mismo formato durante esta vigencia. Los formatos sin ninguna medición quedan fuera de la cifra.',
     ],
     [
       '03',

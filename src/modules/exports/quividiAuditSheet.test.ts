@@ -95,11 +95,12 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(names).toContain('Metodología');
   });
 
-  it('publica la rejilla par-día y su reparto exhaustivo', async () => {
+  it('publica la rejilla del circuito medible y su reparto exhaustivo', async () => {
     const values = await auditValues(report());
     expect(values.get('Días de vigencia')).toBe(10);
-    expect(values.get('Pares tienda-soporte')).toBe(3);
-    expect(values.get('Par-día del universo')).toBe(30);
+    expect(values.get('Soportes contratados')).toBe(3);
+    expect(values.get('Soportes de formatos con medición')).toBe(3);
+    expect(values.get('Par-día del circuito medible')).toBe(30);
 
     const complete = Number(values.get('Par-día con medición completa'));
     const partial = Number(values.get('Par-día con medición parcial'));
@@ -124,20 +125,47 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(values.get('De los cuales, extrapolados')).toBe(
       summary.extrapolatedOts,
     );
-
-    // La cadena aritmética de la hoja lleva del dato medido a la cifra final.
-    const perPairDay = Number(values.get('= OTS por par-día medido'));
-    const measuredPairDays = Number(values.get('Par-día medidos'));
-    const totalPairDays = Number(values.get('Par-día del universo'));
-    expect(Number(values.get('OTS medidos')) / measuredPairDays).toBeCloseTo(
-      perPairDay,
-      6,
-    );
-    expect(perPairDay * totalPairDays).toBeCloseTo(summary.estimatedOts, 6);
     expect(
       Number(values.get('OTS medidos')) +
         Number(values.get('De los cuales, extrapolados')),
     ).toBeCloseTo(summary.estimatedOts, 6);
+  });
+
+  it('desglosa el circuito por formato, medibles y no medibles', async () => {
+    const mixed: QuividiCampaignReport = {
+      ...report(),
+      coverage: {
+        totalPairs: 5,
+        mappedPairs: 2,
+        percent: 40,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 3,
+            mappedPairs: 2,
+            percent: 66.7,
+          },
+          { support: 'CRIUS', totalPairs: 2, mappedPairs: 0, percent: 0 },
+        ],
+      },
+    };
+    const wb = await buildQuividiCampaignWorkbook(mixed);
+    const sheet = wb.getWorksheet('Auditoría de cifras');
+    if (!sheet) throw new Error('falta la hoja de auditoría');
+
+    const labels: string[] = [];
+    sheet.eachRow((row) => {
+      const first = row.getCell(1).value;
+      if (typeof first === 'string') labels.push(first);
+    });
+    // El formato sin medición aparece en el desglose, nunca en la cadena.
+    expect(labels).toContain('CRIUS');
+    expect(labels).toContain('MUPI DIGITAL');
+
+    const values = await auditValues(mixed);
+    expect(values.get('Soportes contratados')).toBe(5);
+    expect(values.get('Soportes de formatos con medición')).toBe(3);
+    expect(values.get('Soportes de formatos sin medición')).toBe(2);
   });
 
   it('separa la cobertura de despliegue de la completitud real', async () => {

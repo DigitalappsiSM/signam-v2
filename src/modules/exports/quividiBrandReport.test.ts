@@ -12,6 +12,7 @@ import {
   brandExtrapolationBasis,
   brandGender,
   brandGenderAge,
+  brandMeasurableScope,
   brandSupportDays,
   brandTimeOfDay,
   periodDays,
@@ -453,5 +454,122 @@ describe('perfil cruzado de género y edad', () => {
     expect(brandGenderAge(report({ demographics: [demo(0, 1, 10)] }))).toEqual(
       [],
     );
+  });
+});
+
+describe('circuito medible', () => {
+  const dates = Array.from(
+    { length: 10 },
+    (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`,
+  );
+
+  /** Mupis con cámara y medición; video walls contratados y sin medir. */
+  function mixed(): QuividiCampaignReport {
+    const rows = dates.flatMap((date) => [
+      supportDay({
+        date,
+        storeNumber: '1',
+        storeName: 'UNO',
+        support: 'MUPI DIGITAL',
+        ots: 1000,
+      }),
+      supportDay({
+        date,
+        storeNumber: '2',
+        storeName: 'DOS',
+        support: 'MUPI DIGITAL',
+        ots: 1000,
+      }),
+    ]);
+    return report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: {
+        totalPairs: 10,
+        mappedPairs: 2,
+        percent: 20,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 4,
+            mappedPairs: 2,
+            percent: 50,
+          },
+          { support: 'VIDEO WALL', totalPairs: 6, mappedPairs: 0, percent: 0 },
+        ],
+      },
+      storeCoverage: { totalStores: 10, mappedStores: 2, percent: 20 },
+      supportDays: rows,
+    });
+  }
+
+  it('deja fuera de la cifra los formatos sin ninguna medición', () => {
+    const scope = brandMeasurableScope(mixed());
+    expect(scope.measurable.map((format) => format.support)).toEqual([
+      'MUPI DIGITAL',
+    ]);
+    expect(scope.excluded.map((format) => format.support)).toEqual([
+      'VIDEO WALL',
+    ]);
+    expect(scope.measurablePairs).toBe(4);
+    expect(scope.excludedPairs).toBe(6);
+    // La rejilla publicada son los 4 mupis por 10 días, no los 10 soportes.
+    expect(scope.measurablePairDays).toBe(40);
+    expect(scope.measuredPairDays).toBe(20);
+    expect(scope.measuredPercent).toBeCloseTo(50, 5);
+  });
+
+  it('no hereda el rendimiento del mupi al video wall', () => {
+    const summary = brandCampaignSummary(mixed());
+    expect(summary.measuredOts).toBe(20_000);
+    // 4 mupis × 10 días × 1.000 OTS. Los 6 video wall no entran.
+    expect(summary.estimatedOts).toBe(40_000);
+    expect(summary.extrapolatedOts).toBe(20_000);
+  });
+
+  it('extrapola cada formato medible con su propio promedio', () => {
+    const rows = dates.flatMap((date) => [
+      supportDay({
+        date,
+        storeNumber: '1',
+        storeName: 'UNO',
+        support: 'MUPI DIGITAL',
+        ots: 1000,
+      }),
+      supportDay({
+        date,
+        storeNumber: '9',
+        storeName: 'NUEVE',
+        support: 'VIDEO WALL',
+        ots: 9000,
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: {
+        totalPairs: 4,
+        mappedPairs: 2,
+        percent: 50,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 2,
+            mappedPairs: 1,
+            percent: 50,
+          },
+          { support: 'VIDEO WALL', totalPairs: 2, mappedPairs: 1, percent: 50 },
+        ],
+      },
+      storeCoverage: { totalStores: 4, mappedStores: 2, percent: 50 },
+      supportDays: rows,
+    });
+
+    const summary = brandCampaignSummary(input);
+    expect(summary.measuredOts).toBe(100_000);
+    // Cada formato dobla su propio dato: 20.000 de mupi y 180.000 de video
+    // wall. Un promedio único habría dado 200.000 para ambos.
+    expect(summary.estimatedOts).toBe(200_000);
+    expect(summary.scope.measurable).toHaveLength(2);
   });
 });

@@ -227,7 +227,7 @@ describe('renderizado del informe', () => {
     expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBe(5);
   });
 
-  it('publica en portada la cifra de campaña y la completitud de medición', async () => {
+  it('publica en portada la cifra de campaña y el porcentaje medido', async () => {
     serveRepoAssets();
     const input = longCampaign();
     const summary = brandCampaignSummary(input);
@@ -236,12 +236,26 @@ describe('renderizado del informe', () => {
     ).toString('latin1');
 
     expect(raw).toContain(formatCount(summary.estimatedOts));
-    expect(raw).toContain(formatPercent(summary.coverage.storeDayPercent, 1));
+    expect(raw).toContain(formatPercent(summary.scope.measuredPercent, 0));
     // La portada no delata la estimación; eso se explica en el cuerpo.
     expect(raw).toContain('OPORTUNIDADES');
     expect(raw).toContain('OTS ESTIMADOS');
     // Nunca se nombra la plataforma de medición.
     expect(raw.toLowerCase()).not.toContain('quividi');
+  });
+
+  it('desglosa los soportes por formato y no publica incidencias de cámara', async () => {
+    serveRepoAssets();
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(longCampaign()))
+    ).toString('latin1');
+
+    expect(raw).toContain('SOPORTES POR FORMATO');
+    expect(raw).toContain('MUPI DIGITAL');
+    expect(raw).toContain('MEDIDO EN TIENDA');
+    // El detalle operativo de cámaras se queda en el Excel.
+    expect(raw).not.toContain('SIN C');
+    expect(raw).not.toContain('MEDICIÓN PARCIAL');
   });
 
   it('cruza género y edad en la pirámide de audiencia', async () => {

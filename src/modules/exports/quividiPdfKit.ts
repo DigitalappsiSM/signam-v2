@@ -81,11 +81,20 @@ export function text(
   options: TextOptions = {},
 ): void {
   const color = options.color ?? NAVY;
+  const align = options.align ?? 'left';
   doc.setFont('helvetica', options.bold ? 'bold' : 'normal');
   doc.setFontSize(pt(options.size ?? 12));
   doc.setTextColor(color[0], color[1], color[2]);
+
+  // jsPDF ancla el texto centrado o alineado a la derecha midiendo su anchura
+  // SIN contar el interletraje, así que con `tracking` se desborda por el lado
+  // contrario al ancla. Se descuenta a mano el ancho que añade.
+  const extra = options.tracking ? options.tracking * value.length : 0;
+  const anchor =
+    align === 'right' ? x - extra : align === 'center' ? x - extra / 2 : x;
+
   if (options.tracking) doc.setCharSpace(u(options.tracking));
-  doc.text(value, u(x), u(y), { align: options.align ?? 'left' });
+  doc.text(value, u(anchor), u(y), { align });
   if (options.tracking) doc.setCharSpace(0);
 }
 

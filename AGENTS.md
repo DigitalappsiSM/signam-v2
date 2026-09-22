@@ -238,30 +238,41 @@ Lee este archivo antes de modificar el repositorio. Complementa al `README.md`.
   Los segmentos de audiencia se comunican únicamente como distribuciones
   porcentuales agregadas (por ejemplo, género y rango de edad), nunca como conteos
   absolutos.
-- **Cobertura y extrapolación del PDF**: la cobertura publicada se calcula sobre
-  la rejilla **tienda-día** (tiendas del universo × días de vigencia), no por
-  tienda única, ni por cámara, ni por tienda+soporte. Una tienda cuya cámara cae
-  a mitad de vigencia deja de contar como cubierta durante los días sin dato. La
-  cobertura por tienda única (`measuredPercent`) se conserva como referencia
-  operativa del despliegue de cámaras, pero **no es la cifra que publica el
-  informe**. El snapshot conserva `storeCoverage` con total de tiendas y tiendas
-  mapeadas.
+- **Circuito medible y extrapolación del PDF**: la cifra publicada cubre
+  **únicamente los formatos de soporte con medición** durante la vigencia
+  (`brandMeasurableScope`). Un formato sin ninguna cámara —CRIUS, Poster LED,
+  video walls no instrumentados— **queda fuera del OTS** y se reporta como
+  alcance adicional: aplicarle el promedio de un mupi supondría que un pasillo y
+  un atrio ven pasar a la misma gente. Dentro del circuito medible se extrapola
+  **formato a formato**, cada uno con su propio promedio de OTS por par-día
+  medido, nunca con un promedio único del circuito.
 
-  La extrapolación opera sobre la rejilla **par-día** (tienda × soporte × fecha),
-  que es la unidad en la que se acumulan los OTS: se toma el promedio de OTS por
-  par-día **medido** y se aplica a la rejilla completa del universo contratado.
-  Todo hueco recibe el mismo tratamiento, sea un soporte sin cámara instalada o
-  un día que la cámara instalada no reportó. Promediar por tienda en lugar de por
-  par-día subestima la campaña, porque los días sin dato entran al numerador como
-  cero y deflactan el promedio que después rellena el resto del universo; el
-  sesgo es despreciable por debajo de ~14 días y supera el 20% a partir de 60.
-  El PDF debe indicar explícitamente qué porcentaje del universo es medición
-  directa y qué porcentaje es extrapolado.
+  El promedio de cada formato se calcula sobre sus par-día **medidos** y no
+  sobre su rejilla completa: si los días sin dato entraran al numerador como
+  cero, deflactarían el promedio que luego rellena el resto, un sesgo que crece
+  con la vigencia (despreciable por debajo de ~14 días, por encima del 20 % a
+  partir de 60). Todo hueco dentro de un formato medible recibe el mismo
+  tratamiento, sea un soporte sin cámara o un día que la cámara no reportó.
 
-  La serie diaria escala **cada día por los pares medidos de ese día**, nunca con
-  un factor constante de campaña: con factor constante, una jornada en la que
-  media red no midió se dibuja como una caída de audiencia que nunca ocurrió.
+  El porcentaje publicado (`scope.measuredPercent`) es par-día medidos sobre
+  par-día del circuito **medible**, no sobre el circuito contratado. La
+  cobertura por tienda y por tienda-día (`brandCoverage`) se conserva como
+  referencia operativa del despliegue de cámaras, pero no es la cifra que
+  publica el informe. El divisor por tienda sigue siendo el universo de campaña:
+  una tienda con sólo formatos no medibles deja el reparto conservador, que es
+  el sentido seguro para un dato que va a marca.
 
+  La serie diaria se limita al circuito medible y escala **cada día por los
+  pares medidos de ese día**, nunca con un factor constante: con factor
+  constante, una jornada en la que media red no midió se dibuja como una caída
+  de audiencia que nunca ocurrió.
+
+- **El PDF no publica incidencias de medición**: qué soporte falló un día
+  concreto es operación interna y de cara a la marca sólo añade ruido. El
+  informe muestra el reparto **medido / estimado en porcentaje** y el desglose
+  de soportes **por formato**, señalando cuáles entran en la cifra. El detalle
+  de completo / parcial / sin dato / sin cámara vive en la hoja «Auditoría de
+  cifras» del Excel.
 - **Hoja «Auditoría de cifras» del Excel**: el Excel técnico incluye una hoja que
   reconstruye paso a paso la cifra del PDF — universo contratado, reparto
   exhaustivo de la rejilla par-día (completo / parcial / sin dato / sin cámara),
