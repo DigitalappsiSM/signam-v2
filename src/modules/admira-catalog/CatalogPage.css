@@ -270,7 +270,8 @@
   font-size: 0.85rem;
 }
 
-.campaign-date input[type='date'] {
+.campaign-date input[type='date'],
+.campaign-date select {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 0.35rem 0.5rem;

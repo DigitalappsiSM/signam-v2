@@ -65,6 +65,12 @@ import {
   parseCampaignDate,
   periodError,
 } from './dateFilter';
+import {
+  CLASSIFICATION_FILTER_OPTIONS,
+  matchesClassification,
+  resolveClassifications,
+  type ClassificationFilter,
+} from './classificationFilter';
 import '@/modules/liverpool-import/ImportPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
 import {
@@ -246,6 +252,7 @@ export function CampaignsPage() {
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
+  const [classFilter, setClassFilter] = useState<ClassificationFilter>('all');
   const [detail, setDetail] = useState<StoredCampaign | null>(null);
   const [correction, setCorrection] = useState<StoredCampaign | null>(null);
   // Menú de descargas: solo uno abierto a la vez (por id de campaña).
@@ -441,6 +448,13 @@ export function CampaignsPage() {
 
   const perError = periodError(desde, hasta);
 
+  // Institucional / Proveedor / Pendiente: mismo criterio que Seguimiento
+  // operativo (clasificación guardada; si no hay, "Tipo de Campaña").
+  const classificationById = useMemo(
+    () => resolveClassifications(campaigns, trackingList),
+    [campaigns, trackingList],
+  );
+
   const filtered = useMemo(() => {
     if (perError) return [];
     const q = normalize(search);
@@ -453,9 +467,20 @@ export function CampaignsPage() {
         normalize(c.name).includes(q) ||
         (ekon != null && String(ekon).includes(q));
       if (!matchesSearch) return false;
+      if (!matchesClassification(classificationById.get(c.id), classFilter))
+        return false;
       return campaignIntersectsPeriod(c.fechaInicio, c.fechaFin, d, h);
     });
-  }, [campaigns, ekonByKey, search, desde, hasta, perError]);
+  }, [
+    campaigns,
+    ekonByKey,
+    search,
+    desde,
+    hasta,
+    perError,
+    classificationById,
+    classFilter,
+  ]);
 
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(
@@ -473,7 +498,10 @@ export function CampaignsPage() {
   const onSort = (k: string) => setSort((s) => nextSortState(s, k));
 
   const filtersActive =
-    search.trim() !== '' || hasPeriodFilter(desde, hasta) || perError !== null;
+    search.trim() !== '' ||
+    classFilter !== 'all' ||
+    hasPeriodFilter(desde, hasta) ||
+    perError !== null;
 
   // CSV e incidencias visibles: solo de las campañas incluidas en `filtered`.
   const visibleStats = useMemo(() => {
@@ -488,6 +516,7 @@ export function CampaignsPage() {
 
   function clearFilters() {
     setSearch('');
+    setClassFilter('all');
     setDesde('');
     setHasta('');
   }
@@ -681,6 +710,21 @@ export function CampaignsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <label className="campaign-date">
+          <span className="text-muted">Clasificación</span>
+          <select
+            value={classFilter}
+            onChange={(e) =>
+              setClassFilter(e.target.value as ClassificationFilter)
+            }
+          >
+            {CLASSIFICATION_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="campaign-date">
           <span className="text-muted">Desde</span>
           <input
