@@ -1,3 +1,11 @@
+import type { ReactNode } from 'react';
+import {
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import { LEVEL_LABELS } from '../types';
 import type { OccupancyFilters as Filters, OccupancyLevel } from '../types';
 
@@ -7,6 +15,12 @@ const LEVELS: OccupancyLevel[] = [
   'baja-preventiva',
   'normal',
 ];
+
+const RATIO_LABELS: Record<Exclude<Filters['ratio'], ''>, string> = {
+  '1': 'Ratio 1',
+  '3': 'Ratio 3',
+  '0': 'Sin ocupación',
+};
 
 /**
  * Filtros visuales de la tabla. No alteran los CSV completos: solo cambian lo
@@ -18,108 +32,139 @@ export function OccupancyFilters({
   resolutions,
   onChange,
   onClear,
-  active,
+  summary,
 }: {
   filters: Filters;
   normalizations: string[];
   resolutions: string[];
   onChange: (patch: Partial<Filters>) => void;
   onClear: () => void;
-  active: boolean;
+  /** Conteo de unidades visibles, a la derecha de la barra. */
+  summary?: ReactNode;
 }) {
+  const chips = compactChips([
+    filters.search.trim() !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(filters.search),
+      onRemove: () => onChange({ search: '' }),
+    },
+    filters.centro.trim() !== '' && {
+      key: 'centro',
+      label: 'Centro',
+      value: formatFilterSearch(filters.centro),
+      onRemove: () => onChange({ centro: '' }),
+    },
+    filters.storeNumber.trim() !== '' && {
+      key: 'storeNumber',
+      label: 'Tienda',
+      value: filters.storeNumber.trim(),
+      onRemove: () => onChange({ storeNumber: '' }),
+    },
+    filters.normalization !== '' && {
+      key: 'normalization',
+      label: 'Normalización',
+      value: filters.normalization,
+      onRemove: () => onChange({ normalization: '' }),
+    },
+    filters.resolution !== '' && {
+      key: 'resolution',
+      label: 'Resolución',
+      value: filters.resolution,
+      onRemove: () => onChange({ resolution: '' }),
+    },
+    filters.level !== '' && {
+      key: 'level',
+      label: 'Nivel',
+      value: LEVEL_LABELS[filters.level],
+      onRemove: () => onChange({ level: '' }),
+    },
+    filters.ratio !== '' && {
+      key: 'ratio',
+      label: 'Ratio',
+      value: RATIO_LABELS[filters.ratio],
+      onRemove: () => onChange({ ratio: '' }),
+    },
+  ]);
+
   return (
-    <div className="occ-filters" role="group" aria-label="Filtros de la tabla">
-      <input
-        className="catalog__search"
-        type="search"
+    <FilterBar
+      label="Filtros de la tabla"
+      chips={chips}
+      onClear={onClear}
+      extra={summary}
+    >
+      <FilterSearch
+        label="Buscar"
         placeholder="Buscar campaña o artículo…"
-        aria-label="Buscar por campaña o artículo"
+        ariaLabel="Buscar por campaña o artículo"
         value={filters.search}
-        onChange={(e) => onChange({ search: e.target.value })}
+        onChange={(search) => onChange({ search })}
       />
-      <input
-        className="catalog__search"
-        type="search"
+      <FilterSearch
+        label="Centro"
         placeholder="Centro…"
-        aria-label="Filtrar por centro"
+        ariaLabel="Filtrar por centro"
         value={filters.centro}
-        onChange={(e) => onChange({ centro: e.target.value })}
+        onChange={(centro) => onChange({ centro })}
       />
-      <input
-        className="catalog__search"
-        type="search"
+      <FilterSearch
+        label="Tienda"
         placeholder="Número de tienda…"
-        aria-label="Filtrar por número de tienda"
+        ariaLabel="Filtrar por número de tienda"
         value={filters.storeNumber}
-        onChange={(e) => onChange({ storeNumber: e.target.value })}
+        onChange={(storeNumber) => onChange({ storeNumber })}
       />
-      <label className="occ-filter">
-        <span className="visually-hidden">Normalización Liverpool</span>
-        <select
-          aria-label="Filtrar por normalización Liverpool"
-          value={filters.normalization}
-          onChange={(e) => onChange({ normalization: e.target.value })}
-        >
-          <option value="">Toda normalización</option>
-          {normalizations.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="occ-filter">
-        <span className="visually-hidden">Resolución</span>
-        <select
-          aria-label="Filtrar por resolución"
-          value={filters.resolution}
-          onChange={(e) => onChange({ resolution: e.target.value })}
-        >
-          <option value="">Toda resolución</option>
-          {resolutions.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="occ-filter">
-        <span className="visually-hidden">Nivel</span>
-        <select
-          aria-label="Filtrar por nivel"
-          value={filters.level}
-          onChange={(e) =>
-            onChange({ level: e.target.value as Filters['level'] })
-          }
-        >
-          <option value="">Todo nivel</option>
-          {LEVELS.map((l) => (
-            <option key={l} value={l}>
-              {LEVEL_LABELS[l]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="occ-filter">
-        <span className="visually-hidden">Ratio recomendado</span>
-        <select
-          aria-label="Filtrar por ratio recomendado"
-          value={filters.ratio}
-          onChange={(e) =>
-            onChange({ ratio: e.target.value as Filters['ratio'] })
-          }
-        >
-          <option value="">Todo ratio</option>
-          <option value="1">Ratio 1</option>
-          <option value="3">Ratio 3</option>
-          <option value="0">Sin ocupación</option>
-        </select>
-      </label>
-      {active && (
-        <button className="btn btn-secondary" onClick={onClear}>
-          Limpiar filtros
-        </button>
-      )}
-    </div>
+      <FilterSelect
+        label="Normalización"
+        ariaLabel="Filtrar por normalización Liverpool"
+        value={filters.normalization}
+        onChange={(normalization) => onChange({ normalization })}
+      >
+        <option value="">Toda normalización</option>
+        {normalizations.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </FilterSelect>
+      <FilterSelect
+        label="Resolución"
+        ariaLabel="Filtrar por resolución"
+        value={filters.resolution}
+        onChange={(resolution) => onChange({ resolution })}
+      >
+        <option value="">Toda resolución</option>
+        {resolutions.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </FilterSelect>
+      <FilterSelect
+        label="Nivel"
+        ariaLabel="Filtrar por nivel"
+        value={filters.level}
+        onChange={(level) => onChange({ level: level as Filters['level'] })}
+      >
+        <option value="">Todo nivel</option>
+        {LEVELS.map((l) => (
+          <option key={l} value={l}>
+            {LEVEL_LABELS[l]}
+          </option>
+        ))}
+      </FilterSelect>
+      <FilterSelect
+        label="Ratio"
+        ariaLabel="Filtrar por ratio recomendado"
+        value={filters.ratio}
+        onChange={(ratio) => onChange({ ratio: ratio as Filters['ratio'] })}
+      >
+        <option value="">Todo ratio</option>
+        <option value="1">Ratio 1</option>
+        <option value="3">Ratio 3</option>
+        <option value="0">Sin ocupación</option>
+      </FilterSelect>
+    </FilterBar>
   );
 }

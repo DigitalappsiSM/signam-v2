@@ -24,10 +24,6 @@
   margin: 1.75rem 0 0.75rem;
 }
 
-.occ-count {
-  margin: 0.5rem 0;
-}
-
 .occ-planning-note {
   margin: -0.35rem 0 0.8rem;
 }
@@ -701,36 +697,6 @@
 }
 .occ-summary__stat--ok .occ-summary__value {
   color: var(--color-success-fg);
-}
-
-/* Filtros. */
-.occ-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 0.75rem 0.9rem;
-  margin-bottom: 0.5rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-
-.occ-filter select {
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: inherit;
-  font: inherit;
-  box-shadow: var(--shadow-sm);
-}
-
-.occ-filter select:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* Distintivos de nivel (nunca solo color: llevan símbolo + texto). */

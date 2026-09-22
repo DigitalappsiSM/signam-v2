@@ -259,13 +259,14 @@ export function LowOccupancyPage() {
             resolutions={resolutions}
             onChange={patchFilters}
             onClear={() => setFilters(EMPTY_FILTERS)}
-            active={filtersActive}
+            summary={
+              <span className="fb-note">
+                {filtersActive
+                  ? `${filtered.length} de ${analysis.units.length} unidades`
+                  : `${analysis.units.length} unidades evaluadas`}
+              </span>
+            }
           />
-          <p className="text-muted occ-count">
-            {filtersActive
-              ? `${filtered.length} de ${analysis.units.length} unidades`
-              : `${analysis.units.length} unidades evaluadas`}
-          </p>
           <OccupancyTable units={filtered} onSelect={setDetail} />
         </>
       )}

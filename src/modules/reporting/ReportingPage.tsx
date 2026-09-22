@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { Icon } from '@/components/Icon';
+import {
+  FilterBar,
+  FilterDate,
+  FilterSelect,
+  compactChips,
+} from '@/components/filters';
 import { reconciliationStatusLabel } from '@/domain/ekon';
 import { presetRange } from '@/modules/dashboard/occupancyModel';
 import {
@@ -540,6 +546,14 @@ function QualityTab({ model }: { model: ReportingModel }) {
   );
 }
 
+/** Etiquetas del periodo de reporting (select y chip). */
+const PRESET_LABELS: Record<PeriodPreset, string> = {
+  'this-month': 'Mes actual',
+  'last-3-months': 'Últimos 3 meses',
+  'this-year': 'Año actual',
+  custom: 'Personalizado',
+};
+
 export function ReportingPage() {
   const today = useMemo(() => todayCivil(), []);
   const [tab, setTab] = useState<Tab>('executive');
@@ -565,6 +579,18 @@ export function ReportingPage() {
       ? { start, end }
       : { start: end, end: start };
   }, [preset, today, customStart, customEnd, initialRange]);
+
+  const filterChips = compactChips([
+    preset !== 'this-month' && {
+      key: 'period',
+      label: 'Periodo',
+      value:
+        preset === 'custom'
+          ? `${formatDdMmYyyy(range.start)} – ${formatDdMmYyyy(range.end)}`
+          : PRESET_LABELS[preset],
+      onRemove: () => setPreset('this-month'),
+    },
+  ]);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -657,61 +683,59 @@ export function ReportingPage() {
         }
       />
 
-      <section
-        className="card reporting-toolbar"
-        aria-label="Filtros de reporting"
+      <FilterBar
+        label="Filtros de reporting"
+        chips={filterChips}
+        onClear={() => setPreset('this-month')}
+        extra={
+          <>
+            <div className="reporting-range-label">
+              <span>Alcance</span>
+              <strong>
+                {formatDdMmYyyy(range.start)} — {formatDdMmYyyy(range.end)}
+              </strong>
+            </div>
+            {loadedAt && (
+              <span className="fb-note">
+                Actualizado{' '}
+                {loadedAt.toLocaleTimeString('es-MX', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            )}
+          </>
+        }
       >
-        <div className="reporting-filter">
-          <label htmlFor="reporting-period">Periodo</label>
-          <select
-            id="reporting-period"
-            value={preset}
-            onChange={(event) => setPreset(event.target.value as PeriodPreset)}
-          >
-            <option value="this-month">Mes actual</option>
-            <option value="last-3-months">Últimos 3 meses</option>
-            <option value="this-year">Año actual</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </div>
+        <FilterSelect
+          label="Periodo"
+          value={preset}
+          active={preset !== 'this-month'}
+          onChange={(value) => setPreset(value as PeriodPreset)}
+        >
+          {Object.entries(PRESET_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </FilterSelect>
         {preset === 'custom' && (
           <>
-            <div className="reporting-filter">
-              <label htmlFor="reporting-start">Desde</label>
-              <input
-                id="reporting-start"
-                type="date"
-                value={customStart}
-                onChange={(event) => setCustomStart(event.target.value)}
-              />
-            </div>
-            <div className="reporting-filter">
-              <label htmlFor="reporting-end">Hasta</label>
-              <input
-                id="reporting-end"
-                type="date"
-                value={customEnd}
-                onChange={(event) => setCustomEnd(event.target.value)}
-              />
-            </div>
+            <FilterDate
+              label="Desde"
+              value={customStart}
+              active
+              onChange={setCustomStart}
+            />
+            <FilterDate
+              label="Hasta"
+              value={customEnd}
+              active
+              onChange={setCustomEnd}
+            />
           </>
         )}
-        <div className="reporting-range-label">
-          <span>Alcance</span>
-          <strong>
-            {formatDdMmYyyy(range.start)} — {formatDdMmYyyy(range.end)}
-          </strong>
-        </div>
-        {loadedAt && (
-          <span className="reporting-updated">
-            Actualizado{' '}
-            {loadedAt.toLocaleTimeString('es-MX', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-        )}
-      </section>
+      </FilterBar>
 
       <nav className="reporting-tabs" aria-label="Vistas de reporting">
         <button

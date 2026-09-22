@@ -50,6 +50,15 @@ import {
   type TrackingRow,
 } from './trackingModel';
 import { SortableTh } from '@/components/SortableTh';
+import {
+  FilterBar,
+  FilterDate,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterDate,
+  formatFilterSearch,
+} from '@/components/filters';
 import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
 import './OperationalTrackingPage.css';
 import '@/modules/admira-catalog/CatalogPage.css';
@@ -237,6 +246,45 @@ export function OperationalTrackingPage() {
         r.campaign.nameKey === highlightKey),
     [highlightKey],
   );
+
+  const periodChanged =
+    desde !== defaultWindow.desde || hasta !== defaultWindow.hasta;
+  const CLASS_LABELS = {
+    institutional: 'Institucional',
+    provider: 'Proveedor',
+    unknown: 'Pendiente',
+  } as const;
+  const filterChips = compactChips([
+    search.trim() !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(search),
+      onRemove: () => setSearch(''),
+    },
+    statusFilter !== 'all' && {
+      key: 'status',
+      label: 'Estado',
+      value: STATUS_META[statusFilter].label,
+      onRemove: () => setStatusFilter('all'),
+    },
+    classFilter !== 'all' && {
+      key: 'class',
+      label: 'Clasificación',
+      value: CLASS_LABELS[classFilter],
+      onRemove: () => setClassFilter('all'),
+    },
+    periodChanged && {
+      key: 'period',
+      label: 'Periodo',
+      value: hasPeriodFilter(desde, hasta)
+        ? `${desde ? formatFilterDate(desde) : '…'} – ${hasta ? formatFilterDate(hasta) : '…'}`
+        : 'Todo el periodo',
+      onRemove: () => {
+        setDesde(defaultWindow.desde);
+        setHasta(defaultWindow.hasta);
+      },
+    },
+  ]);
 
   const filtered = useMemo(() => {
     if (perError) return [];
@@ -559,91 +607,94 @@ export function OperationalTrackingPage() {
         </div>
       )}
 
-      <div className="catalog__filters">
-        <input
-          className="catalog__search"
-          type="search"
+      <FilterBar
+        label="Filtros del seguimiento"
+        chips={filterChips}
+        onClear={() => {
+          setSearch('');
+          setStatusFilter('all');
+          setClassFilter('all');
+          setDesde(defaultWindow.desde);
+          setHasta(defaultWindow.hasta);
+        }}
+        extra={
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setDesde(defaultWindow.desde);
+                setHasta(defaultWindow.hasta);
+              }}
+              title="Volver al periodo por defecto (mes anterior, actual y siguiente)"
+            >
+              Restablecer
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setDesde('');
+                setHasta('');
+              }}
+              title="Quitar el filtro de fechas y mostrar todas las campañas"
+            >
+              Ver todo
+            </button>
+            <span className="fb-note">
+              {filtered.length} de {campaigns.length} campañas
+              {hasPeriodFilter(desde, hasta) ? '' : ' · todo el periodo'}
+            </span>
+          </>
+        }
+      >
+        <FilterSearch
+          label="Buscar"
           placeholder="Buscar campaña…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
         />
-        <label className="ot-filter">
-          <span className="text-muted">Estado</span>
-          <select
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as 'all' | WitnessStatus)
-            }
-          >
-            <option value="all">Todos</option>
-            {Object.keys(STATUS_META).map((s) => (
-              <option key={s} value={s}>
-                {STATUS_META[s as WitnessStatus].label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="ot-filter">
-          <span className="text-muted">Clasificación</span>
-          <select
-            value={classFilter}
-            onChange={(e) =>
-              setClassFilter(
-                e.target.value as 'all' | Classification | 'unknown',
-              )
-            }
-          >
-            <option value="all">Todas</option>
-            <option value="institutional">Institucional</option>
-            <option value="provider">Proveedor</option>
-            <option value="unknown">Pendiente</option>
-          </select>
-        </label>
-        <label className="campaign-date">
-          <span className="text-muted">Desde</span>
-          <input
-            type="date"
-            aria-label="Periodo desde"
-            value={desde}
-            max={hasta || undefined}
-            onChange={(e) => setDesde(e.target.value)}
-          />
-        </label>
-        <label className="campaign-date">
-          <span className="text-muted">Hasta</span>
-          <input
-            type="date"
-            aria-label="Periodo hasta"
-            value={hasta}
-            min={desde || undefined}
-            onChange={(e) => setHasta(e.target.value)}
-          />
-        </label>
-        <button
-          className="btn btn-secondary"
-          onClick={() => {
-            setDesde(defaultWindow.desde);
-            setHasta(defaultWindow.hasta);
-          }}
-          title="Volver al periodo por defecto (mes anterior, actual y siguiente)"
+        <FilterSelect
+          label="Estado"
+          value={statusFilter}
+          active={statusFilter !== 'all'}
+          onChange={(v) => setStatusFilter(v as 'all' | WitnessStatus)}
         >
-          Restablecer
-        </button>
-        <button
-          className="btn btn-secondary"
-          onClick={() => {
-            setDesde('');
-            setHasta('');
-          }}
-          title="Quitar el filtro de fechas y mostrar todas las campañas"
+          <option value="all">Todos</option>
+          {Object.keys(STATUS_META).map((s) => (
+            <option key={s} value={s}>
+              {STATUS_META[s as WitnessStatus].label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect
+          label="Clasificación"
+          value={classFilter}
+          active={classFilter !== 'all'}
+          onChange={(v) =>
+            setClassFilter(v as 'all' | Classification | 'unknown')
+          }
         >
-          Ver todo
-        </button>
-        <span className="text-muted" style={{ alignSelf: 'center' }}>
-          {filtered.length} de {campaigns.length} campañas
-          {hasPeriodFilter(desde, hasta) ? '' : ' · todo el periodo'}
-        </span>
-      </div>
+          <option value="all">Todas</option>
+          <option value="institutional">Institucional</option>
+          <option value="provider">Proveedor</option>
+          <option value="unknown">Pendiente</option>
+        </FilterSelect>
+        <FilterDate
+          label="Desde"
+          ariaLabel="Periodo desde"
+          value={desde}
+          max={hasta}
+          active={periodChanged}
+          onChange={setDesde}
+        />
+        <FilterDate
+          label="Hasta"
+          ariaLabel="Periodo hasta"
+          value={hasta}
+          min={desde}
+          active={periodChanged}
+          onChange={setHasta}
+        />
+      </FilterBar>
 
       {perError && (
         <div className="catalog__error" role="alert">

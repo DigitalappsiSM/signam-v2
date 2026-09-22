@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
+import {
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import type { QuividiCameraHealthOverview } from '@/domain';
 import { getQuividiCameraHealthOverview } from '@/services/quividi';
@@ -36,6 +43,19 @@ function MetricCard({
   );
 }
 
+/** Etiquetas del filtro de estado (select y chip). */
+const HEALTH_FILTER_LABELS: Record<
+  Exclude<CameraHealthFilter, 'all'>,
+  string
+> = {
+  alerts: 'Solo alertas activas',
+  normal: 'Normal',
+  no_measurement: 'Sin medición',
+  partial_measurement: 'Medición parcial',
+  no_ots: 'Sin OTS',
+  out_of_scope: 'Fuera de alcance',
+};
+
 export function CameraHealthPage() {
   const [overview, setOverview] = useState<QuividiCameraHealthOverview | null>(
     null,
@@ -44,6 +64,21 @@ export function CameraHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CameraHealthFilter>('all');
+
+  const filterChips = compactChips([
+    search.trim() !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(search),
+      onRemove: () => setSearch(''),
+    },
+    filter !== 'all' && {
+      key: 'filter',
+      label: 'Estado',
+      value: HEALTH_FILTER_LABELS[filter],
+      onRemove: () => setFilter('all'),
+    },
+  ]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -139,28 +174,34 @@ export function CameraHealthPage() {
             />
           </section>
 
-          <div className="camera-health__controls">
-            <input
-              type="search"
-              value={search}
+          <FilterBar
+            label="Filtros de salud de cámaras"
+            chips={filterChips}
+            onClear={() => {
+              setSearch('');
+              setFilter('all');
+            }}
+          >
+            <FilterSearch
+              label="Buscar"
               placeholder="Buscar tienda, soporte, cámara o Location ID…"
-              onChange={(event) => setSearch(event.target.value)}
+              value={search}
+              onChange={setSearch}
             />
-            <select
+            <FilterSelect
+              label="Estado"
               value={filter}
-              onChange={(event) =>
-                setFilter(event.target.value as CameraHealthFilter)
-              }
+              active={filter !== 'all'}
+              onChange={(v) => setFilter(v as CameraHealthFilter)}
             >
               <option value="all">Todos los estados</option>
-              <option value="alerts">Solo alertas activas</option>
-              <option value="normal">Normal</option>
-              <option value="no_measurement">Sin medición</option>
-              <option value="partial_measurement">Medición parcial</option>
-              <option value="no_ots">Sin OTS</option>
-              <option value="out_of_scope">Fuera de alcance</option>
-            </select>
-          </div>
+              {Object.entries(HEALTH_FILTER_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
 
           <div className="camera-health__table-wrap">
             <table className="camera-health__table">
