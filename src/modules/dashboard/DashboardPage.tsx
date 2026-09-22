@@ -622,27 +622,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
 
       {loadedOnce && (
         <>
-          <section
-            className="dashboard-panel dashboard-filters"
-            aria-labelledby="dashboard-filters-title"
-          >
-            <div className="dashboard-panel__head dashboard-panel__head--compact">
-              <div>
-                <span className="dashboard-eyebrow">Contexto</span>
-                <h2 id="dashboard-filters-title">Filtros del panel</h2>
-                <p>
-                  Afectan todas las secciones: tarjetas, salud operativa,
-                  alertas, gráficas, dona y totales.
-                </p>
-              </div>
-            </div>
-            <OccupancyFilters
-              values={filters}
-              onChange={patchFilters}
-              supportOptions={supportOptions}
-              storeOptions={storeOptions}
-            />
-          </section>
+          <OccupancyFilters
+            values={filters}
+            onChange={patchFilters}
+            supportOptions={supportOptions}
+            storeOptions={storeOptions}
+          />
 
           <section
             className="dash-summary"

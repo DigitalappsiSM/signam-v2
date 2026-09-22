@@ -1,10 +1,6 @@
 /* Operación Digital: paridad visual con Seguimiento Operativo sin mezclar sus
    reglas. Los estados siempre combinan icono + texto; el color solo refuerza. */
 
-.do-filters {
-  align-items: flex-end;
-}
-
 .do-export {
   display: flex;
   align-items: flex-end;
@@ -64,11 +60,6 @@
   padding: 0.42rem 0.55rem;
   background: var(--color-surface);
   color: var(--color-text);
-}
-
-.do-count {
-  align-self: center;
-  white-space: nowrap;
 }
 
 @media (max-width: 800px) {
@@ -402,13 +393,6 @@
 }
 
 @media (max-width: 640px) {
-  .do-filter,
-  .do-filter select,
-  .do-filters .catalog__search {
-    width: 100%;
-    max-width: none;
-  }
-
   .do-detail__grid {
     grid-template-columns: 1fr;
   }

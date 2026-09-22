@@ -1,21 +1,6 @@
 /* Seguimiento operativo. Los estados se transmiten con icono + texto (no solo
    color) para accesibilidad; el color es un refuerzo. */
 
-.ot-filter {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-}
-
-.ot-filter select {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.35rem 0.5rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
 /* Pill de estado suave: color semántico sobre su propio tinte. Adapta a
    claro/oscuro vía tokens (respeta el toggle manual, no prefers-color-scheme).
    El texto e icono siguen comunicando el estado sin depender solo del color. */

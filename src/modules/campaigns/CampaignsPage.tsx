@@ -46,6 +46,15 @@ import {
   pptFileName,
 } from '@/modules/exports/pptExport';
 import { SortableTh } from '@/components/SortableTh';
+import {
+  FilterBar,
+  FilterDate,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterDate,
+  formatFilterSearch,
+} from '@/components/filters';
 import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
@@ -521,6 +530,35 @@ export function CampaignsPage() {
     setHasta('');
   }
 
+  const filterChips = compactChips([
+    search.trim() !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(search),
+      onRemove: () => setSearch(''),
+    },
+    classFilter !== 'all' && {
+      key: 'clasificacion',
+      label: 'Clasificación',
+      value:
+        CLASSIFICATION_FILTER_OPTIONS.find((o) => o.value === classFilter)
+          ?.label ?? classFilter,
+      onRemove: () => setClassFilter('all'),
+    },
+    desde !== '' && {
+      key: 'desde',
+      label: 'Desde',
+      value: formatFilterDate(desde),
+      onRemove: () => setDesde(''),
+    },
+    hasta !== '' && {
+      key: 'hasta',
+      label: 'Hasta',
+      value: formatFilterDate(hasta),
+      onRemove: () => setHasta(''),
+    },
+  ]);
+
   async function downloadZipFor(c: StoredCampaign, cons: Consolidation[]) {
     if (zipBusyName || cons.length === 0) return;
     setCsvError(null);
@@ -702,73 +740,68 @@ export function CampaignsPage() {
         </div>
       )}
 
-      <div className="catalog__filters">
-        <input
-          className="catalog__search"
-          type="search"
+      <FilterBar
+        label="Filtros de campañas"
+        chips={filterChips}
+        onClear={clearFilters}
+        extra={
+          <>
+            <span className="fb-note">
+              {filtersActive
+                ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
+                : `${campaigns.length} campañas · ${result.consolidations.length} CSV · ${result.issues.length} incidencias`}
+            </span>
+            {canDownloadOperational && (
+              <button
+                className="btn btn-primary"
+                onClick={() => void downloadBulkExcel()}
+                disabled={
+                  bulkBusy || perError !== null || filtered.length === 0
+                }
+                aria-busy={bulkBusy}
+                title="Exportar el desglose Excel de las campañas visibles"
+              >
+                {bulkBusy
+                  ? 'Generando Excel…'
+                  : filtersActive
+                    ? `Exportar filtradas (${filtered.length})`
+                    : `Exportar todas (${filtered.length})`}
+              </button>
+            )}
+          </>
+        }
+      >
+        <FilterSearch
+          label="Buscar"
           placeholder="Buscar por campaña o # Ekon…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
         />
-        <label className="campaign-date">
-          <span className="text-muted">Clasificación</span>
-          <select
-            value={classFilter}
-            onChange={(e) =>
-              setClassFilter(e.target.value as ClassificationFilter)
-            }
-          >
-            {CLASSIFICATION_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="campaign-date">
-          <span className="text-muted">Desde</span>
-          <input
-            type="date"
-            value={desde}
-            max={hasta || undefined}
-            onChange={(e) => setDesde(e.target.value)}
-          />
-        </label>
-        <label className="campaign-date">
-          <span className="text-muted">Hasta</span>
-          <input
-            type="date"
-            value={hasta}
-            min={desde || undefined}
-            onChange={(e) => setHasta(e.target.value)}
-          />
-        </label>
-        {filtersActive && (
-          <button className="btn btn-secondary" onClick={clearFilters}>
-            Limpiar filtros
-          </button>
-        )}
-        {canDownloadOperational && (
-          <button
-            className="btn btn-primary"
-            onClick={() => void downloadBulkExcel()}
-            disabled={bulkBusy || perError !== null || filtered.length === 0}
-            aria-busy={bulkBusy}
-            title="Exportar el desglose Excel de las campañas visibles"
-          >
-            {bulkBusy
-              ? 'Generando Excel…'
-              : filtersActive
-                ? `Exportar filtradas (${filtered.length})`
-                : `Exportar todas (${filtered.length})`}
-          </button>
-        )}
-        <span className="text-muted" style={{ alignSelf: 'center' }}>
-          {filtersActive
-            ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
-            : `${campaigns.length} campañas · ${result.consolidations.length} CSV · ${result.issues.length} incidencias`}
-        </span>
-      </div>
+        <FilterSelect
+          label="Clasificación"
+          value={classFilter}
+          active={classFilter !== 'all'}
+          onChange={(v) => setClassFilter(v as ClassificationFilter)}
+        >
+          {CLASSIFICATION_FILTER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterDate
+          label="Desde"
+          value={desde}
+          max={hasta}
+          onChange={setDesde}
+        />
+        <FilterDate
+          label="Hasta"
+          value={hasta}
+          min={desde}
+          onChange={setHasta}
+        />
+      </FilterBar>
 
       {perError && (
         <div className="catalog__error" role="alert">

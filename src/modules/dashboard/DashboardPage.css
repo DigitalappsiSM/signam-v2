@@ -280,18 +280,6 @@
   font-weight: 700;
 }
 
-.dashboard-panel--chart .occ-filters {
-  padding: 0.7rem;
-  margin: 0.85rem 0 0.35rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-}
-
-.dashboard-panel--chart .occ-field--search {
-  flex-basis: 160px;
-}
-
 .dashboard-chart-empty {
   min-height: 280px;
   display: grid;
@@ -771,50 +759,6 @@
   margin-top: 1.65rem;
 }
 
-/* --- Filtros --- */
-.occ-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: flex-end;
-  margin: 0.75rem 0 1.25rem;
-}
-
-.occ-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.occ-field select,
-.occ-field input {
-  font-family: inherit;
-  font-size: 0.86rem;
-  font-weight: 400;
-  color: var(--color-text);
-  padding: 0.44rem 0.6rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.occ-field select:focus-visible,
-.occ-field input:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--ring);
-}
-
-.occ-field--search {
-  flex: 1 1 200px;
-}
-
 /* --- Tarjetas superiores --- */
 .occ-cards {
   display: grid;
@@ -1228,16 +1172,6 @@
   color: var(--color-text-muted);
   font-size: 0.9rem;
   margin: 0.5rem 0;
-}
-
-/* --- Filtros del panel (globales) --------------------------------------- */
-.dashboard-filters {
-  padding: 1rem 1.1rem 1.1rem;
-  margin-bottom: 1rem;
-}
-
-.dashboard-filters .occ-filters {
-  margin-top: 0.85rem;
 }
 
 /* --- Detalle de tarjeta KPI --------------------------------------------- */

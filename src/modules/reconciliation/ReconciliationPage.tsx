@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { EntityAvatar } from '@/components/EntityAvatar';
+import {
+  FilterBar,
+  FilterCheck,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import { toInitials } from '@/lib/initials';
 import { isFirebaseConfigured } from '@/services/firebase';
 import { listCampaigns } from '@/services/campaigns';
@@ -38,6 +46,27 @@ export function ReconciliationPage() {
   const [status, setStatus] = useState<ReconciliationStatus | 'all'>('all');
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [detail, setDetail] = useState<ReconciliationRow | null>(null);
+
+  const filterChips = compactChips([
+    text.trim() !== '' && {
+      key: 'text',
+      label: 'Búsqueda',
+      value: formatFilterSearch(text),
+      onRemove: () => setText(''),
+    },
+    status !== 'all' && {
+      key: 'status',
+      label: 'Estado',
+      value: reconciliationStatusLabel(status),
+      onRemove: () => setStatus('all'),
+    },
+    onlyIssues && {
+      key: 'onlyIssues',
+      label: 'Incidencias',
+      value: 'Solo con incidencias',
+      onRemove: () => setOnlyIssues(false),
+    },
+  ]);
 
   useEffect(() => {
     if (!configured) {
@@ -154,29 +183,28 @@ export function ReconciliationPage() {
             </dl>
           </div>
 
-          <div
-            className="card"
-            style={{
-              marginBottom: '1.25rem',
-              display: 'flex',
-              gap: '0.75rem',
-              flexWrap: 'wrap',
-              alignItems: 'center',
+          <FilterBar
+            label="Filtros de conciliación"
+            chips={filterChips}
+            onClear={() => {
+              setText('');
+              setStatus('all');
+              setOnlyIssues(false);
             }}
           >
-            <input
-              className="catalog__search"
+            <FilterSearch
+              label="Buscar"
+              ariaLabel="Buscar"
               placeholder="Buscar campaña, número Ekon o producto…"
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              aria-label="Buscar"
+              onChange={setText}
             />
-            <select
+            <FilterSelect
+              label="Estado"
+              ariaLabel="Estado de conciliación"
               value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as ReconciliationStatus | 'all')
-              }
-              aria-label="Estado de conciliación"
+              active={status !== 'all'}
+              onChange={(v) => setStatus(v as ReconciliationStatus | 'all')}
             >
               <option value="all">Todos los estados</option>
               <option value="conciliada">Conciliada</option>
@@ -194,18 +222,13 @@ export function ReconciliationPage() {
                 Centro Administrativo
               </option>
               <option value="cambio-pendiente">Cambio pendiente</option>
-            </select>
-            <label
-              style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}
-            >
-              <input
-                type="checkbox"
-                checked={onlyIssues}
-                onChange={(e) => setOnlyIssues(e.target.checked)}
-              />
-              Solo con incidencias
-            </label>
-          </div>
+            </FilterSelect>
+            <FilterCheck
+              label="Solo con incidencias"
+              checked={onlyIssues}
+              onChange={setOnlyIssues}
+            />
+          </FilterBar>
 
           {rows.length === 0 ? (
             <div className="card">

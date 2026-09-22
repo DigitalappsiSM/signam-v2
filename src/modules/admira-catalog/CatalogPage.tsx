@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { EntityAvatar } from '@/components/EntityAvatar';
+import {
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import { useAuth } from '@/app/providers/AuthProvider';
 import type { AdmiraScreen, AdmiraScreenOriginal } from '@/domain';
 import {
@@ -76,6 +83,39 @@ export function CatalogPage() {
     () => uniqueValues(screens, 'RESOLUCION'),
     [screens],
   );
+
+  const filterChips = compactChips([
+    filters.search.trim() !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(filters.search),
+      onRemove: () => setFilters((f) => ({ ...f, search: '' })),
+    },
+    filters.status !== 'all' && {
+      key: 'status',
+      label: 'Estado',
+      value: filters.status === 'active' ? 'Activas' : 'Inactivas',
+      onRemove: () => setFilters((f) => ({ ...f, status: 'all' })),
+    },
+    filters.store !== '' && {
+      key: 'store',
+      label: 'Tienda',
+      value: filters.store,
+      onRemove: () => setFilters((f) => ({ ...f, store: '' })),
+    },
+    filters.model !== '' && {
+      key: 'model',
+      label: 'Modelo',
+      value: filters.model,
+      onRemove: () => setFilters((f) => ({ ...f, model: '' })),
+    },
+    filters.resolution !== '' && {
+      key: 'resolution',
+      label: 'Resolución',
+      value: filters.resolution,
+      onRemove: () => setFilters((f) => ({ ...f, resolution: '' })),
+    },
+  ]);
 
   async function handleSubmit(
     original: AdmiraScreenOriginal,
@@ -193,32 +233,36 @@ export function CatalogPage() {
         </div>
       )}
 
-      <div className="catalog__filters">
-        <input
-          className="catalog__search"
-          type="search"
+      <FilterBar
+        label="Filtros del catálogo"
+        chips={filterChips}
+        onClear={() => setFilters(EMPTY_FILTERS)}
+      >
+        <FilterSearch
+          label="Buscar"
           placeholder="Buscar por tienda, modelo, artículo…"
           value={filters.search}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, search: e.target.value }))
-          }
+          onChange={(search) => setFilters((f) => ({ ...f, search }))}
         />
-        <select
+        <FilterSelect
+          label="Estado"
           value={filters.status}
-          onChange={(e) =>
+          active={filters.status !== 'all'}
+          onChange={(status) =>
             setFilters((f) => ({
               ...f,
-              status: e.target.value as ScreenFilters['status'],
+              status: status as ScreenFilters['status'],
             }))
           }
         >
           <option value="all">Todas</option>
           <option value="active">Activas</option>
           <option value="inactive">Inactivas</option>
-        </select>
-        <select
+        </FilterSelect>
+        <FilterSelect
+          label="Tienda"
           value={filters.store}
-          onChange={(e) => setFilters((f) => ({ ...f, store: e.target.value }))}
+          onChange={(store) => setFilters((f) => ({ ...f, store }))}
         >
           <option value="">Todas las tiendas</option>
           {stores.map((s) => (
@@ -226,10 +270,11 @@ export function CatalogPage() {
               {s}
             </option>
           ))}
-        </select>
-        <select
+        </FilterSelect>
+        <FilterSelect
+          label="Modelo"
           value={filters.model}
-          onChange={(e) => setFilters((f) => ({ ...f, model: e.target.value }))}
+          onChange={(model) => setFilters((f) => ({ ...f, model }))}
         >
           <option value="">Todos los modelos</option>
           {models.map((m) => (
@@ -237,12 +282,11 @@ export function CatalogPage() {
               {m}
             </option>
           ))}
-        </select>
-        <select
+        </FilterSelect>
+        <FilterSelect
+          label="Resolución"
           value={filters.resolution}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, resolution: e.target.value }))
-          }
+          onChange={(resolution) => setFilters((f) => ({ ...f, resolution }))}
         >
           <option value="">Todas las resoluciones</option>
           {resolutions.map((r) => (
@@ -250,8 +294,8 @@ export function CatalogPage() {
               {r}
             </option>
           ))}
-        </select>
-      </div>
+        </FilterSelect>
+      </FilterBar>
 
       {loading ? (
         <LoadingOverlay
