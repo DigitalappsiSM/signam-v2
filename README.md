@@ -113,10 +113,27 @@ SIGNAM integra Quividi/VidiCenter en dos capas separadas:
 - **Audiencia por campaña (Fase 1):** desde **Campañas**, el icono de métricas
   genera reportes de audiencia con OTS, Watchers, atención, permanencia,
   demografía y detalle horario. El alcance combina Calendario y Ekon según las
-  reglas documentadas.
+  reglas documentadas. La descarga tiene dos piezas: el **Excel técnico**, que
+  conserva el dato tal cual se midió, y el **informe comercial en PDF** que se
+  comparte con la marca.
 - **Salud de cámaras (Fase 2):** la ruta `/salud-camaras` dentro de
   **Operación** muestra el estado técnico vigente de cada cámara, independiente
   de campañas.
+
+El **informe comercial en PDF** es una capa aparte del Excel: publica una
+lectura agregada del circuito y estima la parte no medida. Su cifra cubre
+**sólo los formatos de soporte con medición** durante la vigencia, y dentro de
+ellos extrapola **formato a formato**, cada uno con su propio promedio de OTS
+por soporte-día medido. Los formatos sin ninguna cámara quedan fuera del OTS y
+se reportan como alcance adicional: aplicarles el promedio de otro formato
+supondría que un pasillo y un atrio ven pasar a la misma gente.
+
+El PDF declara qué porcentaje es medición directa y cuál estimación, y desglosa
+los soportes por formato señalando cuáles entran en la cifra. No publica
+incidencias de cámara: ese detalle, junto con la reconstrucción paso a paso de
+la cifra, vive en la hoja **«Auditoría de cifras»** del Excel, que consume las
+mismas funciones puras que el PDF. Las reglas completas están en
+`docs/QUIVIDI_PHASE_1.md` y `AGENTS.md`.
 
 En **Catálogo Admira**, cada pantalla puede guardar
 `metadata.quividiLocationId` como identidad estable y
@@ -515,23 +532,18 @@ La carpeta `src/domain` implementa (y prueba) las reglas ya definidas:
 - **Separación de soportes** (`support.ts`): todos los soportes del calendario
   son de Liverpool **excepto** `MUPPI'S` y `PENDON` (InStore Media), que se
   detectan pero se excluyen de la consolidación en esta etapa.
-- **Nombre de campaña Admira** (`campaignName.ts`): formato
-  `<Campaña Liverpool>_ <ARTICULOS>`; múltiples artículos distintos se
-  concatenan con `+`, deduplicando y conservando el orden de aparición.
-- **Llave de consolidación** (`consolidationKey.ts`): `Campaña + RESOLUCION`.
-  No se separa por circuito, soporte, `ARTICULOS` ni `TIPO DE PASES`.
-- **Serialización CSV de Admira** (`csv.ts`): Admira ignora la primera columna,
-  por lo que la columna A se usa como columna "guarda" (vacía en los datos, con
-  `LIVERPOOL` en `A1`) y las columnas reales empiezan en B. La fila 1 es
-  `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`.
-  Orden de columnas reales confirmado
-  `ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,TIPO DE PASES`, escape
-  RFC 4180 y UTF-8 con BOM opcional. `RETAILERS` es constante = `LIVERPOOL`. El
-  encabezado escrito rotula la última columna como `Tipo de Pases`; la llave
-  interna y el encabezado del maestro siguen siendo `TIPO DE PASES`.
-- **Encabezados del catálogo** (`constants.ts`): orden autoritativo del maestro.
-  El encabezado definitivo es `TIPO DE PASES`; la estructura antigua `Pases` se
-  reporta como faltante en lugar de corregirse en silencio.
+- **Nombre de campaña Admira** (`campaignName.ts`), **llave de consolidación**
+  (`consolidationKey.ts`), **serialización del CSV de Admira** (`csv.ts`) y
+  **encabezados del maestro** (`constants.ts`).
+
+> Estas reglas **no se detallan aquí**. Su redacción autoritativa —literales
+> exactos, orden de columnas, escape y excepciones— vive en `AGENTS.md`, y
+> `src/tests/docsInvariants.test.ts` comprueba que coincida con el código.
+>
+> Repetirlas en este README obligaba a mantener la misma regla en cuatro
+> ficheros a la vez, y ya provocó deriva: durante un tiempo este documento
+> describía el separador de artículos como `+` cuando el código une con
+> espacio-más-espacio.
 
 ## Firebase
 

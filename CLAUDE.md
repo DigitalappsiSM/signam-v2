@@ -44,6 +44,15 @@ npx vitest run -t "consolida por resolución"
 **Before committing, the full gate is:** `npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build`.
 CI (`.github/workflows/ci.yml`) runs exactly this on every push to `main` and every PR, plus a separate Cloud Functions build.
 
+**Docs-drift guard.** On pull requests CI also runs `scripts/check-docs-freshness.mjs`, which **fails the build**
+when a PR touches load-bearing code (domain rules, the Admira CSV, the Quividi commercial report, Ekon, Digital,
+access control) without touching the document that specifies it. The mapping code→doc lives in that script's
+`RULES`, with a colocated `*.test.mjs`. This exists because the documentation here is not decorative: `CLAUDE.md`
+is loaded into every AI session and `AGENTS.md` is the authoritative spec, so code that drifts from them leaves
+false instructions in circulation — which already happened once, with the report's extrapolation rules. The guard
+cannot judge whether the prose is *correct*, only that someone opened the right file. If a change genuinely alters
+nothing documented, put `[skip-docs]` in the PR body; it stays on the record.
+
 Cloud Functions live in `functions/` with their **own** `package.json`/`tsconfig`:
 
 ```bash
@@ -111,7 +120,8 @@ logic. The load-bearing ones:
 - **Consolidation key** is `Campaña + RESOLUCION` (`consolidationKey.ts`). Do **not** split by circuit, support,
   `ARTICULOS`, or `TIPO DE PASES`.
 - **Admira campaign name**: `<Campaña>_ <ARTICULOS>` (space after `_`), multiple articles joined with a
-  space-plus-space separator, deduped in order of appearance (`campaignName.ts`).
+  space-plus-space separator, deduped in order of appearance (`campaignName.ts`). Canonical example, generated
+  by the code itself and pinned by `src/tests/docsInvariants.test.ts`: `Nike Verano_ ARTICULO 1 + ARTICULO 2`.
 - **Admira CSV** (`csv.ts`): Admira ignores the first column, so **column A is a guard column** — empty in data
   rows, header `LIVERPOOL` in `A1`. Real columns start at B; row 1 is
   `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`. `RETAILERS` is constant
@@ -132,6 +142,15 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
+- **Quividi has two separate layers.** The **technical Excel** keeps measurement as it was recorded and never
+  extrapolates. The **commercial PDF** (`quividiBrandReport.ts` → `quividiCampaignPdf.ts`) does estimate, and its
+  figure covers **only support formats that had measurement** during the flight; formats with no camera at all stay
+  out of the OTS and are reported as additional reach. Within that measurable circuit it extrapolates **per format**,
+  each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
+  a mupi's performance. Averages divide by **measured** pair-days, never the full grid: missing days entering the
+  numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. The Excel's
+  **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure functions*, so sheet and
+  report cannot disagree. See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete

@@ -66,7 +66,7 @@ src/
 │   ├── digital-import/   # importación de catorcenas EKON (La Comer / Chedraui)
 │   ├── digital-operations/ # seguimiento Digital externo + catálogo de retailer/soporte
 │   ├── digital-dashboard/  # panel de métricas Digital (aislado)
-│   ├── exports/          # CSV/ZIP + reporte PDF + PPT
+│   ├── exports/          # CSV/ZIP + reporte PDF + PPT + informe Quividi (PDF comercial + Excel + auditoría)
 │   ├── dashboard/        # panel: resumen operativo + carga por tienda/soporte
 │   └── audit/            # historial (placeholder)
 ├── services/             # firebase, auth, screens, campaigns, env, ekon*, digital*
@@ -120,19 +120,17 @@ LIVERPOOL`/`CALENDARIO`/`ISM`). El cruce es por **`Numero de Tienda` +
 
 ### Reglas de dominio (implementadas y probadas)
 
-- **Encabezados del maestro** (12 oficiales, orden autoritativo); `TIPO DE PASES`
-  es el definitivo — la estructura antigua `Pases` se reporta, no se corrige.
-- **Nombre de campaña Admira**: `"<Campaña>_ <ARTICULOS>"`; varios artículos con
-  `+`, deduplicados y en orden de aparición.
-- **Consolidación**: llave `Campaña + RESOLUCION` (no separa por circuito,
-  soporte, `ARTICULOS` ni `TIPO DE PASES`).
-- **CSV**: Admira ignora la **columna A**, que se usa como columna "guarda":
-  vacía en los datos y con `LIVERPOOL` en `A1`. Las columnas reales empiezan en
-  **B**, así que la fila 1 es `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,
-RESOLUCION,RETAILERS,Tipo de Pases` y cada fila de datos empieza con una celda
-  vacía. Escape RFC 4180, UTF-8 con BOM. El encabezado **escrito** rotula la
-  última columna como `Tipo de Pases`; la llave interna de las filas y el
-  encabezado del maestro permanecen `TIPO DE PASES`.
+Encabezados del maestro, nombre de campaña Admira, llave de consolidación y
+serialización del CSV están implementadas y cubiertas por pruebas en
+`src/domain/`.
+
+> Su redacción autoritativa está en **`AGENTS.md`**, no aquí. Antes se repetían
+> en este documento y la copia se quedó atrás: llegó a describir el separador de
+> artículos como `+` cuando el código une con espacio-más-espacio.
+>
+> `src/tests/docsInvariants.test.ts` ata los literales de `AGENTS.md` y
+> `CLAUDE.md` a las constantes del código, y falla si alguno se separa.
+
 - **Asociación campaña ↔ Ekon** (muchos-a-uno): cada campaña puede tener a lo
   sumo un número de campaña Ekon, pero un mismo número puede repetirse en varias
   campañas. No se bloquea la unicidad: al reutilizar un número, la UI avisa en
@@ -800,6 +798,7 @@ a los CSV auxiliares Ratio 1/3.
 | Alertas de baja ocupación (Ratio 1 / Ratio 3, CSV por soporte+resolución) | ✅     |
 | Integración Ekon (importación + conciliación + fallback CSV)  | ✅     |
 | Quividi Fase 1 (audiencia por campaña)                        | ✅     |
+| Informe comercial de audiencia (PDF infografía + hoja de auditoría) | ✅     |
 | Quividi Fase 2 (Location ID + salud diaria + alertas + UI)    | ✅     |
 | Operación Digital multirretailer (importación, seguimiento, catálogo, panel) | ✅     |
 | Quividi ↔ Odoo [CAMARAS] + alerta de caída relativa           | ⏳     |

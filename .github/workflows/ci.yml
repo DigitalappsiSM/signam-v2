@@ -6,6 +6,34 @@ on:
   pull_request:
 
 jobs:
+  docs:
+    name: Documentación al día
+    # La documentación de este repositorio se carga en cada sesión de IA y hace
+    # de especificación de las reglas de negocio: si el código cambia y ella no,
+    # quedan instrucciones falsas en circulación.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # El guardia compara contra el ancestro común con la rama base.
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Comprobar deriva entre código y documentación
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node scripts/check-docs-freshness.mjs \
+            "origin/${{ github.event.pull_request.base.ref }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
   quality:
     name: Lint, typecheck, test y build
     runs-on: ubuntu-latest
