@@ -23,6 +23,8 @@ export const MUTED: RGB = [91, 104, 125];
 export const HAIR: RGB = [222, 230, 239];
 export const SOFT: RGB = [247, 250, 253];
 export const GRAY: RGB = [197, 208, 220];
+/** Género no identificado en los gráficos de audiencia: gris con contraste suficiente para leerse junto a rosa/azul. */
+export const GRAY_DARK: RGB = [138, 151, 168];
 export const WHITE: RGB = [255, 255, 255];
 
 /** Ancho del lienzo de diseño, en px. Un A4 a 96 dpi. */

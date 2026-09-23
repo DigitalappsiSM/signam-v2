@@ -252,17 +252,31 @@ soporte sin cámara o un día que la cámara instalada no reportó.
 
 ### Qué publica el PDF y qué no
 
-- **Publica**: el reparto medido / estimado en porcentaje sobre el circuito
-  medible, el desglose de soportes por formato señalando cuáles entran en la
-  cifra, el perfil de audiencia (género, cruce género × edad y franja horaria) y
-  tres notas de metodología.
-- **No publica**: incidencias de medición. Qué soporte falló un día concreto es
-  operación interna y de cara a la marca sólo añade ruido. El reparto completo /
-  parcial / sin dato / sin cámara vive en la hoja «Auditoría de cifras» del
-  Excel.
-- La serie diaria se limita al circuito medible y escala **cada día por los
-  pares medidos de ese día**. Con un factor constante, una jornada en la que
-  media red no midió se dibujaría como una caída de audiencia que nunca ocurrió.
+Cinco secciones, adaptables en número de páginas: Portada, Evolución, Perfil y
+horarios, Tiendas TOP y Cierre. Ver `AGENTS.md` para el detalle regla por
+regla; resumen:
+
+- **Publica**: una sola cifra de OTS de campaña en portada (sin desglose
+  medido/extrapolado como protagonista), su evolución diaria o semanal según la
+  vigencia, el perfil de audiencia (género por día, cruce género × edad,
+  distribución horaria de lo observado), las tiendas con medición y sus OTS
+  ajustados («Tiendas TOP»), y recomendaciones comerciales calculadas de la
+  propia campaña. El pie discreto de portada reparte los OTS entre tiendas con
+  medición en algún momento de la vigencia y tiendas sin medición.
+- **No publica**: el campo «Retailer», incidencias de medición (qué soporte
+  falló un día concreto es operación interna), ni la cadena aritmética
+  completa — eso vive en la hoja «Auditoría de cifras» del Excel.
+- La serie de evolución se limita al circuito medible y escala **cada día**
+  (o cada semana, en vigencias de más de 28 días) **formato a formato** con el
+  mismo promedio que la cifra de portada, de modo que la suma de la serie
+  concilia exactamente con el total publicado.
+- **Pendiente (Fase 2, bloqueada)**: extrapolar hora a hora distinguiendo «hora
+  sin dato» de «hora fuera de operación» requiere un horario de apertura/cierre
+  por soporte que SIGNAM no tiene hoy en ningún lugar del dominio ni del
+  Catálogo Admira. Mientras tanto, la distribución horaria del PDF
+  (`brandHourlyDistribution`) es puramente descriptiva de lo observado, nunca
+  extrapolada, y el Excel no trae todavía la hoja «Detalle de extrapolación»
+  hora a hora que pide el encargo comercial.
 
 ### Hoja «Auditoría de cifras»
 

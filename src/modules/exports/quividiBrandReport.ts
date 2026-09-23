@@ -126,11 +126,59 @@ export interface BrandMeasurableScope {
   measuredPercent: number;
 }
 
-/** Reparto porcentual de los OTS entre franjas horarias del día. */
-export interface BrandTimeBand {
-  label: string;
-  hours: string;
+/** Reparto porcentual de los OTS con medición horaria directa, hora a hora. */
+export interface BrandHourlyPoint {
+  hour: number;
   share: number;
+}
+
+/** Composición por género de un día, en porcentaje sobre lo observado ese día. */
+export interface BrandGenderDayPoint {
+  date: string;
+  female: number;
+  male: number;
+  unknown: number;
+  /** Watchers del día; sostiene el reagrupado semanal en vigencias largas. */
+  totalWatchers: number;
+}
+
+/** Evolución semanal (lunes a domingo) para vigencias de más de 28 días. */
+export interface BrandWeeklyPoint {
+  /** Primera fecha del periodo con dato, recortada a la vigencia. */
+  weekStart: string;
+  /** Última fecha del periodo con dato, recortada a la vigencia. */
+  weekEnd: string;
+  /** Suma (no promedio) de los OTS ajustados de los días del periodo. */
+  estimatedOts: number;
+}
+
+/** Aportación de una tienda a la cifra publicada: la que sostiene «Tiendas TOP». */
+export interface BrandStoreAttribution {
+  storeNumber: string;
+  storeName: string;
+  /** OTS registrados directamente, sin completar huecos. */
+  measuredOts: number;
+  /** OTS ajustados: el propio dato más los huecos de la tienda completados al promedio de su formato. */
+  adjustedOts: number;
+  /** Dwell time ponderado por watchers, sólo con periodos observados (completos o parciales). */
+  dwellSeconds: number;
+  /** Tuvo al menos una jornada con medición directa en algún momento de la vigencia. */
+  everMeasured: boolean;
+}
+
+/**
+ * Reparto de la cifra publicada entre tiendas con medición en algún momento de
+ * la vigencia y tiendas sin medición (sin cámara, o con cámara sin ningún dato
+ * válido). Es la clasificación del pie discreto de portada; no debe
+ * confundirse con la clasificación técnica observado/estimado del Excel.
+ */
+export interface BrandStoreAttributionSummary {
+  /** Sólo tiendas con al menos una fila en `supportDays` (con cámara instalada). */
+  stores: BrandStoreAttribution[];
+  measuredStoresOts: number;
+  unmeasuredStoresOts: number;
+  measuredStoresSharePercent: number;
+  unmeasuredStoresSharePercent: number;
 }
 
 /** Cruce género × edad: una fila por rango, con el peso de cada género. */
@@ -435,47 +483,117 @@ export function brandCampaignSummary(
 /**
  * Evolución diaria agregada; nunca expone una tienda individual.
  *
- * El factor se recalcula día a día. Con un factor constante, una jornada en la
- * que la mitad del circuito no midió se dibujaba como una caída de audiencia
- * que nunca ocurrió; escalando por los pares realmente medidos ese día, la
- * serie sólo refleja variación de audiencia.
+ * Cada día se extrapola **formato a formato**, con el mismo promedio por
+ * par-día medido que usa `brandCampaignSummary`: el hueco de un formato en un
+ * día concreto se completa con el promedio de ese formato, nunca con un
+ * promedio único del circuito. Esto es lo que garantiza la identidad que debe
+ * sostener el informe: la suma de `estimatedOts` de todos los días de la
+ * vigencia es exactamente igual a `brandCampaignSummary(report).estimatedOts`
+ * (ver test de reconciliación). Con un factor único por día, un formato con
+ * mejor rendimiento que otro deformaba el reparto entre días desiguales y la
+ * serie dejaba de conciliar con el total de portada.
  */
 export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
   const scope = brandMeasurableScope(report);
   const measurableSupports = new Set(
     scope.measurable.map((format) => format.support),
   );
+  const rateByFormat = new Map(
+    scope.measurable.map((format) => [
+      format.support,
+      format.measuredPairDays > 0
+        ? format.measuredOts / format.measuredPairDays
+        : 0,
+    ]),
+  );
   const rows = brandSupportDays(report).filter((row) =>
     measurableSupports.has(row.support),
   );
-  const basis = brandExtrapolationBasis(report);
-  const measured = new Map<string, number>();
-  const pairs = new Map<string, Set<string>>();
 
+  const byDate = new Map<string, QuividiSupportDay[]>();
   for (const row of rows) {
-    if (row.status === 'missing') continue;
-    measured.set(row.date, (measured.get(row.date) ?? 0) + numeric(row.ots));
-    const seen = pairs.get(row.date) ?? new Set<string>();
-    seen.add(pairKey(row));
-    pairs.set(row.date, seen);
+    const list = byDate.get(row.date) ?? [];
+    list.push(row);
+    byDate.set(row.date, list);
   }
-
   // Toda fecha de la vigencia aparece, incluso si nadie midió ese día.
-  const dates = Array.from(new Set(rows.map((row) => row.date))).sort();
+  const dates = Array.from(byDate.keys()).sort();
 
   return dates.map((date) => {
-    const measuredOts = measured.get(date) ?? 0;
-    const measuredPairs = pairs.get(date)?.size ?? 0;
-    const factor = measuredPairs > 0 ? basis.totalPairs / measuredPairs : 0;
+    const byFormat = new Map<string, QuividiSupportDay[]>();
+    for (const row of byDate.get(date) ?? []) {
+      const list = byFormat.get(row.support) ?? [];
+      list.push(row);
+      byFormat.set(row.support, list);
+    }
+
+    let measuredOts = 0;
+    let estimatedOts = 0;
+    let measuredPairs = 0;
+    for (const format of scope.measurable) {
+      const formatRows = byFormat.get(format.support) ?? [];
+      const measuredRows = formatRows.filter((row) => row.status !== 'missing');
+      const dayMeasuredOts = sum(measuredRows.map((row) => row.ots));
+      const rate = rateByFormat.get(format.support) ?? 0;
+      const gap = Math.max(0, format.pairs - measuredRows.length);
+      measuredOts += dayMeasuredOts;
+      estimatedOts += dayMeasuredOts + gap * rate;
+      measuredPairs += measuredRows.length;
+    }
+
     return {
       date,
       label: date.slice(8, 10),
       measuredOts,
-      estimatedOts: measuredOts * factor,
+      estimatedOts,
       measuredPairs,
-      factor,
+      factor: measuredOts > 0 ? estimatedOts / measuredOts : 0,
     };
   });
+}
+
+/** Lunes de la semana ISO a la que pertenece `date` (`YYYY-MM-DD`). */
+export function weekStartOf(date: string): string {
+  const parsed = new Date(`${date}T12:00:00Z`);
+  const day = parsed.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  parsed.setUTCDate(parsed.getUTCDate() + diff);
+  return parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * Evolución semanal, para vigencias de más de 28 días: 60 barras diarias no
+ * caben legibles en una página y el dato útil a esa escala es la tendencia por
+ * semana, no el día suelto. Las semanas van de lunes a domingo; las semanas de
+ * los extremos de la vigencia quedan parciales y `weekStart`/`weekEnd`
+ * reflejan la fecha real cubierta, no el lunes/domingo teórico si cae fuera de
+ * la vigencia. Suma (nunca promedia) los días de cada semana, así que el total
+ * de esta serie también concilia con `brandCampaignSummary().estimatedOts`.
+ */
+export function brandWeeklyEvolution(
+  report: QuividiCampaignReport,
+): BrandWeeklyPoint[] {
+  const daily = brandDaily(report);
+  if (daily.length === 0) return [];
+
+  const weeks = new Map<string, BrandDailyPoint[]>();
+  for (const point of daily) {
+    const key = weekStartOf(point.date);
+    const bucket = weeks.get(key) ?? [];
+    bucket.push(point);
+    weeks.set(key, bucket);
+  }
+
+  return Array.from(weeks.values())
+    .map((points) => {
+      const dates = points.map((point) => point.date).sort();
+      return {
+        weekStart: dates[0] ?? '',
+        weekEnd: dates[dates.length - 1] ?? '',
+        estimatedOts: sum(points.map((point) => point.estimatedOts)),
+      };
+    })
+    .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 }
 
 function shareBy(
@@ -546,54 +664,203 @@ export function brandStoreAudit(
   }).sort((a, b) => a.completenessPercent - b.completenessPercent);
 }
 
-/**
- * Bandas horarias del informe comercial. Cubren las 24 horas sin solapes: la
- * madrugada se agrupa con la noche porque el circuito está cerrado y sus OTS
- * son residuales, pero no se descartan para que los porcentajes sumen 100.
- */
-const BRAND_TIME_BANDS = [
-  {
-    label: 'Mañana',
-    hours: '06:00 — 12:00',
-    covers: (hour: number) => hour >= 6 && hour < 12,
-  },
-  {
-    label: 'Tarde',
-    hours: '12:00 — 18:00',
-    covers: (hour: number) => hour >= 12 && hour < 18,
-  },
-  {
-    label: 'Noche',
-    hours: '18:00 — 06:00',
-    covers: (hour: number) => hour >= 18 || hour < 6,
-  },
-] as const;
+/** Promedio ponderado por watchers, igual que el Excel técnico. */
+function weightedAverage(
+  rows: readonly QuividiSupportDay[],
+  field: 'attentionSeconds' | 'dwellSeconds',
+): number {
+  const totalWatchers = sum(rows.map((row) => row.watchers));
+  if (totalWatchers <= 0) return 0;
+  return sum(rows.map((row) => row[field] * row.watchers)) / totalWatchers;
+}
 
 /**
- * Reparto de los OTS medidos entre mañana, tarde y noche.
+ * Dwell time promedio del circuito medible, ponderado por watchers.
+ *
+ * Un promedio simple entre tiendas trataría igual a una tienda con mucho
+ * tráfico que a una con poco; ponderar por watchers es lo que evita que una
+ * tienda pequeña deforme la cifra que va a portada, igual que ya hace el
+ * Excel técnico para su detalle por soporte.
+ */
+export function brandDwellTime(report: QuividiCampaignReport): number {
+  const scope = brandMeasurableScope(report);
+  const measurableSupports = new Set(
+    scope.measurable.map((format) => format.support),
+  );
+  const rows = brandSupportDays(report).filter(
+    (row) => measurableSupports.has(row.support) && row.status !== 'missing',
+  );
+  return weightedAverage(rows, 'dwellSeconds');
+}
+
+/**
+ * Aportación de cada tienda a la cifra publicada, con su OTS ajustado
+ * (propio dato más los huecos de la tienda completados al promedio de su
+ * formato) y si tuvo medición en algún momento de la vigencia.
+ *
+ * Es la base de «Tiendas TOP» y del pie discreto de portada. Sólo cubre
+ * tiendas con al menos una fila en `supportDays` (cámara instalada en algún
+ * soporte medible): las tiendas sin cámara no tienen identidad en el reporte,
+ * así que su aportación queda como el residuo entre `estimatedOts` y la suma
+ * de las tiendas conocidas — la reconciliación es exacta porque
+ * `brandCampaignSummary` extrapola con los mismos promedios por formato.
+ */
+export function brandStoreAttribution(
+  report: QuividiCampaignReport,
+): BrandStoreAttributionSummary {
+  const scope = brandMeasurableScope(report);
+  const measurableSupports = new Set(
+    scope.measurable.map((format) => format.support),
+  );
+  const rateByFormat = new Map(
+    scope.measurable.map((format) => [
+      format.support,
+      format.measuredPairDays > 0
+        ? format.measuredOts / format.measuredPairDays
+        : 0,
+    ]),
+  );
+  const rows = brandSupportDays(report).filter((row) =>
+    measurableSupports.has(row.support),
+  );
+
+  const byStore = new Map<
+    string,
+    { storeName: string; rowsByFormat: Map<string, QuividiSupportDay[]> }
+  >();
+  for (const row of rows) {
+    const store = byStore.get(row.storeNumber) ?? {
+      storeName: row.storeName,
+      rowsByFormat: new Map<string, QuividiSupportDay[]>(),
+    };
+    const formatRows = store.rowsByFormat.get(row.support) ?? [];
+    formatRows.push(row);
+    store.rowsByFormat.set(row.support, formatRows);
+    byStore.set(row.storeNumber, store);
+  }
+
+  const stores: BrandStoreAttribution[] = Array.from(
+    byStore,
+    ([storeNumber, data]) => {
+      let adjustedOts = 0;
+      let measuredOts = 0;
+      let everMeasured = false;
+      const measuredRows: QuividiSupportDay[] = [];
+      for (const [support, formatRows] of data.rowsByFormat) {
+        const rate = rateByFormat.get(support) ?? 0;
+        const measured = formatRows.filter((row) => row.status !== 'missing');
+        // El dato propio de la tienda se conserva tal cual; sólo sus propios
+        // huecos (filas `missing`) se completan al promedio del formato. Usar
+        // `rate * formatRows.length` para todas las tiendas —sin restar su
+        // propio dato— las igualaba a todas al mismo valor, perdiendo
+        // exactamente lo que «Tiendas TOP» necesita mostrar: quién rinde más.
+        const formatMeasuredOts = sum(measured.map((row) => row.ots));
+        const gap = Math.max(0, formatRows.length - measured.length);
+        adjustedOts += formatMeasuredOts + gap * rate;
+        measuredOts += formatMeasuredOts;
+        if (measured.length > 0) everMeasured = true;
+        measuredRows.push(...measured);
+      }
+      return {
+        storeNumber,
+        storeName: data.storeName,
+        measuredOts,
+        adjustedOts,
+        dwellSeconds: weightedAverage(measuredRows, 'dwellSeconds'),
+        everMeasured,
+      };
+    },
+  ).sort((a, b) => b.adjustedOts - a.adjustedOts);
+
+  const estimatedOts = brandCampaignSummary(report).estimatedOts;
+  const measuredStoresOts = sum(
+    stores
+      .filter((store) => store.everMeasured)
+      .map((store) => store.adjustedOts),
+  );
+  const unmeasuredStoresOts = Math.max(0, estimatedOts - measuredStoresOts);
+
+  return {
+    stores,
+    measuredStoresOts,
+    unmeasuredStoresOts,
+    measuredStoresSharePercent:
+      estimatedOts > 0 ? (measuredStoresOts / estimatedOts) * 100 : 0,
+    unmeasuredStoresSharePercent:
+      estimatedOts > 0 ? (unmeasuredStoresOts / estimatedOts) * 100 : 0,
+  };
+}
+
+/**
+ * Distribución horaria de los OTS con medición directa, hora a hora (0-23).
  *
  * Se calcula sobre `supportHours`, que no todos los reportes traen: cuando
  * falta, devuelve una lista vacía y el informe omite el bloque en vez de
- * dibujar ceros.
+ * dibujar ceros. A diferencia de `brandDaily`/`brandWeeklyEvolution`, esta
+ * distribución **no completa horas sin dato**: SIGNAM no tiene hoy una fuente
+ * fiable del horario de operación esperado por soporte que permita distinguir
+ * una hora sin medición de una hora en la que el soporte estaba apagado, así
+ * que el reparto describe únicamente lo observado, no un total ajustado por
+ * hora. Extrapolar hora a hora queda para cuando exista esa fuente.
  */
-export function brandTimeOfDay(report: QuividiCampaignReport): BrandTimeBand[] {
+export function brandHourlyDistribution(
+  report: QuividiCampaignReport,
+): BrandHourlyPoint[] {
   const measured = report.supportHours.filter(
     (row) => row.status !== 'missing',
   );
   if (measured.length === 0) return [];
 
-  const totals = BRAND_TIME_BANDS.map((band) =>
-    sum(measured.filter((row) => band.covers(row.hour)).map((row) => row.ots)),
-  );
-
-  const total = sum(totals);
+  const totals = new Map<number, number>();
+  for (const row of measured) {
+    totals.set(row.hour, (totals.get(row.hour) ?? 0) + numeric(row.ots));
+  }
+  const total = sum(Array.from(totals.values()));
   if (total <= 0) return [];
 
-  return BRAND_TIME_BANDS.map((band, index) => ({
-    label: band.label,
-    hours: band.hours,
-    share: ((totals[index] ?? 0) / total) * 100,
-  }));
+  return Array.from(totals, ([hour, ots]) => ({
+    hour,
+    share: (ots / total) * 100,
+  })).sort((a, b) => a.hour - b.hour);
+}
+
+/**
+ * Composición por género de cada día, en porcentaje sobre lo observado ese
+ * día. El género «no identificado» se conserva tal cual lo reporta Quividi;
+ * nunca se reparte entre mujeres y hombres para forzar que ambos sumen 100.
+ */
+export function brandGenderByDay(
+  report: QuividiCampaignReport,
+): BrandGenderDayPoint[] {
+  const byDate = new Map<
+    string,
+    { female: number; male: number; unknown: number }
+  >();
+  for (const row of report.demographics) {
+    const current = byDate.get(row.date) ?? {
+      female: 0,
+      male: 0,
+      unknown: 0,
+    };
+    const watchers = numeric(row.watchers);
+    if (row.gender === 2) current.female += watchers;
+    else if (row.gender === 1) current.male += watchers;
+    else current.unknown += watchers;
+    byDate.set(row.date, current);
+  }
+
+  return Array.from(byDate, ([date, counts]) => {
+    const total = counts.female + counts.male + counts.unknown;
+    return {
+      date,
+      female: total > 0 ? (counts.female / total) * 100 : 0,
+      male: total > 0 ? (counts.male / total) * 100 : 0,
+      unknown: total > 0 ? (counts.unknown / total) * 100 : 0,
+      totalWatchers: total,
+    };
+  })
+    .filter((point) => point.totalWatchers > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
