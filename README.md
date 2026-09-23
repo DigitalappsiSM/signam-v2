@@ -282,8 +282,12 @@ del cruce campaña ↔ catálogo, de dos formas:
 - **Masiva**: junto a los filtros, el botón **“Exportar todas (N)”** (o
   **“Exportar filtradas (N)”** cuando hay filtros activos) exporta exactamente el
   conjunto **visible** en la tabla — respeta la **búsqueda por nombre o número
-  Ekon** y el **periodo `Desde`/`Hasta`** (intersección inclusiva de vigencias). Se
-  deshabilita mientras genera, con periodo inválido o sin resultados.
+  Ekon**, la **Clasificación** y el **periodo `Desde`/`Hasta`** (intersección
+  inclusiva de vigencias). Se deshabilita mientras genera, con periodo inválido o
+  sin resultados.
+
+El filtro **Clasificación** (Todas / Proveedor / Institucional / Pendiente) usa la
+misma clasificación que Seguimiento operativo; las reglas están en `AGENTS.md`.
 
 El libro tiene hasta tres hojas:
 
