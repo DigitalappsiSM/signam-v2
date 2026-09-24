@@ -3,10 +3,11 @@ import type { jsPDF } from 'jspdf';
 /**
  * Primitivas de dibujo del informe comercial de audiencia.
  *
- * El informe se diseñó sobre un lienzo A4 de 794 × 1123 px (A4 a 96 dpi), así
- * que todas las coordenadas del maquetado se expresan en esos píxeles y se
- * convierten aquí a milímetros. Mantener la unidad del diseño evita traducir a
- * mano cada posición y que el PDF derive del mockup con cada retoque.
+ * El informe se diseñó sobre un lienzo A4 **horizontal** de 1123 × 794 px (A4
+ * a 96 dpi), así que todas las coordenadas del maquetado se expresan en esos
+ * píxeles y se convierten aquí a milímetros. Mantener la unidad del diseño
+ * evita traducir a mano cada posición y que el PDF derive del mockup con cada
+ * retoque.
  */
 
 export type RGB = readonly [number, number, number];
@@ -23,15 +24,20 @@ export const MUTED: RGB = [91, 104, 125];
 export const HAIR: RGB = [222, 230, 239];
 export const SOFT: RGB = [247, 250, 253];
 export const GRAY: RGB = [197, 208, 220];
+/** Género no identificado en los gráficos de audiencia: gris con contraste suficiente para leerse junto a rosa/azul. */
+export const GRAY_DARK: RGB = [138, 151, 168];
 export const WHITE: RGB = [255, 255, 255];
 
-/** Ancho del lienzo de diseño, en px. Un A4 a 96 dpi. */
-export const CANVAS_W = 794;
-export const CANVAS_H = 1123;
+/** Ancho y alto del lienzo de diseño, en px. Un A4 horizontal a 96 dpi. */
+export const CANVAS_W = 1123;
+export const CANVAS_H = 794;
+
+/** Ancho de la página A4 horizontal en mm — lo que `CANVAS_W` px representan. */
+const PAGE_W_MM = 297;
 
 /** px del maquetado → mm de página. */
 export function u(px: number): number {
-  return (px * 210) / CANVAS_W;
+  return (px * PAGE_W_MM) / CANVAS_W;
 }
 
 /** px CSS → puntos tipográficos, la unidad de `setFontSize`. */
@@ -137,7 +143,7 @@ export function textWidth(
 ): number {
   doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setFontSize(pt(size));
-  return (doc.getTextWidth(value) * CANVAS_W) / 210;
+  return (doc.getTextWidth(value) * CANVAS_W) / PAGE_W_MM;
 }
 
 function gstate(doc: jsPDF, opacity: number): void {
@@ -413,4 +419,178 @@ export function storeGlyph(
     u(size * 0.3),
     'F',
   );
+}
+
+/** Icono de línea, `size` px de lado, apoyado en un trazo (no relleno). */
+function strokedIcon(doc: jsPDF, color: RGB, weight: number): void {
+  stroke(doc, color);
+  doc.setLineWidth(u(weight));
+  doc.setLineCap('round');
+  doc.setLineJoin('round');
+}
+
+function resetLineWidth(doc: jsPDF): void {
+  doc.setLineWidth(u(0.75));
+}
+
+/** Reloj: círculo más manecillas cortas — usado para dwell time / horarios. */
+export function clockIcon(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+  color: RGB,
+): void {
+  const r = size / 2;
+  const cx = x + r;
+  const cy = y + r;
+  strokedIcon(doc, color, size * 0.1);
+  doc.circle(u(cx), u(cy), u(r * 0.82), 'S');
+  doc.line(u(cx), u(cy), u(cx), u(cy - r * 0.48));
+  doc.line(u(cx), u(cy), u(cx + r * 0.36), u(cy + r * 0.1));
+  resetLineWidth(doc);
+}
+
+/** Calendario: marco redondeado, dos anillas y una línea de cabecera. */
+export function calendarIcon(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+  color: RGB,
+): void {
+  strokedIcon(doc, color, size * 0.09);
+  doc.roundedRect(
+    u(x),
+    u(y + size * 0.12),
+    u(size),
+    u(size * 0.8),
+    u(size * 0.08),
+    u(size * 0.08),
+    'S',
+  );
+  doc.line(u(x), u(y + size * 0.38), u(x + size), u(y + size * 0.38));
+  doc.line(u(x + size * 0.26), u(y), u(x + size * 0.26), u(y + size * 0.24));
+  doc.line(u(x + size * 0.74), u(y), u(x + size * 0.74), u(y + size * 0.24));
+  resetLineWidth(doc);
+}
+
+/** Ojo: dos arcos formando la almendra, más la pupila. */
+export function eyeIcon(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+  color: RGB,
+): void {
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const r = size * 0.62;
+  strokedIcon(doc, color, size * 0.09);
+  arc(doc, cx, cy, r, size * 0.09, Math.PI * 0.92, Math.PI * 2.08, color);
+  arc(doc, cx, cy, r, size * 0.09, -Math.PI * 0.08, Math.PI * 1.08, color);
+  fill(doc, color);
+  doc.circle(u(cx), u(cy), u(size * 0.13), 'F');
+  resetLineWidth(doc);
+}
+
+/** Tendencia ascendente: quiebre de línea con punta de flecha, para «Evolución». */
+export function trendIcon(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+  color: RGB,
+): void {
+  strokedIcon(doc, color, size * 0.11);
+  const points: Array<[number, number]> = [
+    [x, y + size * 0.75],
+    [x + size * 0.32, y + size * 0.42],
+    [x + size * 0.52, y + size * 0.62],
+    [x + size * 0.98, y + size * 0.1],
+  ];
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    doc.line(u(a[0]), u(a[1]), u(b[0]), u(b[1]));
+  }
+  const tip = points[points.length - 1]!;
+  doc.line(u(tip[0]), u(tip[1]), u(tip[0] - size * 0.28), u(tip[1]));
+  doc.line(u(tip[0]), u(tip[1]), u(tip[0]), u(tip[1] + size * 0.28));
+  resetLineWidth(doc);
+}
+
+/** Dos personas: usado para el encabezado de la página de audiencia. */
+export function peopleIcon(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+  color: RGB,
+): void {
+  strokedIcon(doc, color, size * 0.09);
+  const headR = size * 0.14;
+  doc.circle(u(x + size * 0.34), u(y + size * 0.28), u(headR), 'S');
+  arc(
+    doc,
+    x + size * 0.34,
+    y + size * 0.86,
+    size * 0.32,
+    size * 0.09,
+    Math.PI * 1.08,
+    Math.PI * 1.92,
+    color,
+  );
+  doc.circle(u(x + size * 0.72), u(y + size * 0.38), u(headR * 0.85), 'S');
+  arc(
+    doc,
+    x + size * 0.72,
+    y + size * 0.9,
+    size * 0.26,
+    size * 0.08,
+    Math.PI * 1.15,
+    Math.PI * 1.85,
+    color,
+  );
+  resetLineWidth(doc);
+}
+
+/**
+ * Minigráfico de línea (sparkline): normaliza `values` al alto disponible y
+ * remata en un punto sólido. Sin ejes ni etiquetas — es apoyo visual, no una
+ * gráfica que deba leerse por sí sola.
+ */
+export function sparkline(
+  doc: jsPDF,
+  values: readonly number[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: RGB,
+  endColor: RGB = color,
+  domain?: readonly [number, number],
+): void {
+  if (values.length < 2) return;
+  // Sin un dominio explícito, cada línea se normaliza a su propio mín/máx —
+  // correcto para una serie sola, pero exagera cualquier diferencia mínima en
+  // series que deben leerse juntas (dos líneas comparables). Pasar `domain`
+  // fija la misma escala para ambas.
+  const max = domain ? domain[1] : Math.max(...values);
+  const min = domain ? domain[0] : Math.min(...values);
+  const range = Math.max(1e-6, max - min);
+  const stepX = w / (values.length - 1);
+  strokedIcon(doc, color, 1.6);
+  let prevX = x;
+  let prevY = y + h - ((values[0]! - min) / range) * h;
+  for (let i = 1; i < values.length; i += 1) {
+    const px = x + i * stepX;
+    const py = y + h - ((values[i]! - min) / range) * h;
+    doc.line(u(prevX), u(prevY), u(px), u(py));
+    prevX = px;
+    prevY = py;
+  }
+  resetLineWidth(doc);
+  fill(doc, endColor);
+  doc.circle(u(prevX), u(prevY), u(2.6), 'F');
 }

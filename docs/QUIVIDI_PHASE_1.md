@@ -252,17 +252,44 @@ soporte sin cámara o un día que la cámara instalada no reportó.
 
 ### Qué publica el PDF y qué no
 
-- **Publica**: el reparto medido / estimado en porcentaje sobre el circuito
-  medible, el desglose de soportes por formato señalando cuáles entran en la
-  cifra, el perfil de audiencia (género, cruce género × edad y franja horaria) y
-  tres notas de metodología.
-- **No publica**: incidencias de medición. Qué soporte falló un día concreto es
-  operación interna y de cara a la marca sólo añade ruido. El reparto completo /
-  parcial / sin dato / sin cámara vive en la hoja «Auditoría de cifras» del
-  Excel.
-- La serie diaria se limita al circuito medible y escala **cada día por los
-  pares medidos de ese día**. Con un factor constante, una jornada en la que
-  media red no midió se dibujaría como una caída de audiencia que nunca ocurrió.
+Seis páginas fijas en formato **A4 horizontal**, con estilo de dashboard
+minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
+(«Tiendas TOP» añade páginas de más si el listado no cabe en una). Ver
+`AGENTS.md` para el detalle regla por regla; resumen:
+
+- **Publica**: una sola cifra de OTS de campaña en portada (sin desglose
+  medido/extrapolado como protagonista), su evolución diaria o semanal según la
+  vigencia con una fila de conclusiones calculadas (promedio, día pico, delta
+  fin de semana), el perfil de audiencia (género por día como dos líneas de
+  tendencia con dominio compartido, cruce género × edad), la distribución
+  horaria de lo observado, las tiendas con medición y sus OTS ajustados
+  («Tiendas TOP», como leaderboard de una sola columna), y recomendaciones
+  comerciales calculadas de la propia campaña. Un único indicador de cobertura
+  (% de tiendas con cámara vs. proyectadas, por conteo de tiendas) aparece solo
+  en el pie de la página de Evolución.
+- **No publica**: el campo «Retailer», incidencias de medición (qué soporte
+  falló un día concreto es operación interna), la cadena aritmética completa,
+  ni ningún lenguaje que revele el método de extrapolación a la marca (por
+  ejemplo «OTS ajustados», el caso Insurgentes o el descargo «la suma no
+  equivale al total») — eso vive únicamente en la hoja «Auditoría de cifras»
+  del Excel.
+- La serie de evolución se limita al circuito medible y escala **cada día**
+  (o cada semana, en vigencias de más de 28 días) **formato a formato** con el
+  mismo promedio que la cifra de portada, de modo que la suma de la serie
+  concilia exactamente con el total publicado.
+- **Pendiente (Fase 2, bloqueada)**: extrapolar hora a hora distinguiendo «hora
+  sin dato» de «hora fuera de operación» requiere un horario de apertura/cierre
+  por soporte que SIGNAM no tiene hoy en ningún lugar del dominio ni del
+  Catálogo Admira. Mientras tanto, la distribución horaria del PDF
+  (`brandHourlyDistribution`) es puramente descriptiva de lo observado, nunca
+  extrapolada, y el Excel no trae todavía la hoja «Detalle de extrapolación»
+  hora a hora que pide el encargo comercial.
+- **Pendiente adicional (sin fase asignada)**: el cruce hora × género/edad
+  (franjas mañana/tarde/noche por demografía) no se puede construir con el
+  esquema actual — ninguna fuente une hora del día con demografía
+  (`QuividiDemographicRow` no trae hora, `QuividiSupportHour` no trae
+  género/edad) — así que la página «Horarios» solo publica el reparto horario
+  simple. Ver `AGENTS.md` para el detalle.
 
 ### Hoja «Auditoría de cifras»
 
@@ -278,7 +305,7 @@ modo que una discrepancia entre hoja e informe es imposible por construcción.
 
 - `src/modules/exports/quividiBrandReport.ts` — capa pura: circuito medible,
   extrapolación, cobertura, perfil de audiencia.
-- `src/modules/exports/quividiCampaignPdf.ts` — las cinco páginas del informe.
+- `src/modules/exports/quividiCampaignPdf.ts` — las seis páginas del informe.
 - `src/modules/exports/quividiPdfKit.ts` — primitivas de dibujo sobre jsPDF.
 - `src/modules/exports/quividiAuditSheet.ts` — la hoja de auditoría.
 

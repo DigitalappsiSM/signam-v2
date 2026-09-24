@@ -9,13 +9,18 @@ import {
   brandCampaignSummary,
   brandCoverage,
   brandDaily,
+  brandDwellTime,
   brandExtrapolationBasis,
   brandGender,
   brandGenderAge,
+  brandGenderByDay,
+  brandHourlyDistribution,
   brandMeasurableScope,
+  brandStoreAttribution,
   brandSupportDays,
-  brandTimeOfDay,
+  brandWeeklyEvolution,
   periodDays,
+  weekStartOf,
 } from './quividiBrandReport';
 
 function supportDay(
@@ -311,6 +316,123 @@ describe('informe comercial agregado de audiencia', () => {
     expect(periodDays(report())).toBe(14);
   });
 
+  it('conserva un OTS observado igual a cero: no lo confunde con una jornada sin dato', () => {
+    const rows = [
+      supportDay({
+        date: '2026-09-01',
+        storeNumber: '1',
+        storeName: 'UNO',
+        ots: 1000,
+      }),
+      // Segunda tienda: cámara activa, pero cero personas detectadas ese día.
+      // Sigue siendo una medición válida y debe contar como par medido.
+      supportDay({
+        date: '2026-09-01',
+        storeNumber: '2',
+        storeName: 'DOS',
+        ots: 0,
+      }),
+    ];
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    const basis = brandExtrapolationBasis(input);
+    expect(basis.measuredPairDays).toBe(2);
+    expect(basis.missingPairDays).toBe(0);
+    // El promedio baja porque el cero es un dato real, no porque se descarte.
+    expect(basis.otsPerMeasuredPairDay).toBe(500);
+
+    const daily = brandDaily(input);
+    expect(daily[0]?.measuredPairs).toBe(2);
+    expect(daily[0]?.estimatedOts).toBe(1000);
+  });
+
+  it('concilia la suma de los días con el total de campaña, con varios formatos de promedios distintos', () => {
+    const dates = Array.from(
+      { length: 5 },
+      (_, index) => `2026-09-0${index + 1}`,
+    );
+    // Mupi mide siempre las dos tiendas; video wall pierde una tienda a
+    // partir del tercer día. Cada formato tiene su propio promedio.
+    const rows = dates.flatMap((date, index) => [
+      supportDay({
+        date,
+        storeNumber: '1',
+        storeName: 'UNO',
+        support: 'MUPI DIGITAL',
+        ots: 1000,
+      }),
+      supportDay({
+        date,
+        storeNumber: '2',
+        storeName: 'DOS',
+        support: 'MUPI DIGITAL',
+        ots: 1200,
+      }),
+      supportDay({
+        date,
+        storeNumber: '3',
+        storeName: 'TRES',
+        support: 'VIDEO WALL',
+        ots: 5000,
+      }),
+      supportDay({
+        date,
+        storeNumber: '4',
+        storeName: 'CUATRO',
+        support: 'VIDEO WALL',
+        ...(index < 2
+          ? { ots: 4600 }
+          : { status: 'missing' as const, measuredCameras: 0, ots: 0 }),
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: {
+        totalPairs: 4,
+        mappedPairs: 4,
+        percent: 100,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 2,
+            mappedPairs: 2,
+            percent: 100,
+          },
+          {
+            support: 'VIDEO WALL',
+            totalPairs: 2,
+            mappedPairs: 2,
+            percent: 100,
+          },
+        ],
+      },
+      storeCoverage: { totalStores: 4, mappedStores: 4, percent: 100 },
+      supportDays: rows,
+    });
+
+    const summary = brandCampaignSummary(input);
+    const daily = brandDaily(input);
+    const totalFromDaily = daily.reduce(
+      (total, point) => total + point.estimatedOts,
+      0,
+    );
+    expect(totalFromDaily).toBeCloseTo(summary.estimatedOts, 6);
+
+    const weekly = brandWeeklyEvolution(input);
+    const totalFromWeekly = weekly.reduce(
+      (total, point) => total + point.estimatedOts,
+      0,
+    );
+    expect(totalFromWeekly).toBeCloseTo(summary.estimatedOts, 6);
+  });
+
   it('expone segmentos solo como porcentajes agregados', () => {
     const input = report({
       demographics: [
@@ -346,7 +468,7 @@ describe('informe comercial agregado de audiencia', () => {
   });
 });
 
-describe('reparto por franja horaria', () => {
+describe('distribución horaria de OTS con medición directa', () => {
   function hour(
     h: number,
     ots: number,
@@ -369,39 +491,334 @@ describe('reparto por franja horaria', () => {
     };
   }
 
-  it('reparte los OTS entre mañana, tarde y noche', () => {
+  it('reparte el porcentaje entre las horas con dato', () => {
     const input = report({
-      supportHours: [hour(8, 100), hour(14, 200), hour(20, 100)],
+      supportHours: [hour(11, 100), hour(14, 200), hour(20, 100)],
     });
-    const bands = brandTimeOfDay(input);
-    expect(bands.map((band) => band.label)).toEqual([
-      'Mañana',
-      'Tarde',
-      'Noche',
+    const hourly = brandHourlyDistribution(input);
+    expect(hourly.map((point) => point.hour)).toEqual([11, 14, 20]);
+    expect(hourly.map((point) => Math.round(point.share))).toEqual([
+      25, 50, 25,
     ]);
-    expect(bands.map((band) => Math.round(band.share))).toEqual([25, 50, 25]);
-  });
-
-  it('cuenta la madrugada como noche, sin descartar sus OTS', () => {
-    const input = report({ supportHours: [hour(8, 100), hour(3, 100)] });
-    const bands = brandTimeOfDay(input);
-    expect(bands[2]?.share).toBeCloseTo(50, 5);
-    // Las tres franjas cubren el día completo.
-    expect(bands.reduce((total, band) => total + band.share, 0)).toBeCloseTo(
+    expect(hourly.reduce((total, point) => total + point.share, 0)).toBeCloseTo(
       100,
       5,
     );
   });
 
-  it('ignora las horas sin medición', () => {
+  it('ignora las horas sin medición, sin fabricar su dato', () => {
     const input = report({
-      supportHours: [hour(8, 100), hour(14, 999, 'missing')],
+      supportHours: [hour(11, 100), hour(14, 999, 'missing')],
     });
-    expect(brandTimeOfDay(input)[0]?.share).toBe(100);
+    expect(brandHourlyDistribution(input)).toEqual([{ hour: 11, share: 100 }]);
   });
 
   it('devuelve vacío cuando el reporte no trae detalle horario', () => {
-    expect(brandTimeOfDay(report({ supportHours: [] }))).toEqual([]);
+    expect(brandHourlyDistribution(report({ supportHours: [] }))).toEqual([]);
+  });
+});
+
+describe('evolución semanal para vigencias largas', () => {
+  it('agrupa de lunes a domingo, con semanas parciales en los extremos', () => {
+    // 21/08/2026 es viernes: la primera semana sólo trae 3 días (vie-dom).
+    const dates = Array.from({ length: 20 }, (_, index) => {
+      const date = new Date(Date.UTC(2026, 7, 21) + index * 86_400_000);
+      return date.toISOString().slice(0, 10);
+    });
+    const rows = dates.map((date) =>
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+    );
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 1, mappedPairs: 1, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      supportDays: rows,
+    });
+
+    const weekly = brandWeeklyEvolution(input);
+    // 20 días desde un viernes: semana parcial inicial, 2 completas, parcial final.
+    expect(weekly).toHaveLength(4);
+    expect(weekly[0]?.weekStart).toBe('2026-08-21');
+    expect(weekly[0]?.weekEnd).toBe('2026-08-23');
+    expect(weekly[weekly.length - 1]?.weekEnd).toBe(dates[dates.length - 1]);
+    const total = weekly.reduce((sum, week) => sum + week.estimatedOts, 0);
+    expect(total).toBeCloseTo(brandCampaignSummary(input).estimatedOts, 6);
+  });
+
+  it('calcula el lunes de la semana ISO de una fecha', () => {
+    expect(weekStartOf('2026-08-22')).toBe('2026-08-17'); // sábado -> lunes previo
+    expect(weekStartOf('2026-08-23')).toBe('2026-08-17'); // domingo -> lunes previo
+    expect(weekStartOf('2026-08-17')).toBe('2026-08-17'); // lunes -> él mismo
+  });
+});
+
+describe('dwell time ponderado del circuito', () => {
+  it('pondera por watchers, no promedia tiendas grandes y pequeñas por igual', () => {
+    const input = report({
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'GRANDE',
+          watchers: 900,
+          dwellSeconds: 40,
+        }),
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '2',
+          storeName: 'CHICA',
+          watchers: 100,
+          dwellSeconds: 10,
+        }),
+      ],
+    });
+    // (900*40 + 100*10) / 1000 = 37, no (40+10)/2 = 25.
+    expect(brandDwellTime(input)).toBeCloseTo(37, 5);
+  });
+
+  it('ignora las jornadas sin medición al ponderar', () => {
+    const input = report({
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          watchers: 100,
+          dwellSeconds: 20,
+        }),
+        supportDay({
+          date: '2026-09-02',
+          storeNumber: '1',
+          storeName: 'UNO',
+          status: 'missing',
+          measuredCameras: 0,
+          ots: 0,
+          watchers: 0,
+          dwellSeconds: 0,
+        }),
+      ],
+    });
+    expect(brandDwellTime(input)).toBe(20);
+  });
+});
+
+describe('aportación de tiendas a la cifra publicada', () => {
+  it('separa tiendas con medición de tiendas sin medición y concilia con el total', () => {
+    const dates = Array.from(
+      { length: 5 },
+      (_, index) => `2026-09-0${index + 1}`,
+    );
+    // 3 tiendas con cámara (2 miden siempre, 1 nunca reporta) + 2 tiendas sin
+    // cámara del universo contratado (no aparecen en supportDays).
+    const rows = dates.flatMap((date) => [
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+      supportDay({ date, storeNumber: '2', storeName: 'DOS', ots: 2000 }),
+      supportDay({
+        date,
+        storeNumber: '3',
+        storeName: 'TRES',
+        status: 'missing',
+        measuredCameras: 0,
+        ots: 0,
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 5, mappedPairs: 3, percent: 60, bySupport: [] },
+      storeCoverage: { totalStores: 5, mappedStores: 3, percent: 60 },
+      supportDays: rows,
+    });
+
+    const attribution = brandStoreAttribution(input);
+    expect(attribution.stores).toHaveLength(3);
+    const tres = attribution.stores.find((s) => s.storeNumber === '3');
+    expect(tres?.everMeasured).toBe(false);
+    expect(
+      attribution.stores.find((s) => s.storeNumber === '1')?.everMeasured,
+    ).toBe(true);
+
+    const summary = brandCampaignSummary(input);
+    expect(
+      attribution.measuredStoresOts + attribution.unmeasuredStoresOts,
+    ).toBeCloseTo(summary.estimatedOts, 6);
+    expect(
+      attribution.measuredStoresSharePercent +
+        attribution.unmeasuredStoresSharePercent,
+    ).toBeCloseTo(100, 6);
+    // TRES nunca midió: su aportación cae del lado de "sin medición" aunque
+    // tenga cámara instalada, igual que las 2 tiendas que ni eso tienen.
+    expect(attribution.unmeasuredStoresOts).toBeGreaterThan(0);
+  });
+
+  it('conserva el dato propio de cada tienda: no iguala a todas al promedio del formato', () => {
+    const dates = Array.from(
+      { length: 4 },
+      (_, index) => `2026-09-0${index + 1}`,
+    );
+    // Dos tiendas, ambas con medición completa todos los días, pero con
+    // desempeño muy distinto: deben conservar su propio OTS ajustado.
+    const rows = dates.flatMap((date) => [
+      supportDay({ date, storeNumber: '1', storeName: 'GRANDE', ots: 5000 }),
+      supportDay({ date, storeNumber: '2', storeName: 'CHICA', ots: 500 }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    const attribution = brandStoreAttribution(input);
+    const grande = attribution.stores.find((s) => s.storeNumber === '1');
+    const chica = attribution.stores.find((s) => s.storeNumber === '2');
+    // Sin huecos que rellenar, el ajustado es exactamente el propio dato.
+    expect(grande?.adjustedOts).toBe(20_000);
+    expect(chica?.adjustedOts).toBe(2_000);
+  });
+
+  it('rellena sólo los huecos propios de la tienda, con su dato real intacto', () => {
+    const dates = Array.from(
+      { length: 4 },
+      (_, index) => `2026-09-0${index + 1}`,
+    );
+    const rows = dates.flatMap((date, index) => [
+      supportDay({ date, storeNumber: '1', storeName: 'COMPLETA', ots: 1000 }),
+      supportDay({
+        date,
+        storeNumber: '2',
+        storeName: 'PARCIAL',
+        ...(index < 2
+          ? { ots: 1000 }
+          : { status: 'missing' as const, measuredCameras: 0, ots: 0 }),
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    const attribution = brandStoreAttribution(input);
+    const parcial = attribution.stores.find((s) => s.storeNumber === '2');
+    // 2 días medidos a 1000 + 2 días sin dato completados al promedio del
+    // formato (1000, porque la tienda COMPLETA sostiene el promedio real).
+    expect(parcial?.measuredOts).toBe(2000);
+    expect(parcial?.adjustedOts).toBe(4000);
+  });
+
+  it('suma las dos cámaras de Insurgentes como una sola aportación de tienda', () => {
+    const date = '2026-09-01';
+    const input = report({
+      supportDays: [
+        supportDay({
+          date,
+          storeNumber: '10',
+          storeName: 'INSURGENTES',
+          configuredCameras: 2,
+          measuredCameras: 2,
+          ots: 300,
+        }),
+      ],
+      cameraDays: [
+        cameraDay({
+          date,
+          storeNumber: '10',
+          storeName: 'INSURGENTES',
+          locationId: 1,
+          ots: 100,
+        }),
+        cameraDay({
+          date,
+          storeNumber: '10',
+          storeName: 'INSURGENTES',
+          locationId: 2,
+          ots: 200,
+        }),
+      ],
+    });
+
+    const attribution = brandStoreAttribution(input);
+    expect(attribution.stores).toHaveLength(1);
+    expect(attribution.stores[0]?.storeName).toBe('INSURGENTES');
+    expect(attribution.stores[0]?.measuredOts).toBe(300);
+  });
+});
+
+describe('composición por género día a día', () => {
+  it('conserva el género no identificado sin redistribuirlo', () => {
+    const input = report({
+      demographics: [
+        {
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          support: 'MUPI DIGITAL',
+          gender: 2,
+          age: 2,
+          watchers: 49,
+        },
+        {
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          support: 'MUPI DIGITAL',
+          gender: 1,
+          age: 2,
+          watchers: 49,
+        },
+        {
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          support: 'MUPI DIGITAL',
+          gender: 0,
+          age: 2,
+          watchers: 2,
+        },
+      ],
+    });
+    const days = brandGenderByDay(input);
+    expect(days).toHaveLength(1);
+    expect(days[0]?.female).toBeCloseTo(49, 5);
+    expect(days[0]?.male).toBeCloseTo(49, 5);
+    expect(days[0]?.unknown).toBeCloseTo(2, 5);
+    expect(
+      (days[0]?.female ?? 0) + (days[0]?.male ?? 0) + (days[0]?.unknown ?? 0),
+    ).toBeCloseTo(100, 5);
+  });
+
+  it('devuelve un punto por día, ordenado', () => {
+    const input = report({
+      demographics: [
+        {
+          date: '2026-09-02',
+          storeNumber: '1',
+          storeName: 'UNO',
+          support: 'MUPI DIGITAL',
+          gender: 2,
+          age: 2,
+          watchers: 10,
+        },
+        {
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          support: 'MUPI DIGITAL',
+          gender: 1,
+          age: 2,
+          watchers: 10,
+        },
+      ],
+    });
+    expect(brandGenderByDay(input).map((point) => point.date)).toEqual([
+      '2026-09-01',
+      '2026-09-02',
+    ]);
   });
 });
 

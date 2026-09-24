@@ -264,49 +264,74 @@ tres de ellos describían mal el separador de artículos.
   validarlo contra Quividi se guarda también el alias canónico.
 - **Reporte comercial de audiencia (PDF)**: la descarga para marcas es una vista
   agregada del resultado de campaña. No publica tráfico, ranking ni rendimiento de
-  una tienda individual. El detalle técnico por tienda/cámara y las métricas
-  operativas permanecen en el Excel técnico.
-- **KPIs del PDF comercial**: OTS estimados de campaña, OTS promedio diario, OTS
-  promedio diario por tienda, OTS promedio diario por soporte y cobertura de
-  medición. No se muestran Watchers ni Conversion Rate en ningún punto del PDF.
-  Los segmentos de audiencia se comunican únicamente como distribuciones
-  porcentuales agregadas (por ejemplo, género y rango de edad), nunca como conteos
-  absolutos.
-- **Circuito medible y extrapolación del PDF**: la cifra publicada cubre
+  una tienda individual por nombre salvo en «Tiendas TOP» (ver más abajo, que
+  publica agregados ajustados, nunca incidencias). El detalle técnico por
+  tienda/cámara y las métricas operativas permanecen en el Excel técnico.
+- **Estado del proyecto: Fase 1 de 2.** El PDF describe cinco secciones —
+  Portada, Evolución, Perfil y horarios, Tiendas TOP, Cierre— construidas sobre
+  el mismo motor de extrapolación **día/par** que ya existía (`brandCampaignSummary`,
+  `brandDaily`, `brandWeeklyEvolution`). La Fase 2 —un motor de extrapolación
+  **hora a hora** que complete huecos horarios distinguiendo «hora que debía
+  medir y no reportó» de «hora fuera de operación»— está **bloqueada**: SIGNAM
+  no tiene hoy ninguna fuente fiable del horario de apertura/cierre por soporte
+  (se buscó en `src/domain/quividi.ts`, en el Catálogo Admira y en la ventana de
+  «Salud de cámaras», que es una regla de evaluación global de 10:00–22:00, no un
+  horario real por tienda). Mientras esa fuente no exista o no se decida una
+  aproximación explícita, no se debe: (a) completar horas sin dato en el Excel
+  con una hoja «Detalle de extrapolación» hora a hora, ni (b) aplicar un factor
+  horario a `brandHourlyDistribution` para convertirlo en «OTS ajustados por
+  hora». Quien retome la Fase 2 debe traer esa decisión documentada aquí antes
+  de tocar el motor horario.
+- **KPIs del PDF comercial**: una sola cifra de OTS de campaña en portada (sin
+  desglosar medido/extrapolado como cifras protagonistas separadas), OTS
+  promedio diario, dwell time promedio ponderado por watchers, y — sólo en el
+  pie discreto de portada — el reparto de esos OTS entre tiendas con medición en
+  algún momento de la vigencia y tiendas sin medición. No se muestran Watchers
+  ni Conversion Rate en ningún punto del PDF. Los segmentos de audiencia se
+  comunican únicamente como distribuciones porcentuales agregadas (género, edad,
+  hora), nunca como conteos absolutos. El campo «Retailer» no existe en el PDF.
+- **Circuito medible y extrapolación**: la cifra publicada cubre
   **únicamente los formatos de soporte con medición** durante la vigencia
   (`brandMeasurableScope`). Un formato sin ninguna cámara —CRIUS, Poster LED,
-  video walls no instrumentados— **queda fuera del OTS** y se reporta como
-  alcance adicional: aplicarle el promedio de un mupi supondría que un pasillo y
-  un atrio ven pasar a la misma gente. Dentro del circuito medible se extrapola
-  **formato a formato**, cada uno con su propio promedio de OTS por par-día
-  medido, nunca con un promedio único del circuito.
+  video walls no instrumentados— **queda fuera del OTS**: aplicarle el promedio
+  de un mupi supondría que un pasillo y un atrio ven pasar a la misma gente.
+  Dentro del circuito medible se extrapola **formato a formato**, cada uno con
+  su propio promedio de OTS por par-día medido, nunca con un promedio único del
+  circuito.
 
   El promedio de cada formato se calcula sobre sus par-día **medidos** y no
   sobre su rejilla completa: si los días sin dato entraran al numerador como
   cero, deflactarían el promedio que luego rellena el resto, un sesgo que crece
   con la vigencia (despreciable por debajo de ~14 días, por encima del 20 % a
   partir de 60). Todo hueco dentro de un formato medible recibe el mismo
-  tratamiento, sea un soporte sin cámara o un día que la cámara no reportó.
+  tratamiento, sea un soporte sin cámara o un día que la cámara no reportó. Un
+  OTS observado en `0` (cámara activa, cero personas detectadas) es un dato
+  real y **nunca** se trata como hueco.
 
-  El porcentaje publicado (`scope.measuredPercent`) es par-día medidos sobre
-  par-día del circuito **medible**, no sobre el circuito contratado. La
-  cobertura por tienda y por tienda-día (`brandCoverage`) se conserva como
-  referencia operativa del despliegue de cámaras, pero no es la cifra que
-  publica el informe. El divisor por tienda sigue siendo el universo de campaña:
-  una tienda con sólo formatos no medibles deja el reparto conservador, que es
-  el sentido seguro para un dato que va a marca.
+  El porcentaje de cobertura por tienda y por tienda-día (`brandCoverage`) se
+  conserva como referencia operativa del despliegue de cámaras. El divisor por
+  tienda sigue siendo el universo de campaña: una tienda con sólo formatos no
+  medibles deja el reparto conservador, que es el sentido seguro para un dato
+  que va a marca.
 
-  La serie diaria se limita al circuito medible y escala **cada día por los
-  pares medidos de ese día**, nunca con un factor constante: con factor
-  constante, una jornada en la que media red no midió se dibuja como una caída
-  de audiencia que nunca ocurrió.
-
+- **Evolución (`brandDaily`/`brandWeeklyEvolution`) concilia con el total de
+  portada.** Cada día se extrapola **formato a formato** con el mismo promedio
+  por par-día medido que `brandCampaignSummary`: el hueco de un formato en un
+  día concreto se completa con el promedio de ese mismo formato, nunca con un
+  factor único de circuito. Esto es lo que garantiza la identidad `suma de
+  `brandDaily(...).estimatedOts` === `brandCampaignSummary(...).estimatedOts``
+  (antes de esta fase, `brandDaily` escalaba cada día con un único factor
+  `totalPares/paresMedidos`, que no reconciliaba con la extrapolación por
+  formato de portada cuando había más de un formato — se corrigió aquí).
+  Si la vigencia es de **28 días o menos**, el PDF dibuja una barra por día
+  (día de la semana + día del mes en el eje). Por encima de 28 días dibuja
+  `brandWeeklyEvolution`: semanas **de lunes a domingo**, con **semanas
+  parciales en los extremos** de la vigencia, sumando (nunca promediando) los
+  días de cada semana — también concilia con el total.
 - **El PDF no publica incidencias de medición**: qué soporte falló un día
   concreto es operación interna y de cara a la marca sólo añade ruido. El
-  informe muestra el reparto **medido / estimado en porcentaje** y el desglose
-  de soportes **por formato**, señalando cuáles entran en la cifra. El detalle
-  de completo / parcial / sin dato / sin cámara vive en la hoja «Auditoría de
-  cifras» del Excel.
+  detalle de completo / parcial / sin dato / sin cámara vive en la hoja
+  «Auditoría de cifras» del Excel.
 - **Hoja «Auditoría de cifras» del Excel**: el Excel técnico incluye una hoja que
   reconstruye paso a paso la cifra del PDF — universo contratado, reparto
   exhaustivo de la rejilla par-día (completo / parcial / sin dato / sin cámara),
@@ -315,59 +340,168 @@ tres de ellos describían mal el separador de artículos.
   que el PDF (`quividiBrandReport.ts`), nunca recalcula: una discrepancia entre
   hoja e informe debe ser imposible por construcción. Es la única vista que
   desglosa por tienda, y existe sólo para auditar la construcción del agregado.
-- **Multi-cámara en el PDF**: se mantiene la agregación vigente de
-  tienda+soporte para todo el circuito. **Única excepción: Insurgentes**. Sus dos
-  cámaras están en pisos distintos y miden zonas diferentes; para la vista
-  comercial sus OTS válidos se suman como zonas independientes y no se promedian.
-  Esta excepción no cambia la agregación técnica general ni el Excel.
-- **Evolución temporal del PDF**: solo se publica una serie diaria agregada de la
-  campaña. No se muestran curvas, tablas ni comparativas por tienda. El circuito
-  no se comercializa por franja horaria ni por día específico; por tanto el PDF
-  no recomienda segmentar la pauta por horas o días.
+  Pendiente de Fase 2: ampliarla con el resumen «OTS recopilados + OTS
+  extrapolados = OTS reportados» separado por motivo (hora faltante / día
+  completo sin dato / tienda sin cámara) y con la hoja «Detalle de
+  extrapolación» hora a hora que pide el encargo de negocio — bloqueadas por la
+  falta de horario de operación descrita arriba.
+- **Multi-cámara**: se mantiene la agregación vigente de tienda+soporte para
+  todo el circuito, en el PDF y en el Excel. **Única excepción: Insurgentes**.
+  Sus dos cámaras están en pisos distintos y miden zonas diferentes; para la
+  vista comercial (portada, evolución, Tiendas TOP) sus OTS válidos se suman
+  como zonas independientes y no se promedian (`brandSupportDays`). Esta
+  excepción no cambia la agregación técnica general ni las hojas técnicas del
+  Excel, que conservan el promedio de cámaras válidas.
+- **Tiendas TOP (`brandStoreAttribution`)**: página con título exacto «Tiendas
+  TOP», maquetada como **leaderboard de una sola columna** (no tabla de dos
+  columnas: rompería el orden visual del ranking) — rango, nombre de tienda,
+  barra horizontal proporcional al OTS ajustado y minibarra de dwell time a la
+  derecha; la fila #1 lleva acento rosa, el resto gris. Lista únicamente
+  tiendas con al menos una jornada de medición directa en algún momento de la
+  vigencia (`everMeasured`), con su OTS ajustado (dato propio más los huecos
+  de la tienda completados al promedio de su formato) y su dwell time
+  ponderado por watchers. Se pagina automáticamente cada **8** filas
+  (`TOP_STORES_ROWS_PER_PAGE`) si el listado no cabe en una página, con
+  eyebrow de continuación `«04 · TIENDAS TOP — CONTINUACIÓN»` (em-dash, nunca
+  paréntesis — ver la nota de escape de `tracking` más abajo). La página **no**
+  explica que la suma de la tabla difiere del total de portada ni detalla el
+  caso Insurgentes: es ruido metodológico que la marca no necesita: ambas notas
+  se retiraron a partir de la Fase 3 por pedido explícito («no generar ruido a
+  la marca»); la aclaración completa sigue disponible solo en el Excel técnico.
+- **Pie de página relocalizado (Fase 3): un solo indicador, solo en
+  Evolución.** El PDF ya no publica en portada ni en Tiendas TOP ninguna
+  cifra de cobertura de medición. El único lugar donde aparece es el pie de la
+  página de Evolución, como nota discreta en gris a la derecha:
+  `«<%> tiendas con cámara · <%> tiendas proyectadas»`, calculada por
+  **conteo de tiendas** (`brandCoverage(report).measuredPercent` /
+  `estimatedPercent`), no por par-día ni por OTS. Es intencional que esta cifra
+  no coincida con `scope.measuredPercent`/`brandExtrapolationBasis` del Excel
+  (que clasifican **par-día**, no tiendas): son dos clasificaciones distintas
+  y el PDF nunca las etiqueta como «real vs. extrapolado».
+- **Distribución horaria (`brandHourlyDistribution`) es descriptiva, no
+  extrapolada.** Reparte en porcentaje los OTS **con medición directa** por
+  hora del día (0–23), a partir de `supportHours`. A diferencia de
+  `brandDaily`/`brandWeeklyEvolution`, **no completa horas sin dato**: por el
+  bloqueo de Fase 2 descrito arriba, no hay manera de distinguir hoy una hora
+  sin medición de una hora en la que el soporte estaba apagado. El pie de la
+  gráfica lo declara («con medición directa») para no sugerir una precisión que
+  el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
+  en vez de dibujar ceros.
+- **No existe cruce hora × demografía — bloqueo de datos, no de diseño.** El
+  mockup aprobado de la página «Horarios» incluía un corte mañana/tarde/noche
+  por género y edad; **no se implementó en el generador real** porque el
+  esquema no lo permite: `QuividiDemographicRow` no trae `hour` y
+  `QuividiSupportHour` no trae `gender`/`age` — ninguna fuente une hora del día
+  con demografía. `horariosPage()` en `quividiCampaignPdf.ts` se limita al
+  reparto horario simple (`brandHourlyDistribution`, ver punto anterior). Si
+  Quividi llega a exponer ese cruce, se puede portar el mockup tal cual; hasta
+  entonces no intentar aproximarlo con los datos actuales (mezclar `supportHours`
+  y `demographics` por fecha, sin hora, daría un cruce falso).
+- **Composición por género por día (`brandGenderByDay`)**: porcentaje diario de
+  mujeres/hombres/no identificado sobre lo observado ese día (o agregado por
+  semana natural cuando la vigencia supera 28 días, ponderado por watchers). El
+  género «no identificado» se conserva tal cual lo reporta Quividi y nunca se
+  redistribuye entre mujeres y hombres para forzar que ambos sumen 100. En la
+  página «Audiencia», la tendencia día a día se dibuja como **dos líneas**
+  (`sparkline()` en `quividiPdfKit.ts`), nunca barras apiladas (rechazado
+  explícitamente por diseño: «no quiero que sean apilados»); ambas líneas
+  **comparten un único dominio** de escala (mín/máx combinado de las dos
+  series, con margen) para que la variación día a día se compare correctamente
+  entre géneros — normalizar cada línea por separado exagera visualmente
+  diferencias mínimas (bug encontrado y corregido en Fase 3). El resumen de
+  cabecera de género (mujeres/hombres/no identificado) se lee de `brandGender()`
+  y **no** de `brandGenderAge()`: la pirámide de `brandGenderAge()` ya excluye
+  «no identificado» y renormaliza a 100, así que derivar el «no identificado»
+  de ella siempre da 0 (bug encontrado y corregido en Fase 3).
 - **Tono y metodología del PDF**: es un reporte de resultados para marketing, no
-  un documento de auditoría. La metodología se reduce a tres notas de una frase
-  —se mide en tienda, el universo se completa con el dato real, los resultados
-  son agregados— redactadas en clave comercial, sin incidencias técnicas, sin
-  detalle de cámaras y **sin la cadena aritmética**: esa reconstrucción paso a
-  paso vive en la hoja «Auditoría de cifras» del Excel. La portada presenta la
-  cifra como `OPORTUNIDADES DE VER · OTS` y no la califica de estimada; el
-  reparto medido/extrapolado se explica en el cuerpo (págs. 02, 03 y 04), que es
-  donde se cumple la obligación de declararlo explícitamente.
-- **Look & feel del PDF comercial**: lenguaje infográfico sobre fondo blanco —
-  numerales grandes como pieza principal, bloques de color sólido, pictogramas de
-  tienda, barras gruesas con el valor rotulado— con navy `#11264E` y azul ISM
-  `#007ECB` cargando el peso y rosa Liverpool `#E2126F` reservado a señalización
-  (barras de sección, categoría «sin dato», franja horaria líder y citas). Las
-  fotografías **nunca ocupan una sección completa ni se cortan en seco**: se
-  integran dentro de un bloque navy y se disuelven en él con degradados. Como
-  jsPDF no dibuja degradados, `quividiPdfKit.ts` los compone con **rectángulos
-  acumulativos anclados a un borde**: tiras contiguas dejan bandas visibles
-  (cada borde compartido se suaviza por su lado y asoma un hilo de imagen sin
-  velar) y solaparlas produce líneas oscuras, porque la opacidad se compone
-  como `1-(1-a1)(1-a2)`. Cada `fade` cubre un solo sentido y sus `stops` deben
-  ser **no crecientes**; un degradado de dos lados son dos llamadas. Las fotos
-  se recortan con `photoCover`, que emula `object-fit: cover` y **exige pasar
-  `null` como estilo a `doc.rect`** para que el trazado sirva de recorte: sin
-  él jsPDF lo traza, cierra el trazado y `clip` recorta la página entera,
-  haciendo desaparecer la imagen sin que nada falle.
+  un documento de auditoría. El cierre reemplaza la antigua explicación
+  metodológica de tres notas por recomendaciones comerciales breves, calculadas
+  de los propios datos de la campaña (día de mayor audiencia, hora de mayor
+  tránsito, rango de edad dominante) y con la advertencia explícita de que la
+  audiencia medida no prueba ventas. La metodología técnica completa —
+  incidencias, detalle de cámaras, cadena aritmética— vive únicamente en las
+  hojas «Metodología» y «Auditoría de cifras» del Excel. La portada presenta la
+  cifra como `OPORTUNIDADES DE VER · OTS` y no la califica de estimada. A
+  partir de la Fase 3 esto se extiende a toda página interior: no hay leyendas
+  ni citas que describan el método de extrapolación (por ejemplo «OTS
+  ajustados»), ni notas de descargo sobre proyección de tiendas/horas fuera del
+  pie relocalizado de Evolución — cualquier fraseo de ese tipo que reaparezca
+  en una página distinta a la Evolución es una regresión, no una decisión de
+  redacción libre.
+- **Look & feel del PDF comercial (Fase 3): dashboard SaaS minimalista sobre
+  A4 horizontal.** Lienzo **apaisado** 1123×794 px (297×210 mm) — se evaluó
+  vertical y horizontal y se optó por horizontal para dar más ancho a las
+  gráficas de tendencia y evitar áreas en blanco. Un solo visual dominante por
+  página (una gráfica, un leaderboard, una pirámide), sin fondos de tarjeta
+  en azul pálido, con barras delgadas (≤26 px) y etiqueta de valor en cada
+  barra. Cada página de datos cierra con una fila de 3–4 conclusiones
+  calculadas de los propios datos de la campaña (promedio, día/hora pico,
+  delta fin de semana, etc.) en vez de un párrafo metodológico o una cita —
+  reemplazo explícito de las leyendas de método de la Fase 1/2. Iconografía
+  lineal propia (`clockIcon`, `calendarIcon`, `eyeIcon`, `trendIcon`,
+  `peopleIcon` en `quividiPdfKit.ts`, dibujados con primitivas de jsPDF, sin
+  assets externos) junto a las cifras clave de cada eyebrow/stat. Estructura
+  fija de **seis páginas**: Portada, Evolución, Audiencia, Horarios, Tiendas
+  TOP, Cierre — ver el punto de paginación más abajo. En los gráficos de
+  género, rosa es **siempre** mujeres y azul **siempre** hombres — por
+  identidad, nunca por posición o ranking — con `GRAY_DARK` (`quividiPdfKit.ts`)
+  para «no identificado»; antes de esta fase el bloque superior de género
+  coloreaba por orden de magnitud, lo que pintaba de rosa al género
+  mayoritario aunque fuera masculino. Las fotografías **nunca ocupan una
+  sección completa ni se cortan en seco**: se integran dentro de un bloque
+  navy y se disuelven en él con degradados — y **nunca llevan blur**: se
+  probó difuminar la foto completa para integrarla al fondo navy y se
+  descartó explícitamente («el punto es que se distinga perfectamente el
+  soporte»); solo el degradado navy cubre el lado del texto, la fotografía en
+  sí queda nítida. Como jsPDF no dibuja degradados, `quividiPdfKit.ts` los
+  compone
+  con **rectángulos acumulativos anclados a un borde**: tiras contiguas dejan
+  bandas visibles (cada borde compartido se suaviza por su lado y asoma un
+  hilo de imagen sin velar) y solaparlas produce líneas oscuras, porque la
+  opacidad se compone como `1-(1-a1)(1-a2)`. Cada `fade` cubre un solo sentido
+  y sus `stops` deben ser **no crecientes**; un degradado de dos lados son dos
+  llamadas. Las fotos se recortan con `photoCover`, que emula `object-fit:
+  cover` y **exige pasar `null` como estilo a `doc.rect`** para que el trazado
+  sirva de recorte: sin él jsPDF lo traza, cierra el trazado y `clip` recorta
+  la página entera, haciendo desaparecer la imagen sin que nada falle.
 
   Los assets viven en `public/report-assets/` y deben ser **JPEG o PNG con
   cabecera de dimensiones legible**: jsPDF no soporta WebP y, si no puede leer
   el tamaño, la imagen se dibuja deformada al marco. El logotipo del informe es
   `instore-media-color.png`, **no** el de `assets/ppt`, que es la versión blanca
   para diapositivas oscuras y sobre el blanco del informe resulta invisible.
+  Un texto que use `tracking` (interletraje) y contenga paréntesis literales se
+  escribe en el PDF con los paréntesis escapados (`\(`/`\)`, requisito del
+  formato); no asumir en pruebas que el texto crudo del PDF contiene el
+  paréntesis sin escapar.
 
-- **Perfil de audiencia**: el informe publica el reparto de género, el cruce
-  **género × edad** como pirámide (`brandGenderAge`, porcentajes sobre el total
-  para que «mujer adulta» y «hombre adulto» se comparen entre sí, descartando el
-  género desconocido en lugar de repartirlo) y el reparto por franja horaria
-  (`brandTimeOfDay`, tres bandas que cubren las 24 horas sin descartar OTS; la
-  madrugada se agrupa con la noche). Cuando el reporte no trae detalle horario o
-  demográfico, el bloque se omite en lugar de dibujar ceros.
-- **El maquetado del PDF se expresa en píxeles de un lienzo A4 a 96 dpi**
-  (794 × 1123). `quividiPdfKit.ts` convierte a milímetros y puntos. Mantener la
-  unidad del diseño es lo que permite transcribir el mockup sin recalcular cada
-  posición a mano; no introducir coordenadas en mm en las páginas.
+- **Perfil de audiencia**: página «Audiencia» (`audiencePage()`), separada de
+  «Horarios» desde la Fase 3 (antes era una sola página «Perfil y horarios»).
+  Publica el reparto de género y el cruce **género × edad** como pirámide
+  (`brandGenderAge`, porcentajes sobre el total para que «mujer adulta» y
+  «hombre adulto» se comparen entre sí, descartando el género desconocido en
+  lugar de repartirlo) más un pill de insight con el rango de edad dominante.
+  Cuando el reporte no trae detalle horario o demográfico, el bloque
+  correspondiente se omite en lugar de dibujar ceros.
+- **El número de páginas del PDF se adapta al contenido, con un mínimo de
+  seis secciones fijas** (`MIN_PAGE_COUNT = 6`): Portada, Evolución,
+  Audiencia, Horarios, Tiendas TOP, Cierre. «Tiendas TOP» añade páginas de más
+  si el listado de tiendas medidas no cabe en una sola (8 filas por página,
+  `TOP_STORES_ROWS_PER_PAGE`). El número de página de cada página interior se
+  lee de `doc.getNumberOfPages()` en el momento de dibujarla, nunca de una
+  constante — necesario porque la cantidad de páginas ya no es fija.
+- **El maquetado del PDF se expresa en píxeles de un lienzo A4 horizontal a
+  96 dpi** (1123 × 794 — ancho primero, es apaisado desde la Fase 3;
+  anteriormente era vertical 794 × 1123). `quividiPdfKit.ts` convierte a
+  milímetros y puntos vía `u(px)`, escalado sobre el ancho real de la página
+  (297 mm), y expone `sparkline()` para minigráficas de tendencia (usada en
+  portada y en la página de Audiencia) — al dibujar **más de una** serie con
+  `sparkline()` en el mismo eje hay que pasarles un `domain` explícito y
+  compartido: cada llamada normaliza a su propio mín/máx si no se le da uno,
+  lo que exagera artificialmente diferencias mínimas entre series (ver el
+  punto de género por día más arriba). Mantener la unidad del diseño en
+  píxeles es lo que permite transcribir el mockup sin recalcular cada posición
+  a mano; no introducir coordenadas en mm en las páginas.
 - **El informe de marca no publica comparativos entre periodos ni métricas de
   costo**: cada informe reporta su propia vigencia, sin deltas ni CPM/CPC/coste
   por impacto. La comercialización sigue siendo a costo fijo.
