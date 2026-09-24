@@ -622,6 +622,29 @@ describe('distribución horaria de OTS con medición directa', () => {
   it('devuelve vacío cuando el reporte no trae detalle horario', () => {
     expect(brandHourlyDistribution(report({ supportHours: [] }))).toEqual([]);
   });
+
+  it('excluye horas fuera de la franja operativa de cara a la marca (10h–22h)', () => {
+    // 03h y 23h tienen medición válida (tráfico fuera de horario comercial:
+    // limpieza, seguridad), pero de cara a la marca es irrelevante y no debe
+    // sugerir audiencia comercial fuera del horario de la tienda.
+    const input = report({
+      supportHours: [
+        hour(3, 500),
+        hour(11, 100),
+        hour(14, 200),
+        hour(21, 100),
+        hour(22, 500),
+        hour(23, 500),
+      ],
+    });
+    const hourly = brandHourlyDistribution(input);
+    expect(hourly.map((point) => point.hour)).toEqual([11, 14, 21]);
+    // El total se recalcula sobre la franja operativa, no sobre las 24h.
+    expect(hourly.reduce((total, point) => total + point.share, 0)).toBeCloseTo(
+      100,
+      5,
+    );
+  });
 });
 
 describe('evolución semanal para vigencias largas', () => {

@@ -859,7 +859,25 @@ export function brandStoreAttribution(
 }
 
 /**
- * Distribución horaria de los OTS con medición directa, hora a hora (0-23).
+ * Franja horaria operativa de cara a la marca: 10:00–22:00 (hora 22 excluida).
+ *
+ * Es una regla comercial deliberadamente simple, no un horario real por
+ * soporte — SIGNAM no tiene esa fuente (ver el bloqueo de Fase 2 arriba). Una
+ * franja fuera de este rango puede tener medición válida (tráfico de personal,
+ * limpieza, seguridad) que operativamente está bien pero que a la marca no le
+ * interesa: mostrarla en el reparto horario del informe sugiere una audiencia
+ * comercial fuera del horario de la tienda. Se aplica sólo a la vista horaria
+ * (`brandHourlyDistribution`): los totales de OTS/dwell time de portada,
+ * evolución y Tiendas TOP vienen de `supportDays`, que Quividi agrega por día
+ * completo (00:00–23:59) y hoy no se puede recortar por hora sin cambiar cómo
+ * se ingiere la medición (ver AGENTS.md).
+ */
+export const BRAND_OPERATIONAL_START_HOUR = 10;
+export const BRAND_OPERATIONAL_END_HOUR = 22;
+
+/**
+ * Distribución horaria de los OTS con medición directa, acotada a la franja
+ * operativa de cara a la marca (`BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR`).
  *
  * Se calcula sobre `supportHours`, que no todos los reportes traen: cuando
  * falta, devuelve una lista vacía y el informe omite el bloque en vez de
@@ -874,7 +892,10 @@ export function brandHourlyDistribution(
   report: QuividiCampaignReport,
 ): BrandHourlyPoint[] {
   const measured = report.supportHours.filter(
-    (row) => row.status !== 'missing',
+    (row) =>
+      row.status !== 'missing' &&
+      row.hour >= BRAND_OPERATIONAL_START_HOUR &&
+      row.hour < BRAND_OPERATIONAL_END_HOUR,
   );
   if (measured.length === 0) return [];
 

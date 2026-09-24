@@ -404,14 +404,28 @@ tres de ellos describían mal el separador de artículos.
   (que clasifican **par-día**, no tiendas): son dos clasificaciones distintas
   y el PDF nunca las etiqueta como «real vs. extrapolado».
 - **Distribución horaria (`brandHourlyDistribution`) es descriptiva, no
-  extrapolada.** Reparte en porcentaje los OTS **con medición directa** por
-  hora del día (0–23), a partir de `supportHours`. A diferencia de
-  `brandDaily`/`brandWeeklyEvolution`, **no completa horas sin dato**: por el
-  bloqueo de Fase 2 descrito arriba, no hay manera de distinguir hoy una hora
+  extrapolada, y está acotada a la franja operativa de cara a la marca —
+  `BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR` (10:00–22:00,
+  hora 22 excluida).** Reparte en porcentaje los OTS **con medición directa**
+  dentro de esa franja, a partir de `supportHours`. Una franja fuera de ese
+  rango puede tener medición válida (tráfico de personal, limpieza, seguridad
+  — operativamente correcto), pero de cara a la marca es irrelevante y
+  sugeriría audiencia comercial fuera del horario de la tienda; por eso se
+  excluye del reparto y del total sobre el que se calculan los porcentajes,
+  no sólo de la etiqueta. Es una regla comercial simple, no el horario real
+  por soporte que bloquea la Fase 2 (ver abajo): sólo decide qué horas se le
+  muestran a la marca en esta vista, no completa ni extrapola nada. A
+  diferencia de `brandDaily`/`brandWeeklyEvolution`, tampoco **completa horas
+  sin dato** dentro de esa franja: no hay manera de distinguir hoy una hora
   sin medición de una hora en la que el soporte estaba apagado. El pie de la
   gráfica lo declara («con medición directa») para no sugerir una precisión que
   el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
-  en vez de dibujar ceros.
+  en vez de dibujar ceros. **Esta franja NO se aplica** a los OTS/dwell time de
+  portada, evolución, Tiendas TOP ni a las hojas del Excel: esas cifras vienen
+  de `supportDays`, que Quividi agrega por día natural completo
+  (00:00–23:59, `time_resolution: '1d'` en `functions/src/quividi/index.ts`) y
+  hoy SIGNAM no puede recortar por hora sin cambiar la fuente de esa capa —
+  ver `docs/QUIVIDI_PHASE_1.md` (pendiente, sin fase asignada).
 - **No existe cruce hora × demografía — bloqueo de datos, no de diseño.** El
   mockup aprobado de la página «Horarios» incluía un corte mañana/tarde/noche
   por género y edad; **no se implementó en el generador real** porque el

@@ -262,7 +262,9 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
   vigencia con una fila de conclusiones calculadas (promedio, día pico, delta
   fin de semana), el perfil de audiencia (género por día como dos líneas de
   tendencia con dominio compartido, cruce género × edad), la distribución
-  horaria de lo observado, las tiendas con medición y sus OTS ajustados
+  horaria de lo observado **acotada a la franja operativa de cara a la marca
+  (10:00–22:00, `BRAND_OPERATIONAL_START_HOUR`/`_END_HOUR`)**, las tiendas con
+  medición y sus OTS ajustados
   («Tiendas TOP», como leaderboard de una sola columna), y recomendaciones
   comerciales calculadas de la propia campaña. Un único indicador de cobertura
   (% de tiendas con cámara vs. proyectadas, por conteo de tiendas) aparece solo
@@ -290,6 +292,17 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
   (`QuividiDemographicRow` no trae hora, `QuividiSupportHour` no trae
   género/edad) — así que la página «Horarios» solo publica el reparto horario
   simple. Ver `AGENTS.md` para el detalle.
+- **Pendiente adicional (sin fase asignada)**: la franja operativa de
+  10:00–22:00 sólo se aplica hoy a la distribución horaria del PDF. Los OTS y
+  el dwell time de portada, evolución, Tiendas TOP y el Excel técnico
+  completo vienen de `supportDays`, que Quividi agrega por día natural
+  completo (00:00–23:59); SIGNAM no puede recortarlo por hora sin cambiar la
+  fuente de esa capa en `functions/src/quividi/index.ts` (usar el export
+  horario, que ya se pide para `supportHours`, en vez del export diario).
+  Es un cambio de ingesta con radio de impacto amplio (Excel técnico,
+  snapshots cacheados, y potencialmente «Salud de cámaras», que ya usa una
+  ventana 10:00–22:00 propia pero sólo para continuidad, no para OTS) — no
+  emprenderlo sin una decisión explícita documentada aquí primero.
 
 ### Hoja «Auditoría de cifras»
 
