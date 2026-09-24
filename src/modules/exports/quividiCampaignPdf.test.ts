@@ -429,4 +429,38 @@ describe('renderizado del informe', () => {
     // PDF comercial: es ruido técnico que no aporta a la marca.
     expect(raw).not.toContain('Insurgentes tiene dos cámaras');
   });
+
+  it('no describe como franja continua horas de medición no consecutivas', async () => {
+    serveRepoAssets();
+    // Solo hay medición en 06h, 12h y 20h: ninguna ventana de horas de reloj
+    // consecutivas puede formarse con estos datos. El bug reportado agrupaba
+    // por posición en el arreglo (no por hora real) y describía esto como
+    // una única franja continua «06:00 a 11:00».
+    const sparse: QuividiCampaignReport = {
+      ...report(),
+      supportHours: [6, 12, 20].map((hour) => ({
+        date: '2026-08-11',
+        hour,
+        storeNumber: '3',
+        storeName: 'POLANCO',
+        support: 'MUPI DIGITAL',
+        configuredCameras: 1,
+        measuredCameras: 1,
+        status: 'complete' as const,
+        ots: 1000,
+        effectiveOts: 800,
+        watchers: 90,
+        attentionSeconds: 2.6,
+        dwellSeconds: 20,
+      })),
+    };
+
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(sparse))
+    ).toString('latin1');
+
+    expect(raw).not.toContain('NaN');
+    expect(raw).not.toContain('La franja de 06:00 a 11:00');
+    expect(raw).not.toContain('La franja de');
+  });
 });

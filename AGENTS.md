@@ -267,8 +267,8 @@ tres de ellos describían mal el separador de artículos.
   una tienda individual por nombre salvo en «Tiendas TOP» (ver más abajo, que
   publica agregados ajustados, nunca incidencias). El detalle técnico por
   tienda/cámara y las métricas operativas permanecen en el Excel técnico.
-- **Estado del proyecto: Fase 1 de 2.** El PDF describe cinco secciones —
-  Portada, Evolución, Perfil y horarios, Tiendas TOP, Cierre— construidas sobre
+- **Estado del proyecto: Fase 1 de 2.** El PDF describe seis secciones —
+  Portada, Evolución, Audiencia, Horarios, Tiendas TOP, Cierre— construidas sobre
   el mismo motor de extrapolación **día/par** que ya existía (`brandCampaignSummary`,
   `brandDaily`, `brandWeeklyEvolution`). La Fase 2 —un motor de extrapolación
   **hora a hora** que complete huecos horarios distinguiendo «hora que debía
@@ -284,9 +284,11 @@ tres de ellos describían mal el separador de artículos.
   de tocar el motor horario.
 - **KPIs del PDF comercial**: una sola cifra de OTS de campaña en portada (sin
   desglosar medido/extrapolado como cifras protagonistas separadas), OTS
-  promedio diario, dwell time promedio ponderado por watchers, y — sólo en el
-  pie discreto de portada — el reparto de esos OTS entre tiendas con medición en
-  algún momento de la vigencia y tiendas sin medición. No se muestran Watchers
+  promedio diario, dwell time promedio ponderado por watchers, y vigencia. La
+  portada **no** lleva ningún pie con reparto de OTS entre tiendas con/sin
+  medición — desde la Fase 3 ese indicador se movió al pie de la página de
+  Evolución (ver el punto «Pie de página relocalizado» más abajo) y se
+  simplificó a un % por conteo de tiendas, no por OTS. No se muestran Watchers
   ni Conversion Rate en ningún punto del PDF. Los segmentos de audiencia se
   comunican únicamente como distribuciones porcentuales agregadas (género, edad,
   hora), nunca como conteos absolutos. El campo «Retailer» no existe en el PDF.
