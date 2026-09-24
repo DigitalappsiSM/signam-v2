@@ -7,6 +7,7 @@ function screen(
   store: string,
   support: string,
   camera = '',
+  camera2 = '',
 ): AdmiraScreen {
   return {
     id,
@@ -37,6 +38,7 @@ function screen(
       version: 1,
       calendarSupport: support,
       quividiCameraName: camera,
+      quividiCameraName2: camera2,
     },
   };
 }
@@ -79,6 +81,26 @@ describe('quividiPairsForCampaign', () => {
       pairs.find((pair) => pair.support === 'VIDEO WALL CRIUS')?.cameraNames,
     ).toHaveLength(0);
     expect(hasQuividiCoverage(campaign, screens)).toBe(true);
+  });
+
+  it('suma la segunda cámara de la misma pantalla (1 PC, 2 flujos de video)', () => {
+    const screens = [
+      screen('a', '78', 'VIDEO WALL CRIUS', 'TOREO-1', 'TOREO-2'),
+    ];
+    const campaign = {
+      supports: [
+        {
+          support: 'VIDEO WALL CRIUS',
+          owner: 'liverpool' as const,
+          scope: 'selected' as const,
+          stores: [{ numero: '78', nombre: 'Toreo' }],
+        },
+      ],
+    };
+
+    const pairs = quividiPairsForCampaign(campaign, screens);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]?.cameraNames.sort()).toEqual(['TOREO-1', 'TOREO-2']);
   });
 
   it('resuelve scope all usando el inventario del soporte', () => {

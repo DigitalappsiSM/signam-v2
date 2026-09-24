@@ -57,6 +57,16 @@ export interface SignamMetadata {
   quividiLocationId?: number | null;
   /** Alias/nombre canónico de la location Quividi, conservado como referencia visual. */
   quividiCameraName?: string;
+  /**
+   * Segunda cámara Quividi de la misma pantalla. Caso real: un mismo PC opera
+   * 2 flujos de video (2 Box ID / Location ID de Quividi) pero el catálogo
+   * Admira solo tiene una fila para ese circuito (p. ej. Toreo, Satélite,
+   * Mitikah, Delta). Opcional: la inmensa mayoría de pantallas solo usa la
+   * cámara principal de arriba.
+   */
+  quividiLocationId2?: number | null;
+  /** Alias/nombre canónico de la segunda cámara Quividi (ver `quividiLocationId2`). */
+  quividiCameraName2?: string;
 }
 
 /** Pantalla del catálogo Admira: campos originales + metadatos SIGNAM. */

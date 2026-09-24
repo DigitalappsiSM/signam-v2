@@ -43,6 +43,8 @@ export function newScreenMetadata(actor: Actor, now: number): SignamMetadata {
     calendarSupport: '',
     quividiLocationId: null,
     quividiCameraName: '',
+    quividiLocationId2: null,
+    quividiCameraName2: '',
   };
 }
 

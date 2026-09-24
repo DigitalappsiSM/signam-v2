@@ -6,9 +6,72 @@ import { emptyOriginal } from './screenFactory';
 import './CatalogPage.css';
 
 /**
+ * Estado de un slot de cámara Quividi (Location ID + alias + validación).
+ * Casi todas las pantallas solo usan el primer slot; el segundo existe para el
+ * caso real de un PC que opera 2 flujos de video (2 Location ID) representado
+ * por una sola fila de catálogo (p. ej. Toreo, Satélite, Mitikah, Delta).
+ */
+interface QuividiSlotState {
+  cameraName: string;
+  setCameraName: (value: string) => void;
+  locationIdText: string;
+  setLocationIdText: (value: string) => void;
+  validatedLocationId: number | null;
+  setValidatedLocationId: (value: number | null) => void;
+  validating: boolean;
+  setValidating: (value: boolean) => void;
+  error: string | null;
+  setError: (value: string | null) => void;
+  notice: string | null;
+  setNotice: (value: string | null) => void;
+}
+
+function useQuividiSlot(
+  initialCameraName: string,
+  initialLocationId: number | null,
+): QuividiSlotState {
+  const [cameraName, setCameraName] = useState(initialCameraName);
+  const [locationIdText, setLocationIdText] = useState(
+    initialLocationId == null ? '' : String(initialLocationId),
+  );
+  const [validatedLocationId, setValidatedLocationId] = useState<number | null>(
+    initialLocationId,
+  );
+  const [validating, setValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(
+    initialLocationId && initialCameraName
+      ? 'ID ' + initialLocationId + ' · ' + initialCameraName
+      : null,
+  );
+
+  return {
+    cameraName,
+    setCameraName,
+    locationIdText,
+    setLocationIdText,
+    validatedLocationId,
+    setValidatedLocationId,
+    validating,
+    setValidating,
+    error,
+    setError,
+    notice,
+    setNotice,
+  };
+}
+
+function parsedLocationId(text: string): number | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const value = Number(trimmed);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+/**
  * Formulario modal para crear o editar una pantalla del catálogo. Muestra los
  * 12 campos oficiales del maestro en su orden autoritativo, más los metadatos
- * SIGNAM de normalización Liverpool y vínculo Quividi.
+ * SIGNAM de normalización Liverpool y hasta 2 vínculos Quividi.
  */
 export function ScreenForm({
   title,
@@ -16,6 +79,8 @@ export function ScreenForm({
   initialCalendarSupport = '',
   initialQuividiCameraName = '',
   initialQuividiLocationId = null,
+  initialQuividiCameraName2 = '',
+  initialQuividiLocationId2 = null,
   submitting,
   onSubmit,
   onCancel,
@@ -25,12 +90,16 @@ export function ScreenForm({
   initialCalendarSupport?: string;
   initialQuividiCameraName?: string;
   initialQuividiLocationId?: number | null;
+  initialQuividiCameraName2?: string;
+  initialQuividiLocationId2?: number | null;
   submitting: boolean;
   onSubmit: (
     original: AdmiraScreenOriginal,
     calendarSupport: string,
     quividiCameraName: string,
     quividiLocationId: number | null,
+    quividiCameraName2: string,
+    quividiLocationId2: number | null,
   ) => void;
   onCancel: () => void;
 }) {
@@ -40,50 +109,35 @@ export function ScreenForm({
   const [calendarSupport, setCalendarSupport] = useState(
     initialCalendarSupport,
   );
-  const [quividiCameraName, setQuividiCameraName] = useState(
+  const slot1 = useQuividiSlot(
     initialQuividiCameraName,
-  );
-  const [locationIdText, setLocationIdText] = useState(
-    initialQuividiLocationId == null ? '' : String(initialQuividiLocationId),
-  );
-  const [validatedLocationId, setValidatedLocationId] = useState<number | null>(
     initialQuividiLocationId,
   );
-  const [validating, setValidating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [locationNotice, setLocationNotice] = useState<string | null>(
-    initialQuividiLocationId && initialQuividiCameraName
-      ? 'ID ' + initialQuividiLocationId + ' · ' + initialQuividiCameraName
-      : null,
+  const slot2 = useQuividiSlot(
+    initialQuividiCameraName2,
+    initialQuividiLocationId2,
   );
 
-  const busy = submitting || validating;
+  const busy = submitting || slot1.validating || slot2.validating;
 
-  function parsedLocationId(): number | null {
-    const text = locationIdText.trim();
-    if (!text) return null;
-    const value = Number(text);
-    return Number.isInteger(value) && value > 0 ? value : null;
-  }
-
-  async function validateLocation(): Promise<{
-    id: number;
-    name: string;
-  } | null> {
-    const id = parsedLocationId();
+  async function validateSlot(
+    slot: QuividiSlotState,
+    label: string,
+  ): Promise<{ id: number; name: string } | null> {
+    const id = parsedLocationId(slot.locationIdText);
     if (id === null) {
-      setLocationError('El Location ID debe ser un entero positivo.');
-      setLocationNotice(null);
+      slot.setError(`El Location ID de ${label} debe ser un entero positivo.`);
+      slot.setNotice(null);
       return null;
     }
 
-    setValidating(true);
-    setLocationError(null);
+    slot.setValidating(true);
+    slot.setError(null);
     try {
       const location = await validateQuividiLocation(id);
-      setValidatedLocationId(location.id);
-      setQuividiCameraName(location.name);
-      setLocationNotice(
+      slot.setValidatedLocationId(location.id);
+      slot.setCameraName(location.name);
+      slot.setNotice(
         'Validada: ID ' +
           location.id +
           ' · ' +
@@ -92,40 +146,123 @@ export function ScreenForm({
       );
       return { id: location.id, name: location.name };
     } catch {
-      setValidatedLocationId(null);
-      setLocationNotice(null);
-      setLocationError(
+      slot.setValidatedLocationId(null);
+      slot.setNotice(null);
+      slot.setError(
         'No se encontró ese Location ID en Quividi o no fue posible validarlo.',
       );
       return null;
     } finally {
-      setValidating(false);
+      slot.setValidating(false);
     }
+  }
+
+  async function resolveSlot(
+    slot: QuividiSlotState,
+    label: string,
+  ): Promise<{ name: string; id: number | null } | null> {
+    const text = slot.locationIdText.trim();
+    if (!text) return { name: slot.cameraName, id: null };
+
+    const id = parsedLocationId(text);
+    if (id === null) {
+      slot.setError(`El Location ID de ${label} debe ser un entero positivo.`);
+      return null;
+    }
+
+    let canonicalName = slot.cameraName;
+    if (slot.validatedLocationId !== id) {
+      const location = await validateSlot(slot, label);
+      if (!location) return null;
+      canonicalName = location.name;
+    }
+    return { name: canonicalName, id };
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    const text = locationIdText.trim();
-    if (!text) {
-      onSubmit(values, calendarSupport, quividiCameraName, null);
-      return;
-    }
+    const resolved1 = await resolveSlot(slot1, 'la cámara 1');
+    if (!resolved1) return;
+    const resolved2 = await resolveSlot(slot2, 'la cámara 2');
+    if (!resolved2) return;
 
-    const id = parsedLocationId();
-    if (id === null) {
-      setLocationError('El Location ID debe ser un entero positivo.');
-      return;
-    }
+    onSubmit(
+      values,
+      calendarSupport,
+      resolved1.name,
+      resolved1.id,
+      resolved2.name,
+      resolved2.id,
+    );
+  }
 
-    let canonicalName = quividiCameraName;
-    if (validatedLocationId !== id) {
-      const location = await validateLocation();
-      if (!location) return;
-      canonicalName = location.name;
-    }
+  function quividiFields(
+    slot: QuividiSlotState,
+    slotTitle: string,
+    hint: string,
+  ) {
+    return (
+      <div className="screen-form__quividi">
+        <div className="screen-form__quividi-title">
+          <strong>{slotTitle}</strong>
+          <span>{hint}</span>
+        </div>
 
-    onSubmit(values, calendarSupport, canonicalName, id);
+        <div className="screen-form__quividi-row">
+          <label className="screen-form__field">
+            <span>QUIVIDI LOCATION ID</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={slot.locationIdText}
+              disabled={busy}
+              placeholder="Ej. 184"
+              onChange={(e) => {
+                slot.setLocationIdText(e.target.value);
+                slot.setValidatedLocationId(null);
+                slot.setNotice(null);
+                slot.setError(null);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary screen-form__validate"
+            disabled={busy || slot.locationIdText.trim() === ''}
+            onClick={() => void validateSlot(slot, slotTitle)}
+          >
+            {slot.validating ? 'Validando…' : 'Validar en Quividi'}
+          </button>
+        </div>
+
+        <label className="screen-form__field">
+          <span>ALIAS / NOMBRE QUIVIDI</span>
+          <input
+            type="text"
+            value={slot.cameraName}
+            disabled={busy}
+            readOnly={slot.locationIdText.trim() !== ''}
+            placeholder="Ej. 7 - L SANTA FE- DERECHO"
+            onChange={(e) => slot.setCameraName(e.target.value)}
+          />
+        </label>
+
+        {slot.notice && (
+          <div className="screen-form__validation screen-form__validation--ok">
+            {slot.notice}
+          </div>
+        )}
+        {slot.error && (
+          <div
+            className="screen-form__validation screen-form__validation--error"
+            role="alert"
+          >
+            {slot.error}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -163,68 +300,17 @@ export function ScreenForm({
           />
         </label>
 
-        <div className="screen-form__quividi">
-          <div className="screen-form__quividi-title">
-            <strong>Vínculo Quividi</strong>
-            <span>
-              El Location ID es la referencia estable; el alias se sincroniza al
-              validarlo.
-            </span>
-          </div>
+        {quividiFields(
+          slot1,
+          'Vínculo Quividi',
+          'El Location ID es la referencia estable; el alias se sincroniza al validarlo.',
+        )}
 
-          <div className="screen-form__quividi-row">
-            <label className="screen-form__field">
-              <span>QUIVIDI LOCATION ID</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={locationIdText}
-                disabled={busy}
-                placeholder="Ej. 184"
-                onChange={(e) => {
-                  setLocationIdText(e.target.value);
-                  setValidatedLocationId(null);
-                  setLocationNotice(null);
-                  setLocationError(null);
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn btn-secondary screen-form__validate"
-              disabled={busy || locationIdText.trim() === ''}
-              onClick={() => void validateLocation()}
-            >
-              {validating ? 'Validando…' : 'Validar en Quividi'}
-            </button>
-          </div>
-
-          <label className="screen-form__field">
-            <span>ALIAS / NOMBRE QUIVIDI</span>
-            <input
-              type="text"
-              value={quividiCameraName}
-              disabled={busy}
-              readOnly={locationIdText.trim() !== ''}
-              placeholder="Ej. 7 - L SANTA FE- DERECHO"
-              onChange={(e) => setQuividiCameraName(e.target.value)}
-            />
-          </label>
-
-          {locationNotice && (
-            <div className="screen-form__validation screen-form__validation--ok">
-              {locationNotice}
-            </div>
-          )}
-          {locationError && (
-            <div
-              className="screen-form__validation screen-form__validation--error"
-              role="alert"
-            >
-              {locationError}
-            </div>
-          )}
-        </div>
+        {quividiFields(
+          slot2,
+          'Vínculo Quividi (cámara 2)',
+          'Solo cuando un mismo equipo opera 2 flujos de video con distinto Location ID (p. ej. un PC con 2 Box ID de Quividi). Déjalo vacío si esta pantalla solo tiene una cámara.',
+        )}
 
         <div className="modal__actions">
           <button

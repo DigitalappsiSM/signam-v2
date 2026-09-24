@@ -74,7 +74,10 @@ export function quividiPairsForCampaign(
       const cameraNames = Array.from(
         new Set(
           matching
-            .map((screen) => screen.metadata.quividiCameraName?.trim() ?? '')
+            .flatMap((screen) => [
+              screen.metadata.quividiCameraName?.trim() ?? '',
+              screen.metadata.quividiCameraName2?.trim() ?? '',
+            ])
             .filter(Boolean),
         ),
       );

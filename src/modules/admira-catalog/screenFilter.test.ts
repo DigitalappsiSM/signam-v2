@@ -28,6 +28,8 @@ const screens: AdmiraScreen[] = [
       ...screen('meta', {}).metadata,
       quividiLocationId: 184,
       quividiCameraName: '7 - L SANTA FE- DERECHO',
+      quividiLocationId2: 185,
+      quividiCameraName2: '7 - L SANTA FE- IZQUIERDO',
     },
   },
   screen(
@@ -89,6 +91,15 @@ describe('filterScreens', () => {
     );
     expect(
       filterScreens(screens, { ...EMPTY_FILTERS, search: 'santa fe' }),
+    ).toEqual([expect.objectContaining({ id: '1' })]);
+  });
+
+  it('busca también por Location ID y alias de la segunda cámara Quividi', () => {
+    expect(filterScreens(screens, { ...EMPTY_FILTERS, search: '185' })).toEqual(
+      [expect.objectContaining({ id: '1' })],
+    );
+    expect(
+      filterScreens(screens, { ...EMPTY_FILTERS, search: 'izquierdo' }),
     ).toEqual([expect.objectContaining({ id: '1' })]);
   });
 

@@ -120,13 +120,47 @@ function activeScreen(screen: ScreenDoc): boolean {
   return screen.metadata?.active !== false;
 }
 
+interface CameraSlot {
+  locationId: number | null;
+  cameraName: string;
+}
+
+function parsedLocationId(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+/**
+ * Identidades de cámara declaradas en una pantalla (hasta 2). El segundo slot
+ * existe para el caso real de un PC que opera 2 flujos de video (2 Location ID
+ * de Quividi) representado por una sola fila de catálogo (p. ej. Toreo,
+ * Satélite, Mitikah, Delta). La inmensa mayoría de pantallas solo usa el
+ * primero.
+ */
+function screenCameraSlots(screen: ScreenDoc): CameraSlot[] {
+  const slots: CameraSlot[] = [
+    {
+      locationId: parsedLocationId(screen.metadata?.quividiLocationId),
+      cameraName: screen.metadata?.quividiCameraName?.trim() ?? '',
+    },
+    {
+      locationId: parsedLocationId(screen.metadata?.quividiLocationId2),
+      cameraName: screen.metadata?.quividiCameraName2?.trim() ?? '',
+    },
+  ];
+  return slots.filter(
+    (slot) => slot.locationId !== null || slot.cameraName !== '',
+  );
+}
+
 /**
  * Construye el inventario operativo desde el catálogo, no desde campañas.
  *
  * Una cámara solo puede pertenecer a una combinación tienda + soporte. Si el
- * mismo nombre Quividi aparece en dos combinaciones distintas, se excluye de
- * salud operativa y se reporta como duplicado para no atribuir datos al activo
- * equivocado.
+ * mismo nombre o Location ID Quividi aparece en dos combinaciones distintas,
+ * se excluye de salud operativa y se reporta como duplicado para no atribuir
+ * datos al activo equivocado.
  */
 export function buildOperationalPairs(
   screens: readonly ScreenDoc[],
@@ -144,16 +178,9 @@ export function buildOperationalPairs(
     );
     const storeName = screen.original?.['Nombre de tienda']?.trim() ?? '';
     const support = normalizeSupport(screen.metadata?.calendarSupport ?? '');
-    const cameraName = screen.metadata?.quividiCameraName?.trim() ?? '';
-    const rawLocationId = screen.metadata?.quividiLocationId;
-    const locationId =
-      typeof rawLocationId === 'number' &&
-      Number.isInteger(rawLocationId) &&
-      rawLocationId > 0
-        ? rawLocationId
-        : null;
+    const slots = screenCameraSlots(screen);
 
-    if (!storeNumber || !support || (!locationId && !cameraName)) {
+    if (!storeNumber || !support || slots.length === 0) {
       unconfiguredScreens += 1;
       continue;
     }
@@ -168,16 +195,18 @@ export function buildOperationalPairs(
     };
     if (!draft.storeName && storeName) draft.storeName = storeName;
 
-    if (locationId !== null) {
-      draft.cameraLocationIds.add(locationId);
-      const owners = idOwners.get(locationId) ?? new Set<string>();
-      owners.add(key);
-      idOwners.set(locationId, owners);
-    } else {
-      draft.cameraNames.add(cameraName);
-      const owners = nameOwners.get(cameraName) ?? new Set<string>();
-      owners.add(key);
-      nameOwners.set(cameraName, owners);
+    for (const slot of slots) {
+      if (slot.locationId !== null) {
+        draft.cameraLocationIds.add(slot.locationId);
+        const owners = idOwners.get(slot.locationId) ?? new Set<string>();
+        owners.add(key);
+        idOwners.set(slot.locationId, owners);
+      } else {
+        draft.cameraNames.add(slot.cameraName);
+        const owners = nameOwners.get(slot.cameraName) ?? new Set<string>();
+        owners.add(key);
+        nameOwners.set(slot.cameraName, owners);
+      }
     }
     drafts.set(key, draft);
   }
@@ -211,7 +240,8 @@ export function buildOperationalPairs(
     }))
     .filter(
       (pair) =>
-        pair.cameraNames.length > 0 || (pair.cameraLocationIds?.length ?? 0) > 0,
+        pair.cameraNames.length > 0 ||
+        (pair.cameraLocationIds?.length ?? 0) > 0,
     )
     .sort((a, b) =>
       `${a.storeNumber}|${a.support}`.localeCompare(
@@ -236,9 +266,7 @@ export function prepareCameraHealthScope(
   const resolved = resolvePairs(operational.pairs, topology);
   const mappedLocationIds = Array.from(
     new Set(
-      resolved.pairs.flatMap((pair) =>
-        pair.cameras.map((camera) => camera.id),
-      ),
+      resolved.pairs.flatMap((pair) => pair.cameras.map((camera) => camera.id)),
     ),
   ).sort((a, b) => a - b);
 
@@ -296,9 +324,7 @@ function hourlyKey(row: OtsExportRow): {
       ? row.location_id
       : 0;
   if (locationId <= 0 || typeof row.period_start !== 'string') return null;
-  const match = row.period_start.match(
-    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):/,
-  );
+  const match = row.period_start.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):/);
   if (!match) return null;
   const hour = Number(match[2]);
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
@@ -427,8 +453,6 @@ export function buildCameraHealthRecords(
       };
     })
     .sort((a, b) =>
-      `${a.date}|${a.locationId}`.localeCompare(
-        `${b.date}|${b.locationId}`,
-      ),
+      `${a.date}|${a.locationId}`.localeCompare(`${b.date}|${b.locationId}`),
     );
 }

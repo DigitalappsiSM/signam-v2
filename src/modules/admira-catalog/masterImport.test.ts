@@ -122,6 +122,23 @@ describe('analyzeMaster — incidencias', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('captura CAMARA QUIVIDI 2 como metadato opcional sin marcarla extra', () => {
+    const headers = [...OFFICIAL, 'CAMARA QUIVIDI', 'CAMARA QUIVIDI 2'];
+    const rows = [
+      [...sampleRow, '7 - L SANTA FE- DERECHO', '7 - L SANTA FE- IZQUIERDO'],
+    ];
+    const result = analyzeMaster([
+      { name: 'Consolidado', rows: [headers, ...rows] },
+    ]);
+    expect(result.quividiCameraColumn2).toBe('CAMARA QUIVIDI 2');
+    expect(result.extra).not.toContain('CAMARA QUIVIDI 2');
+    expect(result.rows[0]?.quividiCameraName).toBe('7 - L SANTA FE- DERECHO');
+    expect(result.rows[0]?.quividiCameraName2).toBe(
+      '7 - L SANTA FE- IZQUIERDO',
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it('reporta columnas adicionales como advertencia (no bloquean)', () => {
     const headers = [...OFFICIAL, 'COLUMNA EXTRA'];
     const rows = [[...sampleRow, 'valor extra']];

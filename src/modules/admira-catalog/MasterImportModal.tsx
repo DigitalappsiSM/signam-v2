@@ -68,6 +68,7 @@ export function MasterImportModal({
           {
             calendarSupport: analysis.mappingColumn !== null,
             quividiCameraName: analysis.quividiCameraColumn !== null,
+            quividiCameraName2: analysis.quividiCameraColumn2 !== null,
           },
         );
         onImported(
@@ -166,6 +167,10 @@ export function MasterImportModal({
                 <dd>{analysis.quividiCameraColumn ?? '— no incluida —'}</dd>
               </div>
               <div>
+                <dt>Columna Quividi (cámara 2)</dt>
+                <dd>{analysis.quividiCameraColumn2 ?? '— no incluida —'}</dd>
+              </div>
+              <div>
                 <dt>Cámaras Quividi</dt>
                 <dd>
                   <strong>
@@ -174,6 +179,17 @@ export function MasterImportModal({
                         .length
                     }
                   </strong>
+                  {analysis.quividiCameraColumn2 !== null && (
+                    <>
+                      {' '}
+                      +{' '}
+                      {
+                        analysis.rows.filter((row) => row.quividiCameraName2)
+                          .length
+                      }{' '}
+                      (cámara 2)
+                    </>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -206,7 +222,7 @@ export function MasterImportModal({
                   <span>
                     <strong>Actualizar mapeos</strong> — no crea ni borra
                     pantallas; actualiza únicamente Normalización Liverpool y
-                    Cámara Quividi en las filas que coincidan.
+                    Cámara(s) Quividi en las filas que coincidan.
                   </span>
                 </label>
                 <label>
