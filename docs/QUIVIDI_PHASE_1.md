@@ -266,7 +266,10 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
   («Tiendas TOP», como leaderboard de una sola columna), y recomendaciones
   comerciales calculadas de la propia campaña. Un único indicador de cobertura
   (% de tiendas con cámara vs. proyectadas, por conteo de tiendas) aparece solo
-  en el pie de la página de Evolución.
+  en el pie de la página de Evolución. **Todo el PDF** (no sólo la
+  distribución horaria) está acotado a la franja operativa de cara a la marca
+  (10:00–22:00, `BRAND_OPERATIONAL_START_HOUR`/`_END_HOUR`,
+  `brandOperationalReport`) — ver el detalle en `AGENTS.md`.
 - **No publica**: el campo «Retailer», incidencias de medición (qué soporte
   falló un día concreto es operación interna), la cadena aritmética completa,
   ni ningún lenguaje que revele el método de extrapolación a la marca (por
@@ -290,16 +293,55 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
   (`QuividiDemographicRow` no trae hora, `QuividiSupportHour` no trae
   género/edad) — así que la página «Horarios» solo publica el reparto horario
   simple. Ver `AGENTS.md` para el detalle.
+- **La franja operativa 10:00–22:00 acota todo el PDF, pero no el Excel —
+  divergencia deliberada.** `report.supportDays` viene pre-sumado por Quividi
+  00:00–23:59 (`time_resolution: '1d'`) y no se puede recortar por hora
+  después del hecho. `brandOperationalSupportDays` reconstruye filas «por
+  día» sumando sólo las horas de `supportHours` dentro de la franja (que ya
+  se pide con `time_resolution: '1h'` para la distribución horaria, sin
+  llamada nueva a Quividi), y `brandOperationalReport` sustituye
+  `supportDays` por esa reconstrucción para las seis páginas del PDF. El
+  Excel técnico (`quividiCampaignExcel.ts`, `quividiAuditSheet.ts`) sigue
+  leyendo `report.supportDays` sin recortar — conserva el dato tal cual lo
+  mide Quividi, como declara — así que cuando hay medición fuera de
+  10:00–22:00 el total del Excel es mayor que el de portada **a propósito**;
+  la hoja «Auditoría de cifras» lo advierte en una nota bajo el título. No es
+  el cambio de ingesta en Cloud Functions descrito en una versión anterior de
+  este documento (que habría afectado también «Salud de cámaras» y los
+  snapshots cacheados): la reconstrucción vive enteramente en la capa pura
+  del PDF (`quividiBrandReport.ts`), no toca `functions/`.
 
 ### Hoja «Auditoría de cifras»
 
-El Excel incluye una hoja que reconstruye paso a paso la cifra del PDF: circuito
-contratado frente a circuito medible, reparto exhaustivo de la rejilla par-día,
-la cadena aritmética formato a formato, el desglose del circuito con los no
-medibles marcados, las dos lecturas de cobertura y la aportación por tienda.
+El Excel incluye una hoja de nueve secciones que reconstruye paso a paso la
+cifra del PDF: circuito contratado frente a circuito medible, reparto
+exhaustivo de la rejilla par-día, la cadena aritmética formato a formato, el
+desglose del circuito con los no medibles marcados, las dos lecturas de
+cobertura, y la aportación por tienda.
 
 Consume las **mismas funciones puras** que el PDF (`quividiBrandReport.ts`), de
 modo que una discrepancia entre hoja e informe es imposible por construcción.
+
+Tres bloques resuelven lo que el encargo original pedía del Excel a nivel
+**día** (el nivel **hora** sigue bloqueado por el punto anterior):
+
+- **Motivo del hueco** (`brandExtrapolationByReason`): la tabla de
+  construcción por formato trae dos columnas — «Extrapolados: sin dato» (el
+  soporte tiene cámara pero no reportó ese día) y «Extrapolados: sin cámara»
+  (el soporte del universo contratado nunca tuvo cámara) — más dos filas de
+  totales agregados. La suma de ambos motivos reconcilia exactamente con «De
+  los cuales, extrapolados» sin recalcularlo.
+- **Clasificación informativa vs. técnica**: pone una junto a la otra el %
+  de OTS de tiendas «con medición» (clasifica tiendas —
+  `brandStoreAttribution().measuredStoresSharePercent`, el mismo criterio que
+  antes vivía en el pie de portada) y el % de OTS medidos directamente
+  (clasifica par-día — `summary.measuredOts / summary.estimatedOts`), para
+  que quede explícito que casi nunca son el mismo porcentaje.
+- **OTS ajustados por tienda**: la tabla de aportación por tienda añade el
+  OTS ajustado de cada una (`brandStoreAttribution().stores[].adjustedOts`,
+  junto al OTS medido crudo para trazabilidad) y cierra con tres filas que
+  reconstruyen el total de portada: OTS ajustados de tiendas con medición
+  (suma) + OTS de tiendas sin medición (residuo) = OTS estimados de campaña.
 
 ### Dónde vive
 

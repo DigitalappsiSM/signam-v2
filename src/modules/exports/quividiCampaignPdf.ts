@@ -10,6 +10,7 @@ import {
   brandGenderByDay,
   brandHeader,
   brandHourlyDistribution,
+  brandOperationalReport,
   brandStoreAttribution,
   brandWeeklyEvolution,
   formatCivilDate,
@@ -1010,27 +1011,42 @@ function topHourLabel(
   return best.hour;
 }
 
-/** Ventana contigua de horas con mayor concentración de OTS observados. */
+/**
+ * Ventana de horas de reloj consecutivas con mayor concentración de OTS
+ * observados. `hourly` puede traer huecos (horas sin ninguna medición se
+ * omiten en `brandHourlyDistribution`), así que la ventana se arma por hora
+ * real, no por posición en el arreglo: dos entradas contiguas en `hourly`
+ * pueden corresponder a horas no consecutivas del reloj (p. ej. 14h y 20h) y
+ * no deben tratarse como una franja continua.
+ */
 function peakWindow(
   hourly: ReturnType<typeof brandHourlyDistribution>,
   windowSize = 5,
 ): { startHour: number; endHour: number; percent: number } | null {
   if (hourly.length === 0) return null;
+  const byHour = new Map(hourly.map((point) => [point.hour, point.share]));
   const size = Math.min(windowSize, hourly.length);
-  let bestStart = 0;
+  let bestStart: number | null = null;
   let bestSum = -1;
-  for (let i = 0; i + size <= hourly.length; i += 1) {
-    const sum = hourly
-      .slice(i, i + size)
-      .reduce((total, point) => total + point.share, 0);
-    if (sum > bestSum) {
+  for (const point of hourly) {
+    const startHour = point.hour;
+    let sum = 0;
+    let complete = true;
+    for (let offset = 0; offset < size; offset += 1) {
+      const share = byHour.get(startHour + offset);
+      if (share === undefined) {
+        complete = false;
+        break;
+      }
+      sum += share;
+    }
+    if (complete && sum > bestSum) {
       bestSum = sum;
-      bestStart = i;
+      bestStart = startHour;
     }
   }
-  const startHour = hourly[bestStart]!.hour;
-  const endHour = hourly[bestStart + size - 1]!.hour + 1;
-  return { startHour, endHour, percent: bestSum };
+  if (bestStart === null) return null;
+  return { startHour: bestStart, endHour: bestStart + size, percent: bestSum };
 }
 
 function horariosPage(
@@ -1249,9 +1265,13 @@ function closingPage(
   const recommendations: Array<[string, string]> = [];
   const weekday = topWeekdayLabel(daily);
   if (weekday) {
+    // «Lunes/Martes/Miércoles/Jueves/Viernes» ya son invariables en plural
+    // («los lunes»); sólo «sábado/domingo» toman «-s» («los sábados»).
+    const singular = weekday.label.toLowerCase();
+    const plural = singular.endsWith('s') ? singular : `${singular}s`;
     recommendations.push([
       'Refuerza el día de mayor audiencia',
-      `Los ${weekday.label.toLowerCase()}s concentran la mayor proporción de OTS ajustados de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
+      `Los ${plural} concentran la mayor proporción de OTS de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
     ]);
   }
   const peakHour = topHourLabel(hourly);
@@ -1372,17 +1392,23 @@ export async function buildQuividiCampaignPdfBlob(
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape' });
   doc.setLineWidth(u(0.75));
 
-  coverPage(doc, report, assets);
+  // El PDF comercial acota OTS/dwell time a la franja operativa de cara a la
+  // marca (10:00–22:00): brandOperationalReport reconstruye supportDays desde
+  // supportHours dentro de esa franja. supportHours y demographics (sin hora)
+  // pasan igual; el Excel técnico sigue usando `report` sin acotar.
+  const operational = brandOperationalReport(report);
+
+  coverPage(doc, operational, assets);
   doc.addPage();
-  evolutionPage(doc, report, assets);
+  evolutionPage(doc, operational, assets);
   doc.addPage();
-  audiencePage(doc, report, assets);
+  audiencePage(doc, operational, assets);
   doc.addPage();
-  horariosPage(doc, report, assets);
+  horariosPage(doc, operational, assets);
   doc.addPage();
-  topStoresPage(doc, report, assets);
+  topStoresPage(doc, operational, assets);
   doc.addPage();
-  closingPage(doc, report, assets);
+  closingPage(doc, operational, assets);
 
   if (doc.getNumberOfPages() < MIN_PAGE_COUNT) {
     throw new Error(

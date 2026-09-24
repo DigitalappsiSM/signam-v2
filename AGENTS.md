@@ -267,8 +267,8 @@ tres de ellos describían mal el separador de artículos.
   una tienda individual por nombre salvo en «Tiendas TOP» (ver más abajo, que
   publica agregados ajustados, nunca incidencias). El detalle técnico por
   tienda/cámara y las métricas operativas permanecen en el Excel técnico.
-- **Estado del proyecto: Fase 1 de 2.** El PDF describe cinco secciones —
-  Portada, Evolución, Perfil y horarios, Tiendas TOP, Cierre— construidas sobre
+- **Estado del proyecto: Fase 1 de 2.** El PDF describe seis secciones —
+  Portada, Evolución, Audiencia, Horarios, Tiendas TOP, Cierre— construidas sobre
   el mismo motor de extrapolación **día/par** que ya existía (`brandCampaignSummary`,
   `brandDaily`, `brandWeeklyEvolution`). La Fase 2 —un motor de extrapolación
   **hora a hora** que complete huecos horarios distinguiendo «hora que debía
@@ -284,9 +284,11 @@ tres de ellos describían mal el separador de artículos.
   de tocar el motor horario.
 - **KPIs del PDF comercial**: una sola cifra de OTS de campaña en portada (sin
   desglosar medido/extrapolado como cifras protagonistas separadas), OTS
-  promedio diario, dwell time promedio ponderado por watchers, y — sólo en el
-  pie discreto de portada — el reparto de esos OTS entre tiendas con medición en
-  algún momento de la vigencia y tiendas sin medición. No se muestran Watchers
+  promedio diario, dwell time promedio ponderado por watchers, y vigencia. La
+  portada **no** lleva ningún pie con reparto de OTS entre tiendas con/sin
+  medición — desde la Fase 3 ese indicador se movió al pie de la página de
+  Evolución (ver el punto «Pie de página relocalizado» más abajo) y se
+  simplificó a un % por conteo de tiendas, no por OTS. No se muestran Watchers
   ni Conversion Rate en ningún punto del PDF. Los segmentos de audiencia se
   comunican únicamente como distribuciones porcentuales agregadas (género, edad,
   hora), nunca como conteos absolutos. El campo «Retailer» no existe en el PDF.
@@ -340,11 +342,34 @@ tres de ellos describían mal el separador de artículos.
   que el PDF (`quividiBrandReport.ts`), nunca recalcula: una discrepancia entre
   hoja e informe debe ser imposible por construcción. Es la única vista que
   desglosa por tienda, y existe sólo para auditar la construcción del agregado.
-  Pendiente de Fase 2: ampliarla con el resumen «OTS recopilados + OTS
-  extrapolados = OTS reportados» separado por motivo (hora faltante / día
-  completo sin dato / tienda sin cámara) y con la hoja «Detalle de
-  extrapolación» hora a hora que pide el encargo de negocio — bloqueadas por la
-  falta de horario de operación descrita arriba.
+  Nueve secciones numeradas:
+  1. Universo contratado. 2. Qué se midió realmente. 3. Construcción de la
+  cifra formato a formato — la tabla trae, por formato, **dos columnas de
+  motivo del hueco** («Extrapolados: sin dato» / «Extrapolados: sin cámara»,
+  `brandExtrapolationByReason`), y dos filas de totales agregadas
+  inmediatamente después de «De los cuales, extrapolados»: `missingOts` (días
+  sin dato con cámara instalada) y `uncoveredOts` (soportes sin cámara),
+  cuya suma reconcilia exactamente con `extrapolatedOts` sin recalcularlo
+  — Fase 2 seguía pendiente de este desglose a nivel **hora**; a nivel **día**
+  ya está resuelto. 4. El circuito por formato. 5. Cobertura — dos lecturas
+  distintas (por tienda vs. por tienda-día). **6. Clasificación informativa
+  vs. clasificación técnica**: hace explícito que el % de OTS atribuido a
+  «tiendas con medición» (`brandStoreAttribution().measuredStoresSharePercent`,
+  clasifica tiendas) y el % de «OTS medidos» sobre el total
+  (`summary.measuredOts / summary.estimatedOts`, clasifica par-día) casi nunca
+  coinciden — son la clasificación informativa que antes vivía en el pie de
+  portada y la clasificación técnica del Excel, ahora una junto a la otra para
+  que la diferencia sea imposible de pasar por alto. 7. Derivados del informe.
+  **8. Aportación por tienda — observado y ajustado**: además del OTS medido
+  (crudo, para trazabilidad), cada tienda trae su **OTS ajustado**
+  (`brandStoreAttribution().stores[].adjustedOts`, «—» si su único soporte es
+  un formato sin medición), y la tabla cierra con tres filas que reconstruyen
+  el total de portada: OTS ajustados de tiendas con medición (suma) + OTS de
+  tiendas sin medición (residuo) = OTS estimados de campaña. 9. Regla
+  aplicada. Sigue pendiente de Fase 2 (bloqueada por la falta de horario de
+  operación descrita arriba): la hoja «Detalle de extrapolación» hora a hora
+  que pide el encargo de negocio, con una fila por tienda/formato/fecha/hora
+  estimada.
 - **Multi-cámara**: se mantiene la agregación vigente de tienda+soporte para
   todo el circuito, en el PDF y en el Excel. **Única excepción: Insurgentes**.
   Sus dos cámaras están en pisos distintos y miden zonas diferentes; para la
@@ -379,14 +404,52 @@ tres de ellos describían mal el separador de artículos.
   (que clasifican **par-día**, no tiendas): son dos clasificaciones distintas
   y el PDF nunca las etiqueta como «real vs. extrapolado».
 - **Distribución horaria (`brandHourlyDistribution`) es descriptiva, no
-  extrapolada.** Reparte en porcentaje los OTS **con medición directa** por
-  hora del día (0–23), a partir de `supportHours`. A diferencia de
-  `brandDaily`/`brandWeeklyEvolution`, **no completa horas sin dato**: por el
-  bloqueo de Fase 2 descrito arriba, no hay manera de distinguir hoy una hora
+  extrapolada, y está acotada a la franja operativa de cara a la marca —
+  `BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR` (10:00–22:00,
+  hora 22 excluida).** Reparte en porcentaje los OTS **con medición directa**
+  dentro de esa franja, a partir de `supportHours`. Una franja fuera de ese
+  rango puede tener medición válida (tráfico de personal, limpieza, seguridad
+  — operativamente correcto), pero de cara a la marca es irrelevante y
+  sugeriría audiencia comercial fuera del horario de la tienda; por eso se
+  excluye del reparto y del total sobre el que se calculan los porcentajes,
+  no sólo de la etiqueta. Es una regla comercial simple, no el horario real
+  por soporte que bloquea la Fase 2 (ver abajo): sólo decide qué horas se le
+  muestran a la marca en esta vista, no completa ni extrapola nada. A
+  diferencia de `brandDaily`/`brandWeeklyEvolution`, tampoco **completa horas
+  sin dato** dentro de esa franja: no hay manera de distinguir hoy una hora
   sin medición de una hora en la que el soporte estaba apagado. El pie de la
   gráfica lo declara («con medición directa») para no sugerir una precisión que
   el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
   en vez de dibujar ceros.
+- **`brandOperationalReport` acota TODO el PDF comercial a la franja
+  operativa — no sólo la distribución horaria.** `report.supportDays` (el
+  export diario de Quividi, `time_resolution: '1d'` en
+  `functions/src/quividi/index.ts`) viene pre-sumado 00:00–23:59: no hay forma
+  de recortarlo por hora después del hecho. `brandOperationalSupportDays`
+  reconstruye filas «por día» sumando sólo las horas de `supportHours` dentro
+  de la franja (una fila por fecha/tienda/soporte con al menos una hora ahí,
+  medida o no; sin hora en la franja, sin fila — nunca fabrica un «sin dato»);
+  `brandOperationalReport` sustituye `supportDays` por esa reconstrucción y
+  **vacía `cameraDays`**, porque la excepción de Insurgentes (sumar sus dos
+  cámaras en vez de promediarlas) se calcula desde `cameraDays`, que es diario
+  y no tiene desglose por hora — aplicarla sobre datos que mezclan horas
+  dentro y fuera de la franja sería peor que desactivarla para esta vista. Si
+  el reporte no trae `supportHours`, degrada a `report` sin tocar (mostrar
+  cero por falta de detalle horario es peor que mostrar el total sin acotar).
+  `buildQuividiCampaignPdfBlob` llama `brandOperationalReport(report)` **una
+  sola vez** y pasa ese resultado a las seis páginas — nunca `report` a
+  medias, porque `supportHours`/`demographics` (sin hora, no se pueden
+  acotar) quedan iguales en ambos objetos, así que no hace falta pasar dos
+  reportes distintos.
+  **El Excel técnico NO usa esta vista**: `quividiCampaignExcel.ts` y
+  `quividiAuditSheet.ts` siguen leyendo `report.supportDays` sin recortar, tal
+  como declaran conservar el dato medido. Esto es una divergencia **deliberada
+  y documentada en la propia hoja** (nota bajo el título de «Auditoría de
+  cifras»): si hubo medición fuera de 10:00–22:00, el total de esa hoja es
+  mayor que el de portada — no una discrepancia por bug, sino dos alcances
+  distintos a propósito. No «arreglar» esto haciendo que el Excel también
+  filtre por hora sin decisión explícita: el Excel existe justamente para
+  conservar el dato crudo tal cual Quividi lo mide.
 - **No existe cruce hora × demografía — bloqueo de datos, no de diseño.** El
   mockup aprobado de la página «Horarios» incluía un corte mañana/tarde/noche
   por género y edad; **no se implementó en el generador real** porque el

@@ -2,6 +2,8 @@ import type { Cell, Workbook, Worksheet } from 'exceljs';
 import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
+  brandExtrapolationByReason,
+  brandStoreAttribution,
   brandStoreAudit,
   formatCivilDate,
 } from './quividiBrandReport';
@@ -105,6 +107,8 @@ export function addQuividiAuditSheet(
     { width: 26 },
     { width: 26 },
     { width: 30 },
+    { width: 20 },
+    { width: 20 },
   ];
   sheet.properties.tabColor = { argb: COLORS.amber };
 
@@ -126,7 +130,15 @@ export function addQuividiAuditSheet(
   subtitle.alignment = { vertical: 'middle', indent: 1 };
   sheet.getRow(3).height = 20;
 
-  let row = 5;
+  sheet.mergeCells('A4:E4');
+  const scopeNote = sheet.getCell('A4');
+  scopeNote.value =
+    'Esta hoja conserva el OTS tal cual lo agrega Quividi por día completo (00:00–23:59). El PDF comercial acota OTS y dwell time a la franja operativa de cara a la marca (10:00–22:00): si hubo medición fuera de esa franja, el total de esta hoja es mayor que el de portada — no es una discrepancia, son dos alcances distintos por diseño.';
+  scopeNote.font = { italic: true, color: { argb: COLORS.amber }, size: 8.5 };
+  scopeNote.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+  sheet.getRow(4).height = 28;
+
+  let row = 6;
 
   row = bandTitle(sheet, row, '1 · UNIVERSO CONTRATADO');
   row = factRow(
@@ -212,6 +224,11 @@ export function addQuividiAuditSheet(
     { strong: true },
   );
 
+  const byReason = brandExtrapolationByReason(report);
+  const byReasonBySupport = new Map(
+    byReason.byFormat.map((item) => [item.support, item]),
+  );
+
   row += 1;
   row = bandTitle(
     sheet,
@@ -224,6 +241,8 @@ export function addQuividiAuditSheet(
     'OTS medidos',
     'OTS por par-día',
     'Par-día del formato',
+    'Extrapolados: sin dato',
+    'Extrapolados: sin cámara',
   ];
   chainHeaders.forEach((label, index) => {
     const cell = sheet.getCell(row, index + 1);
@@ -242,12 +261,15 @@ export function addQuividiAuditSheet(
       format.measuredPairDays > 0
         ? format.measuredOts / format.measuredPairDays
         : 0;
+    const reason = byReasonBySupport.get(format.support);
     const cells: Array<[number, number | string, string?]> = [
       [1, format.support],
       [2, format.measuredPairDays, INT],
       [3, format.measuredOts, INT],
       [4, perPairDay, INT],
       [5, format.pairDays, INT],
+      [6, reason?.missingOts ?? 0, INT],
+      [7, reason?.uncoveredOts ?? 0, INT],
     ];
     for (const [column, value, format_] of cells) {
       const cell = sheet.getCell(row, column);
@@ -285,6 +307,21 @@ export function addQuividiAuditSheet(
     'De los cuales, extrapolados',
     summary.extrapolatedOts,
     `${scope.measurablePairDays - scope.measuredPairDays} par-día sin medición, completados con el promedio de su formato.`,
+  );
+
+  row = factRow(
+    sheet,
+    row,
+    '— por días sin dato (cámara instalada)',
+    byReason.missingOts,
+    `${byReason.byFormat.reduce((total, item) => total + item.missingPairDays, 0)} par-día: el soporte tiene cámara pero no reportó ese día.`,
+  );
+  row = factRow(
+    sheet,
+    row,
+    '— por soportes sin cámara instalada',
+    byReason.uncoveredOts,
+    `${byReason.byFormat.reduce((total, item) => total + item.uncoveredPairDays, 0)} par-día: soportes del universo contratado que nunca tuvieron cámara.`,
   );
 
   row += 1;
@@ -351,8 +388,52 @@ export function addQuividiAuditSheet(
     { format: PCT, strong: true },
   );
 
+  const attribution = brandStoreAttribution(report);
   row += 1;
-  row = bandTitle(sheet, row, '6 · DERIVADOS DEL INFORME');
+  row = bandTitle(
+    sheet,
+    row,
+    '6 · CLASIFICACIÓN INFORMATIVA VS. CLASIFICACIÓN TÉCNICA',
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Informativa (por tienda): OTS de tiendas con medición',
+    attribution.measuredStoresSharePercent,
+    'Tiendas que midieron algo en algún momento de la vigencia, aunque parte de sus huecos se haya estimado. Es el criterio que sostiene «Tiendas TOP».',
+    { format: PCT },
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Informativa (por tienda): OTS de tiendas sin medición',
+    attribution.unmeasuredStoresSharePercent,
+    'Tiendas del universo contratado que nunca tuvieron un dato directo (sin cámara, o con cámara sin ningún par-día medido).',
+    { format: PCT },
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Técnica (por par-día): OTS medidos',
+    scope.measurablePairDays > 0
+      ? (summary.measuredOts / summary.estimatedOts) * 100
+      : 0,
+    'Par-día del circuito medible con dato directo, sin importar qué tienda los aportó.',
+    { format: PCT },
+  );
+  row = factRow(
+    sheet,
+    row,
+    'Técnica (por par-día): OTS extrapolados',
+    scope.measurablePairDays > 0
+      ? (summary.extrapolatedOts / summary.estimatedOts) * 100
+      : 0,
+    'No es el mismo porcentaje que la clasificación informativa: una tienda que midió un solo día sigue del lado «con medición» arriba, pero la mayoría de sus par-día pueden estar extrapolados aquí.',
+    { format: PCT, strong: true },
+  );
+
+  row += 1;
+  row = bandTitle(sheet, row, '7 · DERIVADOS DEL INFORME');
   row = factRow(
     sheet,
     row,
@@ -376,13 +457,21 @@ export function addQuividiAuditSheet(
   );
 
   row += 1;
-  row = bandTitle(sheet, row, '7 · APORTACIÓN POR TIENDA');
+  row = bandTitle(
+    sheet,
+    row,
+    '8 · APORTACIÓN POR TIENDA — OBSERVADO Y AJUSTADO',
+  );
+  const adjustedByStore = new Map(
+    attribution.stores.map((store) => [store.storeNumber, store.adjustedOts]),
+  );
   const headers = [
     'Tienda',
     'Completitud',
     'Par-día medidos / contratados',
     'OTS medidos',
     'Soportes con cámara',
+    'OTS ajustados',
   ];
   headers.forEach((label, index) => {
     const cell = sheet.getCell(row, index + 1);
@@ -424,15 +513,24 @@ export function addQuividiAuditSheet(
     pairsCell.value = store.pairs;
     pairsCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
+    // Sólo las tiendas con al menos un par-día en un formato medible tienen
+    // OTS ajustados: una tienda cuyo único soporte es un formato sin ninguna
+    // medición (fuera de la cifra) no participa del ajuste.
+    const adjustedCell = sheet.getCell(row, 6);
+    const adjusted = adjustedByStore.get(store.storeNumber);
+    adjustedCell.value = adjusted ?? '—';
+    if (typeof adjusted === 'number') adjustedCell.numFmt = INT;
+    adjustedCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
     if (row % 2 === 0) {
-      for (let col = 1; col <= 5; col += 1)
+      for (let col = 1; col <= 6; col += 1)
         fill(sheet.getCell(row, col), COLORS.pale);
     }
     row += 1;
   }
 
   if (coverage.estimatedStores > 0) {
-    sheet.mergeCells(row, 1, row, 5);
+    sheet.mergeCells(row, 1, row, 6);
     const cell = sheet.getCell(row, 1);
     cell.value = `Además, ${coverage.estimatedStores} tienda(s) del universo contratado no tienen cámara instalada y no aparecen en esta tabla: su aportación es enteramente extrapolada.`;
     cell.font = { italic: true, color: { argb: COLORS.muted }, size: 9 };
@@ -442,7 +540,31 @@ export function addQuividiAuditSheet(
   }
 
   row += 1;
-  row = bandTitle(sheet, row, '8 · REGLA APLICADA');
+  row = factRow(
+    sheet,
+    row,
+    'OTS ajustados de tiendas con medición (suma de la tabla)',
+    attribution.measuredStoresOts,
+    'Sólo tiendas que tuvieron al menos un par-día medido en algún momento de la vigencia. Coincide con la suma de «Tiendas TOP» del PDF.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    '+ OTS de tiendas sin medición (residuo)',
+    attribution.unmeasuredStoresOts,
+    'Tiendas sin cámara, o con cámara pero sin ningún par-día medido: no tienen fila propia en «Tiendas TOP», pero sí aportan al total.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    '= OTS estimados de campaña (reconstruido por tienda)',
+    attribution.measuredStoresOts + attribution.unmeasuredStoresOts,
+    'Reconstruye exactamente el OTS de portada a partir de las tiendas conocidas más el residuo sin cámara.',
+    { strong: true },
+  );
+
+  row += 1;
+  row = bandTitle(sheet, row, '9 · REGLA APLICADA');
   sheet.mergeCells(row, 1, row + 2, 5);
   const rule = sheet.getCell(row, 1);
   rule.value =

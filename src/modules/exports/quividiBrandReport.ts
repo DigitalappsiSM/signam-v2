@@ -3,6 +3,7 @@ import {
   QUIVIDI_GENDER_LABELS,
   type QuividiCampaignReport,
   type QuividiCameraDay,
+  type QuividiMeasurementStatus,
   type QuividiSupportDay,
 } from '@/domain';
 
@@ -406,6 +407,73 @@ export function brandExtrapolationBasis(
   };
 }
 
+/** Desglose por formato de los OTS extrapolados, según el motivo del hueco. */
+export interface BrandExtrapolationReasonRow {
+  support: string;
+  /** Par-día de un soporte con cámara instalada que no reportó ese día. */
+  missingPairDays: number;
+  /** OTS extrapolados atribuibles a esos días sin dato. */
+  missingOts: number;
+  /** Par-día de soportes del universo contratado sin cámara instalada. */
+  uncoveredPairDays: number;
+  /** OTS extrapolados atribuibles a esos soportes sin cámara. */
+  uncoveredOts: number;
+}
+
+export interface BrandExtrapolationByReason {
+  byFormat: BrandExtrapolationReasonRow[];
+  /** Total de OTS extrapolados por días sin dato en soportes con cámara. */
+  missingOts: number;
+  /** Total de OTS extrapolados por soportes sin cámara instalada. */
+  uncoveredOts: number;
+}
+
+/**
+ * Desglosa `brandCampaignSummary(report).extrapolatedOts` por el motivo del
+ * hueco que se completó: un día sin dato en un soporte con cámara instalada,
+ * frente a un soporte del universo contratado que nunca tuvo cámara.
+ *
+ * Formato a formato, con el mismo promedio por par-día medido que usa la
+ * cifra publicada — nunca un promedio único del circuito — de modo que
+ * `missingOts + uncoveredOts` reconcilia exactamente con
+ * `brandCampaignSummary(report).extrapolatedOts` sin recalcularlo.
+ */
+export function brandExtrapolationByReason(
+  report: QuividiCampaignReport,
+): BrandExtrapolationByReason {
+  const scope = brandMeasurableScope(report);
+  const rows = brandSupportDays(report);
+
+  const byFormat: BrandExtrapolationReasonRow[] = scope.measurable.map(
+    (format) => {
+      const rate =
+        format.measuredPairDays > 0
+          ? format.measuredOts / format.measuredPairDays
+          : 0;
+      const missingPairDays = rows.filter(
+        (row) => row.support === format.support && row.status === 'missing',
+      ).length;
+      const uncoveredPairDays = Math.max(
+        0,
+        format.pairDays - format.mappedPairs * scope.days,
+      );
+      return {
+        support: format.support,
+        missingPairDays,
+        missingOts: rate * missingPairDays,
+        uncoveredPairDays,
+        uncoveredOts: rate * uncoveredPairDays,
+      };
+    },
+  );
+
+  return {
+    byFormat,
+    missingOts: sum(byFormat.map((row) => row.missingOts)),
+    uncoveredOts: sum(byFormat.map((row) => row.uncoveredOts)),
+  };
+}
+
 export function brandHeader(report: QuividiCampaignReport): BrandHeader {
   const adjusted = brandSupportDays(report);
   const coverage = brandCoverage(report);
@@ -792,7 +860,118 @@ export function brandStoreAttribution(
 }
 
 /**
- * Distribución horaria de los OTS con medición directa, hora a hora (0-23).
+ * Franja horaria operativa de cara a la marca: 10:00–22:00 (hora 22 excluida).
+ *
+ * Es una regla comercial deliberadamente simple, no un horario real por
+ * soporte — SIGNAM no tiene esa fuente (ver el bloqueo de Fase 2 arriba). Una
+ * franja fuera de este rango puede tener medición válida (tráfico de personal,
+ * limpieza, seguridad) que operativamente está bien pero que a la marca no le
+ * interesa: mostrarla como audiencia comercial sugeriría tráfico fuera del
+ * horario de la tienda. La usan `brandHourlyDistribution` (reparto horario) y
+ * `brandOperationalReport` (OTS/dwell time de portada, evolución, Tiendas TOP
+ * y dwell time del PDF comercial). El Excel técnico NO la usa: sigue leyendo
+ * `report.supportDays` sin recortar, el dato tal cual lo agrega Quividi por
+ * día completo (00:00–23:59) — ver AGENTS.md para la divergencia resultante
+ * entre el total del PDF y el de la hoja «Auditoría de cifras».
+ */
+export const BRAND_OPERATIONAL_START_HOUR = 10;
+export const BRAND_OPERATIONAL_END_HOUR = 22;
+
+/**
+ * Reconstruye filas «por día» (forma de `QuividiSupportDay`) a partir de
+ * `supportHours`, sumando únicamente las horas dentro de la franja operativa
+ * de cara a la marca. Es la única manera de acotar el OTS por hora: el
+ * export diario de Quividi que llena `report.supportDays` ya viene
+ * pre-sumado 00:00–23:59 y no se puede recortar después del hecho.
+ *
+ * Sólo emite una fila para (fecha, tienda, soporte) que tengan al menos una
+ * hora — medida o no — dentro de la franja; una fecha sin ninguna hora en
+ * `supportHours` dentro de 10:00–22:00 no genera fila (no se fabrica un
+ * "sin dato" a partir de un total diario que no se puede recortar).
+ */
+export function brandOperationalSupportDays(
+  report: QuividiCampaignReport,
+): QuividiSupportDay[] {
+  const inWindow = report.supportHours.filter(
+    (row) =>
+      row.hour >= BRAND_OPERATIONAL_START_HOUR &&
+      row.hour < BRAND_OPERATIONAL_END_HOUR,
+  );
+
+  const groups = new Map<string, (typeof inWindow)[number][]>();
+  for (const row of inWindow) {
+    const key = supportDayKey(row);
+    const current = groups.get(key) ?? [];
+    current.push(row);
+    groups.set(key, current);
+  }
+
+  return Array.from(groups.values(), (hours) => {
+    const first = hours[0]!;
+    const measured = hours.filter((hour) => hour.status !== 'missing');
+    const watchersTotal = sum(measured.map((hour) => hour.watchers));
+    const status: QuividiMeasurementStatus =
+      measured.length === 0
+        ? 'missing'
+        : hours.every((hour) => hour.status === 'complete')
+          ? 'complete'
+          : 'partial';
+    return {
+      date: first.date,
+      storeNumber: first.storeNumber,
+      storeName: first.storeName,
+      support: first.support,
+      configuredCameras: Math.max(
+        ...hours.map((hour) => hour.configuredCameras),
+      ),
+      measuredCameras: Math.max(...hours.map((hour) => hour.measuredCameras)),
+      status,
+      ots: sum(measured.map((hour) => hour.ots)),
+      effectiveOts: sum(measured.map((hour) => hour.effectiveOts)),
+      watchers: watchersTotal,
+      attentionSeconds:
+        watchersTotal > 0
+          ? sum(measured.map((hour) => hour.attentionSeconds * hour.watchers)) /
+            watchersTotal
+          : 0,
+      dwellSeconds:
+        watchersTotal > 0
+          ? sum(measured.map((hour) => hour.dwellSeconds * hour.watchers)) /
+            watchersTotal
+          : 0,
+    };
+  });
+}
+
+/**
+ * Vista del reporte que consume el PDF comercial: mismos `supportHours` y
+ * `demographics` (no tienen hora, no se pueden acotar — ver el cruce
+ * hora × demografía bloqueado más abajo), pero `supportDays` reconstruido con
+ * `brandOperationalSupportDays` dentro de la franja operativa. `cameraDays`
+ * se vacía a propósito: la excepción de Insurgentes (sumar en vez de
+ * promediar sus dos cámaras) se calcula hoy a partir de `cameraDays`, que es
+ * diario y no tiene desglose por hora — no se puede acotar a la franja
+ * operativa sin esa fuente, así que se desactiva para esta vista en vez de
+ * aplicarla sobre datos que mezclan horas dentro y fuera de ella.
+ *
+ * Si el reporte no trae `supportHours` (schema anterior, o el export horario
+ * falló), degrada a `report` sin tocarlo: mostrar cero por falta de detalle
+ * horario sería peor que mostrar el total sin acotar.
+ */
+export function brandOperationalReport(
+  report: QuividiCampaignReport,
+): QuividiCampaignReport {
+  if (report.supportHours.length === 0) return report;
+  return {
+    ...report,
+    supportDays: brandOperationalSupportDays(report),
+    cameraDays: [],
+  };
+}
+
+/**
+ * Distribución horaria de los OTS con medición directa, acotada a la franja
+ * operativa de cara a la marca (`BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR`).
  *
  * Se calcula sobre `supportHours`, que no todos los reportes traen: cuando
  * falta, devuelve una lista vacía y el informe omite el bloque en vez de
@@ -807,7 +986,10 @@ export function brandHourlyDistribution(
   report: QuividiCampaignReport,
 ): BrandHourlyPoint[] {
   const measured = report.supportHours.filter(
-    (row) => row.status !== 'missing',
+    (row) =>
+      row.status !== 'missing' &&
+      row.hour >= BRAND_OPERATIONAL_START_HOUR &&
+      row.hour < BRAND_OPERATIONAL_END_HOUR,
   );
   if (measured.length === 0) return [];
 
