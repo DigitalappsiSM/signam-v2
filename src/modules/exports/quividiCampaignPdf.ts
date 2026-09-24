@@ -1010,27 +1010,42 @@ function topHourLabel(
   return best.hour;
 }
 
-/** Ventana contigua de horas con mayor concentración de OTS observados. */
+/**
+ * Ventana de horas de reloj consecutivas con mayor concentración de OTS
+ * observados. `hourly` puede traer huecos (horas sin ninguna medición se
+ * omiten en `brandHourlyDistribution`), así que la ventana se arma por hora
+ * real, no por posición en el arreglo: dos entradas contiguas en `hourly`
+ * pueden corresponder a horas no consecutivas del reloj (p. ej. 14h y 20h) y
+ * no deben tratarse como una franja continua.
+ */
 function peakWindow(
   hourly: ReturnType<typeof brandHourlyDistribution>,
   windowSize = 5,
 ): { startHour: number; endHour: number; percent: number } | null {
   if (hourly.length === 0) return null;
+  const byHour = new Map(hourly.map((point) => [point.hour, point.share]));
   const size = Math.min(windowSize, hourly.length);
-  let bestStart = 0;
+  let bestStart: number | null = null;
   let bestSum = -1;
-  for (let i = 0; i + size <= hourly.length; i += 1) {
-    const sum = hourly
-      .slice(i, i + size)
-      .reduce((total, point) => total + point.share, 0);
-    if (sum > bestSum) {
+  for (const point of hourly) {
+    const startHour = point.hour;
+    let sum = 0;
+    let complete = true;
+    for (let offset = 0; offset < size; offset += 1) {
+      const share = byHour.get(startHour + offset);
+      if (share === undefined) {
+        complete = false;
+        break;
+      }
+      sum += share;
+    }
+    if (complete && sum > bestSum) {
       bestSum = sum;
-      bestStart = i;
+      bestStart = startHour;
     }
   }
-  const startHour = hourly[bestStart]!.hour;
-  const endHour = hourly[bestStart + size - 1]!.hour + 1;
-  return { startHour, endHour, percent: bestSum };
+  if (bestStart === null) return null;
+  return { startHour: bestStart, endHour: bestStart + size, percent: bestSum };
 }
 
 function horariosPage(
@@ -1251,7 +1266,7 @@ function closingPage(
   if (weekday) {
     recommendations.push([
       'Refuerza el día de mayor audiencia',
-      `Los ${weekday.label.toLowerCase()}s concentran la mayor proporción de OTS ajustados de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
+      `Los ${weekday.label.toLowerCase()}s concentran la mayor proporción de OTS de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
     ]);
   }
   const peakHour = topHourLabel(hourly);
