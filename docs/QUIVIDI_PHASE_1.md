@@ -293,13 +293,35 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
 
 ### Hoja «Auditoría de cifras»
 
-El Excel incluye una hoja que reconstruye paso a paso la cifra del PDF: circuito
-contratado frente a circuito medible, reparto exhaustivo de la rejilla par-día,
-la cadena aritmética formato a formato, el desglose del circuito con los no
-medibles marcados, las dos lecturas de cobertura y la aportación por tienda.
+El Excel incluye una hoja de nueve secciones que reconstruye paso a paso la
+cifra del PDF: circuito contratado frente a circuito medible, reparto
+exhaustivo de la rejilla par-día, la cadena aritmética formato a formato, el
+desglose del circuito con los no medibles marcados, las dos lecturas de
+cobertura, y la aportación por tienda.
 
 Consume las **mismas funciones puras** que el PDF (`quividiBrandReport.ts`), de
 modo que una discrepancia entre hoja e informe es imposible por construcción.
+
+Tres bloques resuelven lo que el encargo original pedía del Excel a nivel
+**día** (el nivel **hora** sigue bloqueado por el punto anterior):
+
+- **Motivo del hueco** (`brandExtrapolationByReason`): la tabla de
+  construcción por formato trae dos columnas — «Extrapolados: sin dato» (el
+  soporte tiene cámara pero no reportó ese día) y «Extrapolados: sin cámara»
+  (el soporte del universo contratado nunca tuvo cámara) — más dos filas de
+  totales agregados. La suma de ambos motivos reconcilia exactamente con «De
+  los cuales, extrapolados» sin recalcularlo.
+- **Clasificación informativa vs. técnica**: pone una junto a la otra el %
+  de OTS de tiendas «con medición» (clasifica tiendas —
+  `brandStoreAttribution().measuredStoresSharePercent`, el mismo criterio que
+  antes vivía en el pie de portada) y el % de OTS medidos directamente
+  (clasifica par-día — `summary.measuredOts / summary.estimatedOts`), para
+  que quede explícito que casi nunca son el mismo porcentaje.
+- **OTS ajustados por tienda**: la tabla de aportación por tienda añade el
+  OTS ajustado de cada una (`brandStoreAttribution().stores[].adjustedOts`,
+  junto al OTS medido crudo para trazabilidad) y cierra con tres filas que
+  reconstruyen el total de portada: OTS ajustados de tiendas con medición
+  (suma) + OTS de tiendas sin medición (residuo) = OTS estimados de campaña.
 
 ### Dónde vive
 

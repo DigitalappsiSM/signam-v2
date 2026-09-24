@@ -342,11 +342,34 @@ tres de ellos describían mal el separador de artículos.
   que el PDF (`quividiBrandReport.ts`), nunca recalcula: una discrepancia entre
   hoja e informe debe ser imposible por construcción. Es la única vista que
   desglosa por tienda, y existe sólo para auditar la construcción del agregado.
-  Pendiente de Fase 2: ampliarla con el resumen «OTS recopilados + OTS
-  extrapolados = OTS reportados» separado por motivo (hora faltante / día
-  completo sin dato / tienda sin cámara) y con la hoja «Detalle de
-  extrapolación» hora a hora que pide el encargo de negocio — bloqueadas por la
-  falta de horario de operación descrita arriba.
+  Nueve secciones numeradas:
+  1. Universo contratado. 2. Qué se midió realmente. 3. Construcción de la
+  cifra formato a formato — la tabla trae, por formato, **dos columnas de
+  motivo del hueco** («Extrapolados: sin dato» / «Extrapolados: sin cámara»,
+  `brandExtrapolationByReason`), y dos filas de totales agregadas
+  inmediatamente después de «De los cuales, extrapolados»: `missingOts` (días
+  sin dato con cámara instalada) y `uncoveredOts` (soportes sin cámara),
+  cuya suma reconcilia exactamente con `extrapolatedOts` sin recalcularlo
+  — Fase 2 seguía pendiente de este desglose a nivel **hora**; a nivel **día**
+  ya está resuelto. 4. El circuito por formato. 5. Cobertura — dos lecturas
+  distintas (por tienda vs. por tienda-día). **6. Clasificación informativa
+  vs. clasificación técnica**: hace explícito que el % de OTS atribuido a
+  «tiendas con medición» (`brandStoreAttribution().measuredStoresSharePercent`,
+  clasifica tiendas) y el % de «OTS medidos» sobre el total
+  (`summary.measuredOts / summary.estimatedOts`, clasifica par-día) casi nunca
+  coinciden — son la clasificación informativa que antes vivía en el pie de
+  portada y la clasificación técnica del Excel, ahora una junto a la otra para
+  que la diferencia sea imposible de pasar por alto. 7. Derivados del informe.
+  **8. Aportación por tienda — observado y ajustado**: además del OTS medido
+  (crudo, para trazabilidad), cada tienda trae su **OTS ajustado**
+  (`brandStoreAttribution().stores[].adjustedOts`, «—» si su único soporte es
+  un formato sin medición), y la tabla cierra con tres filas que reconstruyen
+  el total de portada: OTS ajustados de tiendas con medición (suma) + OTS de
+  tiendas sin medición (residuo) = OTS estimados de campaña. 9. Regla
+  aplicada. Sigue pendiente de Fase 2 (bloqueada por la falta de horario de
+  operación descrita arriba): la hoja «Detalle de extrapolación» hora a hora
+  que pide el encargo de negocio, con una fila por tienda/formato/fecha/hora
+  estimada.
 - **Multi-cámara**: se mantiene la agregación vigente de tienda+soporte para
   todo el circuito, en el PDF y en el Excel. **Única excepción: Insurgentes**.
   Sus dos cámaras están en pisos distintos y miden zonas diferentes; para la

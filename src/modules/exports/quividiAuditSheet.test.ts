@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { QuividiCampaignReport, QuividiSupportDay } from '@/domain';
 import { buildQuividiCampaignWorkbook } from './quividiCampaignExcel';
-import { brandCampaignSummary } from './quividiBrandReport';
+import {
+  brandCampaignSummary,
+  brandExtrapolationByReason,
+  brandStoreAttribution,
+} from './quividiBrandReport';
 
 const DATES = Array.from(
   { length: 10 },
@@ -191,5 +195,87 @@ describe('hoja de auditoría del informe comercial', () => {
     const values = await auditValues(empty);
     expect(values.get('OTS medidos')).toBe(0);
     expect(values.get('= OTS estimados de campaña')).toBe(0);
+  });
+
+  it('separa los OTS extrapolados por motivo del hueco, y concilia con el total', async () => {
+    const input = report();
+    const values = await auditValues(input);
+    const byReason = brandExtrapolationByReason(input);
+
+    expect(values.get('— por días sin dato (cámara instalada)')).toBe(
+      byReason.missingOts,
+    );
+    expect(values.get('— por soportes sin cámara instalada')).toBe(
+      byReason.uncoveredOts,
+    );
+    expect(
+      Number(values.get('— por días sin dato (cámara instalada)')) +
+        Number(values.get('— por soportes sin cámara instalada')),
+    ).toBeCloseTo(Number(values.get('De los cuales, extrapolados')), 6);
+  });
+
+  it('hace visible que la clasificación de portada y la técnica no son el mismo porcentaje', async () => {
+    const input = report();
+    const values = await auditValues(input);
+    const attribution = brandStoreAttribution(input);
+
+    expect(
+      Number(
+        values.get('Informativa (por tienda): OTS de tiendas con medición'),
+      ),
+    ).toBeCloseTo(attribution.measuredStoresSharePercent, 6);
+    expect(
+      Number(
+        values.get('Informativa (por tienda): OTS de tiendas sin medición'),
+      ),
+    ).toBeCloseTo(attribution.unmeasuredStoresSharePercent, 6);
+
+    const technicalMeasured = Number(
+      values.get('Técnica (por par-día): OTS medidos'),
+    );
+    const informativeMeasured = Number(
+      values.get('Informativa (por tienda): OTS de tiendas con medición'),
+    );
+    // Con la tienda 2 (Santa Fe) parcialmente caída, la clasificación por
+    // tienda y la clasificación por par-día deben divergir: la tabla existe
+    // justamente para que esa diferencia sea visible.
+    expect(technicalMeasured).not.toBeCloseTo(informativeMeasured, 0);
+  });
+
+  it('publica OTS ajustados por tienda y reconstruye el total desde ahí', async () => {
+    const input = report();
+    const values = await auditValues(input);
+    const attribution = brandStoreAttribution(input);
+    const summary = brandCampaignSummary(input);
+
+    expect(
+      values.get('OTS ajustados de tiendas con medición (suma de la tabla)'),
+    ).toBe(attribution.measuredStoresOts);
+    expect(values.get('+ OTS de tiendas sin medición (residuo)')).toBe(
+      attribution.unmeasuredStoresOts,
+    );
+    expect(
+      values.get('= OTS estimados de campaña (reconstruido por tienda)'),
+    ).toBeCloseTo(summary.estimatedOts, 6);
+  });
+
+  it('desglosa la construcción por formato con las columnas de motivo del hueco', async () => {
+    const wb = await buildQuividiCampaignWorkbook(report());
+    const sheet = wb.getWorksheet('Auditoría de cifras');
+    if (!sheet) throw new Error('falta la hoja de auditoría');
+
+    let headerRow: number | null = null;
+    sheet.eachRow((row, rowNumber) => {
+      if (row.getCell(1).value === 'Formato' && headerRow === null) {
+        headerRow = rowNumber;
+      }
+    });
+    expect(headerRow).not.toBeNull();
+    if (headerRow === null) return;
+    const headers = [1, 2, 3, 4, 5, 6, 7].map(
+      (col) => sheet.getRow(headerRow!).getCell(col).value,
+    );
+    expect(headers).toContain('Extrapolados: sin dato');
+    expect(headers).toContain('Extrapolados: sin cámara');
   });
 });

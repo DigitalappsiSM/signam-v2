@@ -406,6 +406,73 @@ export function brandExtrapolationBasis(
   };
 }
 
+/** Desglose por formato de los OTS extrapolados, según el motivo del hueco. */
+export interface BrandExtrapolationReasonRow {
+  support: string;
+  /** Par-día de un soporte con cámara instalada que no reportó ese día. */
+  missingPairDays: number;
+  /** OTS extrapolados atribuibles a esos días sin dato. */
+  missingOts: number;
+  /** Par-día de soportes del universo contratado sin cámara instalada. */
+  uncoveredPairDays: number;
+  /** OTS extrapolados atribuibles a esos soportes sin cámara. */
+  uncoveredOts: number;
+}
+
+export interface BrandExtrapolationByReason {
+  byFormat: BrandExtrapolationReasonRow[];
+  /** Total de OTS extrapolados por días sin dato en soportes con cámara. */
+  missingOts: number;
+  /** Total de OTS extrapolados por soportes sin cámara instalada. */
+  uncoveredOts: number;
+}
+
+/**
+ * Desglosa `brandCampaignSummary(report).extrapolatedOts` por el motivo del
+ * hueco que se completó: un día sin dato en un soporte con cámara instalada,
+ * frente a un soporte del universo contratado que nunca tuvo cámara.
+ *
+ * Formato a formato, con el mismo promedio por par-día medido que usa la
+ * cifra publicada — nunca un promedio único del circuito — de modo que
+ * `missingOts + uncoveredOts` reconcilia exactamente con
+ * `brandCampaignSummary(report).extrapolatedOts` sin recalcularlo.
+ */
+export function brandExtrapolationByReason(
+  report: QuividiCampaignReport,
+): BrandExtrapolationByReason {
+  const scope = brandMeasurableScope(report);
+  const rows = brandSupportDays(report);
+
+  const byFormat: BrandExtrapolationReasonRow[] = scope.measurable.map(
+    (format) => {
+      const rate =
+        format.measuredPairDays > 0
+          ? format.measuredOts / format.measuredPairDays
+          : 0;
+      const missingPairDays = rows.filter(
+        (row) => row.support === format.support && row.status === 'missing',
+      ).length;
+      const uncoveredPairDays = Math.max(
+        0,
+        format.pairDays - format.mappedPairs * scope.days,
+      );
+      return {
+        support: format.support,
+        missingPairDays,
+        missingOts: rate * missingPairDays,
+        uncoveredPairDays,
+        uncoveredOts: rate * uncoveredPairDays,
+      };
+    },
+  );
+
+  return {
+    byFormat,
+    missingOts: sum(byFormat.map((row) => row.missingOts)),
+    uncoveredOts: sum(byFormat.map((row) => row.uncoveredOts)),
+  };
+}
+
 export function brandHeader(report: QuividiCampaignReport): BrandHeader {
   const adjusted = brandSupportDays(report);
   const coverage = brandCoverage(report);

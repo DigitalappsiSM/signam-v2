@@ -11,6 +11,7 @@ import {
   brandDaily,
   brandDwellTime,
   brandExtrapolationBasis,
+  brandExtrapolationByReason,
   brandGender,
   brandGenderAge,
   brandGenderByDay,
@@ -465,6 +466,111 @@ describe('informe comercial agregado de audiencia', () => {
       ['label', 'share'],
       ['label', 'share'],
     ]);
+  });
+});
+
+describe('desglose de OTS extrapolados por motivo del hueco', () => {
+  it('separa días sin dato (con cámara) de soportes sin cámara, por formato', () => {
+    const dates = Array.from(
+      { length: 10 },
+      (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`,
+    );
+    // Mupi: tienda 1 siempre mide; tienda 2 deja de reportar desde el día 4
+    // (7 días sin dato, con cámara instalada). Un tercer par de Mupi está
+    // contratado pero nunca tuvo cámara (10 par-día sin cámara).
+    // Video wall: una sola tienda, mide siempre — sin huecos de ningún tipo.
+    const rows = dates.flatMap((date, index) => [
+      supportDay({
+        date,
+        storeNumber: '1',
+        storeName: 'UNO',
+        support: 'MUPI DIGITAL',
+        ots: 1000,
+      }),
+      supportDay({
+        date,
+        storeNumber: '2',
+        storeName: 'DOS',
+        support: 'MUPI DIGITAL',
+        ...(index < 3
+          ? { ots: 1000 }
+          : { status: 'missing' as const, measuredCameras: 0, ots: 0 }),
+      }),
+      supportDay({
+        date,
+        storeNumber: '3',
+        storeName: 'TRES',
+        support: 'VIDEO WALL',
+        ots: 5000,
+      }),
+    ]);
+    const input = report({
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      coverage: {
+        totalPairs: 4,
+        mappedPairs: 3,
+        percent: 75,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 3,
+            mappedPairs: 2,
+            percent: 66.7,
+          },
+          {
+            support: 'VIDEO WALL',
+            totalPairs: 1,
+            mappedPairs: 1,
+            percent: 100,
+          },
+        ],
+      },
+      storeCoverage: { totalStores: 3, mappedStores: 3, percent: 100 },
+      supportDays: rows,
+    });
+
+    const byReason = brandExtrapolationByReason(input);
+    const mupi = byReason.byFormat.find(
+      (row) => row.support === 'MUPI DIGITAL',
+    );
+    const wall = byReason.byFormat.find((row) => row.support === 'VIDEO WALL');
+
+    expect(mupi?.missingPairDays).toBe(7);
+    expect(mupi?.missingOts).toBe(7_000); // 7 × 1000, promedio de Mupi
+    expect(mupi?.uncoveredPairDays).toBe(10); // 1 par sin cámara × 10 días
+    expect(mupi?.uncoveredOts).toBe(10_000);
+    // Video wall midió siempre: ningún hueco de ningún motivo.
+    expect(wall?.missingPairDays).toBe(0);
+    expect(wall?.uncoveredPairDays).toBe(0);
+    expect(wall?.missingOts).toBe(0);
+    expect(wall?.uncoveredOts).toBe(0);
+
+    expect(byReason.missingOts).toBe(7_000);
+    expect(byReason.uncoveredOts).toBe(10_000);
+
+    // Reconciliación con la cifra publicada, sin recalcularla.
+    const summary = brandCampaignSummary(input);
+    expect(byReason.missingOts + byReason.uncoveredOts).toBeCloseTo(
+      summary.extrapolatedOts,
+      6,
+    );
+  });
+
+  it('no rompe sin ningún hueco: los dos motivos quedan en cero', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: { totalPairs: 1, mappedPairs: 1, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      supportDays: [
+        supportDay({ date: '2026-09-01', storeNumber: '1', storeName: 'UNO' }),
+      ],
+    });
+
+    const byReason = brandExtrapolationByReason(input);
+    expect(byReason.missingOts).toBe(0);
+    expect(byReason.uncoveredOts).toBe(0);
   });
 });
 
