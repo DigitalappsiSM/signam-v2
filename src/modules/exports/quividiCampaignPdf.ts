@@ -5,6 +5,7 @@ import {
   brandCoverage,
   brandDaily,
   brandDwellTime,
+  brandGender,
   brandGenderAge,
   brandGenderByDay,
   brandHeader,
@@ -21,7 +22,6 @@ import { WEEKDAY_LABELS } from './quividiMarketingAnalytics';
 import {
   BLUE,
   BLUE_LIGHT,
-  BLUE_PALE,
   CANVAS_H,
   CANVAS_W,
   GRAY_DARK,
@@ -31,45 +31,47 @@ import {
   PINK,
   PINK_PALE,
   SKY,
-  SOFT,
   WHITE,
   block,
-  paragraph,
-  photoCover,
+  calendarIcon,
+  clockIcon,
+  eyeIcon,
   fade,
+  paragraph,
+  peopleIcon,
+  photoCover,
+  sparkline,
   text,
   textWidth,
+  trendIcon,
   u,
   type AlphaStop,
-  type RGB,
 } from './quividiPdfKit';
 
 /**
- * Informe comercial de audiencia para marcas.
+ * Informe comercial de audiencia para marcas — formato A4 horizontal.
  *
- * El documento es deliberadamente agregado: comunica un único OTS de campaña,
- * su evolución, el perfil de la audiencia alcanzada y las tiendas con mejor
- * desempeño. No publica el proveedor de medición, las métricas de mirada ni
- * incidencias de cámara; ese detalle vive en el Excel técnico, cuya hoja
- * «Auditoría de cifras» reconstruye paso a paso la cifra que aquí se publica.
+ * Seis secciones, cada una con un solo visual protagonista: Portada,
+ * Evolución, Audiencia, Horarios, Tiendas TOP y Cierre. No publica el
+ * proveedor de medición, las métricas de mirada ni incidencias de cámara; ese
+ * detalle vive en el Excel técnico, cuya hoja «Auditoría de cifras»
+ * reconstruye paso a paso la cifra que aquí se publica.
  *
- * El maquetado está en píxeles de un lienzo A4 a 96 dpi y `quividiPdfKit` lo
- * traduce a milímetros. El número de páginas se adapta al contenido: sólo
- * «Tiendas TOP» puede añadir páginas de más si el listado no cabe en una.
+ * El maquetado está en píxeles de un lienzo A4 horizontal a 96 dpi
+ * (1123 × 794) y `quividiPdfKit` lo traduce a milímetros. El número de
+ * páginas se adapta al contenido: sólo «Tiendas TOP» puede añadir páginas de
+ * más si el listado no cabe en una.
  */
 
-const MIN_PAGE_COUNT = 5;
-const M = 48;
+const MIN_PAGE_COUNT = 6;
+const M = 56;
 const CONTENT_W = CANVAS_W - M * 2;
 
-/**
- * Logotipo a color sobre fondo claro. El de `assets/ppt` es la versión blanca,
- * pensada para las diapositivas de fondo oscuro: sobre el blanco del informe
- * resulta invisible.
- */
 const LOGO_PATH = '/report-assets/instore-media-color.png';
 const COVER_PHOTO_PATH = '/report-assets/liverpool-mupi-cover.jpg';
 const CLOSING_PHOTO_PATH = '/report-assets/liverpool-banner-closing.jpg';
+/** Proporción real del logo (799×108 px), para no deformarlo al escalar. */
+const LOGO_ASPECT = 799 / 108;
 
 interface PdfAssets {
   logo: string | null;
@@ -169,9 +171,9 @@ function logo(
   assets: PdfAssets,
   x: number,
   y: number,
-  w: number,
+  h: number,
 ): void {
-  const h = (w * 108) / 799;
+  const w = h * LOGO_ASPECT;
   if (assets.logo) {
     try {
       doc.addImage(
@@ -189,101 +191,100 @@ function logo(
       // Sin logotipo utilizable, el nombre lo sustituye.
     }
   }
-  text(doc, 'in-Store Media', x, y + h * 0.75, {
-    size: 16,
+  text(doc, 'in-Store Media', x, y + h * 0.8, {
+    size: h * 0.55,
     bold: true,
     color: NAVY,
   });
 }
 
-/** Cabecera común de las páginas interiores. */
+/** Cabecera común: logo a la izquierda, campaña y vigencia a la derecha. */
 function pageHeader(
   doc: jsPDF,
   assets: PdfAssets,
   report: QuividiCampaignReport,
 ): void {
-  logo(doc, assets, M, 34, 192);
-  text(doc, report.campaignName.toUpperCase(), CANVAS_W - M, 45, {
-    size: 9,
+  logo(doc, assets, M, 22, 22);
+  text(doc, report.campaignName.toUpperCase(), CANVAS_W - M, 32, {
+    size: 10,
     bold: true,
     color: PINK,
     align: 'right',
-    tracking: 2,
+    tracking: 1.6,
   });
   text(
     doc,
     `${formatCivilDate(report.startDate)} — ${formatCivilDate(report.endDate)} · ${brandHeader(report).days} días`,
     CANVAS_W - M,
-    62,
-    { size: 9, color: MUTED, align: 'right' },
+    48,
+    { size: 10, color: MUTED, align: 'right' },
   );
-  block(doc, M, 88, CONTENT_W, 1, HAIR);
+  block(doc, M, 66, CONTENT_W, 1, HAIR);
 }
 
-function pageFooter(doc: jsPDF, page: number, note: string): void {
-  block(doc, M, CANVAS_H - 62, CONTENT_W, 1, HAIR);
-  text(doc, 'in-Store Media', M, CANVAS_H - 36, {
-    size: 9.5,
+function pageFooter(
+  doc: jsPDF,
+  page: number,
+  note: string,
+  rightNote?: string,
+): void {
+  block(doc, M, CANVAS_H - 40, CONTENT_W, 1, HAIR);
+  text(doc, 'in-Store Media', M, CANVAS_H - 20, {
+    size: 9,
     bold: true,
     color: NAVY,
   });
-  text(doc, note, M + 84, CANVAS_H - 36, {
-    size: 8.5,
+  text(doc, note, M + 76, CANVAS_H - 20, {
+    size: 8,
     color: MUTED,
     tracking: 1,
   });
-  block(doc, CANVAS_W - M - 30, CANVAS_H - 54, 30, 30, NAVY);
-  text(doc, String(page).padStart(2, '0'), CANVAS_W - M - 15, CANVAS_H - 34, {
-    size: 12,
+  if (rightNote) {
+    text(doc, rightNote, CANVAS_W - M - 32, CANVAS_H - 20, {
+      size: 8,
+      color: GRAY_DARK,
+      align: 'right',
+    });
+  }
+  block(doc, CANVAS_W - M - 24, CANVAS_H - 34, 24, 18, NAVY);
+  text(doc, String(page).padStart(2, '0'), CANVAS_W - M - 12, CANVAS_H - 22, {
+    size: 10,
     bold: true,
     color: WHITE,
     align: 'center',
   });
 }
 
-/** Barra rosa más rótulo de sección. */
-function eyebrow(doc: jsPDF, label: string, y: number): void {
-  block(doc, M, y, 26, 4, PINK);
-  text(doc, label, M + 36, y + 7, {
-    size: 10,
-    bold: true,
-    color: BLUE,
-    tracking: 2.4,
-  });
-}
-
-function sectionLabel(doc: jsPDF, label: string, x: number, y: number): void {
-  text(doc, label, x, y, { size: 9, bold: true, color: NAVY, tracking: 1.6 });
-}
-
-/** Cita destacada sobre fondo rosa pálido o azul marino. */
-function quote(
-  doc: jsPDF,
-  value: string,
-  y: number,
-  height: number,
-  dark = false,
-): void {
-  block(doc, M, y, CONTENT_W, height, dark ? NAVY : PINK_PALE);
-  if (!dark) block(doc, M, y, 5, height, PINK);
-  text(doc, '“', M + 26, y + 46, { size: 48, bold: true, color: PINK });
-  paragraph(doc, value, M + 62, y + 28, CONTENT_W - 86, {
-    size: 11.5,
-    color: dark ? WHITE : NAVY,
-    lineHeight: 18,
-  });
-}
-
-function legendDot(
+type IconFn = (
   doc: jsPDF,
   x: number,
   y: number,
-  color: RGB,
-  label: string,
-): number {
-  block(doc, x, y - 7, 8, 8, color);
-  text(doc, label, x + 13, y, { size: 8.5, color: MUTED });
-  return x + 13 + textWidth(doc, label, 8.5) + 16;
+  size: number,
+  color: readonly [number, number, number],
+) => void;
+
+/** Barra rosa, rótulo de sección y un icono pequeño de apoyo. */
+function eyebrow(doc: jsPDF, label: string, y: number, icon?: IconFn): void {
+  block(doc, M, y, 20, 4, PINK);
+  text(doc, label, M + 30, y + 7, {
+    size: 9.5,
+    bold: true,
+    color: PINK,
+    tracking: 1.4,
+  });
+  if (icon) {
+    const labelW = textWidth(doc, label, 9.5, true) + label.length * 1.4;
+    icon(doc, M + 30 + labelW + 10, y - 3, 13, PINK);
+  }
+}
+
+function sectionLabel(doc: jsPDF, label: string, x: number, y: number): void {
+  text(doc, label, x, y, {
+    size: 8.5,
+    bold: true,
+    color: MUTED,
+    tracking: 1.1,
+  });
 }
 
 function coverPage(
@@ -293,165 +294,186 @@ function coverPage(
 ): void {
   const summary = brandCampaignSummary(report);
   const header = brandHeader(report);
-  const coverage = brandCoverage(report);
-  const attribution = brandStoreAttribution(report);
   const dwellSeconds = brandDwellTime(report);
+  const daily = brandDaily(report);
 
-  logo(doc, assets, M, 34, 236);
-  block(doc, CANVAS_W - M - 26, 34, 26, 3, PINK);
-  text(doc, 'REPORTE DE CAMPAÑA', CANVAS_W - M, 51, {
+  logo(doc, assets, M, 24, 28);
+  block(doc, CANVAS_W - M - 26, 24, 26, 3, PINK);
+  text(doc, 'REPORTE DE CAMPAÑA', CANVAS_W - M, 40, {
     size: 9,
     bold: true,
     color: PINK,
     align: 'right',
     tracking: 2.2,
   });
-  text(doc, periodLabel(report), CANVAS_W - M, 68, {
+  text(doc, periodLabel(report), CANVAS_W - M, 56, {
     size: 10,
     bold: true,
     color: NAVY,
     align: 'right',
   });
 
-  block(doc, 0, 104, CANVAS_W, 462, NAVY);
+  const LEFT_W = 615;
+  const PHOTO_X = LEFT_W;
+  const PHOTO_W = CANVAS_W - LEFT_W;
+  const BODY_TOP = 82;
 
+  // Panel de foto: a todo lo alto, sin desenfoque — el soporte debe
+  // distinguirse con nitidez. El degradado sólo vela el lado del texto.
   if (assets.cover) {
-    photoCover(doc, assets.cover, 'JPEG', 384, 104, 410, 330, 0.82, 0.5);
+    photoCover(
+      doc,
+      assets.cover,
+      'JPEG',
+      PHOTO_X,
+      BODY_TOP,
+      PHOTO_W,
+      CANVAS_H - BODY_TOP,
+      0.86,
+      0.42,
+    );
     const fromLeft: AlphaStop[] = [
       [0, 1],
-      [0.06, 1],
-      [0.2, 0.9],
-      [0.5, 0.42],
-      [1, 0.1],
+      [0.18, 0.92],
+      [0.34, 0.55],
+      [0.52, 0.06],
+      [0.62, 0],
     ];
     const fromBottom: AlphaStop[] = [
-      [0, 1],
-      [0.07, 1],
-      [0.34, 0.55],
-      [0.68, 0],
-      [1, 0],
+      [0, 0.5],
+      [0.3, 0],
     ];
-    fade(doc, 384, 104, 410, 330, NAVY, fromLeft, 'left');
-    fade(doc, 384, 104, 410, 330, NAVY, fromBottom, 'bottom');
+    fade(
+      doc,
+      PHOTO_X,
+      BODY_TOP,
+      PHOTO_W,
+      CANVAS_H - BODY_TOP,
+      NAVY,
+      fromLeft,
+      'left',
+    );
+    fade(
+      doc,
+      PHOTO_X,
+      BODY_TOP,
+      PHOTO_W,
+      CANVAS_H - BODY_TOP,
+      NAVY,
+      fromBottom,
+      'bottom',
+    );
+  } else {
+    block(doc, PHOTO_X, BODY_TOP, PHOTO_W, CANVAS_H - BODY_TOP, NAVY);
   }
+  block(doc, PHOTO_X + 36, CANVAS_H - 90, 30, 3, PINK);
+  text(doc, 'AUDIENCIAS REALES.', PHOTO_X + 36, CANVAS_H - 62, {
+    size: 12,
+    bold: true,
+    color: WHITE,
+    tracking: 1.6,
+  });
+  text(doc, 'OPORTUNIDADES REALES.', PHOTO_X + 36, CANVAS_H - 44, {
+    size: 12,
+    bold: true,
+    color: WHITE,
+    tracking: 1.6,
+  });
 
-  block(doc, M, 156, 34, 4, PINK);
-  text(doc, 'AUDIENCIA MEDIDA', M, 184, {
-    size: 9,
+  // Columna de datos.
+  block(doc, M, 100, 22, 4, PINK);
+  text(doc, 'AUDIENCIA MEDIDA EN PUNTO DE VENTA', M, 122, {
+    size: 10,
     bold: true,
-    color: BLUE_LIGHT,
-    tracking: 3,
+    color: MUTED,
+    tracking: 2.2,
   });
-  text(doc, 'EN PUNTO DE VENTA', M, 199, {
-    size: 9,
+  text(doc, report.campaignName.toUpperCase(), M, 158, {
+    size: 34,
     bold: true,
-    color: BLUE_LIGHT,
-    tracking: 3,
+    color: NAVY,
   });
-  const nameEnd = paragraph(
+  text(
     doc,
-    report.campaignName.toUpperCase(),
+    `Circuito Liverpool · ${header.totalStores} tiendas · ${header.supports.join(' · ') || 'Pantallas In-Store'}`,
     M,
-    248,
-    324,
-    { size: 30, bold: true, color: WHITE, lineHeight: 36 },
+    182,
+    { size: 12, color: MUTED },
   );
-  // Un nombre largo no puede empujar los metadatos sobre la cifra principal.
-  const metaTop = Math.min(nameEnd + 30, 364);
-  text(doc, `Circuito Liverpool · ${header.totalStores} tiendas`, M, metaTop, {
-    size: 10.5,
-    color: BLUE_PALE,
-  });
-  const supports = header.supports.join(' · ');
-  if (supports) {
-    text(doc, supports, M, metaTop + 19, { size: 10.5, color: BLUE_PALE });
-  }
+  block(doc, M, 198, LEFT_W - M - 40, 1, HAIR);
 
   const hero = formatCount(summary.estimatedOts);
-  text(doc, hero, M, 508, { size: 66, bold: true, color: WHITE });
-  const heroEnd = M + textWidth(doc, hero, 66, true) + 22;
-  block(doc, heroEnd, 452, 34, 4, PINK);
-  text(doc, 'OPORTUNIDADES', heroEnd, 479, {
-    size: 11,
+  text(doc, hero, M, 292, { size: 78, bold: true, color: NAVY });
+  const heroW = textWidth(doc, hero, 78, true);
+  if (daily.length >= 2) {
+    sparkline(
+      doc,
+      daily.map((point) => point.estimatedOts),
+      M + heroW + 18,
+      248,
+      110,
+      32,
+      SKY,
+      BLUE,
+    );
+  }
+  block(doc, M, 306, 20, 3, PINK);
+  text(doc, 'OPORTUNIDADES DE VER · OTS', M + 30, 314, {
+    size: 10.5,
     bold: true,
-    color: BLUE_LIGHT,
-    tracking: 1.8,
-  });
-  text(doc, 'DE VER · OTS', heroEnd, 496, {
-    size: 11,
-    bold: true,
-    color: BLUE_LIGHT,
-    tracking: 1.8,
+    color: NAVY,
+    tracking: 1.4,
   });
 
-  // Portada: una sola cifra protagonista. El reparto medido/estimado se
-  // explica en el pie discreto, nunca como segunda cifra hero.
-  const tiles: Array<[string, string]> = [
-    [formatCount(summary.dailyAverage), 'OTS PROMEDIO DIARIOS'],
-    [formatDwell(dwellSeconds), 'DWELL TIME PROMEDIO'],
+  const statsY = 366;
+  const stats: Array<[IconFn, string, string]> = [
+    [eyeIcon, formatCount(summary.dailyAverage), 'OTS PROMEDIO DIARIOS'],
+    [clockIcon, formatDwell(dwellSeconds), 'DWELL TIME PROMEDIO'],
     [
+      calendarIcon,
       `${formatCivilDate(report.startDate)} — ${formatCivilDate(report.endDate)}`,
       `VIGENCIA · ${header.days} DÍAS`,
     ],
   ];
-  const tileW = (CONTENT_W - 28) / 3;
-  const tileInnerW = tileW - 36;
-  tiles.forEach(([value, label], index) => {
-    const x = M + index * (tileW + 14);
-    block(doc, x, 730, tileW, 96, SKY);
-    block(doc, x, 730, 4, 96, BLUE);
-    // El valor de cada tarjeta escala su tamaño hasta caber: un rango de
-    // fechas no cabe a 22px, y forzarlo desbordaba la tarjeta hacia la
-    // siguiente.
+  const statColW = (LEFT_W - M - 40) / 3;
+  stats.forEach(([icon, value, label], index) => {
+    const x = M + index * statColW;
+    const accent = index === 1 ? PINK : BLUE;
+    if (index > 0) block(doc, x - 14, statsY - 4, 1, 62, HAIR);
+    icon(doc, x, statsY, 16, accent);
     let valueSize = 22;
-    while (
-      valueSize > 12 &&
-      textWidth(doc, value, valueSize, true) > tileInnerW
-    ) {
+    const maxW = statColW - 30;
+    while (valueSize > 12 && textWidth(doc, value, valueSize, true) > maxW) {
       valueSize -= 1;
     }
-    text(doc, value, x + 18, 784, { size: valueSize, bold: true, color: NAVY });
-    text(doc, label, x + 18, 806, {
-      size: 9,
+    text(doc, value, x, statsY + 44, {
+      size: valueSize,
       bold: true,
-      color: BLUE,
-      tracking: 1.2,
+      color: accent === PINK ? PINK : NAVY,
+    });
+    text(doc, label, x, statsY + 58, {
+      size: 8.5,
+      bold: true,
+      color: accent,
+      tracking: 1,
     });
   });
 
-  block(doc, M, 858, 22, 3, PINK);
-  text(doc, 'FORMATOS QUE PARTICIPAN EN LA CIFRA', M + 34, 866, {
+  text(doc, 'FORMATOS', M, 464, {
     size: 9,
     bold: true,
     color: MUTED,
-    tracking: 1.4,
+    tracking: 1.2,
   });
-  text(doc, header.supports.join(' · ') || 'Pantallas In-Store', M, 890, {
-    size: 13,
+  text(doc, header.supports.join(' · ') || 'Pantallas In-Store', M + 62, 464, {
+    size: 12,
     bold: true,
     color: NAVY,
   });
 
-  // Pie discreto, sólo informativo: clasifica tiendas, no horas ni días.
-  paragraph(
-    doc,
-    `${formatPercent(attribution.measuredStoresSharePercent, 0)} de los OTS corresponden a tiendas con medición en algún momento de la campaña (${coverage.measuredStores} de ${coverage.totalStores}) · ${formatPercent(attribution.unmeasuredStoresSharePercent, 0)} a tiendas sin medición directa (${coverage.estimatedStores} de ${coverage.totalStores}).`,
-    M,
-    CANVAS_H - 104,
-    CONTENT_W,
-    { size: 8.5, color: MUTED, lineHeight: 12 },
-  );
-
-  block(doc, M, CANVAS_H - 84, 40, 4, PINK);
-  text(doc, 'AUDIENCIAS REALES. OPORTUNIDADES REALES.', M, CANVAS_H - 59, {
-    size: 12,
-    bold: true,
-    color: NAVY,
-    tracking: 2.4,
-  });
-  block(doc, CANVAS_W - M - 30, CANVAS_H - 74, 30, 30, NAVY);
-  text(doc, '01', CANVAS_W - M - 15, CANVAS_H - 54, {
-    size: 12,
+  block(doc, CANVAS_W - M - 24, CANVAS_H - 34, 24, 18, NAVY);
+  text(doc, '01', CANVAS_W - M - 12, CANVAS_H - 22, {
+    size: 10,
     bold: true,
     color: WHITE,
     align: 'center',
@@ -480,14 +502,10 @@ interface EvolutionPoint {
   value: number;
   top: string;
   bottom: string;
+  emphasis?: boolean;
 }
 
-/**
- * Barras de evolución con eje adaptativo: hasta 28 puntos quedan legibles con
- * su valor rotulado; por encima, sólo se rotula el pico para no amontonar
- * texto. El ancho de barra y el tamaño de las etiquetas escalan con la
- * cantidad de puntos para que ninguno quede ilegible.
- */
+/** Barras finas (≤26px), con valor rotulado y sin rejillas: la etiqueta ya lo dice todo. */
 function drawEvolutionChart(
   doc: jsPDF,
   points: EvolutionPoint[],
@@ -503,12 +521,10 @@ function drawEvolutionChart(
     });
     return;
   }
-  const chartH = h - 60;
+  const chartH = h - 40;
   const max = niceCeiling(Math.max(1, ...points.map((point) => point.value)));
   const slotW = w / points.length;
-  const barW = Math.max(3, Math.min(48, slotW * 0.68));
-  const showValues = points.length <= 20;
-  const labelSize = points.length > 20 ? 7 : points.length > 14 ? 7.5 : 8.5;
+  const barW = Math.max(3, Math.min(26, slotW * 0.62));
   const peak = points.reduce(
     (best, point) => (point.value > best.value ? point : best),
     points[0]!,
@@ -526,17 +542,15 @@ function drawEvolutionChart(
       Math.max(1, barH),
       isPeak ? PINK : BLUE,
     );
-    if (showValues) {
-      text(doc, compact(point.value), barX + barW / 2, y + chartH - barH - 6, {
-        size: labelSize + 1,
-        bold: isPeak,
-        color: isPeak ? PINK : NAVY,
-        align: 'center',
-      });
-    }
+    text(doc, compact(point.value), barX + barW / 2, y + chartH - barH - 6, {
+      size: 8.5,
+      bold: isPeak,
+      color: isPeak ? PINK : NAVY,
+      align: 'center',
+    });
     if (point.top) {
       text(doc, point.top, barX + barW / 2, y + chartH + 16, {
-        size: labelSize,
+        size: 8.5,
         bold: isPeak,
         color: isPeak ? PINK : NAVY,
         align: 'center',
@@ -546,10 +560,65 @@ function drawEvolutionChart(
       doc,
       point.bottom,
       barX + barW / 2,
-      y + chartH + 16 + (point.top ? labelSize + 4 : 0),
-      { size: labelSize - 0.5, color: isPeak ? PINK : MUTED, align: 'center' },
+      y + chartH + (point.top ? 28 : 16),
+      { size: 7.5, color: isPeak ? PINK : MUTED, align: 'center' },
     );
   });
+  block(doc, x, y + chartH, w, 1, NAVY);
+}
+
+function topWeekdayLabel(
+  daily: ReturnType<typeof brandDaily>,
+): { label: string; ots: number } | null {
+  if (daily.length === 0) return null;
+  const totals = new Map<number, number>();
+  for (const point of daily) {
+    const parsed = new Date(`${point.date}T12:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) continue;
+    const day = parsed.getUTCDay();
+    totals.set(day, (totals.get(day) ?? 0) + point.estimatedOts);
+  }
+  const best = Array.from(totals.entries()).sort((a, b) => b[1] - a[1])[0];
+  if (!best) return null;
+  const label = WEEKDAY_FULL[best[0]];
+  return label ? { label, ots: best[1] } : null;
+}
+
+/** Día concreto con más OTS ajustados (para el rótulo del pico en el eje). */
+function peakDay(
+  daily: ReturnType<typeof brandDaily>,
+): { date: string; ots: number } | null {
+  if (daily.length === 0) return null;
+  const best = daily.reduce(
+    (top, point) => (point.estimatedOts > top.estimatedOts ? point : top),
+    daily[0]!,
+  );
+  return { date: best.date, ots: best.estimatedOts };
+}
+
+/** % de diferencia entre el promedio de fin de semana y el de entre semana. */
+function weekendDelta(daily: ReturnType<typeof brandDaily>): number | null {
+  let weekendSum = 0;
+  let weekendCount = 0;
+  let weekdaySum = 0;
+  let weekdayCount = 0;
+  for (const point of daily) {
+    const parsed = new Date(`${point.date}T12:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) continue;
+    const day = parsed.getUTCDay();
+    if (day === 0 || day === 6) {
+      weekendSum += point.estimatedOts;
+      weekendCount += 1;
+    } else {
+      weekdaySum += point.estimatedOts;
+      weekdayCount += 1;
+    }
+  }
+  if (weekendCount === 0 || weekdayCount === 0) return null;
+  const weekendAvg = weekendSum / weekendCount;
+  const weekdayAvg = weekdaySum / weekdayCount;
+  if (weekdayAvg <= 0) return null;
+  return ((weekendAvg - weekdayAvg) / weekdayAvg) * 100;
 }
 
 function evolutionPage(
@@ -559,33 +628,23 @@ function evolutionPage(
 ): void {
   pageHeader(doc, assets, report);
   const header = brandHeader(report);
+  const summary = brandCampaignSummary(report);
+  const coverage = brandCoverage(report);
   const useWeekly = header.days > 28;
+  const daily = brandDaily(report);
 
-  eyebrow(doc, '01 · EVOLUCIÓN', 118);
-  text(doc, 'Cómo evolucionó la audiencia', M, 158, {
-    size: 30,
+  eyebrow(doc, '01 · EVOLUCIÓN', 88, trendIcon);
+  text(doc, 'Cómo evolucionó la audiencia', M, 122, {
+    size: 24,
     bold: true,
     color: NAVY,
   });
-  paragraph(
-    doc,
-    useWeekly
-      ? `Serie semanal de OTS ajustados del circuito medible: cada barra suma los días con medición de esa semana a lo largo de los ${header.days} días de vigencia.`
-      : `Serie diaria de OTS ajustados del circuito medible a lo largo de los ${header.days} días de vigencia. Cada barra concilia con la cifra de portada.`,
-    M,
-    190,
-    620,
-    { size: 11.5, lineHeight: 18 },
-  );
 
-  block(doc, M, 244, CONTENT_W, 560, SOFT);
   sectionLabel(
     doc,
-    useWeekly
-      ? 'OTS AJUSTADOS POR SEMANA DE CAMPAÑA'
-      : 'OTS AJUSTADOS POR DÍA DE CAMPAÑA',
-    M + 26,
-    278,
+    useWeekly ? 'OTS POR SEMANA DE CAMPAÑA' : 'OTS POR DÍA DE CAMPAÑA',
+    M,
+    166,
   );
 
   const points: EvolutionPoint[] = useWeekly
@@ -594,37 +653,56 @@ function evolutionPage(
         top: `Sem. ${index + 1}`,
         bottom: `${shortCivilDate(week.weekStart)}–${shortCivilDate(week.weekEnd)}`,
       }))
-    : brandDaily(report).map((point) => ({
+    : daily.map((point) => ({
         value: point.estimatedOts,
         top: weekdayShort(point.date),
         bottom: point.label,
       }));
 
-  drawEvolutionChart(doc, points, M + 26, 306, CONTENT_W - 52, 400);
+  drawEvolutionChart(doc, points, M, 190, CONTENT_W, 250);
 
-  text(
-    doc,
-    useWeekly
-      ? 'Serie agregada de los soportes con medición, sumada por semana natural (lunes a domingo).'
-      : 'Serie agregada de los soportes con medición, incluyendo su estimación.',
-    M + 26,
-    724,
-    { size: 9.5, color: MUTED },
-  );
+  // Conclusiones, no metodología: lo que la marca necesita saber.
+  const conclusions: Array<[string, string]> = [
+    [formatCount(summary.dailyAverage), 'OTS PROMEDIO / DÍA'],
+    [formatCount(summary.dailyPerStore), 'OTS PROMEDIO / DÍA / TIENDA'],
+  ];
+  const peak = peakDay(daily);
+  if (peak) {
+    conclusions.push([
+      weekdayShort(peak.date)
+        ? `${WEEKDAY_FULL[new Date(`${peak.date}T12:00:00Z`).getUTCDay()]}`
+        : peak.date,
+      `DÍA PICO · ${compact(peak.ots)} OTS`,
+    ]);
+  }
+  const delta = weekendDelta(daily);
+  if (delta !== null) {
+    conclusions.push([
+      `${delta >= 0 ? '+' : ''}${Math.round(delta)}%`,
+      'FIN DE SEMANA VS. ENTRE SEMANA',
+    ]);
+  }
 
-  quote(
-    doc,
-    useWeekly
-      ? 'Cada semana suma días ya completados formato a formato con el promedio de ese mismo formato en la vigencia: un hueco de medición nunca se dibuja como una caída de audiencia.'
-      : 'Cada día se completa formato a formato con el promedio de ese mismo formato en la vigencia: un hueco de medición nunca se dibuja como una caída de audiencia.',
-    850,
-    84,
-  );
+  const rowY = 490;
+  const colW = CONTENT_W / conclusions.length;
+  conclusions.forEach(([value, label], index) => {
+    const x = M + index * colW;
+    if (index > 0) block(doc, x - 12, rowY - 4, 1, 46, HAIR);
+    const accent = label.startsWith('DÍA PICO') ? PINK : BLUE;
+    text(doc, value, x, rowY + 22, { size: 21, bold: true, color: NAVY });
+    text(doc, label, x, rowY + 36, {
+      size: 8.5,
+      bold: true,
+      color: accent,
+      tracking: 0.8,
+    });
+  });
 
   pageFooter(
     doc,
     doc.getNumberOfPages(),
     'AUDIENCIAS REALES. OPORTUNIDADES REALES.',
+    `${formatPercent(coverage.measuredPercent, 0)} tiendas con cámara · ${formatPercent(coverage.estimatedPercent, 0)} tiendas proyectadas`,
   );
 }
 
@@ -658,92 +736,7 @@ function bucketGenderWeekly(
     });
 }
 
-function drawGenderChart(
-  doc: jsPDF,
-  points: readonly BrandGenderDayPoint[],
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): void {
-  if (points.length === 0) {
-    text(doc, 'Sin datos demográficos en el periodo', x, y + 40, {
-      size: 11,
-      color: MUTED,
-    });
-    return;
-  }
-  const barsH = h - 30;
-  const slotW = w / points.length;
-  const barW = Math.max(3, Math.min(40, slotW * 0.72));
-  const showLabels = points.length <= 20;
-
-  points.forEach((point, index) => {
-    const barX = x + (index + 0.5) * slotW - barW / 2;
-    const femaleH = (point.female / 100) * barsH;
-    const maleH = (point.male / 100) * barsH;
-    const unknownH = (point.unknown / 100) * barsH;
-    let cursor = y + barsH;
-    if (unknownH > 0) {
-      block(doc, barX, cursor - unknownH, barW, unknownH, GRAY_DARK);
-      cursor -= unknownH;
-    }
-    if (maleH > 0) {
-      block(doc, barX, cursor - maleH, barW, maleH, BLUE);
-      cursor -= maleH;
-    }
-    if (femaleH > 0) {
-      block(doc, barX, cursor - femaleH, barW, femaleH, PINK);
-    }
-    if (showLabels) {
-      text(doc, shortCivilDate(point.date), barX + barW / 2, y + barsH + 16, {
-        size: 7.5,
-        color: MUTED,
-        align: 'center',
-      });
-    }
-  });
-}
-
-function drawHourlyChart(
-  doc: jsPDF,
-  points: ReturnType<typeof brandHourlyDistribution>,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): void {
-  const chartH = h - 34;
-  const max = niceCeiling(Math.max(1, ...points.map((point) => point.share)));
-  const slotW = w / points.length;
-  const barW = Math.max(4, Math.min(48, slotW * 0.7));
-
-  points.forEach((point, index) => {
-    const barX = x + (index + 0.5) * slotW - barW / 2;
-    const barH = (point.share / max) * chartH;
-    block(doc, barX, y + chartH - barH, barW, Math.max(1, barH), BLUE);
-    text(
-      doc,
-      `${Math.round(point.share)}%`,
-      barX + barW / 2,
-      y + chartH - barH - 6,
-      { size: 7.5, bold: true, color: NAVY, align: 'center' },
-    );
-    text(
-      doc,
-      `${String(point.hour).padStart(2, '0')}h`,
-      barX + barW / 2,
-      y + chartH + 14,
-      {
-        size: 7.5,
-        color: MUTED,
-        align: 'center',
-      },
-    );
-  });
-}
-
-function profilePage(
+function audiencePage(
   doc: jsPDF,
   report: QuividiCampaignReport,
   assets: PdfAssets,
@@ -753,123 +746,198 @@ function profilePage(
   const genderByDay = brandGenderByDay(report);
   const genderPoints =
     header.days > 28 ? bucketGenderWeekly(genderByDay) : genderByDay;
-  const hourly = brandHourlyDistribution(report);
-  const pyramid = brandGenderAge(report).slice(0, 5);
+  const pyramid = brandGenderAge(report).slice(0, 4);
 
-  eyebrow(doc, '02 · PERFIL Y HORARIOS', 118);
-  text(doc, 'Quién vio la campaña y cuándo', M, 158, {
-    size: 26,
+  eyebrow(doc, '02 · AUDIENCIA', 88, peopleIcon);
+  text(doc, 'Quién vio la campaña', M, 122, {
+    size: 24,
     bold: true,
     color: NAVY,
   });
 
-  // Bloque A: composición por género, día a día (o semana a semana en
-  // vigencias largas).
-  block(doc, M, 196, CONTENT_W, 196, SOFT);
-  sectionLabel(doc, 'COMPOSICIÓN POR GÉNERO · POR DÍA (%)', M + 22, 226);
-  let legendX = CANVAS_W - M - 22 - 230;
-  legendX = legendDot(doc, legendX, 226, PINK, 'Femenino');
-  legendX = legendDot(doc, legendX, 226, BLUE, 'Masculino');
-  legendDot(doc, legendX, 226, GRAY_DARK, 'No identificado');
-  drawGenderChart(doc, genderPoints, M + 22, 246, CONTENT_W - 44, 116);
-  text(
-    doc,
-    'El % "No identificado" se conserva tal cual lo reporta la medición; nunca se redistribuye entre mujeres y hombres.',
-    M + 22,
-    380,
-    { size: 8.5, color: MUTED },
-  );
+  // El género de portada sale de `brandGender` (todo el público, incluido el
+  // no identificado), no de la pirámide: ésta sólo cruza los géneros
+  // conocidos y ya está renormalizada a 100, así que derivar el «no
+  // identificado» de ahí siempre daría cero.
+  const genderShares = brandGender(report);
+  const shareFor = (label: string) =>
+    genderShares.find((item) => item.label === label)?.share ?? 0;
+  const femaleTotal = shareFor('Femenino');
+  const maleTotal = shareFor('Masculino');
+  const unknownTotal = shareFor('Desconocido');
+  const headline: Array<[string, string, readonly [number, number, number]]> = [
+    [formatPercent(femaleTotal, 0), 'MUJERES', PINK],
+    [formatPercent(maleTotal, 0), 'HOMBRES', BLUE],
+    [formatPercent(unknownTotal, 0), 'NO IDENTIF.', GRAY_DARK],
+  ];
+  let headX = CANVAS_W - M;
+  [...headline].reverse().forEach(([value, label, color]) => {
+    text(doc, label, headX, 108, {
+      size: 8.5,
+      bold: true,
+      color: MUTED,
+      align: 'right',
+      tracking: 0.8,
+    });
+    text(doc, value, headX, 96, {
+      size: 22,
+      bold: true,
+      color,
+      align: 'right',
+    });
+    headX -= Math.max(textWidth(doc, value, 22, true), 60) + 28;
+  });
 
-  // Bloque B: distribución horaria de OTS con medición directa.
-  block(doc, M, 410, CONTENT_W, 196, SOFT);
-  sectionLabel(
-    doc,
-    'DISTRIBUCIÓN HORARIA DE OTS CON MEDICIÓN DIRECTA',
-    M + 22,
-    440,
+  // Hero: la pirámide, centrada y con aire.
+  const axis = CANVAS_W / 2;
+  const labelHalf = 110;
+  const maxBar = 200;
+  const peak = Math.max(
+    ...pyramid.map((row) => Math.max(row.female, row.male)),
+    1,
   );
-  if (hourly.length === 0) {
-    paragraph(
-      doc,
-      'El reporte de esta campaña no incluye detalle horario, por lo que no se publica el reparto por hora.',
-      M + 22,
-      478,
-      CONTENT_W - 44,
-      { size: 10.5, lineHeight: 16 },
-    );
-  } else {
-    drawHourlyChart(doc, hourly, M + 22, 454, CONTENT_W - 44, 136);
-  }
+  text(doc, 'MUJERES', axis - labelHalf - 8, 158, {
+    size: 9,
+    bold: true,
+    color: PINK,
+    align: 'right',
+    tracking: 1.2,
+  });
+  text(doc, 'HOMBRES', axis + labelHalf + 8, 158, {
+    size: 9,
+    bold: true,
+    color: BLUE,
+    tracking: 1.2,
+  });
 
-  // Bloque C: pirámide de género y edad.
-  sectionLabel(doc, 'PERFIL POR GÉNERO Y EDAD (% SOBRE EL TOTAL)', M, 646);
   if (pyramid.length === 0) {
-    text(doc, 'Sin datos demográficos en el periodo', M, 700, {
+    text(doc, 'Sin datos demográficos en el periodo', axis, 220, {
       size: 11,
       color: MUTED,
+      align: 'center',
     });
   } else {
-    const axis = CANVAS_W / 2;
-    const labelHalf = 78;
-    const maxBar = 200;
-    const peak = Math.max(
-      ...pyramid.map((row) => Math.max(row.female, row.male)),
-      1,
-    );
-    text(doc, 'MUJERES', axis - labelHalf - 8, 672, {
-      size: 9,
-      bold: true,
-      color: PINK,
-      align: 'right',
-      tracking: 1.2,
-    });
-    text(doc, 'HOMBRES', axis + labelHalf + 8, 672, {
-      size: 9,
-      bold: true,
-      color: BLUE,
-      tracking: 1.2,
-    });
     pyramid.forEach((row, index) => {
-      const y = 684 + index * 27;
+      const y = 178 + index * 42;
       const femaleW = (row.female / peak) * maxBar;
       const maleW = (row.male / peak) * maxBar;
-      if (femaleW > 0) {
-        block(doc, axis - labelHalf - femaleW, y, femaleW, 15, PINK);
-      }
-      if (maleW > 0) block(doc, axis + labelHalf, y, maleW, 15, BLUE);
+      if (femaleW > 0)
+        block(doc, axis - labelHalf - femaleW, y, femaleW, 24, PINK);
+      if (maleW > 0) block(doc, axis + labelHalf, y, maleW, 24, BLUE);
       text(
         doc,
         formatPercent(row.female, 0),
-        axis - labelHalf - femaleW - 7,
-        y + 12,
-        { size: 10, bold: true, color: NAVY, align: 'right' },
+        axis - labelHalf - femaleW - 8,
+        y + 17,
+        {
+          size: 13,
+          bold: true,
+          color: NAVY,
+          align: 'right',
+        },
       );
       text(
         doc,
         formatPercent(row.male, 0),
-        axis + labelHalf + maleW + 7,
-        y + 12,
+        axis + labelHalf + maleW + 8,
+        y + 17,
         {
-          size: 10,
+          size: 13,
           bold: true,
           color: NAVY,
         },
       );
-      text(doc, row.age, axis, y + 12, {
-        size: 9,
-        color: NAVY,
+      text(doc, row.age, axis, y + 17, {
+        size: 10.5,
+        color: MUTED,
         align: 'center',
       });
     });
+
+    const top = pyramid[0]!;
+    const topShare = Math.round(top.female + top.male);
+    const pillLabel = `${topShare}% de la audiencia está en el rango "${top.age}"`;
+    const pillW = textWidth(doc, pillLabel, 12) + 44;
+    block(doc, axis - pillW / 2, 340, pillW, 30, PINK_PALE);
+    text(doc, pillLabel, axis, 359, { size: 12, color: NAVY, align: 'center' });
   }
 
-  quote(
-    doc,
-    'Las distribuciones describen el perfil agregado del público alcanzado durante toda la vigencia y se aplican al universo ajustado, sin describir los segmentos extrapolados como medición directa. No se incluyen conteos absolutos de personas ni resultados desglosados por tienda.',
-    900,
-    88,
-    true,
-  );
+  // Secundario y discreto: la tendencia diaria, en línea — nunca apilada.
+  sectionLabel(doc, 'COMPOSICIÓN POR GÉNERO — EVOLUCIÓN DÍA A DÍA (%)', M, 420);
+  if (genderPoints.length === 0) {
+    text(doc, 'Sin datos demográficos en el periodo', M, 460, {
+      size: 10.5,
+      color: MUTED,
+    });
+  } else {
+    const chartX = M;
+    const chartY = 434;
+    const chartW = CONTENT_W - 140;
+    const chartH = 96;
+    const maleSeries = genderPoints.map((p) => p.male);
+    const femaleSeries = genderPoints.map((p) => p.female);
+    // Dominio compartido: mujeres y hombres deben leerse en la misma escala,
+    // o una diferencia de medio punto se dibuja como un zigzag violento.
+    const combined = [...maleSeries, ...femaleSeries];
+    const domainMin = Math.min(...combined);
+    const domainMax = Math.max(...combined);
+    const pad = Math.max(1, (domainMax - domainMin) * 0.2);
+    const domain: [number, number] = [domainMin - pad, domainMax + pad];
+    sparkline(
+      doc,
+      maleSeries,
+      chartX,
+      chartY,
+      chartW,
+      chartH,
+      BLUE,
+      BLUE,
+      domain,
+    );
+    sparkline(
+      doc,
+      femaleSeries,
+      chartX,
+      chartY,
+      chartW,
+      chartH,
+      PINK,
+      PINK,
+      domain,
+    );
+    const last = genderPoints[genderPoints.length - 1]!;
+    text(
+      doc,
+      `${formatPercent(last.female, 0)} mujeres`,
+      chartX + chartW + 14,
+      chartY + 24,
+      { size: 10.5, bold: true, color: PINK },
+    );
+    text(
+      doc,
+      `${formatPercent(last.male, 0)} hombres`,
+      chartX + chartW + 14,
+      chartY + 60,
+      { size: 10.5, bold: true, color: BLUE },
+    );
+    const first = genderPoints[0]!;
+    text(doc, shortCivilDate(first.date), chartX, chartY + chartH + 16, {
+      size: 8,
+      color: MUTED,
+    });
+    text(
+      doc,
+      shortCivilDate(last.date),
+      chartX + chartW,
+      chartY + chartH + 16,
+      {
+        size: 8,
+        color: MUTED,
+        align: 'right',
+      },
+    );
+  }
+
   pageFooter(
     doc,
     doc.getNumberOfPages(),
@@ -877,7 +945,159 @@ function profilePage(
   );
 }
 
-const TOP_STORES_ROWS_PER_PAGE = 16;
+/** Barras finas de distribución horaria, con el pico resaltado. */
+function drawHourlyChart(
+  doc: jsPDF,
+  points: ReturnType<typeof brandHourlyDistribution>,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  peakHour: number | null,
+): void {
+  const max = niceCeiling(Math.max(1, ...points.map((point) => point.share)));
+  const slotW = w / points.length;
+  const barW = Math.max(4, Math.min(26, slotW * 0.6));
+
+  points.forEach((point, index) => {
+    const barX = x + (index + 0.5) * slotW - barW / 2;
+    const barH = (point.share / max) * h;
+    const isPeak = point.hour === peakHour;
+    block(
+      doc,
+      barX,
+      y + h - barH,
+      barW,
+      Math.max(1, barH),
+      isPeak ? PINK : BLUE,
+    );
+    text(
+      doc,
+      `${Math.round(point.share)}%`,
+      barX + barW / 2,
+      y + h - barH - 6,
+      {
+        size: 8.5,
+        bold: isPeak,
+        color: isPeak ? PINK : NAVY,
+        align: 'center',
+      },
+    );
+    text(
+      doc,
+      `${String(point.hour).padStart(2, '0')}h`,
+      barX + barW / 2,
+      y + h + 16,
+      {
+        size: 8,
+        bold: isPeak,
+        color: isPeak ? PINK : MUTED,
+        align: 'center',
+      },
+    );
+  });
+  block(doc, x, y + h, w, 1, NAVY);
+}
+
+function topHourLabel(
+  hourly: ReturnType<typeof brandHourlyDistribution>,
+): number | null {
+  if (hourly.length === 0) return null;
+  const best = hourly.reduce(
+    (top, point) => (point.share > top.share ? point : top),
+    hourly[0]!,
+  );
+  return best.hour;
+}
+
+/** Ventana contigua de horas con mayor concentración de OTS observados. */
+function peakWindow(
+  hourly: ReturnType<typeof brandHourlyDistribution>,
+  windowSize = 5,
+): { startHour: number; endHour: number; percent: number } | null {
+  if (hourly.length === 0) return null;
+  const size = Math.min(windowSize, hourly.length);
+  let bestStart = 0;
+  let bestSum = -1;
+  for (let i = 0; i + size <= hourly.length; i += 1) {
+    const sum = hourly
+      .slice(i, i + size)
+      .reduce((total, point) => total + point.share, 0);
+    if (sum > bestSum) {
+      bestSum = sum;
+      bestStart = i;
+    }
+  }
+  const startHour = hourly[bestStart]!.hour;
+  const endHour = hourly[bestStart + size - 1]!.hour + 1;
+  return { startHour, endHour, percent: bestSum };
+}
+
+function horariosPage(
+  doc: jsPDF,
+  report: QuividiCampaignReport,
+  assets: PdfAssets,
+): void {
+  pageHeader(doc, assets, report);
+  const hourly = brandHourlyDistribution(report);
+  const peak = topHourLabel(hourly);
+  const window = peakWindow(hourly);
+
+  eyebrow(doc, '03 · HORARIOS', 88, clockIcon);
+  text(doc, 'Cuándo te vio tu público', M, 122, {
+    size: 24,
+    bold: true,
+    color: NAVY,
+  });
+
+  if (peak !== null) {
+    text(doc, `${String(peak).padStart(2, '0')}:00 h`, CANVAS_W - M, 108, {
+      size: 22,
+      bold: true,
+      color: PINK,
+      align: 'right',
+    });
+    text(doc, 'HORA DE MAYOR TRÁNSITO', CANVAS_W - M, 122, {
+      size: 8.5,
+      bold: true,
+      color: MUTED,
+      align: 'right',
+      tracking: 0.8,
+    });
+  }
+
+  if (window) {
+    paragraph(
+      doc,
+      `La franja de ${String(window.startHour).padStart(2, '0')}:00 a ${String(window.endHour).padStart(2, '0')}:00 h concentra ${formatPercent(window.percent, 0)} de los OTS con medición directa de la campaña.`,
+      M,
+      158,
+      680,
+      { size: 12.5, color: NAVY, lineHeight: 17 },
+    );
+  }
+
+  if (hourly.length === 0) {
+    paragraph(
+      doc,
+      'El reporte de esta campaña no incluye detalle horario, por lo que no se publica el reparto por hora.',
+      M,
+      210,
+      CONTENT_W,
+      { size: 11.5, lineHeight: 17 },
+    );
+  } else {
+    drawHourlyChart(doc, hourly, M, 220, CONTENT_W, 400, peak);
+  }
+
+  pageFooter(
+    doc,
+    doc.getNumberOfPages(),
+    'AUDIENCIAS REALES. OPORTUNIDADES REALES.',
+  );
+}
+
+const TOP_STORES_ROWS_PER_PAGE = 8;
 
 function topStoresPage(
   doc: jsPDF,
@@ -889,13 +1109,13 @@ function topStoresPage(
 
   if (stores.length === 0) {
     pageHeader(doc, assets, report);
-    eyebrow(doc, '03 · TIENDAS TOP', 118);
-    text(doc, 'Tiendas TOP', M, 168, { size: 32, bold: true, color: NAVY });
+    eyebrow(doc, '04 · TIENDAS TOP', 88);
+    text(doc, 'Tiendas TOP', M, 130, { size: 30, bold: true, color: NAVY });
     paragraph(
       doc,
       'Ninguna tienda registró medición directa durante esta vigencia.',
       M,
-      210,
+      168,
       CONTENT_W,
       { size: 11.5, lineHeight: 17 },
     );
@@ -907,9 +1127,8 @@ function topStoresPage(
     return;
   }
 
-  const hasInsurgentes = stores.some((store) =>
-    store.storeName.toUpperCase().includes('INSURGENTES'),
-  );
+  const maxDwell = Math.max(...stores.map((store) => store.dwellSeconds), 1);
+  const maxOts = stores[0]!.adjustedOts || 1;
   const pageCount = Math.max(
     1,
     Math.ceil(stores.length / TOP_STORES_ROWS_PER_PAGE),
@@ -920,91 +1139,79 @@ function topStoresPage(
     pageHeader(doc, assets, report);
     eyebrow(
       doc,
-      pageIndex === 0 ? '03 · TIENDAS TOP' : '03 · TIENDAS TOP — CONTINUACIÓN',
-      118,
+      pageIndex === 0 ? '04 · TIENDAS TOP' : '04 · TIENDAS TOP — CONTINUACIÓN',
+      88,
     );
-    text(doc, 'Tiendas TOP', M, 168, { size: 32, bold: true, color: NAVY });
-    let tableTop = 220;
+    let bodyTop = 148;
     if (pageIndex === 0) {
-      tableTop = paragraph(
+      text(doc, 'Tiendas TOP', M, 130, { size: 30, bold: true, color: NAVY });
+      text(
         doc,
-        'Tiendas con medición válida en algún momento de la campaña. Los OTS ajustados incluyen las horas y días faltantes estimados para esa tienda.',
+        'Tiendas con medición válida en algún momento de la campaña.',
         M,
-        202,
-        620,
-        { size: 11.5, lineHeight: 17 },
+        152,
+        { size: 11, color: MUTED },
       );
-      tableTop += 20;
+      bodyTop = 190;
+      text(doc, 'DWELL TIME', CANVAS_W - M, bodyTop - 14, {
+        size: 8,
+        bold: true,
+        color: MUTED,
+        align: 'right',
+        tracking: 0.8,
+      });
     }
-
-    text(doc, 'TIENDA', M + 16, tableTop, {
-      size: 9.5,
-      bold: true,
-      color: MUTED,
-      tracking: 1,
-    });
-    text(doc, 'OTS AJUSTADOS', M + CONTENT_W - 210, tableTop, {
-      size: 9.5,
-      bold: true,
-      color: MUTED,
-      tracking: 1,
-      align: 'right',
-    });
-    text(doc, 'DWELL TIME PROM.', M + CONTENT_W - 16, tableTop, {
-      size: 9.5,
-      bold: true,
-      color: MUTED,
-      tracking: 1,
-      align: 'right',
-    });
-    block(doc, M, tableTop + 8, CONTENT_W, 2, NAVY);
 
     const slice = stores.slice(
       pageIndex * TOP_STORES_ROWS_PER_PAGE,
       (pageIndex + 1) * TOP_STORES_ROWS_PER_PAGE,
     );
-    const rowH = 38;
-    const rowsTop = tableTop + 30;
+    const rowH = 56;
+    const barAreaX = M + 236;
+    const barAreaW = CONTENT_W - 236 - 130;
     slice.forEach((store, index) => {
-      const rowY = rowsTop + index * rowH;
-      if (index % 2 === 0) block(doc, M, rowY - 16, CONTENT_W, rowH, SKY);
-      text(doc, store.storeName, M + 16, rowY, {
-        size: 12,
+      const rank = pageIndex * TOP_STORES_ROWS_PER_PAGE + index + 1;
+      const rowY = bodyTop + index * rowH;
+      const accent = rank === 1 ? PINK : BLUE;
+      text(doc, String(rank).padStart(2, '0'), M, rowY + 20, {
+        size: 20,
+        bold: true,
+        color: rank === 1 ? PINK_PALE : HAIR,
+      });
+      text(doc, store.storeName, M + 46, rowY + 16, {
+        size: 13.5,
         bold: true,
         color: NAVY,
       });
-      text(doc, formatCount(store.adjustedOts), M + CONTENT_W - 210, rowY, {
-        size: 12,
-        bold: true,
-        color: NAVY,
-        align: 'right',
-      });
-      text(doc, formatDwell(store.dwellSeconds), M + CONTENT_W - 16, rowY, {
-        size: 12,
-        color: NAVY,
-        align: 'right',
-      });
-    });
-
-    if (pageIndex === pageCount - 1) {
-      let noteY = rowsTop + slice.length * rowH + 20;
-      noteY = paragraph(
+      const barW = Math.max(4, (store.adjustedOts / maxOts) * barAreaW);
+      block(doc, barAreaX, rowY, barW, 22, accent);
+      text(
         doc,
-        'La suma de esta tabla no equivale al total de campaña: la diferencia corresponde, entre otros factores, a las tiendas sin medición cuyos OTS estimados sí forman parte del total de portada pero no se listan aquí.',
-        M,
-        noteY,
-        CONTENT_W,
-        { size: 9.5, lineHeight: 14 },
+        formatCount(store.adjustedOts),
+        barAreaX + barW + 10,
+        rowY + 16,
+        {
+          size: 13,
+          bold: true,
+          color: NAVY,
+        },
       );
-      if (hasInsurgentes) {
-        quote(
-          doc,
-          'Insurgentes tiene dos cámaras que miden zonas distintas del mismo soporte; sus OTS válidos se suman (no se promedian) para esta vista comercial. La tienda cuenta una sola vez en el universo de campaña.',
-          Math.min(noteY + 20, CANVAS_H - 176),
-          76,
-        );
+
+      const dwellColX = CANVAS_W - M - 64;
+      text(doc, formatDwell(store.dwellSeconds), dwellColX + 64, rowY + 4, {
+        size: 11,
+        bold: true,
+        color: NAVY,
+        align: 'right',
+      });
+      const dwellBarW = Math.max(3, (store.dwellSeconds / maxDwell) * 64);
+      block(doc, dwellColX + 64 - 64, rowY + 12, 64, 4, HAIR);
+      block(doc, dwellColX + 64 - 64, rowY + 12, dwellBarW, 4, SKY);
+      block(doc, dwellColX + 64 - dwellBarW, rowY + 12, dwellBarW, 4, accent);
+      if (index < slice.length - 1) {
+        block(doc, M, rowY + rowH - 14, CONTENT_W, 1, HAIR);
       }
-    }
+    });
 
     pageFooter(
       doc,
@@ -1012,30 +1219,6 @@ function topStoresPage(
       'AUDIENCIAS REALES. OPORTUNIDADES REALES.',
     );
   }
-}
-
-function topWeekdayLabel(daily: ReturnType<typeof brandDaily>): string | null {
-  if (daily.length === 0) return null;
-  const totals = new Map<number, number>();
-  for (const point of daily) {
-    const parsed = new Date(`${point.date}T12:00:00Z`);
-    if (Number.isNaN(parsed.getTime())) continue;
-    const day = parsed.getUTCDay();
-    totals.set(day, (totals.get(day) ?? 0) + point.estimatedOts);
-  }
-  const best = Array.from(totals.entries()).sort((a, b) => b[1] - a[1])[0];
-  return best ? (WEEKDAY_FULL[best[0]] ?? null) : null;
-}
-
-function topHourLabel(
-  hourly: ReturnType<typeof brandHourlyDistribution>,
-): string | null {
-  if (hourly.length === 0) return null;
-  const best = hourly.reduce(
-    (top, point) => (point.share > top.share ? point : top),
-    hourly[0]!,
-  );
-  return `${String(best.hour).padStart(2, '0')}:00`;
 }
 
 function closingPage(
@@ -1048,12 +1231,19 @@ function closingPage(
   const hourly = brandHourlyDistribution(report);
   const pyramid = brandGenderAge(report);
 
-  eyebrow(doc, '04 · CIERRE', 122);
-  paragraph(doc, 'Cómo aprovechar estos resultados', M, 172, CONTENT_W, {
-    size: 27,
+  const LEFT_W = 615;
+
+  block(doc, M, 90, 20, 4, PINK);
+  text(doc, '05 · CIERRE', M + 30, 97, {
+    size: 9.5,
+    bold: true,
+    color: PINK,
+    tracking: 1.4,
+  });
+  text(doc, 'Cómo aprovechar estos resultados', M, 130, {
+    size: 22,
     bold: true,
     color: NAVY,
-    lineHeight: 33,
   });
 
   const recommendations: Array<[string, string]> = [];
@@ -1061,114 +1251,115 @@ function closingPage(
   if (weekday) {
     recommendations.push([
       'Refuerza el día de mayor audiencia',
-      `Los ${weekday.toLowerCase()}s concentran la mayor proporción de OTS ajustados de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
+      `Los ${weekday.label.toLowerCase()}s concentran la mayor proporción de OTS ajustados de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
     ]);
   }
-  const hour = topHourLabel(hourly);
-  if (hour) {
+  const peakHour = topHourLabel(hourly);
+  if (peakHour !== null) {
     recommendations.push([
       'Aprovecha la franja de mayor tránsito',
-      `La hora ${hour} concentra la mayor proporción de OTS con medición directa durante la vigencia; es una referencia útil para calendarizar activaciones puntuales.`,
+      `La hora ${String(peakHour).padStart(2, '0')}:00 concentra la mayor proporción de OTS con medición directa; es una referencia útil para calendarizar activaciones puntuales.`,
     ]);
   }
   const topAge = pyramid[0]?.age;
   if (topAge) {
     recommendations.push([
       'Habla al público que efectivamente llega',
-      `${topAge} es el rango de edad con mayor presencia observada. Es una referencia útil para el tono creativo, no una garantía de conversión: la audiencia medida no equivale a ventas.`,
+      `${topAge} es el rango de edad con mayor presencia observada. Es una buena referencia para el tono creativo de la próxima campaña.`,
     ]);
   }
   if (recommendations.length === 0) {
     recommendations.push([
       'Resultado agregado del circuito',
-      'Esta vigencia no reunió suficiente detalle horario o demográfico para desglosar recomendaciones puntuales; los resultados generales de campaña se mantienen disponibles en el resto del informe.',
+      'Esta vigencia no reunió suficiente detalle horario o demográfico para desglosar recomendaciones puntuales.',
     ]);
   }
 
   recommendations.slice(0, 3).forEach(([title, body], index) => {
-    const y = 234 + index * 120;
-    text(doc, String(index + 1).padStart(2, '0'), M, y + 28, {
-      size: 28,
+    const y = 200 + index * 96;
+    text(doc, String(index + 1).padStart(2, '0'), M, y + 22, {
+      size: 22,
       bold: true,
       color: PINK,
     });
-    block(doc, M + 44, y - 4, 1, 66, HAIR);
-    text(doc, title, M + 66, y + 10, { size: 13, bold: true, color: NAVY });
-    paragraph(doc, body, M + 66, y + 34, CONTENT_W - 66, {
+    block(doc, M + 34, y - 4, 1, 54, HAIR);
+    text(doc, title, M + 52, y + 8, { size: 13, bold: true, color: NAVY });
+    paragraph(doc, body, M + 52, y + 28, LEFT_W - M - 52, {
       size: 10.5,
-      lineHeight: 16,
+      lineHeight: 15,
     });
   });
 
-  // La franja de cierre acompaña, no domina: mantiene la identidad visual del
-  // informe actual.
-  const bandY = 700;
-  const bandH = 236;
-  block(doc, 0, bandY, CANVAS_W, bandH, NAVY);
+  // Cortinilla: panel de foto a todo lo alto, simétrico con la portada.
+  const PHOTO_X = LEFT_W;
+  const PHOTO_W = CANVAS_W - LEFT_W;
   if (assets.closing) {
-    photoCover(doc, assets.closing, 'JPEG', 380, bandY, 414, bandH, 0.5, 0.42);
+    photoCover(
+      doc,
+      assets.closing,
+      'JPEG',
+      PHOTO_X,
+      0,
+      PHOTO_W,
+      CANVAS_H,
+      0.47,
+      0.45,
+    );
+    // Esta foto trae un pilar gráfico de alto contraste cerca del texto de
+    // cierre: se ensombrece más terreno que en portada para que la frase se
+    // lea encima sin perder por completo el soporte, que sigue nítido y
+    // reconocible en el último tercio del panel.
     const fromLeft: AlphaStop[] = [
       [0, 1],
-      [0.06, 1],
-      [0.2, 0.9],
-      [0.46, 0.34],
-      [1, 0.06],
+      [0.22, 0.95],
+      [0.4, 0.72],
+      [0.58, 0.26],
+      [0.7, 0],
     ];
-    const fromTop: AlphaStop[] = [
-      [0, 0.5],
-      [0.22, 0],
-      [1, 0],
-    ];
-    const fromBottom: AlphaStop[] = [
-      [0, 0.55],
-      [0.26, 0],
-      [1, 0],
-    ];
-    fade(doc, 380, bandY, 414, bandH, NAVY, fromLeft, 'left');
-    fade(doc, 380, bandY, 414, bandH, NAVY, fromTop, 'top');
-    fade(doc, 380, bandY, 414, bandH, NAVY, fromBottom, 'bottom');
+    fade(doc, PHOTO_X, 0, PHOTO_W, CANVAS_H, NAVY, fromLeft, 'left');
+  } else {
+    block(doc, PHOTO_X, 0, PHOTO_W, CANVAS_H, NAVY);
   }
-
-  block(doc, M, bandY + 40, 34, 4, PINK);
+  block(doc, PHOTO_X + 36, 70, 30, 3, PINK);
   paragraph(
     doc,
     'Medimos lo que pasa frente a la pantalla, no lo que suponemos.',
-    M,
-    bandY + 84,
-    296,
-    { size: 19, bold: true, color: WHITE, lineHeight: 25 },
+    PHOTO_X + 36,
+    112,
+    300,
+    { size: 20, bold: true, color: WHITE, lineHeight: 26 },
   );
-  text(doc, 'AUDIENCIAS REALES.', M, bandY + 182, {
+  text(doc, 'AUDIENCIAS REALES.', PHOTO_X + 36, CANVAS_H - 60, {
     size: 10,
     bold: true,
     color: BLUE_LIGHT,
-    tracking: 2.2,
+    tracking: 1.8,
   });
-  text(doc, 'OPORTUNIDADES REALES.', M, bandY + 200, {
+  text(doc, 'OPORTUNIDADES REALES.', PHOTO_X + 36, CANVAS_H - 44, {
     size: 10,
     bold: true,
     color: BLUE_LIGHT,
-    tracking: 2.2,
+    tracking: 1.8,
   });
 
   const pageNumber = doc.getNumberOfPages();
-  text(doc, 'in-Store Media', M, CANVAS_H - 36, {
-    size: 9.5,
+  text(doc, 'in-Store Media', M, CANVAS_H - 20, {
+    size: 9,
     bold: true,
     color: NAVY,
   });
-  text(doc, 'Reporte de audiencia de campaña', M + 84, CANVAS_H - 36, {
-    size: 8.5,
+  text(doc, 'Reporte de audiencia de campaña', M + 76, CANVAS_H - 20, {
+    size: 8,
     color: MUTED,
     tracking: 1,
   });
-  block(doc, CANVAS_W - M - 30, CANVAS_H - 54, 30, 30, NAVY);
+  block(doc, CANVAS_W - M - 24, CANVAS_H - 34, 24, 18, NAVY);
   text(
     doc,
     String(pageNumber).padStart(2, '0'),
-    CANVAS_W - M - 15,
-    CANVAS_H - 34,
-    { size: 12, bold: true, color: WHITE, align: 'center' },
+    CANVAS_W - M - 12,
+    CANVAS_H - 22,
+    { size: 10, bold: true, color: WHITE, align: 'center' },
   );
 }
 
@@ -1178,14 +1369,16 @@ export async function buildQuividiCampaignPdfBlob(
 ): Promise<Blob> {
   const { jsPDF: JsPdf } = await import('jspdf');
   const assets = await loadAssets();
-  const doc = new JsPdf({ unit: 'mm', format: 'a4' });
+  const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape' });
   doc.setLineWidth(u(0.75));
 
   coverPage(doc, report, assets);
   doc.addPage();
   evolutionPage(doc, report, assets);
   doc.addPage();
-  profilePage(doc, report, assets);
+  audiencePage(doc, report, assets);
+  doc.addPage();
+  horariosPage(doc, report, assets);
   doc.addPage();
   topStoresPage(doc, report, assets);
   doc.addPage();

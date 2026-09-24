@@ -7,8 +7,8 @@ import {
 } from './quividiCampaignPdf';
 import {
   brandCampaignSummary,
+  brandCoverage,
   brandGenderAge,
-  brandStoreAttribution,
   formatCount,
   formatPercent,
 } from './quividiBrandReport';
@@ -217,7 +217,7 @@ describe('renderizado del informe', () => {
     });
   }
 
-  it('dibuja al menos cinco páginas sin coordenadas corruptas', async () => {
+  it('dibuja al menos seis páginas sin coordenadas corruptas', async () => {
     serveRepoAssets();
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(longCampaign()))
@@ -229,14 +229,13 @@ describe('renderizado del informe', () => {
     // páginas de más cuando el listado no cabe en una sola.
     expect(
       (raw.match(/\/Type \/Page[^s]/g) ?? []).length,
-    ).toBeGreaterThanOrEqual(5);
+    ).toBeGreaterThanOrEqual(6);
   });
 
   it('publica en portada una sola cifra, sin Retailer ni porcentajes protagonistas', async () => {
     serveRepoAssets();
     const input = longCampaign();
     const summary = brandCampaignSummary(input);
-    const attribution = brandStoreAttribution(input);
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(input))
     ).toString('latin1');
@@ -244,13 +243,6 @@ describe('renderizado del informe', () => {
     expect(raw).toContain(formatCount(summary.estimatedOts));
     expect(raw).toContain('OPORTUNIDADES');
     expect(raw).toContain('DWELL TIME PROMEDIO');
-    // Pie discreto: los dos porcentajes por tipo de tienda, no por hora/día.
-    expect(raw).toContain(
-      formatPercent(attribution.measuredStoresSharePercent, 0),
-    );
-    expect(raw).toContain(
-      formatPercent(attribution.unmeasuredStoresSharePercent, 0),
-    );
     // Ya no hay campo Retailer ni cifras separadas de medido/extrapolado.
     expect(raw).not.toContain('RETAILER');
     expect(raw).not.toContain('OTS MEDIDOS');
@@ -259,13 +251,27 @@ describe('renderizado del informe', () => {
     expect(raw.toLowerCase()).not.toContain('quividi');
   });
 
-  it('publica los formatos que participan en la cifra sin incidencias de cámara', async () => {
+  it('publica en el pie de Evolución el % de tiendas con cámara vs. proyectadas', async () => {
+    serveRepoAssets();
+    const input = longCampaign();
+    const coverage = brandCoverage(input);
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(input))
+    ).toString('latin1');
+
+    expect(raw).toContain(formatPercent(coverage.measuredPercent, 0));
+    expect(raw).toContain(formatPercent(coverage.estimatedPercent, 0));
+    expect(raw).toContain('tiendas con cámara');
+    expect(raw).toContain('tiendas proyectadas');
+  });
+
+  it('publica los formatos del circuito sin incidencias de cámara', async () => {
     serveRepoAssets();
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(longCampaign()))
     ).toString('latin1');
 
-    expect(raw).toContain('FORMATOS QUE PARTICIPAN EN LA CIFRA');
+    expect(raw).toContain('FORMATOS');
     expect(raw).toContain('MUPI DIGITAL');
     expect(raw).toContain('Tiendas TOP');
     // El detalle operativo de cámaras se queda en el Excel.
@@ -306,7 +312,7 @@ describe('renderizado del informe', () => {
     expect(raw).not.toContain('NaN');
     expect(
       (raw.match(/\/Type \/Page[^s]/g) ?? []).length,
-    ).toBeGreaterThanOrEqual(5);
+    ).toBeGreaterThanOrEqual(6);
     // El bloque horario se omite en lugar de dibujar ceros.
     expect(raw).toContain('no incluye detalle horario');
   });
@@ -328,12 +334,12 @@ describe('renderizado del informe', () => {
 
     expect(raw).not.toContain('NaN');
     // Sin ninguna tienda medida, «Tiendas TOP» cae en su página de aviso: el
-    // informe sigue teniendo exactamente las cinco secciones base.
-    expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBe(5);
+    // informe sigue teniendo exactamente las seis secciones base.
+    expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBe(6);
     expect(raw).toContain('Ninguna tienda registró medición directa');
   });
 
-  it('distribuye «Tiendas TOP» en varias páginas y señala la excepción de Insurgentes', async () => {
+  it('distribuye «Tiendas TOP» como leaderboard en varias páginas si hace falta', async () => {
     serveRepoAssets();
     const stores = Array.from({ length: 20 }, (_, index) => ({
       storeNumber: String(index + 1),
@@ -413,11 +419,14 @@ describe('renderizado del informe', () => {
     ).toString('latin1');
 
     expect(raw).not.toContain('NaN');
-    // 20 tiendas a 16 filas por página exigen una segunda página del listado,
-    // así que el informe crece a seis páginas.
-    expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBeGreaterThan(5);
+    // 20 tiendas a 8 filas por página (formato leaderboard horizontal) exigen
+    // más de una página del listado, así que el informe crece más allá de
+    // las seis secciones base.
+    expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBeGreaterThan(6);
     expect(raw).toContain('TIENDAS TOP');
     expect(raw).toContain('CONTINUACIÓN');
-    expect(raw).toContain('Insurgentes tiene dos cámaras');
+    // El detalle operativo de Insurgentes (multi-cámara) no se publica en el
+    // PDF comercial: es ruido técnico que no aporta a la marca.
+    expect(raw).not.toContain('Insurgentes tiene dos cámaras');
   });
 });
