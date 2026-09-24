@@ -44,6 +44,8 @@ export interface ScreenDoc {
     calendarSupport?: string;
     quividiLocationId?: number | null;
     quividiCameraName?: string;
+    quividiLocationId2?: number | null;
+    quividiCameraName2?: string;
   };
 }
 
@@ -91,7 +93,6 @@ const FULL_CIRCUIT_WITHOUT_COMMENT = new Set([
   'VIDEO WALL CRIUS',
   'VIDEO WALL POSTER LED',
 ]);
-
 
 /**
  * Alias exclusivos del reporte Quividi. El Calendario usa nombres comerciales
@@ -171,7 +172,10 @@ function canonicalCircuit(value: string): string | null {
     : null;
 }
 
-function isCompatibleSupport(circuitOrArticle: string, support: string): boolean {
+function isCompatibleSupport(
+  circuitOrArticle: string,
+  support: string,
+): boolean {
   const circuit = canonicalCircuit(circuitOrArticle);
   if (!circuit) return false;
   return (CIRCUIT_TO_SUPPORTS[circuit] ?? []).some(
@@ -248,8 +252,7 @@ function overlaps(
     return false;
   }
   return (
-    assignmentStartIso <= campaignEndIso &&
-    assignmentEndIso >= campaignStartIso
+    assignmentStartIso <= campaignEndIso && assignmentEndIso >= campaignStartIso
   );
 }
 
@@ -282,7 +285,8 @@ function allStoresForSupport(
       activeScreens(screens)
         .filter(
           (screen) =>
-            normalizeSupport(screen.metadata?.calendarSupport ?? '') === support,
+            normalizeSupport(screen.metadata?.calendarSupport ?? '') ===
+            support,
         )
         .map((screen) =>
           normalizeStore(screen.original?.['Numero de Tienda'] ?? ''),
@@ -304,12 +308,14 @@ function pairFromStore(
   const storeName =
     matching
       .map((screen) => screen.original?.['Nombre de tienda']?.trim() ?? '')
-      .find(Boolean) ??
-    selectedName.trim();
+      .find(Boolean) ?? selectedName.trim();
   const cameraNames = Array.from(
     new Set(
       matching
-        .map((screen) => screen.metadata?.quividiCameraName?.trim() ?? '')
+        .flatMap((screen) => [
+          screen.metadata?.quividiCameraName?.trim() ?? '',
+          screen.metadata?.quividiCameraName2?.trim() ?? '',
+        ])
         .filter(Boolean),
     ),
   );

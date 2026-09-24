@@ -122,6 +122,8 @@ export function CatalogPage() {
     calendarSupport: string,
     quividiCameraName: string,
     quividiLocationId: number | null,
+    quividiCameraName2: string,
+    quividiLocationId2: number | null,
   ) {
     setSaving(true);
     try {
@@ -132,6 +134,8 @@ export function CatalogPage() {
           calendarSupport,
           quividiCameraName,
           quividiLocationId,
+          quividiCameraName2,
+          quividiLocationId2,
         );
       } else if (form.mode === 'edit') {
         await updateScreen(
@@ -141,6 +145,8 @@ export function CatalogPage() {
           calendarSupport,
           quividiCameraName,
           quividiLocationId,
+          quividiCameraName2,
+          quividiLocationId2,
         );
       }
       setForm({ mode: 'closed' });
@@ -370,6 +376,26 @@ export function CatalogPage() {
                     ) : (
                       <span className="text-muted">—</span>
                     )}
+                    {screen.metadata.quividiLocationId2 != null ? (
+                      <div className="catalog__quividi">
+                        <strong>ID {screen.metadata.quividiLocationId2}</strong>
+                        <span title={screen.metadata.quividiCameraName2 ?? ''}>
+                          {screen.metadata.quividiCameraName2 ||
+                            'Alias pendiente'}
+                        </span>
+                      </div>
+                    ) : (
+                      screen.metadata.quividiCameraName2 && (
+                        <div className="catalog__quividi">
+                          <span className="badge badge-muted">
+                            Alias legacy
+                          </span>
+                          <span title={screen.metadata.quividiCameraName2}>
+                            {screen.metadata.quividiCameraName2}
+                          </span>
+                        </div>
+                      )
+                    )}
                   </td>
                   <td>
                     {screen.metadata.active ? (
@@ -431,6 +457,16 @@ export function CatalogPage() {
           initialQuividiLocationId={
             form.mode === 'edit'
               ? (form.screen.metadata.quividiLocationId ?? null)
+              : null
+          }
+          initialQuividiCameraName2={
+            form.mode === 'edit'
+              ? (form.screen.metadata.quividiCameraName2 ?? '')
+              : ''
+          }
+          initialQuividiLocationId2={
+            form.mode === 'edit'
+              ? (form.screen.metadata.quividiLocationId2 ?? null)
               : null
           }
           submitting={saving}

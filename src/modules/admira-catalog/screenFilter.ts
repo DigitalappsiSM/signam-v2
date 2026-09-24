@@ -82,6 +82,10 @@ export function filterScreens(
           screen.metadata.quividiLocationId == null
             ? ''
             : String(screen.metadata.quividiLocationId),
+          screen.metadata.quividiCameraName2 ?? '',
+          screen.metadata.quividiLocationId2 == null
+            ? ''
+            : String(screen.metadata.quividiLocationId2),
         ].join(' '),
       );
       if (!haystack.includes(query)) return false;

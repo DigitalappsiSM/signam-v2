@@ -42,6 +42,12 @@ export const EXPORT_SHEET_NAME = 'Consolidado';
  */
 export const MAPPING_EXPORT_HEADER = CALENDAR_MAPPING_HEADERS[0];
 export const QUIVIDI_EXPORT_HEADER = 'CAMARA QUIVIDI';
+/**
+ * Segunda cámara Quividi de la misma pantalla (un PC con 2 flujos de video /
+ * 2 Location ID representado por una sola fila del catálogo). Viaja siempre
+ * junto con `QUIVIDI_EXPORT_HEADER`.
+ */
+export const QUIVIDI_EXPORT_HEADER_2 = 'CAMARA QUIVIDI 2';
 
 /** Opciones de exportación del catálogo. */
 export interface CatalogExportOptions {
@@ -110,7 +116,8 @@ function setStoreCellText(sheet: Worksheet, rowNumber: number): void {
 function headerRow(includeMapping: boolean, includeQuividi: boolean): string[] {
   const headers = [...ADMIRA_CATALOG_HEADERS] as string[];
   if (includeMapping) headers.push(MAPPING_EXPORT_HEADER);
-  if (includeQuividi) headers.push(QUIVIDI_EXPORT_HEADER);
+  if (includeQuividi)
+    headers.push(QUIVIDI_EXPORT_HEADER, QUIVIDI_EXPORT_HEADER_2);
   return headers;
 }
 
@@ -121,7 +128,7 @@ function headerWidths(
 ): number[] {
   const widths = ADMIRA_CATALOG_HEADERS.map((h) => COLUMN_WIDTHS[h]);
   if (includeMapping) widths.push(MAPPING_WIDTH);
-  if (includeQuividi) widths.push(QUIVIDI_WIDTH);
+  if (includeQuividi) widths.push(QUIVIDI_WIDTH, QUIVIDI_WIDTH);
   return widths;
 }
 
@@ -133,7 +140,12 @@ function screenToRow(
 ): string[] {
   const values = ADMIRA_CATALOG_HEADERS.map((h) => screen.original[h] ?? '');
   if (includeMapping) values.push(screen.metadata.calendarSupport ?? '');
-  if (includeQuividi) values.push(screen.metadata.quividiCameraName ?? '');
+  if (includeQuividi) {
+    values.push(
+      screen.metadata.quividiCameraName ?? '',
+      screen.metadata.quividiCameraName2 ?? '',
+    );
+  }
   return values;
 }
 
@@ -292,6 +304,15 @@ export const FIELD_GUIDE: readonly FieldGuide[] = [
       'Nombre exacto de la location/cámara Quividi que mide este soporte.',
     example: '7 - L SANTA FE- DERECHO',
   },
+  {
+    header: QUIVIDI_EXPORT_HEADER_2,
+    required: false,
+    description:
+      'Segunda cámara Quividi de la misma pantalla. Solo aplica cuando un mismo ' +
+      'equipo opera 2 flujos de video con distinto Location ID (p. ej. un PC que ' +
+      'también corre Quividi con 2 Box ID).',
+    example: '8 - L SANTA FE- IZQUIERDO',
+  },
 ];
 
 /** Filas de ejemplo (realistas) que se colocan bajo los encabezados. */
@@ -337,7 +358,9 @@ function addInstructionsSheet(
   const guide = FIELD_GUIDE.filter(
     (field) =>
       (includeMapping || field.header !== MAPPING_EXPORT_HEADER) &&
-      (includeQuividi || field.header !== QUIVIDI_EXPORT_HEADER),
+      (includeQuividi ||
+        (field.header !== QUIVIDI_EXPORT_HEADER &&
+          field.header !== QUIVIDI_EXPORT_HEADER_2)),
   );
   for (const field of guide) {
     sheet.addRow([

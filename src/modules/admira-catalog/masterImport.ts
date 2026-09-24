@@ -34,6 +34,12 @@ export interface MasterRow {
   calendarSupport: string;
   /** Nombre exacto de la location/cámara Quividi (metadato SIGNAM). */
   quividiCameraName: string;
+  /**
+   * Nombre de la segunda cámara Quividi de la misma pantalla (metadato SIGNAM).
+   * Caso real: un PC con 2 flujos de video (2 Location ID) representado por una
+   * sola fila del catálogo. Vacío si el maestro no trae esa columna.
+   */
+  quividiCameraName2: string;
 }
 
 /**
@@ -46,6 +52,14 @@ const MAPPING_ALIASES = new Set(
 const QUIVIDI_CAMERA_ALIASES = new Set([
   normalizeHeader('CAMARA QUIVIDI'),
   normalizeHeader('CÁMARA QUIVIDI'),
+]);
+/**
+ * Columna opcional para la segunda cámara Quividi de la misma pantalla (un PC
+ * con 2 flujos de video / 2 Location ID representado por una sola fila).
+ */
+const QUIVIDI_CAMERA_2_ALIASES = new Set([
+  normalizeHeader('CAMARA QUIVIDI 2'),
+  normalizeHeader('CÁMARA QUIVIDI 2'),
 ]);
 
 export interface MasterAnalysis {
@@ -60,6 +74,8 @@ export interface MasterAnalysis {
   mappingColumn: string | null;
   /** Encabezado de la columna de cámara Quividi, o null si no viene. */
   quividiCameraColumn: string | null;
+  /** Encabezado de la columna de la segunda cámara Quividi, o null si no viene. */
+  quividiCameraColumn2: string | null;
   rows: MasterRow[];
   issues: ValidationIssue[];
   /** true si no hay incidencias bloqueantes y hay al menos una fila. */
@@ -148,6 +164,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       legacyPases: false,
       mappingColumn: null,
       quividiCameraColumn: null,
+      quividiCameraColumn2: null,
       rows: [],
       issues,
       ok: false,
@@ -166,6 +183,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
   let mappingColumn: string | null = null;
   let quividiCameraCol = -1;
   let quividiCameraColumn: string | null = null;
+  let quividiCameraCol2 = -1;
+  let quividiCameraColumn2: string | null = null;
   headerCells.forEach((cell, col) => {
     const text = cell?.trim() ?? '';
     if (text === '') return;
@@ -181,6 +200,11 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       if (quividiCameraCol === -1) {
         quividiCameraCol = col;
         quividiCameraColumn = text;
+      }
+    } else if (QUIVIDI_CAMERA_2_ALIASES.has(normalizeHeader(text))) {
+      if (quividiCameraCol2 === -1) {
+        quividiCameraCol2 = col;
+        quividiCameraColumn2 = text;
       }
     } else {
       extra.push(text);
@@ -226,11 +250,14 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       mappingCol >= 0 ? (cells[mappingCol] ?? '').trim() : '';
     const quividiCameraName =
       quividiCameraCol >= 0 ? (cells[quividiCameraCol] ?? '').trim() : '';
+    const quividiCameraName2 =
+      quividiCameraCol2 >= 0 ? (cells[quividiCameraCol2] ?? '').trim() : '';
     rows.push({
       original,
       sourceRow: r + 1,
       calendarSupport,
       quividiCameraName,
+      quividiCameraName2,
     });
   }
 
@@ -254,6 +281,7 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     legacyPases,
     mappingColumn,
     quividiCameraColumn,
+    quividiCameraColumn2,
     rows,
     issues,
     ok,

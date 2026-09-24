@@ -7,6 +7,7 @@ import {
   FIELD_GUIDE,
   MAPPING_EXPORT_HEADER,
   QUIVIDI_EXPORT_HEADER,
+  QUIVIDI_EXPORT_HEADER_2,
   buildCatalogWorkbook,
   buildTemplateWorkbook,
   catalogExportFileName,
@@ -23,6 +24,7 @@ function screen(over: {
   active?: boolean;
   calendarSupport?: string;
   quividiCameraName?: string;
+  quividiCameraName2?: string;
   id?: string;
 }): AdmiraScreen {
   return {
@@ -41,6 +43,7 @@ function screen(over: {
       version: 1,
       calendarSupport: over.calendarSupport ?? '',
       quividiCameraName: over.quividiCameraName ?? '',
+      quividiCameraName2: over.quividiCameraName2 ?? '',
     },
   };
 }
@@ -63,6 +66,7 @@ const sample = screen({
   },
   calendarSupport: 'VIDEO WALL CRIUS',
   quividiCameraName: '78 - L GUADALAJARA GALERIAS- DERECHO',
+  quividiCameraName2: '78 - L GUADALAJARA GALERIAS- IZQUIERDO',
 });
 
 /** Convierte un worksheet de exceljs en la representación neutral SheetData. */
@@ -100,6 +104,7 @@ describe('buildCatalogWorkbook', () => {
       ...ADMIRA_CATALOG_HEADERS,
       MAPPING_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER,
+      QUIVIDI_EXPORT_HEADER_2,
     ]);
   });
 
@@ -172,6 +177,10 @@ describe('buildCatalogWorkbook', () => {
     expect(analysis.rows[0]?.quividiCameraName).toBe(
       '78 - L GUADALAJARA GALERIAS- DERECHO',
     );
+    expect(analysis.quividiCameraColumn2).toBe(QUIVIDI_EXPORT_HEADER_2);
+    expect(analysis.rows[0]?.quividiCameraName2).toBe(
+      '78 - L GUADALAJARA GALERIAS- IZQUIERDO',
+    );
   });
 });
 
@@ -214,20 +223,22 @@ describe('buildTemplateWorkbook', () => {
 });
 
 describe('FIELD_GUIDE', () => {
-  it('cubre los 12 campos oficiales y ambos mapeos operativos', () => {
+  it('cubre los 12 campos oficiales y los mapeos operativos', () => {
     const headers = FIELD_GUIDE.map((f) => f.header);
     expect(headers).toEqual([
       ...ADMIRA_CATALOG_HEADERS,
       MAPPING_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER,
+      QUIVIDI_EXPORT_HEADER_2,
     ]);
   });
 
-  it('marca ambos mapeos como opcionales y los oficiales como obligatorios', () => {
+  it('marca los mapeos como opcionales y los oficiales como obligatorios', () => {
     for (const field of FIELD_GUIDE) {
       const optional =
         field.header === MAPPING_EXPORT_HEADER ||
-        field.header === QUIVIDI_EXPORT_HEADER;
+        field.header === QUIVIDI_EXPORT_HEADER ||
+        field.header === QUIVIDI_EXPORT_HEADER_2;
       expect(field.required).toBe(!optional);
     }
   });

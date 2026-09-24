@@ -55,6 +55,8 @@ export async function createScreen(
   calendarSupport = '',
   quividiCameraName = '',
   quividiLocationId: number | null = null,
+  quividiCameraName2 = '',
+  quividiLocationId2: number | null = null,
 ): Promise<string> {
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
@@ -65,6 +67,8 @@ export async function createScreen(
       calendarSupport: calendarSupport.trim(),
       quividiLocationId,
       quividiCameraName: quividiCameraName.trim(),
+      quividiLocationId2,
+      quividiCameraName2: quividiCameraName2.trim(),
     },
   });
   return ref.id;
@@ -78,6 +82,8 @@ export async function updateScreen(
   calendarSupport?: string,
   quividiCameraName?: string,
   quividiLocationId?: number | null,
+  quividiCameraName2?: string,
+  quividiLocationId2?: number | null,
 ): Promise<void> {
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
@@ -89,6 +95,10 @@ export async function updateScreen(
         ? {}
         : { quividiCameraName: quividiCameraName.trim() }),
       ...(quividiLocationId === undefined ? {} : { quividiLocationId }),
+      ...(quividiCameraName2 === undefined
+        ? {}
+        : { quividiCameraName2: quividiCameraName2.trim() }),
+      ...(quividiLocationId2 === undefined ? {} : { quividiLocationId2 }),
     }),
   });
 }
@@ -145,6 +155,7 @@ export async function importMasterScreens(
           sourceRow: row.sourceRow,
           calendarSupport: row.calendarSupport.trim(),
           quividiCameraName: row.quividiCameraName.trim(),
+          quividiCameraName2: row.quividiCameraName2.trim(),
         },
       });
       created += 1;
@@ -207,18 +218,26 @@ export interface MasterMetadataUpdateResult {
 export interface MasterMetadataUpdateFields {
   calendarSupport: boolean;
   quividiCameraName: boolean;
+  quividiCameraName2: boolean;
 }
 
 export function masterMetadataPatch(
   row: MasterRow,
   fields: MasterMetadataUpdateFields,
-): { calendarSupport?: string; quividiCameraName?: string } {
+): {
+  calendarSupport?: string;
+  quividiCameraName?: string;
+  quividiCameraName2?: string;
+} {
   return {
     ...(fields.calendarSupport
       ? { calendarSupport: row.calendarSupport.trim() }
       : {}),
     ...(fields.quividiCameraName
       ? { quividiCameraName: row.quividiCameraName.trim() }
+      : {}),
+    ...(fields.quividiCameraName2
+      ? { quividiCameraName2: row.quividiCameraName2.trim() }
       : {}),
   };
 }
@@ -233,6 +252,7 @@ export async function updateScreenMetadataFromMaster(
   fields: MasterMetadataUpdateFields = {
     calendarSupport: true,
     quividiCameraName: true,
+    quividiCameraName2: true,
   },
 ): Promise<MasterMetadataUpdateResult> {
   const database = db();

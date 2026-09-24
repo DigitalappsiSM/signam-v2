@@ -129,7 +129,11 @@ function screen(
   numero: string,
   calendarSupport: string,
   quividiCameraName = '',
-  options: { active?: boolean; nombre?: string } = {},
+  options: {
+    active?: boolean;
+    nombre?: string;
+    quividiCameraName2?: string;
+  } = {},
 ): ScreenDoc {
   return {
     original: {
@@ -140,6 +144,7 @@ function screen(
       active: options.active ?? true,
       calendarSupport,
       quividiCameraName,
+      quividiCameraName2: options.quividiCameraName2 ?? '',
     },
   };
 }
@@ -211,6 +216,28 @@ describe('buildEffectiveSupportPairs · precedencia del alcance', () => {
         ekonNumber: null,
       },
     ]);
+  });
+
+  it('incluye la segunda cámara de la misma pantalla (1 PC, 2 flujos de video)', async () => {
+    const result = await buildEffectiveSupportPairs(
+      emptyDb(),
+      'camp-1',
+      campaign([
+        {
+          support: 'VIDEO WALL CRIUS',
+          stores: [{ numero: '7' }],
+          scope: 'selected',
+        },
+      ]),
+      [
+        screen('7', 'VIDEO WALL CRIUS', 'TOREO-1', {
+          quividiCameraName2: 'TOREO-2',
+        }),
+      ],
+    );
+
+    expect(result.pairs).toHaveLength(1);
+    expect(result.pairs[0]?.cameraNames.sort()).toEqual(['TOREO-1', 'TOREO-2']);
   });
 
   it('conserva el par aunque la tienda no exista en el catálogo (sin cámaras)', async () => {

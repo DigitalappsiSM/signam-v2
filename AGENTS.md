@@ -232,6 +232,22 @@ tres de ellos describían mal el separador de artículos.
   al cierre del día, no generar una alerta inmediata por ausencia a las 10:xx.
   `measurementStatus` y `hasOts` son señales distintas: **OTS = 0 no equivale
   por sí solo a avería técnica**.
+- **Segunda cámara por pantalla (`quividiLocationId2`/`quividiCameraName2`)**:
+  caso real de un mismo equipo (PC) que opera 2 flujos de video con distinto
+  Box ID/Location ID de Quividi, representado en el catálogo Admira por una
+  sola fila (p. ej. Toreo, Satélite, Mitikah, Delta, donde ese mismo PC también
+  corre Quividi). `SignamMetadata` admite un segundo par opcional
+  `quividiLocationId2`/`quividiCameraName2`, capturable y validable desde
+  `Catálogo Admira` e importable/exportable desde el maestro (columna opcional
+  `CAMARA QUIVIDI 2`, solo alias — el Location ID siempre se valida en la app,
+  igual que la primera cámara). `buildOperationalPairs` (salud operativa) y
+  `buildEffectiveSupportPairs`/`quividiPairsForCampaign` (alcance comercial)
+  tratan ambas cámaras de una misma pantalla como identidades independientes
+  que se suman al mismo par tienda+soporte; la salud sigue evaluándose por
+  `locationId`, nunca por pantalla, así que cada cámara conserva su propia
+  alerta e historial aunque compartan fila de catálogo. La inmensa mayoría de
+  pantallas solo usa la primera cámara; la segunda queda vacía por defecto y no
+  requiere migración de datos existentes.
 - **Motor de salud Quividi (Fase 2.2)**: la salud vigente se decide **solo con el
   último día completo**. El histórico se usa únicamente para calcular desde
   cuándo persiste una anomalía; una caída antigua ya recuperada **no crea alerta

@@ -20,6 +20,8 @@ function screen(
   cameraName: string,
   active = true,
   locationId: number | null = null,
+  locationId2: number | null = null,
+  cameraName2 = '',
 ): ScreenDoc {
   return {
     original: {
@@ -31,6 +33,8 @@ function screen(
       calendarSupport: support,
       quividiLocationId: locationId,
       quividiCameraName: cameraName,
+      quividiLocationId2: locationId2,
+      quividiCameraName2: cameraName2,
     },
   };
 }
@@ -132,6 +136,47 @@ describe('buildOperationalPairs', () => {
     expect(result.duplicateCameraNames).toEqual(['CAM-X']);
     expect(result.pairs).toHaveLength(1);
     expect(result.pairs[0]?.cameraNames).toEqual(['CAM-Y']);
+  });
+
+  it('suma la segunda cámara de la misma pantalla al par tienda+soporte (1 PC, 2 flujos de video)', () => {
+    const result = buildOperationalPairs([
+      screen(
+        '7',
+        'Toreo',
+        'VIDEO WALL CRIUS',
+        'TOREO-1',
+        true,
+        201,
+        202,
+        'TOREO-2',
+      ),
+    ]);
+
+    expect(result.unconfiguredScreens).toBe(0);
+    expect(result.duplicateLocationIds).toEqual([]);
+    expect(result.pairs).toHaveLength(1);
+    expect(result.pairs[0]).toMatchObject({
+      storeNumber: '7',
+      support: 'VIDEO WALL CRIUS',
+      cameraLocationIds: [201, 202],
+    });
+  });
+
+  it('no marca la pantalla como incompleta si solo trae la segunda cámara', () => {
+    const only2 = screen(
+      '7',
+      'Toreo',
+      'VIDEO WALL CRIUS',
+      '',
+      true,
+      null,
+      202,
+      'TOREO-2',
+    );
+    const result = buildOperationalPairs([only2]);
+
+    expect(result.unconfiguredScreens).toBe(0);
+    expect(result.pairs[0]?.cameraLocationIds).toEqual([202]);
   });
 });
 
@@ -323,9 +368,7 @@ describe('buildCameraHealthRecords', () => {
 describe('camera health helpers', () => {
   it('calcula ventanas inclusivas y ids idempotentes', () => {
     expect(lookbackStartDate('2026-09-18', 28)).toBe('2026-08-22');
-    expect(cameraHealthDocumentId('2026-09-18', 123)).toBe(
-      '2026-09-18__123',
-    );
+    expect(cameraHealthDocumentId('2026-09-18', 123)).toBe('2026-09-18__123');
   });
 
   it('rechaza ventanas inválidas', () => {
