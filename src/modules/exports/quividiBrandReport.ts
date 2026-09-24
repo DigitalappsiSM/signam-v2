@@ -3,6 +3,7 @@ import {
   QUIVIDI_GENDER_LABELS,
   type QuividiCampaignReport,
   type QuividiCameraDay,
+  type QuividiMeasurementStatus,
   type QuividiSupportDay,
 } from '@/domain';
 
@@ -865,15 +866,108 @@ export function brandStoreAttribution(
  * soporte — SIGNAM no tiene esa fuente (ver el bloqueo de Fase 2 arriba). Una
  * franja fuera de este rango puede tener medición válida (tráfico de personal,
  * limpieza, seguridad) que operativamente está bien pero que a la marca no le
- * interesa: mostrarla en el reparto horario del informe sugiere una audiencia
- * comercial fuera del horario de la tienda. Se aplica sólo a la vista horaria
- * (`brandHourlyDistribution`): los totales de OTS/dwell time de portada,
- * evolución y Tiendas TOP vienen de `supportDays`, que Quividi agrega por día
- * completo (00:00–23:59) y hoy no se puede recortar por hora sin cambiar cómo
- * se ingiere la medición (ver AGENTS.md).
+ * interesa: mostrarla como audiencia comercial sugeriría tráfico fuera del
+ * horario de la tienda. La usan `brandHourlyDistribution` (reparto horario) y
+ * `brandOperationalReport` (OTS/dwell time de portada, evolución, Tiendas TOP
+ * y dwell time del PDF comercial). El Excel técnico NO la usa: sigue leyendo
+ * `report.supportDays` sin recortar, el dato tal cual lo agrega Quividi por
+ * día completo (00:00–23:59) — ver AGENTS.md para la divergencia resultante
+ * entre el total del PDF y el de la hoja «Auditoría de cifras».
  */
 export const BRAND_OPERATIONAL_START_HOUR = 10;
 export const BRAND_OPERATIONAL_END_HOUR = 22;
+
+/**
+ * Reconstruye filas «por día» (forma de `QuividiSupportDay`) a partir de
+ * `supportHours`, sumando únicamente las horas dentro de la franja operativa
+ * de cara a la marca. Es la única manera de acotar el OTS por hora: el
+ * export diario de Quividi que llena `report.supportDays` ya viene
+ * pre-sumado 00:00–23:59 y no se puede recortar después del hecho.
+ *
+ * Sólo emite una fila para (fecha, tienda, soporte) que tengan al menos una
+ * hora — medida o no — dentro de la franja; una fecha sin ninguna hora en
+ * `supportHours` dentro de 10:00–22:00 no genera fila (no se fabrica un
+ * "sin dato" a partir de un total diario que no se puede recortar).
+ */
+export function brandOperationalSupportDays(
+  report: QuividiCampaignReport,
+): QuividiSupportDay[] {
+  const inWindow = report.supportHours.filter(
+    (row) =>
+      row.hour >= BRAND_OPERATIONAL_START_HOUR &&
+      row.hour < BRAND_OPERATIONAL_END_HOUR,
+  );
+
+  const groups = new Map<string, (typeof inWindow)[number][]>();
+  for (const row of inWindow) {
+    const key = supportDayKey(row);
+    const current = groups.get(key) ?? [];
+    current.push(row);
+    groups.set(key, current);
+  }
+
+  return Array.from(groups.values(), (hours) => {
+    const first = hours[0]!;
+    const measured = hours.filter((hour) => hour.status !== 'missing');
+    const watchersTotal = sum(measured.map((hour) => hour.watchers));
+    const status: QuividiMeasurementStatus =
+      measured.length === 0
+        ? 'missing'
+        : hours.every((hour) => hour.status === 'complete')
+          ? 'complete'
+          : 'partial';
+    return {
+      date: first.date,
+      storeNumber: first.storeNumber,
+      storeName: first.storeName,
+      support: first.support,
+      configuredCameras: Math.max(
+        ...hours.map((hour) => hour.configuredCameras),
+      ),
+      measuredCameras: Math.max(...hours.map((hour) => hour.measuredCameras)),
+      status,
+      ots: sum(measured.map((hour) => hour.ots)),
+      effectiveOts: sum(measured.map((hour) => hour.effectiveOts)),
+      watchers: watchersTotal,
+      attentionSeconds:
+        watchersTotal > 0
+          ? sum(measured.map((hour) => hour.attentionSeconds * hour.watchers)) /
+            watchersTotal
+          : 0,
+      dwellSeconds:
+        watchersTotal > 0
+          ? sum(measured.map((hour) => hour.dwellSeconds * hour.watchers)) /
+            watchersTotal
+          : 0,
+    };
+  });
+}
+
+/**
+ * Vista del reporte que consume el PDF comercial: mismos `supportHours` y
+ * `demographics` (no tienen hora, no se pueden acotar — ver el cruce
+ * hora × demografía bloqueado más abajo), pero `supportDays` reconstruido con
+ * `brandOperationalSupportDays` dentro de la franja operativa. `cameraDays`
+ * se vacía a propósito: la excepción de Insurgentes (sumar en vez de
+ * promediar sus dos cámaras) se calcula hoy a partir de `cameraDays`, que es
+ * diario y no tiene desglose por hora — no se puede acotar a la franja
+ * operativa sin esa fuente, así que se desactiva para esta vista en vez de
+ * aplicarla sobre datos que mezclan horas dentro y fuera de ella.
+ *
+ * Si el reporte no trae `supportHours` (schema anterior, o el export horario
+ * falló), degrada a `report` sin tocarlo: mostrar cero por falta de detalle
+ * horario sería peor que mostrar el total sin acotar.
+ */
+export function brandOperationalReport(
+  report: QuividiCampaignReport,
+): QuividiCampaignReport {
+  if (report.supportHours.length === 0) return report;
+  return {
+    ...report,
+    supportDays: brandOperationalSupportDays(report),
+    cameraDays: [],
+  };
+}
 
 /**
  * Distribución horaria de los OTS con medición directa, acotada a la franja

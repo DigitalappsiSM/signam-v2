@@ -9,6 +9,7 @@ import {
   brandCampaignSummary,
   brandCoverage,
   brandGenderAge,
+  brandOperationalReport,
   formatCount,
   formatPercent,
 } from './quividiBrandReport';
@@ -235,7 +236,9 @@ describe('renderizado del informe', () => {
   it('publica en portada una sola cifra, sin Retailer ni porcentajes protagonistas', async () => {
     serveRepoAssets();
     const input = longCampaign();
-    const summary = brandCampaignSummary(input);
+    // El PDF acota OTS a la franja operativa 10:00–22:00: la cifra de
+    // portada sale de brandOperationalReport, no del total diario crudo.
+    const summary = brandCampaignSummary(brandOperationalReport(input));
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(input))
     ).toString('latin1');
@@ -251,10 +254,78 @@ describe('renderizado del informe', () => {
     expect(raw.toLowerCase()).not.toContain('quividi');
   });
 
+  it('la cifra de portada excluye OTS medido fuera de 10:00–22:00, aunque el día completo lo incluya', async () => {
+    serveRepoAssets();
+    // Circuito de un solo par-día, completamente medido: sin huecos que
+    // extrapolar, para que el total de portada sea exactamente la suma de
+    // las horas dentro de la franja, sin ningún factor de por medio.
+    const input: QuividiCampaignReport = {
+      ...report(),
+      startDate: '2026-08-11',
+      endDate: '2026-08-11',
+      coverage: {
+        totalPairs: 1,
+        mappedPairs: 1,
+        percent: 100,
+        bySupport: [
+          {
+            support: 'MUPI DIGITAL',
+            totalPairs: 1,
+            mappedPairs: 1,
+            percent: 100,
+          },
+        ],
+      },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      // El total diario (supportDays) incluye tráfico de madrugada, tal como
+      // lo agrega Quividi por día completo (00:00–23:59).
+      supportDays: [
+        {
+          date: '2026-08-11',
+          storeNumber: '3',
+          storeName: 'POLANCO',
+          support: 'MUPI DIGITAL',
+          configuredCameras: 1,
+          measuredCameras: 1,
+          status: 'complete',
+          ots: 9_999, // incluye la madrugada; nunca debe verse en portada
+          effectiveOts: 8_000,
+          watchers: 900,
+          attentionSeconds: 2.8,
+          dwellSeconds: 22.4,
+        },
+      ],
+      // La franja operativa sólo debe contar la hora 11 (dentro de 10–22).
+      supportHours: [3, 11].map((hour) => ({
+        date: '2026-08-11',
+        hour,
+        storeNumber: '3',
+        storeName: 'POLANCO',
+        support: 'MUPI DIGITAL',
+        configuredCameras: 1,
+        measuredCameras: 1,
+        status: 'complete' as const,
+        ots: hour === 3 ? 9_500 : 499,
+        effectiveOts: hour === 3 ? 7_600 : 400,
+        watchers: hour === 3 ? 850 : 50,
+        attentionSeconds: 2.6,
+        dwellSeconds: 20,
+      })),
+    };
+
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(input))
+    ).toString('latin1');
+
+    expect(raw).toContain(formatCount(499));
+    expect(raw).not.toContain(formatCount(9_999));
+    expect(raw).not.toContain(formatCount(9_999 + 499));
+  });
+
   it('publica en el pie de Evolución el % de tiendas con cámara vs. proyectadas', async () => {
     serveRepoAssets();
     const input = longCampaign();
-    const coverage = brandCoverage(input);
+    const coverage = brandCoverage(brandOperationalReport(input));
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(input))
     ).toString('latin1');

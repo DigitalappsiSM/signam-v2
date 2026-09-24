@@ -130,7 +130,15 @@ export function addQuividiAuditSheet(
   subtitle.alignment = { vertical: 'middle', indent: 1 };
   sheet.getRow(3).height = 20;
 
-  let row = 5;
+  sheet.mergeCells('A4:E4');
+  const scopeNote = sheet.getCell('A4');
+  scopeNote.value =
+    'Esta hoja conserva el OTS tal cual lo agrega Quividi por día completo (00:00–23:59). El PDF comercial acota OTS y dwell time a la franja operativa de cara a la marca (10:00–22:00): si hubo medición fuera de esa franja, el total de esta hoja es mayor que el de portada — no es una discrepancia, son dos alcances distintos por diseño.';
+  scopeNote.font = { italic: true, color: { argb: COLORS.amber }, size: 8.5 };
+  scopeNote.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+  sheet.getRow(4).height = 28;
+
+  let row = 6;
 
   row = bandTitle(sheet, row, '1 · UNIVERSO CONTRATADO');
   row = factRow(

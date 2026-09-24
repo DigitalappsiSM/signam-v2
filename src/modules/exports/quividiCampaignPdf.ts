@@ -10,6 +10,7 @@ import {
   brandGenderByDay,
   brandHeader,
   brandHourlyDistribution,
+  brandOperationalReport,
   brandStoreAttribution,
   brandWeeklyEvolution,
   formatCivilDate,
@@ -1264,9 +1265,13 @@ function closingPage(
   const recommendations: Array<[string, string]> = [];
   const weekday = topWeekdayLabel(daily);
   if (weekday) {
+    // «Lunes/Martes/Miércoles/Jueves/Viernes» ya son invariables en plural
+    // («los lunes»); sólo «sábado/domingo» toman «-s» («los sábados»).
+    const singular = weekday.label.toLowerCase();
+    const plural = singular.endsWith('s') ? singular : `${singular}s`;
     recommendations.push([
       'Refuerza el día de mayor audiencia',
-      `Los ${weekday.label.toLowerCase()}s concentran la mayor proporción de OTS de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
+      `Los ${plural} concentran la mayor proporción de OTS de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
     ]);
   }
   const peakHour = topHourLabel(hourly);
@@ -1387,17 +1392,23 @@ export async function buildQuividiCampaignPdfBlob(
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape' });
   doc.setLineWidth(u(0.75));
 
-  coverPage(doc, report, assets);
+  // El PDF comercial acota OTS/dwell time a la franja operativa de cara a la
+  // marca (10:00–22:00): brandOperationalReport reconstruye supportDays desde
+  // supportHours dentro de esa franja. supportHours y demographics (sin hora)
+  // pasan igual; el Excel técnico sigue usando `report` sin acotar.
+  const operational = brandOperationalReport(report);
+
+  coverPage(doc, operational, assets);
   doc.addPage();
-  evolutionPage(doc, report, assets);
+  evolutionPage(doc, operational, assets);
   doc.addPage();
-  audiencePage(doc, report, assets);
+  audiencePage(doc, operational, assets);
   doc.addPage();
-  horariosPage(doc, report, assets);
+  horariosPage(doc, operational, assets);
   doc.addPage();
-  topStoresPage(doc, report, assets);
+  topStoresPage(doc, operational, assets);
   doc.addPage();
-  closingPage(doc, report, assets);
+  closingPage(doc, operational, assets);
 
   if (doc.getNumberOfPages() < MIN_PAGE_COUNT) {
     throw new Error(

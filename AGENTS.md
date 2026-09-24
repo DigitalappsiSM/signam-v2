@@ -420,12 +420,36 @@ tres de ellos describían mal el separador de artículos.
   sin medición de una hora en la que el soporte estaba apagado. El pie de la
   gráfica lo declara («con medición directa») para no sugerir una precisión que
   el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
-  en vez de dibujar ceros. **Esta franja NO se aplica** a los OTS/dwell time de
-  portada, evolución, Tiendas TOP ni a las hojas del Excel: esas cifras vienen
-  de `supportDays`, que Quividi agrega por día natural completo
-  (00:00–23:59, `time_resolution: '1d'` en `functions/src/quividi/index.ts`) y
-  hoy SIGNAM no puede recortar por hora sin cambiar la fuente de esa capa —
-  ver `docs/QUIVIDI_PHASE_1.md` (pendiente, sin fase asignada).
+  en vez de dibujar ceros.
+- **`brandOperationalReport` acota TODO el PDF comercial a la franja
+  operativa — no sólo la distribución horaria.** `report.supportDays` (el
+  export diario de Quividi, `time_resolution: '1d'` en
+  `functions/src/quividi/index.ts`) viene pre-sumado 00:00–23:59: no hay forma
+  de recortarlo por hora después del hecho. `brandOperationalSupportDays`
+  reconstruye filas «por día» sumando sólo las horas de `supportHours` dentro
+  de la franja (una fila por fecha/tienda/soporte con al menos una hora ahí,
+  medida o no; sin hora en la franja, sin fila — nunca fabrica un «sin dato»);
+  `brandOperationalReport` sustituye `supportDays` por esa reconstrucción y
+  **vacía `cameraDays`**, porque la excepción de Insurgentes (sumar sus dos
+  cámaras en vez de promediarlas) se calcula desde `cameraDays`, que es diario
+  y no tiene desglose por hora — aplicarla sobre datos que mezclan horas
+  dentro y fuera de la franja sería peor que desactivarla para esta vista. Si
+  el reporte no trae `supportHours`, degrada a `report` sin tocar (mostrar
+  cero por falta de detalle horario es peor que mostrar el total sin acotar).
+  `buildQuividiCampaignPdfBlob` llama `brandOperationalReport(report)` **una
+  sola vez** y pasa ese resultado a las seis páginas — nunca `report` a
+  medias, porque `supportHours`/`demographics` (sin hora, no se pueden
+  acotar) quedan iguales en ambos objetos, así que no hace falta pasar dos
+  reportes distintos.
+  **El Excel técnico NO usa esta vista**: `quividiCampaignExcel.ts` y
+  `quividiAuditSheet.ts` siguen leyendo `report.supportDays` sin recortar, tal
+  como declaran conservar el dato medido. Esto es una divergencia **deliberada
+  y documentada en la propia hoja** (nota bajo el título de «Auditoría de
+  cifras»): si hubo medición fuera de 10:00–22:00, el total de esa hoja es
+  mayor que el de portada — no una discrepancia por bug, sino dos alcances
+  distintos a propósito. No «arreglar» esto haciendo que el Excel también
+  filtre por hora sin decisión explícita: el Excel existe justamente para
+  conservar el dato crudo tal cual Quividi lo mide.
 - **No existe cruce hora × demografía — bloqueo de datos, no de diseño.** El
   mockup aprobado de la página «Horarios» incluía un corte mañana/tarde/noche
   por género y edad; **no se implementó en el generador real** porque el

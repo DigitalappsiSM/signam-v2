@@ -12,6 +12,8 @@ import {
   brandDwellTime,
   brandExtrapolationBasis,
   brandExtrapolationByReason,
+  brandOperationalReport,
+  brandOperationalSupportDays,
   brandGender,
   brandGenderAge,
   brandGenderByDay,
@@ -1117,5 +1119,154 @@ describe('circuito medible', () => {
     // wall. Un promedio único habría dado 200.000 para ambos.
     expect(summary.estimatedOts).toBe(200_000);
     expect(summary.scope.measurable).toHaveLength(2);
+  });
+});
+
+describe('reconstrucción de días desde supportHours (franja operativa)', () => {
+  function supportHour(
+    overrides: Partial<{
+      date: string;
+      hour: number;
+      storeNumber: string;
+      storeName: string;
+      support: string;
+      status: 'complete' | 'partial' | 'missing';
+      ots: number;
+      watchers: number;
+      dwellSeconds: number;
+    }> = {},
+  ) {
+    return {
+      date: '2026-09-01',
+      hour: 12,
+      storeNumber: '1',
+      storeName: 'UNO',
+      support: 'MUPI DIGITAL',
+      configuredCameras: 1,
+      measuredCameras: 1,
+      status: 'complete' as const,
+      ots: 100,
+      effectiveOts: 80,
+      watchers: 10,
+      attentionSeconds: 2,
+      dwellSeconds: 20,
+      ...overrides,
+    };
+  }
+
+  it('suma sólo las horas dentro de 10:00–22:00 en el total del día', () => {
+    const input = report({
+      supportHours: [
+        supportHour({ hour: 3, ots: 500, watchers: 50 }),
+        supportHour({ hour: 11, ots: 100, watchers: 10 }),
+        supportHour({ hour: 14, ots: 200, watchers: 20 }),
+        supportHour({ hour: 23, ots: 500, watchers: 50 }),
+      ],
+    });
+
+    const days = brandOperationalSupportDays(input);
+    expect(days).toHaveLength(1);
+    expect(days[0]?.ots).toBe(300); // sólo 100 + 200, nunca las horas 3 y 23
+    expect(days[0]?.watchers).toBe(30);
+    expect(days[0]?.status).toBe('complete');
+  });
+
+  it('clasifica el día como parcial si alguna hora de la franja no midió', () => {
+    const input = report({
+      supportHours: [
+        supportHour({ hour: 11, ots: 100, status: 'complete' }),
+        supportHour({ hour: 14, ots: 0, status: 'missing', watchers: 0 }),
+      ],
+    });
+    const days = brandOperationalSupportDays(input);
+    expect(days[0]?.status).toBe('partial');
+    expect(days[0]?.ots).toBe(100); // la hora sin dato no aporta cero al total
+  });
+
+  it('marca el día como sin dato si ninguna hora de la franja midió', () => {
+    const input = report({
+      supportHours: [
+        supportHour({ hour: 11, ots: 0, status: 'missing', watchers: 0 }),
+      ],
+    });
+    const days = brandOperationalSupportDays(input);
+    expect(days[0]?.status).toBe('missing');
+    expect(days[0]?.ots).toBe(0);
+  });
+
+  it('no genera fila para una fecha sin ninguna hora dentro de la franja', () => {
+    const input = report({
+      supportHours: [supportHour({ hour: 23, ots: 500 })],
+    });
+    expect(brandOperationalSupportDays(input)).toEqual([]);
+  });
+
+  it('pondera dwell time por watchers al combinar horas', () => {
+    const input = report({
+      supportHours: [
+        supportHour({ hour: 11, watchers: 90, dwellSeconds: 10 }),
+        supportHour({ hour: 14, watchers: 10, dwellSeconds: 50 }),
+      ],
+    });
+    const days = brandOperationalSupportDays(input);
+    // (90×10 + 10×50) / 100 = 14, no el promedio simple (30).
+    expect(days[0]?.dwellSeconds).toBe(14);
+  });
+
+  it('brandOperationalReport acota el OTS que ve brandCampaignSummary', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: { totalPairs: 1, mappedPairs: 1, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      supportDays: [
+        // El total diario de Quividi (00:00–23:59) incluye tráfico nocturno.
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+          ots: 1000,
+        }),
+      ],
+      supportHours: [
+        supportHour({ hour: 3, ots: 500, watchers: 50 }),
+        supportHour({ hour: 12, ots: 500, watchers: 50 }),
+      ],
+    });
+
+    // Sin acotar: el total diario completo, tal como lo entrega Quividi.
+    expect(brandCampaignSummary(input).estimatedOts).toBe(1000);
+    // Acotado a la franja operativa: sólo la hora 12 cuenta.
+    const operational = brandOperationalReport(input);
+    expect(brandCampaignSummary(operational).estimatedOts).toBe(500);
+  });
+
+  it('degrada al reporte original si no hay supportHours', () => {
+    const input = report({
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNO',
+        }),
+      ],
+      supportHours: [],
+    });
+    expect(brandOperationalReport(input)).toBe(input);
+  });
+
+  it('vacía cameraDays: la excepción de Insurgentes no aplica a la vista operativa', () => {
+    const input = report({
+      cameraDays: [
+        cameraDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'LIVERPOOL INSURGENTES',
+          locationId: 1,
+        }),
+      ],
+      supportHours: [supportHour({ storeName: 'LIVERPOOL INSURGENTES' })],
+    });
+    expect(brandOperationalReport(input).cameraDays).toEqual([]);
   });
 });
