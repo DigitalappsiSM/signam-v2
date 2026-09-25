@@ -253,6 +253,10 @@ tres de ellos describían mal el separador de artículos.
   El ID se construye como `LIV-TIENDA-SOPORTE-PUNTO` y sobrevive a cambios de
   Alias, Box ID o Location ID cuando el punto físico no cambia. El código de
   punto admite solo mayúsculas y números (1–8 caracteres) y debe ser único.
+  Para cámaras legacy con Location ID pero sin Punto SIGNAM, la sincronización
+  de catálogo asigna de forma persistente `P1`, `P2`, `P3`... por
+  tienda+soporte ordenando por Location ID. Respeta códigos ya existentes y
+  no migra automáticamente grupos con Location ID o códigos de punto duplicados.
   La automatización Odoo deduplica por `measurementPointId`: antes de crear también busca el asunto determinístico en Odoo para adoptar un ticket ya existente tras un timeout/reintento. `no_ots` crea
   ticket automáticamente; `no_measurement` y `partial_measurement` requieren
   decisión manual de admin/operator desde Salud de cámaras. Al recuperarse,

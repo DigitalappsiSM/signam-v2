@@ -22,6 +22,10 @@ function screen(
     quividiCameraName?: string;
     quividiLocationId2?: number | null;
     quividiCameraName2?: string;
+    measurementPointCode?: string;
+    measurementPointId?: string;
+    measurementPointCode2?: string;
+    measurementPointId2?: string;
   },
 ): ScreenDoc {
   return {
@@ -30,6 +34,16 @@ function screen(
     metadata: {
       active: true,
       calendarSupport: 'VIDEO WALL CRIUS',
+      ...((metadata.quividiLocationId || metadata.quividiCameraName) &&
+        metadata.measurementPointCode === undefined && {
+          measurementPointCode: 'P1',
+          measurementPointId: 'LIV-007-CRIUS-P1',
+        }),
+      ...((metadata.quividiLocationId2 || metadata.quividiCameraName2) &&
+        metadata.measurementPointCode2 === undefined && {
+          measurementPointCode2: 'P2',
+          measurementPointId2: 'LIV-007-CRIUS-P2',
+        }),
       ...metadata,
     },
   };
@@ -160,6 +174,128 @@ describe('syncCatalogLocationBindings', () => {
     );
 
     expect(result.updated).toBe(0);
+    expect(batchUpdates).toEqual([]);
+  });
+
+  it('migra puntos SIGNAM legacy de forma determinística por Location ID', async () => {
+    const { db, batchUpdates } = fakeDb();
+    const legacy = screen('s1', {
+      quividiLocationId: 202,
+      quividiCameraName: 'TOREO-2',
+      quividiLocationId2: 201,
+      quividiCameraName2: 'TOREO-1',
+      measurementPointCode: '',
+      measurementPointId: '',
+      measurementPointCode2: '',
+      measurementPointId2: '',
+    });
+
+    const result = await syncCatalogLocationBindings(
+      db,
+      [legacy],
+      [topology(201, 'TOREO-1'), topology(202, 'TOREO-2')],
+    );
+
+    expect(result.updated).toBe(1);
+    expect(result.screens[0]?.metadata?.measurementPointCode2).toBe('P1');
+    expect(result.screens[0]?.metadata?.measurementPointId2).toBe(
+      'LIV-007-CRIUS-P1',
+    );
+    expect(result.screens[0]?.metadata?.measurementPointCode).toBe('P2');
+    expect(result.screens[0]?.metadata?.measurementPointId).toBe(
+      'LIV-007-CRIUS-P2',
+    );
+    expect(batchUpdates).toEqual([
+      {
+        id: 's1',
+        'metadata.measurementPointCode2': 'P1',
+        'metadata.measurementPointId2': 'LIV-007-CRIUS-P1',
+        'metadata.measurementPointCode': 'P2',
+        'metadata.measurementPointId': 'LIV-007-CRIUS-P2',
+      },
+    ]);
+  });
+
+  it('respeta puntos existentes y asigna el siguiente P disponible', async () => {
+    const { db } = fakeDb();
+    const result = await syncCatalogLocationBindings(
+      db,
+      [
+        screen('s1', {
+          quividiLocationId: 201,
+          quividiCameraName: 'TOREO-1',
+          measurementPointCode: 'P3',
+          measurementPointId: 'LIV-007-CRIUS-P3',
+          quividiLocationId2: 202,
+          quividiCameraName2: 'TOREO-2',
+          measurementPointCode2: '',
+          measurementPointId2: '',
+        }),
+      ],
+      [topology(201, 'TOREO-1'), topology(202, 'TOREO-2')],
+    );
+
+    expect(result.screens[0]?.metadata?.measurementPointCode).toBe('P3');
+    expect(result.screens[0]?.metadata?.measurementPointCode2).toBe('P1');
+  });
+
+  it('agrupa 7 y 007 como la misma tienda antes de numerar puntos', async () => {
+    const { db } = fakeDb();
+    const first = screen('s1', {
+      quividiLocationId: 201,
+      quividiCameraName: 'TOREO-1',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+    const second = screen('s2', {
+      quividiLocationId: 202,
+      quividiCameraName: 'TOREO-2',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+    second.original = {
+      'Numero de Tienda': '007',
+      'Nombre de tienda': 'Toreo',
+    };
+
+    const result = await syncCatalogLocationBindings(
+      db,
+      [first, second],
+      [topology(201, 'TOREO-1'), topology(202, 'TOREO-2')],
+    );
+
+    expect(result.screens[0]?.metadata?.measurementPointId).toBe(
+      'LIV-007-CRIUS-P1',
+    );
+    expect(result.screens[1]?.metadata?.measurementPointId).toBe(
+      'LIV-007-CRIUS-P2',
+    );
+  });
+
+  it('no adivina puntos si un Location ID está duplicado en tienda+soporte', async () => {
+    const { db, batchUpdates } = fakeDb();
+    const first = screen('s1', {
+      quividiLocationId: 201,
+      quividiCameraName: 'TOREO-1',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+    const second = screen('s2', {
+      quividiLocationId: 201,
+      quividiCameraName: 'TOREO-1',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+
+    const result = await syncCatalogLocationBindings(
+      db,
+      [first, second],
+      [topology(201, 'TOREO-1')],
+    );
+
+    expect(result.updated).toBe(0);
+    expect(result.screens[0]?.metadata?.measurementPointId).toBe('');
+    expect(result.screens[1]?.metadata?.measurementPointId).toBe('');
     expect(batchUpdates).toEqual([]);
   });
 
