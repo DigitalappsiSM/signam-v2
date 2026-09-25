@@ -944,7 +944,8 @@ export const locationLookup = onCall(
 
 export const cameraHealthOverview = onCall(
   async (request): Promise<CameraHealthOverviewResponse> => {
-    requireQuividiOperationalAccess(request);
+    const auth = requireQuividiOperationalAccess(request);
+    const canCreateTickets = canManageQuividiTickets(roleFromClaims(auth.token));
     const db = getFirestore();
     const overview = await buildCameraHealthOverview(
       db,
@@ -992,7 +993,7 @@ export const cameraHealthOverview = onCall(
       } else {
         camera.ticketAction = 'manual';
         camera.ticketStatus = 'pending_decision';
-        camera.canCreateTicket = true;
+        camera.canCreateTicket = canCreateTickets;
       }
     }
     return overview;
