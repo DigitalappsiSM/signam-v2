@@ -1,8 +1,20 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import type { CameraHealthEvaluation } from './cameraAlerts';
 import type { ScreenDoc } from './effectiveScope';
 
 export const CAMERA_TICKET_STATE_COLLECTION = 'quividiCameraTicketState';
+
+export type TicketOperationalHealth =
+  | 'normal'
+  | 'no_measurement'
+  | 'partial_measurement'
+  | 'no_ots';
+
+export interface TicketHealthEvaluation {
+  locationId: number;
+  currentStatus: TicketOperationalHealth;
+  latestDate: string;
+  incidentStartDate: string | null;
+}
 
 export type CameraTicketStatus =
   | 'creating'
@@ -197,7 +209,7 @@ function ticketSubject(
   );
 }
 
-function statusLabel(status: CameraHealthEvaluation['currentStatus']): string {
+function statusLabel(status: TicketOperationalHealth): string {
   switch (status) {
     case 'no_measurement':
       return 'Sin medición';
@@ -213,7 +225,7 @@ function statusLabel(status: CameraHealthEvaluation['currentStatus']): string {
 async function createOdooTicket(
   key: string,
   binding: CameraPointBinding,
-  evaluation: CameraHealthEvaluation,
+  evaluation: TicketHealthEvaluation,
 ): Promise<{ ticketId: number; subject: string }> {
   const partnerId = await resolveStorePartnerId(key, binding.storeNumber);
   const tagId = await cameraTagId(key);
@@ -284,7 +296,7 @@ async function createTicketForEvaluation(
   db: Firestore,
   key: string,
   binding: CameraPointBinding,
-  evaluation: CameraHealthEvaluation,
+  evaluation: TicketHealthEvaluation,
   mode: 'automatic' | 'manual',
   now: number,
 ): Promise<CameraTicketStateDoc> {
@@ -358,7 +370,7 @@ async function createTicketForEvaluation(
 export async function reconcileAutomaticCameraTickets(
   db: Firestore,
   key: string,
-  evaluations: readonly CameraHealthEvaluation[],
+  evaluations: readonly TicketHealthEvaluation[],
   screens: readonly ScreenDoc[],
   now: number,
 ): Promise<{ created: number; recovered: number; errors: number }> {
@@ -440,7 +452,7 @@ export async function reconcileAutomaticCameraTickets(
 export async function createManualCameraTicket(
   db: Firestore,
   key: string,
-  evaluation: CameraHealthEvaluation,
+  evaluation: TicketHealthEvaluation,
   screens: readonly ScreenDoc[],
   now: number,
 ): Promise<CameraTicketStateDoc> {
