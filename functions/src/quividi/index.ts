@@ -1060,9 +1060,9 @@ export const createCameraHealthTicket = onCall(
           locationId: rawId,
           currentStatus,
           latestDate:
-            typeof state.latestDate === 'string' ? state.latestDate : '',
+            typeof state?.latestDate === 'string' ? state.latestDate : '',
           incidentStartDate:
-            typeof state.startedDate === 'string' ? state.startedDate : null,
+            typeof state?.startedDate === 'string' ? state.startedDate : null,
         },
         screens,
         Date.now(),
