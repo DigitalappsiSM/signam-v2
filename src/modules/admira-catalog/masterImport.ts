@@ -40,6 +40,10 @@ export interface MasterRow {
    * sola fila del catálogo. Vacío si el maestro no trae esa columna.
    */
   quividiCameraName2: string;
+  /** Código estable SIGNAM de la cámara principal (1, 2, P1, P2...). */
+  measurementPointCode: string;
+  /** Código estable SIGNAM de la segunda cámara. */
+  measurementPointCode2: string;
 }
 
 /**
@@ -61,6 +65,8 @@ const QUIVIDI_CAMERA_2_ALIASES = new Set([
   normalizeHeader('CAMARA QUIVIDI 2'),
   normalizeHeader('CÁMARA QUIVIDI 2'),
 ]);
+const POINT_ALIASES = new Set([normalizeHeader('PUNTO SIGNAM')]);
+const POINT_2_ALIASES = new Set([normalizeHeader('PUNTO SIGNAM 2')]);
 
 export interface MasterAnalysis {
   detectedSheet: string | null;
@@ -76,6 +82,8 @@ export interface MasterAnalysis {
   quividiCameraColumn: string | null;
   /** Encabezado de la columna de la segunda cámara Quividi, o null si no viene. */
   quividiCameraColumn2: string | null;
+  measurementPointColumn: string | null;
+  measurementPointColumn2: string | null;
   rows: MasterRow[];
   issues: ValidationIssue[];
   /** true si no hay incidencias bloqueantes y hay al menos una fila. */
@@ -165,6 +173,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       mappingColumn: null,
       quividiCameraColumn: null,
       quividiCameraColumn2: null,
+      measurementPointColumn: null,
+      measurementPointColumn2: null,
       rows: [],
       issues,
       ok: false,
@@ -185,6 +195,10 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
   let quividiCameraColumn: string | null = null;
   let quividiCameraCol2 = -1;
   let quividiCameraColumn2: string | null = null;
+  let measurementPointCol = -1;
+  let measurementPointColumn: string | null = null;
+  let measurementPointCol2 = -1;
+  let measurementPointColumn2: string | null = null;
   headerCells.forEach((cell, col) => {
     const text = cell?.trim() ?? '';
     if (text === '') return;
@@ -205,6 +219,16 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       if (quividiCameraCol2 === -1) {
         quividiCameraCol2 = col;
         quividiCameraColumn2 = text;
+      }
+    } else if (POINT_ALIASES.has(normalizeHeader(text))) {
+      if (measurementPointCol === -1) {
+        measurementPointCol = col;
+        measurementPointColumn = text;
+      }
+    } else if (POINT_2_ALIASES.has(normalizeHeader(text))) {
+      if (measurementPointCol2 === -1) {
+        measurementPointCol2 = col;
+        measurementPointColumn2 = text;
       }
     } else {
       extra.push(text);
@@ -252,12 +276,18 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       quividiCameraCol >= 0 ? (cells[quividiCameraCol] ?? '').trim() : '';
     const quividiCameraName2 =
       quividiCameraCol2 >= 0 ? (cells[quividiCameraCol2] ?? '').trim() : '';
+    const measurementPointCode =
+      measurementPointCol >= 0 ? (cells[measurementPointCol] ?? '').trim() : '';
+    const measurementPointCode2 =
+      measurementPointCol2 >= 0 ? (cells[measurementPointCol2] ?? '').trim() : '';
     rows.push({
       original,
       sourceRow: r + 1,
       calendarSupport,
       quividiCameraName,
       quividiCameraName2,
+      measurementPointCode,
+      measurementPointCode2,
     });
   }
 
@@ -282,6 +312,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     mappingColumn,
     quividiCameraColumn,
     quividiCameraColumn2,
+    measurementPointColumn,
+    measurementPointColumn2,
     rows,
     issues,
     ok,
