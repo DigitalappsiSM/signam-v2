@@ -1,5 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { ADMIRA_CATALOG_HEADERS } from '@/domain';
+import {
+  ADMIRA_CATALOG_HEADERS,
+  buildMeasurementPointId,
+  validateMeasurementPointCode,
+} from '@/domain';
 import type { AdmiraScreenOriginal } from '@/domain';
 import { validateQuividiLocation } from '@/services/quividi';
 import { emptyOriginal } from './screenFactory';
@@ -81,6 +85,8 @@ export function ScreenForm({
   initialQuividiLocationId = null,
   initialQuividiCameraName2 = '',
   initialQuividiLocationId2 = null,
+  initialMeasurementPointCode = '',
+  initialMeasurementPointCode2 = '',
   submitting,
   onSubmit,
   onCancel,
@@ -92,6 +98,8 @@ export function ScreenForm({
   initialQuividiLocationId?: number | null;
   initialQuividiCameraName2?: string;
   initialQuividiLocationId2?: number | null;
+  initialMeasurementPointCode?: string;
+  initialMeasurementPointCode2?: string;
   submitting: boolean;
   onSubmit: (
     original: AdmiraScreenOriginal,
@@ -100,6 +108,8 @@ export function ScreenForm({
     quividiLocationId: number | null,
     quividiCameraName2: string,
     quividiLocationId2: number | null,
+    measurementPointCode: string,
+    measurementPointCode2: string,
   ) => void;
   onCancel: () => void;
 }) {
@@ -117,6 +127,13 @@ export function ScreenForm({
     initialQuividiCameraName2,
     initialQuividiLocationId2,
   );
+  const [measurementPointCode, setMeasurementPointCode] = useState(
+    initialMeasurementPointCode,
+  );
+  const [measurementPointCode2, setMeasurementPointCode2] = useState(
+    initialMeasurementPointCode2,
+  );
+  const [pointError, setPointError] = useState<string | null>(null);
 
   const busy = submitting || slot1.validating || slot2.validating;
 
@@ -182,6 +199,38 @@ export function ScreenForm({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
+    setPointError(null);
+    try {
+      const point1 = validateMeasurementPointCode(measurementPointCode) ?? '';
+      const point2 = validateMeasurementPointCode(measurementPointCode2) ?? '';
+      if ((slot1.locationIdText.trim() || slot1.cameraName.trim()) && !point1) {
+        throw new Error('La cámara 1 necesita un Punto SIGNAM.');
+      }
+      if ((slot2.locationIdText.trim() || slot2.cameraName.trim()) && !point2) {
+        throw new Error('La cámara 2 necesita un Punto SIGNAM.');
+      }
+      if (point1 && point2 && point1 === point2) {
+        throw new Error('La cámara 1 y la cámara 2 no pueden usar el mismo Punto SIGNAM.');
+      }
+      if (point1) {
+        buildMeasurementPointId({
+          storeNumber: values['Numero de Tienda'],
+          support: calendarSupport,
+          pointCode: point1,
+        });
+      }
+      if (point2) {
+        buildMeasurementPointId({
+          storeNumber: values['Numero de Tienda'],
+          support: calendarSupport,
+          pointCode: point2,
+        });
+      }
+    } catch (reason) {
+      setPointError(reason instanceof Error ? reason.message : 'Punto SIGNAM inválido.');
+      return;
+    }
+
     const resolved1 = await resolveSlot(slot1, 'la cámara 1');
     if (!resolved1) return;
     const resolved2 = await resolveSlot(slot2, 'la cámara 2');
@@ -194,6 +243,8 @@ export function ScreenForm({
       resolved1.id,
       resolved2.name,
       resolved2.id,
+      measurementPointCode.trim(),
+      measurementPointCode2.trim(),
     );
   }
 
@@ -300,10 +351,44 @@ export function ScreenForm({
           />
         </label>
 
+        <label className="screen-form__field screen-form__meta-field">
+          <span>PUNTO SIGNAM · CÁMARA 1</span>
+          <input
+            type="text"
+            value={measurementPointCode}
+            disabled={busy}
+            placeholder="Ej. 1, 2, P1, P2"
+            onChange={(e) => {
+              setMeasurementPointCode(e.target.value);
+              setPointError(null);
+            }}
+          />
+        </label>
+
         {quividiFields(
           slot1,
           'Vínculo Quividi',
-          'El Location ID es la referencia estable; el alias se sincroniza al validarlo.',
+          'El Location ID identifica la location vigente en Quividi; el Punto SIGNAM conserva la identidad física aunque ese ID cambie.',
+        )}
+
+        <label className="screen-form__field screen-form__meta-field">
+          <span>PUNTO SIGNAM · CÁMARA 2</span>
+          <input
+            type="text"
+            value={measurementPointCode2}
+            disabled={busy}
+            placeholder="Ej. 2, P2"
+            onChange={(e) => {
+              setMeasurementPointCode2(e.target.value);
+              setPointError(null);
+            }}
+          />
+        </label>
+
+        {pointError && (
+          <div className="screen-form__validation screen-form__validation--error" role="alert">
+            {pointError}
+          </div>
         )}
 
         {quividiFields(
