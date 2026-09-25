@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   QUIVIDI_FORCE_REFRESH_ROLES,
+  QUIVIDI_HEALTH_REFRESH_ROLES,
   QUIVIDI_OPERATIONS_ROLES,
   QUIVIDI_REPORT_ROLES,
   canForceRefreshQuividi,
+  canRefreshQuividiHealth,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -84,5 +86,16 @@ describe('canForceRefreshQuividi', () => {
     for (const role of QUIVIDI_FORCE_REFRESH_ROLES) {
       expect(QUIVIDI_REPORT_ROLES).toContain(role);
     }
+  });
+});
+
+
+describe('canRefreshQuividiHealth', () => {
+  it('permite refrescar salud a admin y operator, no a viewer/commercial', () => {
+    expect(canRefreshQuividiHealth('admin')).toBe(true);
+    expect(canRefreshQuividiHealth('operator')).toBe(true);
+    expect(canRefreshQuividiHealth('viewer')).toBe(false);
+    expect(canRefreshQuividiHealth('commercial')).toBe(false);
+    expect(QUIVIDI_HEALTH_REFRESH_ROLES).toEqual(['admin', 'operator']);
   });
 });

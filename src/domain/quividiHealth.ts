@@ -55,6 +55,30 @@ export interface QuividiCameraRecovery {
   recoveredDate: string;
 }
 
+export type QuividiCameraHealthRefreshStage =
+  | 'connecting'
+  | 'syncing_catalog'
+  | 'analyzing'
+  | 'reconciling_alerts'
+  | 'syncing_odoo'
+  | 'completed'
+  | 'error';
+
+export interface QuividiCameraHealthRefresh {
+  status: 'idle' | 'running' | 'success' | 'error';
+  stage: QuividiCameraHealthRefreshStage | null;
+  trigger: 'manual' | 'automatic' | null;
+  startedAt: number | null;
+  startedByEmail: string | null;
+  completedAt: number | null;
+  cooldownUntil: number | null;
+  lastManualCompletedAt: number | null;
+  lastManualCompletedByEmail: string | null;
+  lastAutomaticCompletedAt: number | null;
+  lastError: string | null;
+  canRefresh: boolean;
+}
+
 export interface QuividiCameraHealthOverview {
   generatedAt: number;
   latestDate: string | null;
@@ -65,5 +89,6 @@ export interface QuividiCameraHealthOverview {
     outOfScope: number;
   };
   cameras: QuividiCameraHealthRow[];
+  refresh: QuividiCameraHealthRefresh;
   recentRecoveries: QuividiCameraRecovery[];
 }

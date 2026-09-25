@@ -253,7 +253,7 @@ tres de ellos describían mal el separador de artículos.
   El ID se construye como `LIV-TIENDA-SOPORTE-PUNTO` y sobrevive a cambios de
   Alias, Box ID o Location ID cuando el punto físico no cambia. El código de
   punto admite solo mayúsculas y números (1–8 caracteres) y debe ser único.
-  La automatización Odoo deduplica por `measurementPointId`: `no_ots` crea
+  La automatización Odoo deduplica por `measurementPointId`: antes de crear también busca el asunto determinístico en Odoo para adoptar un ticket ya existente tras un timeout/reintento. `no_ots` crea
   ticket automáticamente; `no_measurement` y `partial_measurement` requieren
   decisión manual de admin/operator desde Salud de cámaras. Al recuperarse,
   SIGNAM comenta el ticket y nunca lo cierra. El estado vive en
@@ -280,12 +280,19 @@ tres de ellos describían mal el separador de artículos.
   asume continuidad: retira la incidencia previa con `history_gap` y abre una
   nueva desde el último día observado. Una cámara que vuelve al scope después de
   estar `monitored:false` también inicia una incidencia nueva y nunca reactiva
-  un documento histórico `recovered`/`retired`. **No se abre ningún ticket
-  automáticamente**.
-- **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. Consume
-  únicamente una callable autenticada de solo lectura sobre los estados ya
-  calculados; abrir o refrescar la pantalla **no vuelve a consultar VidiCenter**.
-  Presenta resumen actual, estados por cámara y recuperaciones recientes.
+  un documento histórico `recovered`/`retired`. El motor de salud no crea
+  tickets retroactivos: la capa Odoo actúa solo sobre el estado vigente del
+  último día completo (`no_ots` automático; `no_measurement` y
+  `partial_measurement` bajo decisión manual).
+- **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. La carga
+  normal y **Actualizar vista** solo leen los estados persistidos. Admin y
+  operator disponen además de **Actualizar desde Quividi**, que ejecuta el mismo
+  ciclo del scheduler sobre el último día completo, incluyendo catálogo, OTS,
+  incidencias y sincronización Odoo. El proceso usa un lock global en
+  `quividiCameraHealthRefresh/control`, evita ejecuciones concurrentes, aplica
+  cooldown de 5 minutos y expone etapas reales de progreso sin porcentajes
+  simulados. Viewer puede observar el estado/progreso, pero no disparar la
+  consulta. Se auditan última ejecución automática y manual (usuario).
   `Catálogo Admira` permite capturar y validar `quividiLocationId`; al
   validarlo contra Quividi se guarda también el alias canónico.
 - **Reporte comercial de audiencia (PDF)**: la descarga para marcas es una vista

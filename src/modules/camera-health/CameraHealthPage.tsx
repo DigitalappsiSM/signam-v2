@@ -8,10 +8,14 @@ import {
   formatFilterSearch,
 } from '@/components/filters';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import type { QuividiCameraHealthOverview } from '@/domain';
+import type {
+  QuividiCameraHealthOverview,
+  QuividiCameraHealthRefreshStage,
+} from '@/domain';
 import {
   createQuividiCameraHealthTicket,
   getQuividiCameraHealthOverview,
+  refreshQuividiCameraHealth,
 } from '@/services/quividi';
 import {
   cameraHealthStatusLabel,
@@ -24,6 +28,14 @@ import './CameraHealthPage.css';
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-MX').format(Math.round(value));
+}
+
+function formatDateTime(value: number | null): string {
+  if (!value) return 'Aún no registrada';
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }
 
 function MetricCard({
@@ -59,12 +71,40 @@ const HEALTH_FILTER_LABELS: Record<
   out_of_scope: 'Fuera de alcance',
 };
 
+const REFRESH_STEPS: Array<{
+  stage: Exclude<QuividiCameraHealthRefreshStage, 'completed' | 'error'>;
+  label: string;
+}> = [
+  { stage: 'connecting', label: 'Conectando con Quividi' },
+  { stage: 'syncing_catalog', label: 'Sincronizando catálogo' },
+  { stage: 'analyzing', label: 'Analizando OTS y medición' },
+  { stage: 'reconciling_alerts', label: 'Actualizando incidencias' },
+  { stage: 'syncing_odoo', label: 'Sincronizando tickets Odoo' },
+];
+
+function refreshStepState(
+  currentStage: QuividiCameraHealthRefreshStage | null,
+  stepIndex: number,
+): 'done' | 'active' | 'pending' {
+  if (currentStage === 'completed') return 'done';
+  const currentIndex = REFRESH_STEPS.findIndex(
+    (step) => step.stage === currentStage,
+  );
+  if (currentIndex < 0) return stepIndex === 0 ? 'active' : 'pending';
+  if (stepIndex < currentIndex) return 'done';
+  if (stepIndex === currentIndex) return 'active';
+  return 'pending';
+}
+
 export function CameraHealthPage() {
   const [overview, setOverview] = useState<QuividiCameraHealthOverview | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [clock, setClock] = useState(Date.now());
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CameraHealthFilter>('all');
   const [creatingTicketFor, setCreatingTicketFor] = useState<number | null>(
@@ -87,8 +127,8 @@ export function CameraHealthPage() {
     },
   ]);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       setOverview(await getQuividiCameraHealthOverview());
@@ -97,12 +137,57 @@ export function CameraHealthPage() {
         'No se pudo cargar la salud de cámaras. Verifica el despliegue de las funciones Quividi.',
       );
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  const refreshRunning = refreshing || overview?.refresh.status === 'running';
+
+  useEffect(() => {
+    if (!refreshRunning) return;
+    const timer = window.setInterval(() => {
+      void reload(false);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [refreshRunning, reload]);
+
+  useEffect(() => {
+    const cooldownUntil = overview?.refresh.cooldownUntil ?? 0;
+    if (cooldownUntil <= Date.now()) return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, [overview?.refresh.cooldownUntil]);
+
+  const cooldownMs = Math.max(
+    0,
+    (overview?.refresh.cooldownUntil ?? 0) - clock,
+  );
+  const cooldownMinutes =
+    cooldownMs > 0 ? Math.max(1, Math.ceil(cooldownMs / 60_000)) : 0;
+
+  const forceRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    setClock(Date.now());
+    try {
+      await refreshQuividiCameraHealth();
+      await reload(false);
+    } catch (reason) {
+      setRefreshError(
+        reason instanceof Error
+          ? reason.message
+          : 'No se pudo actualizar la salud de cámaras desde Quividi.',
+      );
+      await reload(false);
+    } finally {
+      setRefreshing(false);
+      setClock(Date.now());
+    }
   }, [reload]);
 
   const createTicket = useCallback(
@@ -111,7 +196,7 @@ export function CameraHealthPage() {
       setTicketError(null);
       try {
         await createQuividiCameraHealthTicket(locationId);
-        await reload();
+        await reload(false);
       } catch (reason) {
         setTicketError(
           reason instanceof Error
@@ -156,19 +241,45 @@ export function CameraHealthPage() {
     [overview, search, filter],
   );
 
+  const activeRefreshStage =
+    overview?.refresh.status === 'running'
+      ? overview.refresh.stage
+      : refreshing
+        ? 'connecting'
+        : null;
+
+  const refreshFailure =
+    refreshError ??
+    (overview?.refresh.status === 'error' ? overview.refresh.lastError : null);
+
   return (
     <div className="camera-health">
       <PageHeader
         title="Salud de cámaras"
         description="Estado operativo Quividi por cámara a partir del último día completo. El histórico se usa para continuidad y recuperación, no para generar alertas retroactivas."
         actions={
-          <button
-            className="btn btn-primary"
-            onClick={() => void reload()}
-            disabled={loading}
-          >
-            {loading ? 'Actualizando…' : 'Actualizar vista'}
-          </button>
+          <div className="camera-health__actions">
+            <button
+              className="btn btn-secondary"
+              onClick={() => void reload(false)}
+              disabled={loading || refreshRunning}
+            >
+              Actualizar vista
+            </button>
+            {overview?.refresh.canRefresh && (
+              <button
+                className="btn btn-primary"
+                onClick={() => void forceRefresh()}
+                disabled={refreshRunning || cooldownMs > 0}
+              >
+                {refreshRunning
+                  ? 'Consultando Quividi…'
+                  : cooldownMs > 0
+                    ? 'Disponible en ' + cooldownMinutes + ' min'
+                    : 'Actualizar desde Quividi'}
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -177,10 +288,58 @@ export function CameraHealthPage() {
           {error}
         </div>
       )}
+      {refreshFailure && (
+        <div className="camera-health__error" role="alert">
+          {refreshFailure}
+        </div>
+      )}
       {ticketError && (
         <div className="camera-health__error" role="alert">
           {ticketError}
         </div>
+      )}
+
+      {refreshRunning && (
+        <section
+          className="camera-health__refresh-progress"
+          aria-live="polite"
+          aria-label="Progreso de actualización desde Quividi"
+        >
+          <div className="camera-health__refresh-heading">
+            <div>
+              <span>Actualización en curso</span>
+              <strong>Actualizando salud de cámaras…</strong>
+            </div>
+            <small>
+              {overview?.refresh.startedByEmail
+                ? 'Iniciada por ' + overview.refresh.startedByEmail
+                : 'Iniciando consulta…'}
+            </small>
+          </div>
+          <div className="camera-health__refresh-steps">
+            {REFRESH_STEPS.map((step, index) => {
+              const state = refreshStepState(activeRefreshStage, index);
+              return (
+                <div
+                  key={step.stage}
+                  className={
+                    'camera-health__refresh-step camera-health__refresh-step--' +
+                    state
+                  }
+                >
+                  <span aria-hidden="true">
+                    {state === 'done' ? '✓' : state === 'active' ? '●' : '○'}
+                  </span>
+                  <strong>{step.label}</strong>
+                </div>
+              );
+            })}
+          </div>
+          <p>
+            Se vuelve a procesar el último día completo disponible. No se usa el
+            día parcial en curso para generar alertas ni tickets.
+          </p>
+        </section>
       )}
 
       {loading && !overview ? (
@@ -197,8 +356,19 @@ export function CameraHealthPage() {
               <strong>{formatHealthDate(overview.latestDate)}</strong>
             </span>
             <span>
-              La vista no vuelve a consultar Quividi; muestra el último cálculo
-              automático disponible.
+              Última automática:{' '}
+              <strong>
+                {formatDateTime(overview.refresh.lastAutomaticCompletedAt)}
+              </strong>
+            </span>
+            <span>
+              Última manual:{' '}
+              <strong>
+                {formatDateTime(overview.refresh.lastManualCompletedAt)}
+              </strong>
+              {overview.refresh.lastManualCompletedByEmail
+                ? ' · ' + overview.refresh.lastManualCompletedByEmail
+                : ''}
             </span>
           </div>
 
@@ -328,7 +498,10 @@ export function CameraHealthPage() {
                           camera.ticketStatus === 'pending_decision' && (
                             <button
                               className="btn btn-primary"
-                              disabled={creatingTicketFor === camera.locationId}
+                              disabled={
+                                refreshRunning ||
+                                creatingTicketFor === camera.locationId
+                              }
                               onClick={() =>
                                 void createTicket(camera.locationId)
                               }

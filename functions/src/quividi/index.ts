@@ -22,6 +22,7 @@ import {
 import {
   canForceRefreshQuividi,
   canManageQuividiTickets,
+  canRefreshQuividiHealth,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -56,6 +57,15 @@ import {
   buildCameraHealthOverview,
   type CameraHealthOverviewResponse,
 } from './healthOverview';
+import {
+  acquireCameraHealthRefresh,
+  completeCameraHealthRefresh,
+  failCameraHealthRefresh,
+  getCameraHealthRefreshState,
+  updateCameraHealthRefreshStage,
+  type CameraHealthRefreshActor,
+  type CameraHealthRefreshStage,
+} from './cameraHealthRefresh';
 import {
   CAMERA_TICKET_STATE_COLLECTION,
   buildCameraPointBindings,
@@ -315,6 +325,9 @@ interface CameraHealthComputation {
 async function computeCameraHealth(
   days: number,
   now: number,
+  onStage?: (
+    stage: Exclude<CameraHealthRefreshStage, 'completed' | 'error'>,
+  ) => Promise<void>,
 ): Promise<CameraHealthComputation> {
   const db = getFirestore();
   const screensSnap = await db.collection('screens').get();
@@ -322,9 +335,12 @@ async function computeCameraHealth(
     id: doc.id,
     ...(doc.data() as ScreenDoc),
   }));
+  await onStage?.('connecting');
   const topology = await quividiGet<TopologyLocation[]>('/locations/');
+  await onStage?.('syncing_catalog');
   const catalogSync = await syncCatalogLocationBindings(db, screens, topology);
   const scope = prepareCameraHealthScope(catalogSync.screens, topology);
+  await onStage?.('analyzing');
   const endDate = lastCompleteUtcDate(now);
   const startDate = lookbackStartDate(endDate, days);
   const dates = dayList(startDate, endDate);
@@ -838,6 +854,64 @@ async function reconcileCameraHealthAlerts(
   return summary;
 }
 
+interface CameraHealthCycleResult {
+  startDate: string;
+  endDate: string;
+  initialBackfill: boolean;
+  written: number;
+  mapping: CameraHealthMappingSummary;
+  catalogMappingsUpdated: number;
+  alerts: CameraHealthAlertReconcileSummary;
+  ticketSync: { created: number; recovered: number; errors: number };
+}
+
+async function runCameraHealthCycle(
+  now: number,
+  onStage?: (
+    stage: Exclude<CameraHealthRefreshStage, 'completed' | 'error'>,
+  ) => Promise<void>,
+): Promise<CameraHealthCycleResult> {
+  const health = await computeCameraHealth(
+    CAMERA_HEALTH_LOOKBACK_DAYS,
+    now,
+    onStage,
+  );
+  const db = getFirestore();
+  const existing = await db.collection(CAMERA_HEALTH_COLLECTION).limit(1).get();
+  const records = existing.empty
+    ? health.records
+    : health.records.filter((record) => record.date === health.endDate);
+  const written = await persistCameraHealth(records);
+
+  await onStage?.('reconciling_alerts');
+  const alerts = await reconcileCameraHealthAlerts(
+    health.records,
+    health.monitoredLocationIds,
+    health.endDate,
+    now,
+  );
+
+  await onStage?.('syncing_odoo');
+  const ticketSync = await reconcileAutomaticCameraTickets(
+    db,
+    ODOO_API_KEY.value(),
+    buildCurrentCameraHealthEvaluations(health.records, health.endDate),
+    health.screens,
+    now,
+  );
+
+  return {
+    startDate: health.startDate,
+    endDate: health.endDate,
+    initialBackfill: existing.empty,
+    written,
+    mapping: health.mapping,
+    catalogMappingsUpdated: health.catalogMappingsUpdated,
+    alerts,
+    ticketSync,
+  };
+}
+
 type CallableAuth = NonNullable<CallableRequest['auth']>;
 
 /**
@@ -857,6 +931,22 @@ function requireQuividiAccess(request: CallableRequest): CallableAuth {
     throw new HttpsError(
       'permission-denied',
       'Tu rol no permite consultar el reporte de audiencia Quividi.',
+    );
+  }
+  return auth;
+}
+
+function requireQuividiHealthRefreshAccess(
+  request: CallableRequest,
+): CallableAuth {
+  const auth = request.auth;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  if (!canRefreshQuividiHealth(roleFromClaims(auth.token))) {
+    throw new HttpsError(
+      'permission-denied',
+      'Tu rol no permite actualizar la salud de cámaras desde Quividi.',
     );
   }
   return auth;
@@ -952,9 +1042,10 @@ export const cameraHealthOverview = onCall(
       CAMERA_HEALTH_ALERT_STATE_COLLECTION,
       CAMERA_HEALTH_ALERT_COLLECTION,
     );
-    const [screensSnap, ticketSnap] = await Promise.all([
+    const [screensSnap, ticketSnap, refreshState] = await Promise.all([
       db.collection('screens').get(),
       db.collection(CAMERA_TICKET_STATE_COLLECTION).get(),
+      getCameraHealthRefreshState(db),
     ]);
     const screens = screensSnap.docs.map((doc) => ({
       id: doc.id,
@@ -996,7 +1087,108 @@ export const cameraHealthOverview = onCall(
         camera.canCreateTicket = canCreateTickets;
       }
     }
+    const now = Date.now();
+    const refreshExpired =
+      refreshState.status === 'running' &&
+      (refreshState.lockExpiresAt ?? 0) <= now;
+    overview.refresh = {
+      status: refreshExpired ? 'error' : refreshState.status,
+      stage: refreshExpired ? 'error' : refreshState.stage,
+      trigger: refreshState.trigger,
+      startedAt: refreshState.startedAt,
+      startedByEmail: refreshState.startedByEmail,
+      completedAt: refreshState.completedAt,
+      cooldownUntil: refreshState.cooldownUntil,
+      lastManualCompletedAt: refreshState.lastManualCompletedAt,
+      lastManualCompletedByEmail: refreshState.lastManualCompletedByEmail,
+      lastAutomaticCompletedAt: refreshState.lastAutomaticCompletedAt,
+      lastError: refreshExpired
+        ? 'La actualización anterior no finalizó correctamente. Puedes reintentar.'
+        : refreshState.lastError,
+      canRefresh: canRefreshQuividiHealth(roleFromClaims(auth.token)),
+    };
+
     return overview;
+  },
+);
+
+export const cameraHealthRefresh = onCall(
+  {
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN, ODOO_API_KEY],
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async (request): Promise<{
+    endDate: string;
+    written: number;
+    alerts: CameraHealthAlertReconcileSummary;
+    ticketSync: { created: number; recovered: number; errors: number };
+    completedAt: number;
+  }> => {
+    const auth = requireQuividiHealthRefreshAccess(request);
+    const now = Date.now();
+    const actor: CameraHealthRefreshActor = {
+      uid: auth.uid,
+      email:
+        typeof auth.token.email === 'string' && auth.token.email.trim()
+          ? auth.token.email.trim()
+          : auth.uid,
+    };
+    const db = getFirestore();
+    const acquired = await acquireCameraHealthRefresh(
+      db,
+      'manual',
+      actor,
+      now,
+    );
+
+    if (!acquired.acquired || !acquired.runId) {
+      if (acquired.reason === 'running') {
+        throw new HttpsError(
+          'aborted',
+          'Ya hay una actualización de salud de cámaras en curso.',
+        );
+      }
+      const remainingSeconds = Math.max(
+        1,
+        Math.ceil(((acquired.retryAt ?? now) - now) / 1000),
+      );
+      throw new HttpsError(
+        'resource-exhausted',
+        'Espera ' +
+          remainingSeconds +
+          ' segundos antes de volver a consultar Quividi.',
+      );
+    }
+
+    const runId = acquired.runId;
+    try {
+      const result = await runCameraHealthCycle(now, (stage) =>
+        updateCameraHealthRefreshStage(db, runId, stage),
+      );
+      const completedAt = Date.now();
+      await completeCameraHealthRefresh(
+        db,
+        runId,
+        'manual',
+        actor,
+        completedAt,
+      );
+      return {
+        endDate: result.endDate,
+        written: result.written,
+        alerts: result.alerts,
+        ticketSync: result.ticketSync,
+        completedAt,
+      };
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'No fue posible actualizar la salud de cámaras.';
+      await failCameraHealthRefresh(db, runId, Date.now(), message);
+      throw new HttpsError('internal', message);
+    }
   },
 );
 
@@ -1022,6 +1214,16 @@ export const createCameraHealthTicket = onCall(
     }
 
     const db = getFirestore();
+    const refreshState = await getCameraHealthRefreshState(db);
+    if (
+      refreshState.status === 'running' &&
+      (refreshState.lockExpiresAt ?? 0) > Date.now()
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Espera a que termine la actualización desde Quividi antes de crear un ticket.',
+      );
+    }
     const stateSnap = await db
       .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
       .doc(String(rawId))
@@ -1336,39 +1538,46 @@ export const cameraHealthDaily = onSchedule(
   },
   async () => {
     const now = Date.now();
-    const health = await computeCameraHealth(
-      CAMERA_HEALTH_LOOKBACK_DAYS,
-      now,
-    );
     const db = getFirestore();
-    const existing = await db.collection(CAMERA_HEALTH_COLLECTION).limit(1).get();
-    const records = existing.empty
-      ? health.records
-      : health.records.filter((record) => record.date === health.endDate);
-    const written = await persistCameraHealth(records);
-    const alerts = await reconcileCameraHealthAlerts(
-      health.records,
-      health.monitoredLocationIds,
-      health.endDate,
-      now,
-    );
-    const ticketSync = await reconcileAutomaticCameraTickets(
+    const actor: CameraHealthRefreshActor = {
+      uid: 'scheduler',
+      email: 'Proceso automático',
+    };
+    const acquired = await acquireCameraHealthRefresh(
       db,
-      ODOO_API_KEY.value(),
-      buildCurrentCameraHealthEvaluations(health.records, health.endDate),
-      health.screens,
+      'automatic',
+      actor,
       now,
     );
+    if (!acquired.acquired || !acquired.runId) {
+      console.info('Quividi camera health skipped: refresh already running.', {
+        reason: acquired.reason,
+        retryAt: acquired.retryAt,
+      });
+      return;
+    }
 
-    console.info('Quividi camera health persisted.', {
-      startDate: health.startDate,
-      endDate: health.endDate,
-      initialBackfill: existing.empty,
-      written,
-      mapping: health.mapping,
-      catalogMappingsUpdated: health.catalogMappingsUpdated,
-      alerts,
-      ticketSync,
-    });
+    const runId = acquired.runId;
+    try {
+      const result = await runCameraHealthCycle(now, (stage) =>
+        updateCameraHealthRefreshStage(db, runId, stage),
+      );
+      const completedAt = Date.now();
+      await completeCameraHealthRefresh(
+        db,
+        runId,
+        'automatic',
+        actor,
+        completedAt,
+      );
+      console.info('Quividi camera health persisted.', result);
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'No fue posible actualizar la salud de cámaras.';
+      await failCameraHealthRefresh(db, runId, Date.now(), message);
+      throw reason;
+    }
   },
 );

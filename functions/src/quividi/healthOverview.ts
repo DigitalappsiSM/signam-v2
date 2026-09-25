@@ -1,4 +1,9 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import type {
+  CameraHealthRefreshStage,
+  CameraHealthRefreshStatus,
+  CameraHealthRefreshTrigger,
+} from './cameraHealthRefresh';
 import {
   daysInclusive,
   type CameraHealthAlertDoc,
@@ -44,6 +49,21 @@ export interface CameraHealthOverviewRow {
   canCreateTicket: boolean;
 }
 
+export interface CameraHealthRefreshOverview {
+  status: CameraHealthRefreshStatus;
+  stage: CameraHealthRefreshStage | null;
+  trigger: CameraHealthRefreshTrigger | null;
+  startedAt: number | null;
+  startedByEmail: string | null;
+  completedAt: number | null;
+  cooldownUntil: number | null;
+  lastManualCompletedAt: number | null;
+  lastManualCompletedByEmail: string | null;
+  lastAutomaticCompletedAt: number | null;
+  lastError: string | null;
+  canRefresh: boolean;
+}
+
 export interface CameraHealthOverviewResponse {
   generatedAt: number;
   latestDate: string | null;
@@ -54,6 +74,7 @@ export interface CameraHealthOverviewResponse {
     outOfScope: number;
   };
   cameras: CameraHealthOverviewRow[];
+  refresh: CameraHealthRefreshOverview;
   recentRecoveries: Array<{
     alertId: string;
     locationId: number;
@@ -244,6 +265,20 @@ export async function buildCameraHealthOverview(
       outOfScope: cameras.filter((camera) => !camera.monitored).length,
     },
     cameras,
+    refresh: {
+      status: 'idle',
+      stage: null,
+      trigger: null,
+      startedAt: null,
+      startedByEmail: null,
+      completedAt: null,
+      cooldownUntil: null,
+      lastManualCompletedAt: null,
+      lastManualCompletedByEmail: null,
+      lastAutomaticCompletedAt: null,
+      lastError: null,
+      canRefresh: false,
+    },
     recentRecoveries,
   };
 }

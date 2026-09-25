@@ -90,3 +90,32 @@ export async function createQuividiCameraHealthTicket(
   const result = await callable({ locationId });
   return result.data;
 }
+
+export interface QuividiCameraHealthRefreshResult {
+  endDate: string;
+  written: number;
+  alerts: {
+    evaluated: number;
+    normal: number;
+    active: number;
+    created: number;
+    updated: number;
+    recovered: number;
+    retired: number;
+  };
+  ticketSync: {
+    created: number;
+    recovered: number;
+    errors: number;
+  };
+  completedAt: number;
+}
+
+export async function refreshQuividiCameraHealth(): Promise<QuividiCameraHealthRefreshResult> {
+  const callable = httpsCallable<
+    Record<string, never>,
+    QuividiCameraHealthRefreshResult
+  >(functions(), 'quividi-cameraHealthRefresh', { timeout: 540_000 });
+  const result = await callable({});
+  return result.data;
+}

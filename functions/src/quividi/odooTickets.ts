@@ -222,15 +222,44 @@ function statusLabel(status: TicketOperationalHealth): string {
   }
 }
 
+async function findExistingTicketBySubject(
+  key: string,
+  subject: string,
+): Promise<number | null> {
+  const tickets = await odooCall<Array<{ id: number; name?: string }>>(
+    key,
+    'helpdesk.ticket',
+    'search_read',
+    {
+      domain: [['name', '=', subject]],
+      fields: ['id', 'name'],
+      limit: 2,
+    },
+  );
+  if (tickets.length > 1) {
+    throw new Error(
+      'Odoo tiene más de un ticket con la misma identidad SIGNAM. Requiere revisión manual.',
+    );
+  }
+  return tickets.length === 1 && Number.isInteger(tickets[0]?.id)
+    ? tickets[0]!.id
+    : null;
+}
+
 async function createOdooTicket(
   key: string,
   binding: CameraPointBinding,
   evaluation: TicketHealthEvaluation,
 ): Promise<{ ticketId: number; subject: string }> {
-  const partnerId = await resolveStorePartnerId(key, binding.storeNumber);
-  const tagId = await cameraTagId(key);
   const startedDate = evaluation.incidentStartDate ?? evaluation.latestDate;
   const subject = ticketSubject(binding, startedDate);
+  const existingTicketId = await findExistingTicketBySubject(key, subject);
+  if (existingTicketId) {
+    return { ticketId: existingTicketId, subject };
+  }
+
+  const partnerId = await resolveStorePartnerId(key, binding.storeNumber);
+  const tagId = await cameraTagId(key);
   const description = [
     'Incidencia detectada por SIGNAM.',
     'Punto SIGNAM: ' + binding.measurementPointId,
