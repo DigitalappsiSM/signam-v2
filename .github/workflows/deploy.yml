@@ -48,6 +48,25 @@ jobs:
           VITE_FIREBASE_APP_ID: '1:1015989960129:web:1e65613fa5725a3ffd8340'
           VITE_USE_FIREBASE_EMULATORS: 'false'
 
+      - name: Sincronizar ODOO_API_KEY con Firebase Secret Manager
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ODOO_API_KEY: ${{ secrets.ODOO_API_KEY }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          test -n "$ODOO_API_KEY"
+          CREDENTIALS_FILE="$RUNNER_TEMP/firebase-service-account.json"
+          ODOO_SECRET_FILE="$RUNNER_TEMP/odoo-api-key"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_FILE"
+          printf '%s' "$ODOO_API_KEY" > "$ODOO_SECRET_FILE"
+          chmod 600 "$CREDENTIALS_FILE" "$ODOO_SECRET_FILE"
+          export GOOGLE_APPLICATION_CREDENTIALS="$CREDENTIALS_FILE"
+          npx --yes firebase-tools functions:secrets:set ODOO_API_KEY \
+            --project signam-v2-prod \
+            --data-file "$ODOO_SECRET_FILE"
+          rm -f "$ODOO_SECRET_FILE" "$CREDENTIALS_FILE"
+
       # Despliega Hosting, Cloud Functions, las reglas/índices de Firestore y
       # las reglas de Storage (`storage.rules`, ruta `digital-imports/` que
       # necesita la Importación Digital). El predeploy de `firebase.json`
