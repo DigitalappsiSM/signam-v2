@@ -67,6 +67,14 @@ export interface SignamMetadata {
   quividiLocationId2?: number | null;
   /** Alias/nombre canónico de la segunda cámara Quividi (ver `quividiLocationId2`). */
   quividiCameraName2?: string;
+  /** Código estable del punto físico medido por la cámara principal (ej. 1, P1). */
+  measurementPointCode?: string;
+  /** Identidad SIGNAM inmutable del punto principal (ej. LIV-199-CRIUS-P1). */
+  measurementPointId?: string;
+  /** Código estable del punto físico medido por la segunda cámara. */
+  measurementPointCode2?: string;
+  /** Identidad SIGNAM inmutable del segundo punto. */
+  measurementPointId2?: string;
 }
 
 /** Pantalla del catálogo Admira: campos originales + metadatos SIGNAM. */
