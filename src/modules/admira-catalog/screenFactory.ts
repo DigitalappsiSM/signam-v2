@@ -45,6 +45,10 @@ export function newScreenMetadata(actor: Actor, now: number): SignamMetadata {
     quividiCameraName: '',
     quividiLocationId2: null,
     quividiCameraName2: '',
+    measurementPointCode: '',
+    measurementPointId: '',
+    measurementPointCode2: '',
+    measurementPointId2: '',
   };
 }
 

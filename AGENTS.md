@@ -248,6 +248,16 @@ tres de ellos describían mal el separador de artículos.
   alerta e historial aunque compartan fila de catálogo. La inmensa mayoría de
   pantallas solo usa la primera cámara; la segunda queda vacía por defecto y no
   requiere migración de datos existentes.
+- **Punto SIGNAM estable + tickets Odoo**: cada slot Quividi puede tener
+  `measurementPointCode` y `measurementPointId` (segunda cámara: sufijo `2`).
+  El ID se construye como `LIV-TIENDA-SOPORTE-PUNTO` y sobrevive a cambios de
+  Alias, Box ID o Location ID cuando el punto físico no cambia. El código de
+  punto admite solo mayúsculas y números (1–8 caracteres) y debe ser único.
+  La automatización Odoo deduplica por `measurementPointId`: `no_ots` crea
+  ticket automáticamente; `no_measurement` y `partial_measurement` requieren
+  decisión manual de admin/operator desde Salud de cámaras. Al recuperarse,
+  SIGNAM comenta el ticket y nunca lo cierra. El estado vive en
+  `quividiCameraTicketState/{measurementPointId}`.
 - **Motor de salud Quividi (Fase 2.2)**: la salud vigente se decide **solo con el
   último día completo**. El histórico se usa únicamente para calcular desde
   cuándo persiste una anomalía; una caída antigua ya recuperada **no crea alerta

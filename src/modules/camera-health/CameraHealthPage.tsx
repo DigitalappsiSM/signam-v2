@@ -9,7 +9,10 @@ import {
 } from '@/components/filters';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import type { QuividiCameraHealthOverview } from '@/domain';
-import { getQuividiCameraHealthOverview } from '@/services/quividi';
+import {
+  createQuividiCameraHealthTicket,
+  getQuividiCameraHealthOverview,
+} from '@/services/quividi';
 import {
   cameraHealthStatusLabel,
   cameraHealthStatusTone,
@@ -64,6 +67,10 @@ export function CameraHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CameraHealthFilter>('all');
+  const [creatingTicketFor, setCreatingTicketFor] = useState<number | null>(
+    null,
+  );
+  const [ticketError, setTicketError] = useState<string | null>(null);
 
   const filterChips = compactChips([
     search.trim() !== '' && {
@@ -98,6 +105,51 @@ export function CameraHealthPage() {
     void reload();
   }, [reload]);
 
+  const createTicket = useCallback(
+    async (locationId: number) => {
+      setCreatingTicketFor(locationId);
+      setTicketError(null);
+      try {
+        await createQuividiCameraHealthTicket(locationId);
+        await reload();
+      } catch (reason) {
+        setTicketError(
+          reason instanceof Error
+            ? reason.message
+            : 'No se pudo crear el ticket en Odoo.',
+        );
+      } finally {
+        setCreatingTicketFor(null);
+      }
+    },
+    [reload],
+  );
+
+  function ticketLabel(
+    camera: QuividiCameraHealthOverview['cameras'][number],
+  ): string {
+    switch (camera.ticketStatus) {
+      case 'created':
+        return camera.ticketId ? 'Ticket #' + camera.ticketId : 'Ticket creado';
+      case 'recovery_notified':
+        return camera.ticketId
+          ? 'Recuperado · #' + camera.ticketId
+          : 'Recuperación notificada';
+      case 'creating':
+        return 'Creando ticket…';
+      case 'error':
+        return 'Error de ticket';
+      case 'auto_pending':
+        return 'Envío automático';
+      case 'pending_decision':
+        return 'Pendiente de decisión';
+      case 'not_needed':
+        return 'Sin ticket';
+      default:
+        return 'Punto sin configurar';
+    }
+  }
+
   const rows = useMemo(
     () =>
       overview ? filterCameraHealthRows(overview.cameras, search, filter) : [],
@@ -123,6 +175,11 @@ export function CameraHealthPage() {
       {error && (
         <div className="camera-health__error" role="alert">
           {error}
+        </div>
+      )}
+      {ticketError && (
+        <div className="camera-health__error" role="alert">
+          {ticketError}
         </div>
       )}
 
@@ -215,6 +272,7 @@ export function CameraHealthPage() {
                   <th>Cobertura 11–22</th>
                   <th>OTS</th>
                   <th>Último día</th>
+                  <th>Ticket Odoo</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,6 +314,31 @@ export function CameraHealthPage() {
                       </td>
                       <td>{formatNumber(camera.coreOts)}</td>
                       <td>{formatHealthDate(camera.latestDate)}</td>
+                      <td>
+                        <strong>{ticketLabel(camera)}</strong>
+                        {camera.measurementPointId && (
+                          <span title={camera.measurementPointId}>
+                            {camera.measurementPointId}
+                          </span>
+                        )}
+                        {camera.ticketError && (
+                          <small>{camera.ticketError}</small>
+                        )}
+                        {camera.canCreateTicket &&
+                          camera.ticketStatus === 'pending_decision' && (
+                            <button
+                              className="btn btn-primary"
+                              disabled={creatingTicketFor === camera.locationId}
+                              onClick={() =>
+                                void createTicket(camera.locationId)
+                              }
+                            >
+                              {creatingTicketFor === camera.locationId
+                                ? 'Enviando…'
+                                : 'Crear ticket'}
+                            </button>
+                          )}
+                      </td>
                     </tr>
                   );
                 })}

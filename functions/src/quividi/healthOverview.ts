@@ -27,6 +27,21 @@ export interface CameraHealthOverviewRow {
   firstOtsHour: number | null;
   lastOtsHour: number | null;
   lastEvaluatedAt: number;
+  measurementPointId: string | null;
+  measurementPointCode: string | null;
+  ticketAction: 'none' | 'automatic' | 'manual';
+  ticketStatus:
+    | 'not_configured'
+    | 'not_needed'
+    | 'pending_decision'
+    | 'auto_pending'
+    | 'creating'
+    | 'created'
+    | 'recovery_notified'
+    | 'error';
+  ticketId: number | null;
+  ticketError: string | null;
+  canCreateTicket: boolean;
 }
 
 export interface CameraHealthOverviewResponse {
@@ -149,6 +164,13 @@ export async function buildCameraHealthOverview(
       firstOtsHour: nullableHour(data.firstOtsHour),
       lastOtsHour: nullableHour(data.lastOtsHour),
       lastEvaluatedAt: finiteNumber(data.lastEvaluatedAt),
+      measurementPointId: null,
+      measurementPointCode: null,
+      ticketAction: 'none',
+      ticketStatus: 'not_configured',
+      ticketId: null,
+      ticketError: null,
+      canCreateTicket: false,
     };
   });
 

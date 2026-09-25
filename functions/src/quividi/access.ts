@@ -60,6 +60,12 @@ export function canUseQuividiOperations(role: Role): boolean {
   return QUIVIDI_OPERATIONS_ROLES.includes(role);
 }
 
+export const QUIVIDI_TICKET_ROLES: readonly Role[] = ['admin', 'operator'];
+
+export function canManageQuividiTickets(role: Role): boolean {
+  return QUIVIDI_TICKET_ROLES.includes(role);
+}
+
 /**
  * Roles que pueden forzar el recálculo saltándose la caché.
  *

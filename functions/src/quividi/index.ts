@@ -21,6 +21,7 @@ import {
 } from './effectiveScope';
 import {
   canForceRefreshQuividi,
+  canManageQuividiTickets,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -56,6 +57,13 @@ import {
   type CameraHealthOverviewResponse,
 } from './healthOverview';
 import {
+  CAMERA_TICKET_STATE_COLLECTION,
+  buildCameraPointBindings,
+  createManualCameraTicket,
+  reconcileAutomaticCameraTickets,
+  type CameraTicketStateDoc,
+} from './odooTickets';
+import {
   buildCoverage,
   buildMeasurementRows,
   dayList,
@@ -77,6 +85,7 @@ import {
 
 const QUIVIDI_API_USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const QUIVIDI_API_TOKEN = defineSecret('QUIVIDI_API_TOKEN');
+const ODOO_API_KEY = defineSecret('ODOO_API_KEY');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
@@ -300,6 +309,7 @@ interface CameraHealthComputation {
   monitoredLocationIds: number[];
   mapping: CameraHealthMappingSummary;
   catalogMappingsUpdated: number;
+  screens: ScreenDoc[];
 }
 
 async function computeCameraHealth(
@@ -359,6 +369,7 @@ async function computeCameraHealth(
     monitoredLocationIds: scope.mappedLocationIds,
     mapping: scope.mapping,
     catalogMappingsUpdated: catalogSync.updated,
+    screens: catalogSync.screens,
   };
 }
 
@@ -851,6 +862,20 @@ function requireQuividiAccess(request: CallableRequest): CallableAuth {
   return auth;
 }
 
+function requireQuividiTicketAccess(request: CallableRequest): CallableAuth {
+  const auth = request.auth;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+  }
+  if (!canManageQuividiTickets(roleFromClaims(auth.token))) {
+    throw new HttpsError(
+      'permission-denied',
+      'Tu rol no permite crear tickets de cámaras.',
+    );
+  }
+  return auth;
+}
+
 function requireQuividiOperationalAccess(
   request: CallableRequest,
 ): CallableAuth {
@@ -919,12 +944,141 @@ export const locationLookup = onCall(
 
 export const cameraHealthOverview = onCall(
   async (request): Promise<CameraHealthOverviewResponse> => {
-    requireQuividiOperationalAccess(request);
-    return buildCameraHealthOverview(
-      getFirestore(),
+    const auth = requireQuividiOperationalAccess(request);
+    const canCreateTickets = canManageQuividiTickets(roleFromClaims(auth.token));
+    const db = getFirestore();
+    const overview = await buildCameraHealthOverview(
+      db,
       CAMERA_HEALTH_ALERT_STATE_COLLECTION,
       CAMERA_HEALTH_ALERT_COLLECTION,
     );
+    const [screensSnap, ticketSnap] = await Promise.all([
+      db.collection('screens').get(),
+      db.collection(CAMERA_TICKET_STATE_COLLECTION).get(),
+    ]);
+    const screens = screensSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as ScreenDoc),
+    }));
+    const bindings = buildCameraPointBindings(screens);
+    const tickets = new Map<string, Partial<CameraTicketStateDoc>>();
+    for (const doc of ticketSnap.docs) {
+      tickets.set(doc.id, doc.data() as Partial<CameraTicketStateDoc>);
+    }
+
+    for (const camera of overview.cameras) {
+      const binding = bindings.get(camera.locationId);
+      if (!binding) continue;
+      camera.measurementPointId = binding.measurementPointId;
+      camera.measurementPointCode = binding.measurementPointCode;
+      const ticket = tickets.get(binding.measurementPointId);
+      camera.ticketId =
+        typeof ticket?.ticketId === 'number' ? ticket.ticketId : null;
+      camera.ticketError =
+        typeof ticket?.lastError === 'string' ? ticket.lastError : null;
+
+      if (ticket?.ticketStatus === 'creating') {
+        camera.ticketStatus = 'creating';
+      } else if (ticket?.ticketStatus === 'created') {
+        camera.ticketStatus = 'created';
+      } else if (ticket?.ticketStatus === 'recovery_notified') {
+        camera.ticketStatus = 'recovery_notified';
+      } else if (ticket?.ticketStatus === 'error') {
+        camera.ticketStatus = 'error';
+      } else if (camera.currentStatus === 'normal') {
+        camera.ticketStatus = 'not_needed';
+      } else if (camera.currentStatus === 'no_ots') {
+        camera.ticketAction = 'automatic';
+        camera.ticketStatus = 'auto_pending';
+      } else {
+        camera.ticketAction = 'manual';
+        camera.ticketStatus = 'pending_decision';
+        camera.canCreateTicket = canCreateTickets;
+      }
+    }
+    return overview;
+  },
+);
+
+export const createCameraHealthTicket = onCall(
+  {
+    secrets: [ODOO_API_KEY],
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (request): Promise<{ ticketId: number }> => {
+    requireQuividiTicketAccess(request);
+    const rawId = (request.data as { locationId?: unknown } | undefined)
+      ?.locationId;
+    if (
+      typeof rawId !== 'number' ||
+      !Number.isInteger(rawId) ||
+      rawId <= 0
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'locationId debe ser un entero positivo.',
+      );
+    }
+
+    const db = getFirestore();
+    const stateSnap = await db
+      .collection(CAMERA_HEALTH_ALERT_STATE_COLLECTION)
+      .doc(String(rawId))
+      .get();
+    const state = stateSnap.data() as
+      | Partial<CameraHealthAlertStateDoc>
+      | undefined;
+    if (!stateSnap.exists || state?.monitored === false) {
+      throw new HttpsError(
+        'failed-precondition',
+        'La cámara no está actualmente monitoreada.',
+      );
+    }
+    const currentStatus = state?.currentStatus;
+    if (
+      currentStatus !== 'no_measurement' &&
+      currentStatus !== 'partial_measurement'
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        currentStatus === 'no_ots'
+          ? 'Sin OTS crea ticket automáticamente.'
+          : 'La cámara no tiene una alerta manual activa.',
+      );
+    }
+    const screensSnap = await db.collection('screens').get();
+    const screens = screensSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as ScreenDoc),
+    }));
+    try {
+      const ticket = await createManualCameraTicket(
+        db,
+        ODOO_API_KEY.value(),
+        {
+          locationId: rawId,
+          currentStatus,
+          latestDate:
+            typeof state?.latestDate === 'string' ? state.latestDate : '',
+          incidentStartDate:
+            typeof state?.startedDate === 'string' ? state.startedDate : null,
+        },
+        screens,
+        Date.now(),
+      );
+      if (typeof ticket.ticketId !== 'number') {
+        throw new Error('Odoo no devolvió un folio válido.');
+      }
+      return { ticketId: ticket.ticketId };
+    } catch (reason) {
+      throw new HttpsError(
+        'internal',
+        reason instanceof Error
+          ? reason.message
+          : 'No fue posible crear el ticket en Odoo.',
+      );
+    }
   },
 );
 
@@ -1176,7 +1330,7 @@ export const cameraHealthDaily = onSchedule(
   {
     schedule: '15 8 * * *',
     timeZone: 'America/Mexico_City',
-    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN, ODOO_API_KEY],
     timeoutSeconds: 540,
     memory: '512MiB',
   },
@@ -1198,6 +1352,13 @@ export const cameraHealthDaily = onSchedule(
       health.endDate,
       now,
     );
+    const ticketSync = await reconcileAutomaticCameraTickets(
+      db,
+      ODOO_API_KEY.value(),
+      buildCurrentCameraHealthEvaluations(health.records, health.endDate),
+      health.screens,
+      now,
+    );
 
     console.info('Quividi camera health persisted.', {
       startDate: health.startDate,
@@ -1207,6 +1368,7 @@ export const cameraHealthDaily = onSchedule(
       mapping: health.mapping,
       catalogMappingsUpdated: health.catalogMappingsUpdated,
       alerts,
+      ticketSync,
     });
   },
 );

@@ -26,6 +26,21 @@ export interface QuividiCameraHealthRow {
   firstOtsHour: number | null;
   lastOtsHour: number | null;
   lastEvaluatedAt: number;
+  measurementPointId: string | null;
+  measurementPointCode: string | null;
+  ticketAction: 'none' | 'automatic' | 'manual';
+  ticketStatus:
+    | 'not_configured'
+    | 'not_needed'
+    | 'pending_decision'
+    | 'auto_pending'
+    | 'creating'
+    | 'created'
+    | 'recovery_notified'
+    | 'error';
+  ticketId: number | null;
+  ticketError: string | null;
+  canCreateTicket: boolean;
 }
 
 export interface QuividiCameraRecovery {

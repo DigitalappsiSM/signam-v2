@@ -7,6 +7,8 @@ function row(
   calendarSupport: string,
   quividiCameraName: string,
   quividiCameraName2 = '',
+  measurementPointCode = '',
+  measurementPointCode2 = '',
 ): MasterRow {
   return {
     original: emptyOriginal(),
@@ -14,6 +16,8 @@ function row(
     calendarSupport,
     quividiCameraName,
     quividiCameraName2,
+    measurementPointCode,
+    measurementPointCode2,
   };
 }
 
@@ -24,6 +28,8 @@ describe('masterMetadataPatch', () => {
         calendarSupport: false,
         quividiCameraName: true,
         quividiCameraName2: false,
+        measurementPointCode: false,
+        measurementPointCode2: false,
       }),
     ).toEqual({ quividiCameraName: 'CAM-01' });
   });
@@ -34,6 +40,8 @@ describe('masterMetadataPatch', () => {
         calendarSupport: true,
         quividiCameraName: false,
         quividiCameraName2: false,
+        measurementPointCode: false,
+        measurementPointCode2: false,
       }),
     ).toEqual({ calendarSupport: 'MEGA MUPI DIGITAL' });
   });
@@ -44,6 +52,8 @@ describe('masterMetadataPatch', () => {
         calendarSupport: true,
         quividiCameraName: true,
         quividiCameraName2: false,
+        measurementPointCode: false,
+        measurementPointCode2: false,
       }),
     ).toEqual({
       calendarSupport: '',
@@ -57,6 +67,8 @@ describe('masterMetadataPatch', () => {
         calendarSupport: false,
         quividiCameraName: true,
         quividiCameraName2: true,
+        measurementPointCode: false,
+        measurementPointCode2: false,
       }),
     ).toEqual({ quividiCameraName: 'CAM-01', quividiCameraName2: 'CAM-02' });
   });

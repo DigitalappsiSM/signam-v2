@@ -31,6 +31,13 @@ function camera(
     firstOtsHour: 11,
     lastOtsHour: 21,
     lastEvaluatedAt: 1,
+    measurementPointId: null,
+    measurementPointCode: null,
+    ticketAction: 'none',
+    ticketStatus: 'not_needed',
+    ticketId: null,
+    ticketError: null,
+    canCreateTicket: false,
     ...over,
   };
 }

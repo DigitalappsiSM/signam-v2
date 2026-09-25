@@ -6,6 +6,8 @@ import {
   EXPORT_SHEET_NAME,
   FIELD_GUIDE,
   MAPPING_EXPORT_HEADER,
+  MEASUREMENT_POINT_EXPORT_HEADER,
+  MEASUREMENT_POINT_EXPORT_HEADER_2,
   QUIVIDI_EXPORT_HEADER,
   QUIVIDI_EXPORT_HEADER_2,
   buildCatalogWorkbook,
@@ -25,6 +27,8 @@ function screen(over: {
   calendarSupport?: string;
   quividiCameraName?: string;
   quividiCameraName2?: string;
+  measurementPointCode?: string;
+  measurementPointCode2?: string;
   id?: string;
 }): AdmiraScreen {
   return {
@@ -44,6 +48,10 @@ function screen(over: {
       calendarSupport: over.calendarSupport ?? '',
       quividiCameraName: over.quividiCameraName ?? '',
       quividiCameraName2: over.quividiCameraName2 ?? '',
+      measurementPointCode: over.measurementPointCode ?? '',
+      measurementPointId: '',
+      measurementPointCode2: over.measurementPointCode2 ?? '',
+      measurementPointId2: '',
     },
   };
 }
@@ -67,6 +75,8 @@ const sample = screen({
   calendarSupport: 'VIDEO WALL CRIUS',
   quividiCameraName: '78 - L GUADALAJARA GALERIAS- DERECHO',
   quividiCameraName2: '78 - L GUADALAJARA GALERIAS- IZQUIERDO',
+  measurementPointCode: 'P1',
+  measurementPointCode2: 'P2',
 });
 
 /** Convierte un worksheet de exceljs en la representación neutral SheetData. */
@@ -104,7 +114,9 @@ describe('buildCatalogWorkbook', () => {
       ...ADMIRA_CATALOG_HEADERS,
       MAPPING_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER,
+      MEASUREMENT_POINT_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER_2,
+      MEASUREMENT_POINT_EXPORT_HEADER_2,
     ]);
   });
 
@@ -177,10 +189,18 @@ describe('buildCatalogWorkbook', () => {
     expect(analysis.rows[0]?.quividiCameraName).toBe(
       '78 - L GUADALAJARA GALERIAS- DERECHO',
     );
+    expect(analysis.measurementPointColumn).toBe(
+      MEASUREMENT_POINT_EXPORT_HEADER,
+    );
+    expect(analysis.rows[0]?.measurementPointCode).toBe('P1');
     expect(analysis.quividiCameraColumn2).toBe(QUIVIDI_EXPORT_HEADER_2);
     expect(analysis.rows[0]?.quividiCameraName2).toBe(
       '78 - L GUADALAJARA GALERIAS- IZQUIERDO',
     );
+    expect(analysis.measurementPointColumn2).toBe(
+      MEASUREMENT_POINT_EXPORT_HEADER_2,
+    );
+    expect(analysis.rows[0]?.measurementPointCode2).toBe('P2');
   });
 });
 
@@ -229,7 +249,9 @@ describe('FIELD_GUIDE', () => {
       ...ADMIRA_CATALOG_HEADERS,
       MAPPING_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER,
+      MEASUREMENT_POINT_EXPORT_HEADER,
       QUIVIDI_EXPORT_HEADER_2,
+      MEASUREMENT_POINT_EXPORT_HEADER_2,
     ]);
   });
 
@@ -238,7 +260,9 @@ describe('FIELD_GUIDE', () => {
       const optional =
         field.header === MAPPING_EXPORT_HEADER ||
         field.header === QUIVIDI_EXPORT_HEADER ||
-        field.header === QUIVIDI_EXPORT_HEADER_2;
+        field.header === QUIVIDI_EXPORT_HEADER_2 ||
+        field.header === MEASUREMENT_POINT_EXPORT_HEADER ||
+        field.header === MEASUREMENT_POINT_EXPORT_HEADER_2;
       expect(field.required).toBe(!optional);
     }
   });

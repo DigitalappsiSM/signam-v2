@@ -79,3 +79,14 @@ export async function getQuividiCameraHealthOverview(): Promise<QuividiCameraHea
   const result = await callable({});
   return result.data;
 }
+
+export async function createQuividiCameraHealthTicket(
+  locationId: number,
+): Promise<{ ticketId: number }> {
+  const callable = httpsCallable<{ locationId: number }, { ticketId: number }>(
+    functions(),
+    'quividi-createCameraHealthTicket',
+  );
+  const result = await callable({ locationId });
+  return result.data;
+}
