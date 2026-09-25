@@ -6,4 +6,5 @@ export * from './consolidationKey';
 export * from './csv';
 export * from './quividi';
 export * from './quividiHealth';
+export * from './measurementPoint';
 export * as digitalOperations from './digital-operations';
