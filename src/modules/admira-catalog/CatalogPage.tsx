@@ -124,6 +124,8 @@ export function CatalogPage() {
     quividiLocationId: number | null,
     quividiCameraName2: string,
     quividiLocationId2: number | null,
+    measurementPointCode: string,
+    measurementPointCode2: string,
   ) {
     setSaving(true);
     try {
@@ -136,6 +138,8 @@ export function CatalogPage() {
           quividiLocationId,
           quividiCameraName2,
           quividiLocationId2,
+          measurementPointCode,
+          measurementPointCode2,
         );
       } else if (form.mode === 'edit') {
         await updateScreen(
@@ -147,12 +151,18 @@ export function CatalogPage() {
           quividiLocationId,
           quividiCameraName2,
           quividiLocationId2,
+          measurementPointCode,
+          measurementPointCode2,
         );
       }
       setForm({ mode: 'closed' });
       await reload();
-    } catch {
-      setError('No se pudo guardar la pantalla. Inténtalo de nuevo.');
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'No se pudo guardar la pantalla. Inténtalo de nuevo.',
+      );
     } finally {
       setSaving(false);
     }
@@ -365,6 +375,9 @@ export function CatalogPage() {
                           {screen.metadata.quividiCameraName ||
                             'Alias pendiente'}
                         </span>
+                        {screen.metadata.measurementPointId && (
+                          <small>{screen.metadata.measurementPointId}</small>
+                        )}
                       </div>
                     ) : screen.metadata.quividiCameraName ? (
                       <div className="catalog__quividi">
@@ -383,6 +396,9 @@ export function CatalogPage() {
                           {screen.metadata.quividiCameraName2 ||
                             'Alias pendiente'}
                         </span>
+                        {screen.metadata.measurementPointId2 && (
+                          <small>{screen.metadata.measurementPointId2}</small>
+                        )}
                       </div>
                     ) : (
                       screen.metadata.quividiCameraName2 && (
@@ -468,6 +484,16 @@ export function CatalogPage() {
             form.mode === 'edit'
               ? (form.screen.metadata.quividiLocationId2 ?? null)
               : null
+          }
+          initialMeasurementPointCode={
+            form.mode === 'edit'
+              ? (form.screen.metadata.measurementPointCode ?? '')
+              : ''
+          }
+          initialMeasurementPointCode2={
+            form.mode === 'edit'
+              ? (form.screen.metadata.measurementPointCode2 ?? '')
+              : ''
           }
           submitting={saving}
           onSubmit={handleSubmit}
