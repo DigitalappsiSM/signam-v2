@@ -66,6 +66,15 @@ export function canManageQuividiTickets(role: Role): boolean {
   return QUIVIDI_TICKET_ROLES.includes(role);
 }
 
+export const QUIVIDI_HEALTH_REFRESH_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+];
+
+export function canRefreshQuividiHealth(role: Role): boolean {
+  return QUIVIDI_HEALTH_REFRESH_ROLES.includes(role);
+}
+
 /**
  * Roles que pueden forzar el recálculo saltándose la caché.
  *
