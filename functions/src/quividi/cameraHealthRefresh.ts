@@ -125,6 +125,20 @@ export async function getCameraHealthRefreshState(
   );
 }
 
+export function cameraHealthRefreshBlockReason(
+  state: CameraHealthRefreshStateDoc,
+  trigger: CameraHealthRefreshTrigger,
+  now: number,
+): Pick<CameraHealthRefreshAcquireResult, 'reason' | 'retryAt'> | null {
+  if (state.status === 'running' && (state.lockExpiresAt ?? 0) > now) {
+    return { reason: 'running', retryAt: state.lockExpiresAt };
+  }
+  if (trigger === 'manual' && (state.cooldownUntil ?? 0) > now) {
+    return { reason: 'cooldown', retryAt: state.cooldownUntil };
+  }
+  return null;
+}
+
 export async function acquireCameraHealthRefresh(
   db: Firestore,
   trigger: CameraHealthRefreshTrigger,
@@ -138,27 +152,13 @@ export async function acquireCameraHealthRefresh(
       snap.data() as Partial<CameraHealthRefreshStateDoc> | undefined,
     );
 
-    if (
-      previous.status === 'running' &&
-      (previous.lockExpiresAt ?? 0) > now
-    ) {
+    const blocked = cameraHealthRefreshBlockReason(previous, trigger, now);
+    if (blocked) {
       return {
         acquired: false,
-        runId: previous.runId,
-        reason: 'running',
-        retryAt: previous.lockExpiresAt,
-      };
-    }
-
-    if (
-      trigger === 'manual' &&
-      (previous.cooldownUntil ?? 0) > now
-    ) {
-      return {
-        acquired: false,
-        runId: null,
-        reason: 'cooldown',
-        retryAt: previous.cooldownUntil,
+        runId: blocked.reason === 'running' ? previous.runId : null,
+        reason: blocked.reason,
+        retryAt: blocked.retryAt,
       };
     }
 
