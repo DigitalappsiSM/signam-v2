@@ -239,6 +239,39 @@ describe('syncCatalogLocationBindings', () => {
     expect(result.screens[0]?.metadata?.measurementPointCode2).toBe('P1');
   });
 
+  it('agrupa 7 y 007 como la misma tienda antes de numerar puntos', async () => {
+    const { db } = fakeDb();
+    const first = screen('s1', {
+      quividiLocationId: 201,
+      quividiCameraName: 'TOREO-1',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+    const second = screen('s2', {
+      quividiLocationId: 202,
+      quividiCameraName: 'TOREO-2',
+      measurementPointCode: '',
+      measurementPointId: '',
+    });
+    second.original = {
+      'Numero de Tienda': '007',
+      'Nombre de tienda': 'Toreo',
+    };
+
+    const result = await syncCatalogLocationBindings(
+      db,
+      [first, second],
+      [topology(201, 'TOREO-1'), topology(202, 'TOREO-2')],
+    );
+
+    expect(result.screens[0]?.metadata?.measurementPointId).toBe(
+      'LIV-007-CRIUS-P1',
+    );
+    expect(result.screens[1]?.metadata?.measurementPointId).toBe(
+      'LIV-007-CRIUS-P2',
+    );
+  });
+
   it('no adivina puntos si un Location ID está duplicado en tienda+soporte', async () => {
     const { db, batchUpdates } = fakeDb();
     const first = screen('s1', {
