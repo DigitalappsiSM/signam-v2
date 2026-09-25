@@ -13,6 +13,7 @@ import {
   type TopologyLocation,
   type ViewerExportRow,
 } from './measurement';
+import { buildMeasurementPointId } from './measurementPoint';
 
 export const CAMERA_HEALTH_SCHEMA_VERSION = 1;
 export const CAMERA_HEALTH_LOOKBACK_DAYS = 28;
@@ -66,6 +67,7 @@ export interface CameraHealthMappingSummary {
 export interface CameraHealthScope {
   pairs: SupportPair[];
   mappedLocationIds: number[];
+  measurementPointByLocationId: ReadonlyMap<number, string>;
   mapping: CameraHealthMappingSummary;
 }
 
@@ -75,6 +77,7 @@ export interface CameraHealthRecord {
   date: string;
   locationId: number;
   locationName: string;
+  measurementPointId: string | null;
   storeNumber: string;
   storeName: string;
   support: string;
@@ -114,6 +117,8 @@ export interface OperationalPairBuildResult {
   unconfiguredScreens: number;
   duplicateCameraNames: string[];
   duplicateLocationIds: number[];
+  measurementPointByLocationId: ReadonlyMap<number, string>;
+  measurementPointByCameraName: ReadonlyMap<string, string>;
 }
 
 function activeScreen(screen: ScreenDoc): boolean {
@@ -123,6 +128,7 @@ function activeScreen(screen: ScreenDoc): boolean {
 interface CameraSlot {
   locationId: number | null;
   cameraName: string;
+  measurementPointId: string | null;
 }
 
 function parsedLocationId(value: unknown): number | null {
@@ -138,15 +144,43 @@ function parsedLocationId(value: unknown): number | null {
  * Satélite, Mitikah, Delta). La inmensa mayoría de pantallas solo usa el
  * primero.
  */
+function screenPointId(
+  screen: ScreenDoc,
+  slot: 1 | 2,
+): string | null {
+  const persisted =
+    slot === 1
+      ? screen.metadata?.measurementPointId
+      : screen.metadata?.measurementPointId2;
+  if (typeof persisted === 'string' && persisted.trim()) return persisted.trim();
+
+  const code =
+    slot === 1
+      ? (screen.metadata?.measurementPointCode ?? '')
+      : (screen.metadata?.measurementPointCode2 ?? '');
+  if (!code.trim()) return null;
+  try {
+    return buildMeasurementPointId(
+      screen.original?.['Numero de Tienda'] ?? '',
+      screen.metadata?.calendarSupport ?? '',
+      code,
+    );
+  } catch {
+    return null;
+  }
+}
+
 function screenCameraSlots(screen: ScreenDoc): CameraSlot[] {
   const slots: CameraSlot[] = [
     {
       locationId: parsedLocationId(screen.metadata?.quividiLocationId),
       cameraName: screen.metadata?.quividiCameraName?.trim() ?? '',
+      measurementPointId: screenPointId(screen, 1),
     },
     {
       locationId: parsedLocationId(screen.metadata?.quividiLocationId2),
       cameraName: screen.metadata?.quividiCameraName2?.trim() ?? '',
+      measurementPointId: screenPointId(screen, 2),
     },
   ];
   return slots.filter(
@@ -168,6 +202,8 @@ export function buildOperationalPairs(
   const drafts = new Map<string, OperationalPairDraft>();
   const nameOwners = new Map<string, Set<string>>();
   const idOwners = new Map<number, Set<string>>();
+  const measurementPointByLocationId = new Map<number, string>();
+  const measurementPointByCameraName = new Map<string, string>();
   let unconfiguredScreens = 0;
 
   for (const screen of screens) {
@@ -201,11 +237,23 @@ export function buildOperationalPairs(
         const owners = idOwners.get(slot.locationId) ?? new Set<string>();
         owners.add(key);
         idOwners.set(slot.locationId, owners);
+        if (slot.measurementPointId) {
+          measurementPointByLocationId.set(
+            slot.locationId,
+            slot.measurementPointId,
+          );
+        }
       } else {
         draft.cameraNames.add(slot.cameraName);
         const owners = nameOwners.get(slot.cameraName) ?? new Set<string>();
         owners.add(key);
         nameOwners.set(slot.cameraName, owners);
+        if (slot.measurementPointId) {
+          measurementPointByCameraName.set(
+            slot.cameraName,
+            slot.measurementPointId,
+          );
+        }
       }
     }
     drafts.set(key, draft);
@@ -255,6 +303,8 @@ export function buildOperationalPairs(
     unconfiguredScreens,
     duplicateCameraNames,
     duplicateLocationIds,
+    measurementPointByLocationId,
+    measurementPointByCameraName,
   };
 }
 
@@ -269,10 +319,23 @@ export function prepareCameraHealthScope(
       resolved.pairs.flatMap((pair) => pair.cameras.map((camera) => camera.id)),
     ),
   ).sort((a, b) => a - b);
+  const measurementPointByLocationId = new Map<number, string>();
+  for (const pair of resolved.pairs) {
+    for (const camera of pair.cameras) {
+      const cameraName = (camera.name ?? camera.label ?? '').trim();
+      const pointId =
+        operational.measurementPointByLocationId.get(camera.id) ??
+        (cameraName
+          ? operational.measurementPointByCameraName.get(cameraName)
+          : undefined);
+      if (pointId) measurementPointByLocationId.set(camera.id, pointId);
+    }
+  }
 
   return {
     pairs: resolved.pairs,
     mappedLocationIds,
+    measurementPointByLocationId,
     mapping: {
       activeConfiguredPairs: resolved.pairs.length,
       configuredCameraNames: operational.pairs.reduce(
@@ -416,6 +479,8 @@ export function buildCameraHealthRecords(
         date: row.date,
         locationId: row.locationId,
         locationName: row.locationName,
+        measurementPointId:
+          scope.measurementPointByLocationId.get(row.locationId) ?? null,
         storeNumber: row.storeNumber,
         storeName: row.storeName,
         support: row.support,
