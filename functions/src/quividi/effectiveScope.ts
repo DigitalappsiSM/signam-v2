@@ -46,6 +46,10 @@ export interface ScreenDoc {
     quividiCameraName?: string;
     quividiLocationId2?: number | null;
     quividiCameraName2?: string;
+    measurementPointCode?: string;
+    measurementPointId?: string | null;
+    measurementPointCode2?: string;
+    measurementPointId2?: string | null;
   };
 }
 
