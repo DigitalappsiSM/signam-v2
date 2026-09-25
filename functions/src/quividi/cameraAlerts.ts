@@ -36,6 +36,7 @@ export interface CameraHealthAlertStateDoc {
   source: 'quividi';
   locationId: number;
   locationName: string;
+  measurementPointId: string | null;
   storeNumber: string;
   storeName: string;
   support: string;
@@ -63,6 +64,7 @@ export interface CameraHealthAlertDoc {
   alertId: string;
   locationId: number;
   locationName: string;
+  measurementPointId: string | null;
   storeNumber: string;
   storeName: string;
   support: string;
