@@ -50,6 +50,22 @@ El alias `quividiCameraName` queda como:
 
 Un cambio de alias no altera la identidad. Si cambia el Location ID por sustitución/reconfiguración pero la cámara sigue midiendo el mismo punto físico, se conserva el mismo Punto SIGNAM. Si cambia el punto físico medido, debe asignarse otro código de punto.
 
+### Migración automática de cámaras legacy
+
+Las cámaras que ya existían antes de Punto SIGNAM se normalizan durante la
+sincronización de catálogo del ciclo de salud:
+
+- si tienen un Location ID válido y no tienen punto, se asigna
+  `P1`, `P2`, `P3`... dentro de cada tienda+soporte;
+- el orden inicial es determinístico por Location ID y queda persistido, por lo
+  que cambios futuros del Location ID no vuelven a numerar el punto;
+- cualquier punto capturado previamente se conserva;
+- SIGNAM no autocorrige códigos inválidos ni migra grupos con Location ID o
+  códigos de punto duplicados; esos casos quedan visibles para revisión manual.
+
+Así, el primer ciclo real de salud posterior al despliegue deja preparadas las
+cámaras legacy para la integración Odoo sin requerir captura una por una.
+
 ### Alta y edición desde Catálogo Admira
 
 En el formulario de alta/edición existe un bloque **Vínculo Quividi**:
