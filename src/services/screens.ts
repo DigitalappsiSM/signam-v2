@@ -243,6 +243,20 @@ export async function importMasterScreens(
           calendarSupport: row.calendarSupport.trim(),
           quividiCameraName: row.quividiCameraName.trim(),
           quividiCameraName2: row.quividiCameraName2.trim(),
+          measurementPointCode: row.measurementPointCode.trim(),
+          measurementPointId:
+            buildMeasurementPointId({
+              storeNumber: row.original['Numero de Tienda'],
+              support: row.calendarSupport,
+              pointCode: row.measurementPointCode,
+            }) ?? '',
+          measurementPointCode2: row.measurementPointCode2.trim(),
+          measurementPointId2:
+            buildMeasurementPointId({
+              storeNumber: row.original['Numero de Tienda'],
+              support: row.calendarSupport,
+              pointCode: row.measurementPointCode2,
+            }) ?? '',
         },
       });
       created += 1;
@@ -306,6 +320,8 @@ export interface MasterMetadataUpdateFields {
   calendarSupport: boolean;
   quividiCameraName: boolean;
   quividiCameraName2: boolean;
+  measurementPointCode: boolean;
+  measurementPointCode2: boolean;
 }
 
 export function masterMetadataPatch(
@@ -315,6 +331,8 @@ export function masterMetadataPatch(
   calendarSupport?: string;
   quividiCameraName?: string;
   quividiCameraName2?: string;
+  measurementPointCode?: string;
+  measurementPointCode2?: string;
 } {
   return {
     ...(fields.calendarSupport
@@ -325,6 +343,12 @@ export function masterMetadataPatch(
       : {}),
     ...(fields.quividiCameraName2
       ? { quividiCameraName2: row.quividiCameraName2.trim() }
+      : {}),
+    ...(fields.measurementPointCode
+      ? { measurementPointCode: row.measurementPointCode.trim() }
+      : {}),
+    ...(fields.measurementPointCode2
+      ? { measurementPointCode2: row.measurementPointCode2.trim() }
       : {}),
   };
 }
@@ -340,6 +364,8 @@ export async function updateScreenMetadataFromMaster(
     calendarSupport: true,
     quividiCameraName: true,
     quividiCameraName2: true,
+    measurementPointCode: true,
+    measurementPointCode2: true,
   },
 ): Promise<MasterMetadataUpdateResult> {
   const database = db();
@@ -372,8 +398,28 @@ export async function updateScreenMetadataFromMaster(
     for (const { screen, row } of matches.slice(i, i + BATCH_LIMIT)) {
       const patch = masterMetadataPatch(row, fields);
       if (Object.keys(patch).length === 0) continue;
+      const support =
+        patch.calendarSupport ?? screen.metadata.calendarSupport ?? '';
+      const code1 =
+        patch.measurementPointCode ?? screen.metadata.measurementPointCode ?? '';
+      const code2 =
+        patch.measurementPointCode2 ?? screen.metadata.measurementPointCode2 ?? '';
+      const point1 = buildMeasurementPointId({
+        storeNumber: row.original['Numero de Tienda'],
+        support,
+        pointCode: code1,
+      });
+      const point2 = buildMeasurementPointId({
+        storeNumber: row.original['Numero de Tienda'],
+        support,
+        pointCode: code2,
+      });
       batch.update(doc(database, COLLECTION, screen.id), {
-        metadata: bumpMetadata(screen.metadata, actor, now, patch),
+        metadata: bumpMetadata(screen.metadata, actor, now, {
+          ...patch,
+          measurementPointId: point1 ?? '',
+          measurementPointId2: point2 ?? '',
+        }),
       });
     }
     await batch.commit();
