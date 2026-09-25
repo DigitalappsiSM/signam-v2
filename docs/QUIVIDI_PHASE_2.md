@@ -30,15 +30,17 @@ haya una campaña activa que la use.
 
 ## 2. Identidad de cámara
 
-Cada pantalla puede guardar estos metadatos SIGNAM:
+Cada pantalla puede guardar hasta dos vínculos Quividi y dos puntos estables SIGNAM:
 
 - `calendarSupport`: normalización Liverpool.
-- `quividiLocationId`: ID numérico estable de la location Quividi.
-- `quividiCameraName`: alias/nombre canónico de la location.
+- `measurementPointCode` / `measurementPointCode2`: código corto del punto físico (`1`, `2`, `P1`, `P2`).
+- `measurementPointId` / `measurementPointId2`: identidad estable construida como `LIV-TIENDA-SOPORTE-PUNTO`.
+- `quividiLocationId` / `quividiLocationId2`: Location ID vigente en Quividi.
+- `quividiCameraName` / `quividiCameraName2`: alias canónico de cada location.
 
 ### Regla de identidad
 
-`quividiLocationId` es la referencia preferida y estable.
+El **Punto SIGNAM** es la identidad permanente del punto físico. El Location ID es la referencia técnica vigente para consultar Quividi y puede cambiar sin crear un nuevo punto SIGNAM.
 
 El alias `quividiCameraName` queda como:
 
@@ -46,8 +48,7 @@ El alias `quividiCameraName` queda como:
 - compatibilidad temporal con registros legacy;
 - fallback únicamente cuando todavía no existe Location ID.
 
-Un cambio futuro de nombre en VidiCenter no debe romper el vínculo si el
-`quividiLocationId` sigue siendo el mismo.
+Un cambio de alias no altera la identidad. Si cambia el Location ID por sustitución/reconfiguración pero la cámara sigue midiendo el mismo punto físico, se conserva el mismo Punto SIGNAM. Si cambia el punto físico medido, debe asignarse otro código de punto.
 
 ### Alta y edición desde Catálogo Admira
 
@@ -472,3 +473,16 @@ Cloud Functions build
 3. Añadir seguimiento automático diario del ticket y comentario de recuperación.
 4. Calibrar una alerta de caída relativa de OTS con histórico comparable.
 5. Evolucionar, en una fase separada, la inteligencia de audiencia histórica.
+
+
+## 8. Tickets automáticos Odoo por salud de cámaras
+
+La automatización Odoo usa `measurementPointId` como llave de deduplicación, nunca `locationId`.
+
+- `no_ots`: creación automática al procesar el último día completo.
+- `no_measurement` y `partial_measurement`: se muestran como **Pendiente de decisión** y solo `admin/operator` pueden crear el ticket desde Salud de cámaras.
+- Una vez creado, el botón desaparece y la UI muestra el folio.
+- Cuando el punto vuelve a `normal`, SIGNAM agrega un comentario de recuperación al ticket pero **no lo cierra**.
+- El cierre corresponde al equipo técnico.
+- El estado backend se conserva en `quividiCameraTicketState/{measurementPointId}`, por lo que un cambio de Location ID no duplica tickets del mismo punto.
+- La integración usa el secreto `ODOO_API_KEY`, el mismo tipo de credencial JSON/2 usado por el portal de soporte Liverpool.
