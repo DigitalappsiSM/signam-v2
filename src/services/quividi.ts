@@ -116,7 +116,7 @@ export async function refreshQuividiCameraHealth(): Promise<QuividiCameraHealthR
   const callable = httpsCallable<
     Record<string, never>,
     QuividiCameraHealthRefreshResult
-  >(functions(), 'quividi-cameraHealthRefresh');
+  >(functions(), 'quividi-cameraHealthRefresh', { timeout: 540_000 });
   const result = await callable({});
   return result.data;
 }
