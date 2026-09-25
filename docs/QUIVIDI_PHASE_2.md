@@ -169,6 +169,25 @@ completo.
 Existe además `cameraHealthBackfill` para administración, con rango controlado
 de 1–90 días.
 
+Admin y operator pueden lanzar desde la UI `quividi-cameraHealthRefresh`.
+Esta callable ejecuta el **mismo ciclo del scheduler** y sigue evaluando solo el
+último día completo: nunca convierte el día parcial en una incidencia. Scheduler
+y refresco manual comparten un lock global en
+`quividiCameraHealthRefresh/control`; si ya existe una ejecución vigente no se
+inicia una segunda. Tras finalizar se aplica un cooldown manual de 5 minutos.
+
+Etapas publicadas a la UI:
+
+1. conexión con Quividi;
+2. sincronización de catálogo;
+3. análisis OTS/medición;
+4. actualización de incidencias;
+5. sincronización Odoo.
+
+La UI muestra etapas reales, no porcentajes estimados. También conserva la fecha
+de la última ejecución automática y la última manual con el usuario que la
+inició.
+
 El cálculo del último día completo reutiliza actualmente la lógica
 `lastCompleteUtcDate`. Cambiar esa frontera temporal requiere una decisión
 explícita porque afecta continuidad histórica y fechas de incidencias.
@@ -280,6 +299,14 @@ La pantalla muestra:
 - normales;
 - alertas activas;
 - fuera de alcance;
+- última actualización automática/manual;
+- progreso del refresco global cuando existe una ejecución en curso.
+
+`Actualizar vista` relee Firestore sin consumir VidiCenter. Admin y operator
+ven además `Actualizar desde Quividi`; viewer puede observar el progreso pero
+no iniciar el proceso. Mientras existe un refresco, los botones de creación
+manual de tickets quedan deshabilitados y el backend también rechaza esa acción
+para evitar carreras con la reconciliación de incidencias.
 - tienda;
 - soporte;
 - Location ID;
@@ -324,10 +351,15 @@ Callable autenticada de solo lectura para la UI de Salud de cámaras.
 
 No modifica incidencias y no dispara exports de VidiCenter.
 
+### `quividi-cameraHealthRefresh`
+
+Refresco operativo manual para admin/operator. Ejecuta el mismo ciclo del
+scheduler, sincroniza Odoo bajo las mismas reglas y respeta lock/cooldown global.
+
 ### `quividi-cameraHealthBackfill`
 
 Recalcula un rango histórico controlado. Requiere capacidad administrativa para
-forzar refrescos Quividi.
+forzar refrescos Quividi. No sustituye el refresco operativo de la UI.
 
 ---
 
@@ -486,3 +518,10 @@ La automatización Odoo usa `measurementPointId` como llave de deduplicación, n
 - El cierre corresponde al equipo técnico.
 - El estado backend se conserva en `quividiCameraTicketState/{measurementPointId}`, por lo que un cambio de Location ID no duplica tickets del mismo punto.
 - La integración usa el secreto `ODOO_API_KEY`, el mismo tipo de credencial JSON/2 usado por el portal de soporte Liverpool.
+- Antes de crear un ticket, SIGNAM busca el asunto determinístico
+  `[CAMARAS][measurementPointId][startedDate]`; si ya existe exactamente uno,
+  lo adopta. Esto evita duplicados cuando una creación anterior llegó a Odoo
+  pero la respuesta se perdió por timeout.
+- Tanto el scheduler como **Actualizar desde Quividi** ejecutan esta misma
+  reconciliación Odoo. Repetir el cálculo no implica repetir el ticket ni el
+  comentario de recuperación.
