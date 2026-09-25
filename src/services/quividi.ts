@@ -91,7 +91,6 @@ export async function createQuividiCameraHealthTicket(
   return result.data;
 }
 
-
 export interface QuividiCameraHealthRefreshResult {
   endDate: string;
   written: number;

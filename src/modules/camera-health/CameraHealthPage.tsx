@@ -145,8 +145,7 @@ export function CameraHealthPage() {
     void reload();
   }, [reload]);
 
-  const refreshRunning =
-    refreshing || overview?.refresh.status === 'running';
+  const refreshRunning = refreshing || overview?.refresh.status === 'running';
 
   useEffect(() => {
     if (!refreshRunning) return;
