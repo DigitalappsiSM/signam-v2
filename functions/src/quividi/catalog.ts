@@ -3,6 +3,8 @@ import type { ScreenDoc } from './effectiveScope';
 import type { TopologyLocation } from './measurement';
 import {
   buildBackendMeasurementPointId,
+  measurementSupportCode,
+  normalizedStoreCode,
   validMeasurementPointCode,
 } from './measurementPoint';
 
@@ -161,14 +163,11 @@ export async function syncCatalogLocationBindings(
       const existingCode =
         screen.metadata?.[slot.pointCodeField]?.trim() ?? '';
       const existingId = screen.metadata?.[slot.pointIdField]?.trim() ?? '';
-      const candidatePrefix = buildBackendMeasurementPointId({
-        storeNumber,
-        support,
-        pointCode: 'P1',
-      });
-      if (!candidatePrefix) continue;
+      const storeCode = normalizedStoreCode(storeNumber);
+      const supportCode = measurementSupportCode(support);
+      if (!storeCode || !supportCode) continue;
 
-      const key = storeNumber + '|' + support;
+      const key = storeCode + '|' + supportCode;
       const group = groups.get(key) ?? [];
       group.push({
         screenIndex,
