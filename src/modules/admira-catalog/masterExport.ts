@@ -5,6 +5,10 @@ import {
   type AdmiraCatalogHeader,
   type AdmiraScreen,
 } from '@/domain';
+import {
+  MEASUREMENT_POINT_HEADER,
+  MEASUREMENT_POINT_HEADER_2,
+} from './masterImport';
 
 /**
  * Exportación del catálogo Admira al formato del MAESTRO (.xlsx).
@@ -117,7 +121,12 @@ function headerRow(includeMapping: boolean, includeQuividi: boolean): string[] {
   const headers = [...ADMIRA_CATALOG_HEADERS] as string[];
   if (includeMapping) headers.push(MAPPING_EXPORT_HEADER);
   if (includeQuividi)
-    headers.push(QUIVIDI_EXPORT_HEADER, QUIVIDI_EXPORT_HEADER_2);
+    headers.push(
+      QUIVIDI_EXPORT_HEADER,
+      MEASUREMENT_POINT_HEADER,
+      QUIVIDI_EXPORT_HEADER_2,
+      MEASUREMENT_POINT_HEADER_2,
+    );
   return headers;
 }
 
@@ -128,7 +137,8 @@ function headerWidths(
 ): number[] {
   const widths = ADMIRA_CATALOG_HEADERS.map((h) => COLUMN_WIDTHS[h]);
   if (includeMapping) widths.push(MAPPING_WIDTH);
-  if (includeQuividi) widths.push(QUIVIDI_WIDTH, QUIVIDI_WIDTH);
+  if (includeQuividi)
+    widths.push(QUIVIDI_WIDTH, 18, QUIVIDI_WIDTH, 18);
   return widths;
 }
 
@@ -143,7 +153,9 @@ function screenToRow(
   if (includeQuividi) {
     values.push(
       screen.metadata.quividiCameraName ?? '',
+      screen.metadata.measurementPointCode ?? '',
       screen.metadata.quividiCameraName2 ?? '',
+      screen.metadata.measurementPointCode2 ?? '',
     );
   }
   return values;
@@ -305,6 +317,13 @@ export const FIELD_GUIDE: readonly FieldGuide[] = [
     example: '7 - L SANTA FE- DERECHO',
   },
   {
+    header: MEASUREMENT_POINT_HEADER,
+    required: false,
+    description:
+      'Código estable de la posición medida por la cámara principal. Solo mayúsculas y números, sin espacios (ej. 1, 2, P1, P2).',
+    example: 'P1',
+  },
+  {
     header: QUIVIDI_EXPORT_HEADER_2,
     required: false,
     description:
@@ -312,6 +331,13 @@ export const FIELD_GUIDE: readonly FieldGuide[] = [
       'equipo opera 2 flujos de video con distinto Location ID (p. ej. un PC que ' +
       'también corre Quividi con 2 Box ID).',
     example: '8 - L SANTA FE- IZQUIERDO',
+  },
+  {
+    header: MEASUREMENT_POINT_HEADER_2,
+    required: false,
+    description:
+      'Código estable de la posición medida por la segunda cámara. Debe ser distinto al Punto SIGNAM de la cámara principal.',
+    example: 'P2',
   },
 ];
 
@@ -332,6 +358,9 @@ const TEMPLATE_EXAMPLE_ROWS: Record<string, string>[] = [
     BRANDS: 'LIVERPOOL',
     [MAPPING_EXPORT_HEADER]: 'VIDEO WALL CRIUS',
     [QUIVIDI_EXPORT_HEADER]: '7 - L SANTA FE- DERECHO',
+    [MEASUREMENT_POINT_HEADER]: 'P1',
+    [QUIVIDI_EXPORT_HEADER_2]: '7 - L SANTA FE- IZQUIERDO',
+    [MEASUREMENT_POINT_HEADER_2]: 'P2',
   },
 ];
 
@@ -360,7 +389,9 @@ function addInstructionsSheet(
       (includeMapping || field.header !== MAPPING_EXPORT_HEADER) &&
       (includeQuividi ||
         (field.header !== QUIVIDI_EXPORT_HEADER &&
-          field.header !== QUIVIDI_EXPORT_HEADER_2)),
+          field.header !== QUIVIDI_EXPORT_HEADER_2 &&
+          field.header !== MEASUREMENT_POINT_HEADER &&
+          field.header !== MEASUREMENT_POINT_HEADER_2)),
   );
   for (const field of guide) {
     sheet.addRow([
