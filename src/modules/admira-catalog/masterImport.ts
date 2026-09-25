@@ -3,6 +3,8 @@ import {
   CALENDAR_MAPPING_HEADERS,
   LEGACY_PASES_HEADER,
   REQUIRED_PASES_HEADER,
+  buildMeasurementPointId,
+  measurementPointCodeError,
   type AdmiraCatalogHeader,
   type AdmiraScreenOriginal,
   type ValidationIssue,
@@ -40,6 +42,10 @@ export interface MasterRow {
    * sola fila del catálogo. Vacío si el maestro no trae esa columna.
    */
   quividiCameraName2: string;
+  /** Código estable SIGNAM de la cámara principal (1, 2, P1, P2...). */
+  measurementPointCode: string;
+  /** Código estable SIGNAM de la segunda cámara. */
+  measurementPointCode2: string;
 }
 
 /**
@@ -61,6 +67,14 @@ const QUIVIDI_CAMERA_2_ALIASES = new Set([
   normalizeHeader('CAMARA QUIVIDI 2'),
   normalizeHeader('CÁMARA QUIVIDI 2'),
 ]);
+export const MEASUREMENT_POINT_HEADER = 'PUNTO SIGNAM';
+export const MEASUREMENT_POINT_HEADER_2 = 'PUNTO SIGNAM 2';
+const MEASUREMENT_POINT_ALIASES = new Set([
+  normalizeHeader(MEASUREMENT_POINT_HEADER),
+]);
+const MEASUREMENT_POINT_2_ALIASES = new Set([
+  normalizeHeader(MEASUREMENT_POINT_HEADER_2),
+]);
 
 export interface MasterAnalysis {
   detectedSheet: string | null;
@@ -76,6 +90,8 @@ export interface MasterAnalysis {
   quividiCameraColumn: string | null;
   /** Encabezado de la columna de la segunda cámara Quividi, o null si no viene. */
   quividiCameraColumn2: string | null;
+  measurementPointColumn: string | null;
+  measurementPointColumn2: string | null;
   rows: MasterRow[];
   issues: ValidationIssue[];
   /** true si no hay incidencias bloqueantes y hay al menos una fila. */
@@ -165,6 +181,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       mappingColumn: null,
       quividiCameraColumn: null,
       quividiCameraColumn2: null,
+      measurementPointColumn: null,
+      measurementPointColumn2: null,
       rows: [],
       issues,
       ok: false,
@@ -185,6 +203,10 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
   let quividiCameraColumn: string | null = null;
   let quividiCameraCol2 = -1;
   let quividiCameraColumn2: string | null = null;
+  let measurementPointCol = -1;
+  let measurementPointColumn: string | null = null;
+  let measurementPointCol2 = -1;
+  let measurementPointColumn2: string | null = null;
   headerCells.forEach((cell, col) => {
     const text = cell?.trim() ?? '';
     if (text === '') return;
@@ -205,6 +227,16 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       if (quividiCameraCol2 === -1) {
         quividiCameraCol2 = col;
         quividiCameraColumn2 = text;
+      }
+    } else if (MEASUREMENT_POINT_ALIASES.has(normalizeHeader(text))) {
+      if (measurementPointCol === -1) {
+        measurementPointCol = col;
+        measurementPointColumn = text;
+      }
+    } else if (MEASUREMENT_POINT_2_ALIASES.has(normalizeHeader(text))) {
+      if (measurementPointCol2 === -1) {
+        measurementPointCol2 = col;
+        measurementPointColumn2 = text;
       }
     } else {
       extra.push(text);
@@ -252,13 +284,109 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
       quividiCameraCol >= 0 ? (cells[quividiCameraCol] ?? '').trim() : '';
     const quividiCameraName2 =
       quividiCameraCol2 >= 0 ? (cells[quividiCameraCol2] ?? '').trim() : '';
+    const measurementPointCode =
+      measurementPointCol >= 0 ? (cells[measurementPointCol] ?? '').trim() : '';
+    const measurementPointCode2 =
+      measurementPointCol2 >= 0 ? (cells[measurementPointCol2] ?? '').trim() : '';
+
+    for (const [code, label] of [
+      [measurementPointCode, MEASUREMENT_POINT_HEADER],
+      [measurementPointCode2, MEASUREMENT_POINT_HEADER_2],
+    ] as const) {
+      const pointError = measurementPointCodeError(code);
+      if (pointError) {
+        issues.push({
+          severity: 'blocking',
+          code: 'invalid-measurement-point',
+          message: `${label} en fila ${r + 1}: ${pointError}`,
+          location: { sheet: sheet.name, row: r + 1, column: label },
+        });
+      } else if (code) {
+        try {
+          buildMeasurementPointId(
+            original['Numero de Tienda'],
+            calendarSupport,
+            code,
+          );
+        } catch (reason) {
+          issues.push({
+            severity: 'blocking',
+            code: 'invalid-measurement-point-context',
+            message:
+              reason instanceof Error
+                ? `${label} en fila ${r + 1}: ${reason.message}`
+                : `${label} en fila ${r + 1}: no se pudo validar.`,
+            location: { sheet: sheet.name, row: r + 1, column: label },
+          });
+        }
+      }
+    }
+    if (
+      measurementPointCode &&
+      measurementPointCode2 &&
+      measurementPointCode === measurementPointCode2
+    ) {
+      issues.push({
+        severity: 'blocking',
+        code: 'duplicate-measurement-point-slot',
+        message: `Fila ${r + 1}: Cámara 1 y Cámara 2 no pueden usar el mismo Punto SIGNAM.`,
+        location: { sheet: sheet.name, row: r + 1 },
+      });
+    }
+    if (quividiCameraName && !measurementPointCode) {
+      issues.push({
+        severity: 'warning',
+        code: 'missing-measurement-point',
+        message: `Fila ${r + 1}: la cámara principal no tiene PUNTO SIGNAM; podrá medirse, pero no crear tickets Odoo.`,
+        location: { sheet: sheet.name, row: r + 1, column: MEASUREMENT_POINT_HEADER },
+      });
+    }
+    if (quividiCameraName2 && !measurementPointCode2) {
+      issues.push({
+        severity: 'warning',
+        code: 'missing-measurement-point-2',
+        message: `Fila ${r + 1}: la cámara 2 no tiene PUNTO SIGNAM; podrá medirse, pero no crear tickets Odoo.`,
+        location: { sheet: sheet.name, row: r + 1, column: MEASUREMENT_POINT_HEADER_2 },
+      });
+    }
+
     rows.push({
       original,
       sourceRow: r + 1,
       calendarSupport,
       quividiCameraName,
       quividiCameraName2,
+      measurementPointCode,
+      measurementPointCode2,
     });
+  }
+
+  const pointOwners = new Map<string, number>();
+  for (const row of rows) {
+    for (const code of [row.measurementPointCode, row.measurementPointCode2]) {
+      if (!code) continue;
+      try {
+        const pointId = buildMeasurementPointId(
+          row.original['Numero de Tienda'],
+          row.calendarSupport,
+          code,
+        );
+        if (!pointId) continue;
+        const previousRow = pointOwners.get(pointId);
+        if (previousRow !== undefined) {
+          issues.push({
+            severity: 'blocking',
+            code: 'duplicate-measurement-point',
+            message: `Punto SIGNAM duplicado ${pointId} en filas ${previousRow} y ${row.sourceRow}.`,
+            location: { sheet: sheet.name, row: row.sourceRow },
+          });
+        } else {
+          pointOwners.set(pointId, row.sourceRow);
+        }
+      } catch {
+        // El error de contexto ya se reportó al procesar la fila.
+      }
+    }
   }
 
   if (rows.length === 0) {
@@ -282,6 +410,8 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     mappingColumn,
     quividiCameraColumn,
     quividiCameraColumn2,
+    measurementPointColumn,
+    measurementPointColumn2,
     rows,
     issues,
     ok,
