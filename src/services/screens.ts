@@ -12,6 +12,7 @@ import {
 import { getFirebase } from './firebase';
 import {
   ADMIRA_CATALOG_HEADERS,
+  buildMeasurementPointId,
   type AdmiraScreen,
   type AdmiraScreenOriginal,
 } from '@/domain';
@@ -57,7 +58,31 @@ export async function createScreen(
   quividiLocationId: number | null = null,
   quividiCameraName2 = '',
   quividiLocationId2: number | null = null,
+  measurementPointCode = '',
+  measurementPointCode2 = '',
 ): Promise<string> {
+  const point1 = buildMeasurementPointId({
+    storeNumber: original['Numero de Tienda'] ?? '',
+    support: calendarSupport,
+    pointCode: measurementPointCode,
+  });
+  const point2 = buildMeasurementPointId({
+    storeNumber: original['Numero de Tienda'] ?? '',
+    support: calendarSupport,
+    pointCode: measurementPointCode2,
+  });
+  if ((quividiLocationId || quividiCameraName.trim()) && !point1) {
+    throw new Error('La cámara 1 necesita un Punto SIGNAM válido.');
+  }
+  if ((quividiLocationId2 || quividiCameraName2.trim()) && !point2) {
+    throw new Error('La cámara 2 necesita un Punto SIGNAM válido.');
+  }
+  if (point1 && point2 && point1 === point2) {
+    throw new Error('Las dos cámaras no pueden compartir el mismo Punto SIGNAM.');
+  }
+  const existing = await listScreens();
+  assertUniqueMeasurementPoints(existing, [point1, point2]);
+
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
   await setDoc(ref, {
@@ -69,6 +94,10 @@ export async function createScreen(
       quividiCameraName: quividiCameraName.trim(),
       quividiLocationId2,
       quividiCameraName2: quividiCameraName2.trim(),
+      measurementPointCode: measurementPointCode.trim(),
+      measurementPointId: point1 ?? '',
+      measurementPointCode2: measurementPointCode2.trim(),
+      measurementPointId2: point2 ?? '',
     },
   });
   return ref.id;
@@ -84,7 +113,40 @@ export async function updateScreen(
   quividiLocationId?: number | null,
   quividiCameraName2?: string,
   quividiLocationId2?: number | null,
+  measurementPointCode?: string,
+  measurementPointCode2?: string,
 ): Promise<void> {
+  const nextSupport = calendarSupport ?? screen.metadata.calendarSupport;
+  const nextPointCode =
+    measurementPointCode ?? screen.metadata.measurementPointCode ?? '';
+  const nextPointCode2 =
+    measurementPointCode2 ?? screen.metadata.measurementPointCode2 ?? '';
+  const point1 = buildMeasurementPointId({
+    storeNumber: original['Numero de Tienda'] ?? screen.original['Numero de Tienda'],
+    support: nextSupport,
+    pointCode: nextPointCode,
+  });
+  const point2 = buildMeasurementPointId({
+    storeNumber: original['Numero de Tienda'] ?? screen.original['Numero de Tienda'],
+    support: nextSupport,
+    pointCode: nextPointCode2,
+  });
+  const nextLocation1 = quividiLocationId ?? screen.metadata.quividiLocationId ?? null;
+  const nextLocation2 = quividiLocationId2 ?? screen.metadata.quividiLocationId2 ?? null;
+  const nextName1 = quividiCameraName ?? screen.metadata.quividiCameraName ?? '';
+  const nextName2 = quividiCameraName2 ?? screen.metadata.quividiCameraName2 ?? '';
+  if ((nextLocation1 || nextName1.trim()) && !point1) {
+    throw new Error('La cámara 1 necesita un Punto SIGNAM válido.');
+  }
+  if ((nextLocation2 || nextName2.trim()) && !point2) {
+    throw new Error('La cámara 2 necesita un Punto SIGNAM válido.');
+  }
+  if (point1 && point2 && point1 === point2) {
+    throw new Error('Las dos cámaras no pueden compartir el mismo Punto SIGNAM.');
+  }
+  const existing = (await listScreens()).filter((item) => item.id !== screen.id);
+  assertUniqueMeasurementPoints(existing, [point1, point2]);
+
   await updateDoc(doc(db(), COLLECTION, screen.id), {
     original: sanitizeOriginal(original),
     metadata: bumpMetadata(screen.metadata, actor, Date.now(), {
@@ -99,6 +161,10 @@ export async function updateScreen(
         ? {}
         : { quividiCameraName2: quividiCameraName2.trim() }),
       ...(quividiLocationId2 === undefined ? {} : { quividiLocationId2 }),
+      measurementPointCode: nextPointCode.trim(),
+      measurementPointId: point1 ?? '',
+      measurementPointCode2: nextPointCode2.trim(),
+      measurementPointId2: point2 ?? '',
     }),
   });
 }
@@ -124,6 +190,27 @@ export async function deactivateScreen(
  */
 export async function deleteScreen(id: string): Promise<void> {
   await deleteDoc(doc(db(), COLLECTION, id));
+}
+
+function assertUniqueMeasurementPoints(
+  screens: readonly AdmiraScreen[],
+  ids: readonly (string | null)[],
+): void {
+  const requested = ids.filter((id): id is string => Boolean(id));
+  if (new Set(requested).size !== requested.length) {
+    throw new Error('Los Puntos SIGNAM de una pantalla deben ser distintos.');
+  }
+  const existing = new Set(
+    screens.flatMap((screen) =>
+      [screen.metadata.measurementPointId, screen.metadata.measurementPointId2].filter(
+        (id): id is string => Boolean(id),
+      ),
+    ),
+  );
+  const duplicate = requested.find((id) => existing.has(id));
+  if (duplicate) {
+    throw new Error(`El Punto SIGNAM ${duplicate} ya existe en el catálogo.`);
+  }
 }
 
 const BATCH_LIMIT = 400;
