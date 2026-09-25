@@ -1083,7 +1083,7 @@ export const createCameraHealthTicket = onCall(
 
 export const campaignReport = onCall(
   {
-    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN, ODOO_API_KEY],
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
     timeoutSeconds: 540,
     memory: '512MiB',
   },
@@ -1329,7 +1329,7 @@ export const cameraHealthDaily = onSchedule(
   {
     schedule: '15 8 * * *',
     timeZone: 'America/Mexico_City',
-    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN, ODOO_API_KEY],
     timeoutSeconds: 540,
     memory: '512MiB',
   },
