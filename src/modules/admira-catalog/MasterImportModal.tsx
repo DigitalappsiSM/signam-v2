@@ -69,6 +69,8 @@ export function MasterImportModal({
             calendarSupport: analysis.mappingColumn !== null,
             quividiCameraName: analysis.quividiCameraColumn !== null,
             quividiCameraName2: analysis.quividiCameraColumn2 !== null,
+            measurementPointCode: analysis.measurementPointColumn !== null,
+            measurementPointCode2: analysis.measurementPointColumn2 !== null,
           },
         );
         onImported(
@@ -86,8 +88,12 @@ export function MasterImportModal({
         actor,
       );
       onImported(created);
-    } catch {
-      setError('No se pudieron guardar las pantallas. Inténtalo de nuevo.');
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'No se pudieron guardar las pantallas. Inténtalo de nuevo.',
+      );
       setPhase('preview');
     }
   }
@@ -167,8 +173,16 @@ export function MasterImportModal({
                 <dd>{analysis.quividiCameraColumn ?? '— no incluida —'}</dd>
               </div>
               <div>
+                <dt>Punto SIGNAM</dt>
+                <dd>{analysis.measurementPointColumn ?? '— no incluido —'}</dd>
+              </div>
+              <div>
                 <dt>Columna Quividi (cámara 2)</dt>
                 <dd>{analysis.quividiCameraColumn2 ?? '— no incluida —'}</dd>
+              </div>
+              <div>
+                <dt>Punto SIGNAM (cámara 2)</dt>
+                <dd>{analysis.measurementPointColumn2 ?? '— no incluido —'}</dd>
               </div>
               <div>
                 <dt>Cámaras Quividi</dt>
@@ -221,8 +235,8 @@ export function MasterImportModal({
                   />
                   <span>
                     <strong>Actualizar mapeos</strong> — no crea ni borra
-                    pantallas; actualiza únicamente Normalización Liverpool y
-                    Cámara(s) Quividi en las filas que coincidan.
+                    pantallas; actualiza Normalización Liverpool, Cámara(s)
+                    Quividi y Punto(s) SIGNAM en las filas que coincidan.
                   </span>
                 </label>
                 <label>
