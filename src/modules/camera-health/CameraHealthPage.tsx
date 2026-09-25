@@ -67,7 +67,9 @@ export function CameraHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CameraHealthFilter>('all');
-  const [creatingTicketFor, setCreatingTicketFor] = useState<number | null>(null);
+  const [creatingTicketFor, setCreatingTicketFor] = useState<number | null>(
+    null,
+  );
   const [ticketError, setTicketError] = useState<string | null>(null);
 
   const filterChips = compactChips([
@@ -123,7 +125,9 @@ export function CameraHealthPage() {
     [reload],
   );
 
-  function ticketLabel(camera: QuividiCameraHealthOverview['cameras'][number]): string {
+  function ticketLabel(
+    camera: QuividiCameraHealthOverview['cameras'][number],
+  ): string {
     switch (camera.ticketStatus) {
       case 'created':
         return camera.ticketId ? 'Ticket #' + camera.ticketId : 'Ticket creado';
@@ -325,7 +329,9 @@ export function CameraHealthPage() {
                             <button
                               className="btn btn-primary"
                               disabled={creatingTicketFor === camera.locationId}
-                              onClick={() => void createTicket(camera.locationId)}
+                              onClick={() =>
+                                void createTicket(camera.locationId)
+                              }
                             >
                               {creatingTicketFor === camera.locationId
                                 ? 'Enviando…'

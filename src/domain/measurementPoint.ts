@@ -59,7 +59,9 @@ export function buildMeasurementPointId(input: {
   if (!pointCode) return null;
   const store = normalizedStoreCode(input.storeNumber);
   if (!store) {
-    throw new Error('El número de tienda debe ser numérico para construir el Punto SIGNAM.');
+    throw new Error(
+      'El número de tienda debe ser numérico para construir el Punto SIGNAM.',
+    );
   }
   const support = measurementSupportCode(input.support);
   if (!support) {

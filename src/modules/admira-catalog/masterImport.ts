@@ -279,7 +279,9 @@ export function analyzeMaster(sheets: readonly SheetData[]): MasterAnalysis {
     const measurementPointCode =
       measurementPointCol >= 0 ? (cells[measurementPointCol] ?? '').trim() : '';
     const measurementPointCode2 =
-      measurementPointCol2 >= 0 ? (cells[measurementPointCol2] ?? '').trim() : '';
+      measurementPointCol2 >= 0
+        ? (cells[measurementPointCol2] ?? '').trim()
+        : '';
     rows.push({
       original,
       sourceRow: r + 1,

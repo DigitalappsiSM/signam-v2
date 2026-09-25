@@ -135,8 +135,7 @@ function headerWidths(
 ): number[] {
   const widths = ADMIRA_CATALOG_HEADERS.map((h) => COLUMN_WIDTHS[h]);
   if (includeMapping) widths.push(MAPPING_WIDTH);
-  if (includeQuividi)
-    widths.push(QUIVIDI_WIDTH, 18, QUIVIDI_WIDTH, 18);
+  if (includeQuividi) widths.push(QUIVIDI_WIDTH, 18, QUIVIDI_WIDTH, 18);
   return widths;
 }
 

@@ -210,7 +210,9 @@ export function ScreenForm({
         throw new Error('La cámara 2 necesita un Punto SIGNAM.');
       }
       if (point1 && point2 && point1 === point2) {
-        throw new Error('La cámara 1 y la cámara 2 no pueden usar el mismo Punto SIGNAM.');
+        throw new Error(
+          'La cámara 1 y la cámara 2 no pueden usar el mismo Punto SIGNAM.',
+        );
       }
       if (point1) {
         buildMeasurementPointId({
@@ -227,7 +229,9 @@ export function ScreenForm({
         });
       }
     } catch (reason) {
-      setPointError(reason instanceof Error ? reason.message : 'Punto SIGNAM inválido.');
+      setPointError(
+        reason instanceof Error ? reason.message : 'Punto SIGNAM inválido.',
+      );
       return;
     }
 
@@ -386,7 +390,10 @@ export function ScreenForm({
         </label>
 
         {pointError && (
-          <div className="screen-form__validation screen-form__validation--error" role="alert">
+          <div
+            className="screen-form__validation screen-form__validation--error"
+            role="alert"
+          >
             {pointError}
           </div>
         )}

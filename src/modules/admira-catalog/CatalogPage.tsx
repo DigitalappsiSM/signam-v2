@@ -370,7 +370,10 @@ export function CatalogPage() {
                   <td>
                     {screen.metadata.quividiLocationId != null ? (
                       <div className="catalog__quividi">
-                        <strong>{screen.metadata.measurementPointId || `ID ${screen.metadata.quividiLocationId}`}</strong>
+                        <strong>
+                          {screen.metadata.measurementPointId ||
+                            `ID ${screen.metadata.quividiLocationId}`}
+                        </strong>
                         <span title={screen.metadata.quividiCameraName ?? ''}>
                           {screen.metadata.quividiCameraName ||
                             'Alias pendiente'}
@@ -388,7 +391,10 @@ export function CatalogPage() {
                     )}
                     {screen.metadata.quividiLocationId2 != null ? (
                       <div className="catalog__quividi">
-                        <strong>{screen.metadata.measurementPointId2 || `ID ${screen.metadata.quividiLocationId2}`}</strong>
+                        <strong>
+                          {screen.metadata.measurementPointId2 ||
+                            `ID ${screen.metadata.quividiLocationId2}`}
+                        </strong>
                         <span title={screen.metadata.quividiCameraName2 ?? ''}>
                           {screen.metadata.quividiCameraName2 ||
                             'Alias pendiente'}
