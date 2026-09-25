@@ -12,6 +12,7 @@ import {
 import { getFirebase } from './firebase';
 import {
   ADMIRA_CATALOG_HEADERS,
+  buildMeasurementPointId,
   type AdmiraScreen,
   type AdmiraScreenOriginal,
 } from '@/domain';
@@ -38,6 +39,49 @@ function db() {
   return fb.db;
 }
 
+function stablePointChangeError(
+  previous: string | null | undefined,
+  next: string | null,
+  label: string,
+): void {
+  if (previous && previous !== next) {
+    throw new Error(
+      `${label} ya tiene identidad ${previous}. No puede cambiarse silenciosamente; requiere una reasignación explícita.`,
+    );
+  }
+}
+
+function pointIds(screen: AdmiraScreen): string[] {
+  return [
+    screen.metadata.measurementPointId ?? null,
+    screen.metadata.measurementPointId2 ?? null,
+  ].filter((value): value is string => Boolean(value));
+}
+
+async function assertUniquePointIds(
+  candidates: readonly string[],
+  excludeScreenId?: string,
+): Promise<void> {
+  if (candidates.length !== new Set(candidates).size) {
+    throw new Error(
+      'Las dos cámaras de una misma pantalla no pueden compartir el mismo Punto SIGNAM.',
+    );
+  }
+  if (candidates.length === 0) return;
+  const existing = await listScreens();
+  const owners = new Map<string, string>();
+  for (const screen of existing) {
+    if (screen.id === excludeScreenId) continue;
+    for (const id of pointIds(screen)) owners.set(id, screen.id);
+  }
+  const duplicate = candidates.find((id) => owners.has(id));
+  if (duplicate) {
+    throw new Error(
+      `El Punto SIGNAM ${duplicate} ya está asignado a otra pantalla.`,
+    );
+  }
+}
+
 /** Lee todas las pantallas del catálogo, ordenadas por fecha de creación. */
 export async function listScreens(): Promise<AdmiraScreen[]> {
   const q = query(collection(db(), COLLECTION), orderBy('metadata.createdAt'));
@@ -57,7 +101,22 @@ export async function createScreen(
   quividiLocationId: number | null = null,
   quividiCameraName2 = '',
   quividiLocationId2: number | null = null,
+  measurementPointCode = '',
+  measurementPointCode2 = '',
 ): Promise<string> {
+  const point1 = buildMeasurementPointId(
+    original['Numero de Tienda'] ?? '',
+    calendarSupport,
+    measurementPointCode,
+  );
+  const point2 = buildMeasurementPointId(
+    original['Numero de Tienda'] ?? '',
+    calendarSupport,
+    measurementPointCode2,
+  );
+  await assertUniquePointIds(
+    [point1, point2].filter((value): value is string => Boolean(value)),
+  );
   const now = Date.now();
   const ref = doc(collection(db(), COLLECTION));
   await setDoc(ref, {
@@ -69,6 +128,10 @@ export async function createScreen(
       quividiCameraName: quividiCameraName.trim(),
       quividiLocationId2,
       quividiCameraName2: quividiCameraName2.trim(),
+      measurementPointCode: measurementPointCode.trim(),
+      measurementPointId: point1,
+      measurementPointCode2: measurementPointCode2.trim(),
+      measurementPointId2: point2,
     },
   });
   return ref.id;
@@ -84,9 +147,49 @@ export async function updateScreen(
   quividiLocationId?: number | null,
   quividiCameraName2?: string,
   quividiLocationId2?: number | null,
+  measurementPointCode?: string,
+  measurementPointCode2?: string,
 ): Promise<void> {
+  const nextCalendarSupport =
+    calendarSupport === undefined
+      ? screen.metadata.calendarSupport
+      : calendarSupport.trim();
+  const nextOriginal = sanitizeOriginal(original);
+  const code1 =
+    measurementPointCode === undefined
+      ? (screen.metadata.measurementPointCode ?? '')
+      : measurementPointCode.trim();
+  const code2 =
+    measurementPointCode2 === undefined
+      ? (screen.metadata.measurementPointCode2 ?? '')
+      : measurementPointCode2.trim();
+  const point1 = buildMeasurementPointId(
+    nextOriginal['Numero de Tienda'],
+    nextCalendarSupport,
+    code1,
+  );
+  const point2 = buildMeasurementPointId(
+    nextOriginal['Numero de Tienda'],
+    nextCalendarSupport,
+    code2,
+  );
+  stablePointChangeError(
+    screen.metadata.measurementPointId,
+    point1,
+    'La cámara 1',
+  );
+  stablePointChangeError(
+    screen.metadata.measurementPointId2,
+    point2,
+    'La cámara 2',
+  );
+  await assertUniquePointIds(
+    [point1, point2].filter((value): value is string => Boolean(value)),
+    screen.id,
+  );
+
   await updateDoc(doc(db(), COLLECTION, screen.id), {
-    original: sanitizeOriginal(original),
+    original: nextOriginal,
     metadata: bumpMetadata(screen.metadata, actor, Date.now(), {
       ...(calendarSupport === undefined
         ? {}
@@ -99,6 +202,10 @@ export async function updateScreen(
         ? {}
         : { quividiCameraName2: quividiCameraName2.trim() }),
       ...(quividiLocationId2 === undefined ? {} : { quividiLocationId2 }),
+      measurementPointCode: code1,
+      measurementPointId: point1,
+      measurementPointCode2: code2,
+      measurementPointId2: point2,
     }),
   });
 }
@@ -140,11 +247,42 @@ export async function importMasterScreens(
   const database = db();
   const now = Date.now();
   let created = 0;
+  const existing = await listScreens();
+  const pointOwners = new Set(existing.flatMap((screen) => pointIds(screen)));
+  const prepared = rows.map((row) => {
+    const point1 = buildMeasurementPointId(
+      row.original['Numero de Tienda'],
+      row.calendarSupport,
+      row.measurementPointCode,
+    );
+    const point2 = buildMeasurementPointId(
+      row.original['Numero de Tienda'],
+      row.calendarSupport,
+      row.measurementPointCode2,
+    );
+    const ids = [point1, point2].filter(
+      (value): value is string => Boolean(value),
+    );
+    if (ids.length !== new Set(ids).size) {
+      throw new Error(
+        `Fila ${row.sourceRow}: Cámara 1 y Cámara 2 comparten el mismo Punto SIGNAM.`,
+      );
+    }
+    for (const id of ids) {
+      if (pointOwners.has(id)) {
+        throw new Error(
+          `Fila ${row.sourceRow}: el Punto SIGNAM ${id} ya existe en el catálogo.`,
+        );
+      }
+      pointOwners.add(id);
+    }
+    return { row, point1, point2 };
+  });
 
-  for (let i = 0; i < rows.length; i += BATCH_LIMIT) {
-    const chunk = rows.slice(i, i + BATCH_LIMIT);
+  for (let i = 0; i < prepared.length; i += BATCH_LIMIT) {
+    const chunk = prepared.slice(i, i + BATCH_LIMIT);
     const batch = writeBatch(database);
-    for (const row of chunk) {
+    for (const { row, point1, point2 } of chunk) {
       const ref = doc(collection(database, COLLECTION));
       batch.set(ref, {
         original: sanitizeOriginal(row.original),
@@ -156,6 +294,10 @@ export async function importMasterScreens(
           calendarSupport: row.calendarSupport.trim(),
           quividiCameraName: row.quividiCameraName.trim(),
           quividiCameraName2: row.quividiCameraName2.trim(),
+          measurementPointCode: row.measurementPointCode.trim(),
+          measurementPointId: point1,
+          measurementPointCode2: row.measurementPointCode2.trim(),
+          measurementPointId2: point2,
         },
       });
       created += 1;
@@ -219,6 +361,8 @@ export interface MasterMetadataUpdateFields {
   calendarSupport: boolean;
   quividiCameraName: boolean;
   quividiCameraName2: boolean;
+  measurementPointCode: boolean;
+  measurementPointCode2: boolean;
 }
 
 export function masterMetadataPatch(
@@ -228,6 +372,8 @@ export function masterMetadataPatch(
   calendarSupport?: string;
   quividiCameraName?: string;
   quividiCameraName2?: string;
+  measurementPointCode?: string;
+  measurementPointCode2?: string;
 } {
   return {
     ...(fields.calendarSupport
@@ -238,6 +384,12 @@ export function masterMetadataPatch(
       : {}),
     ...(fields.quividiCameraName2
       ? { quividiCameraName2: row.quividiCameraName2.trim() }
+      : {}),
+    ...(fields.measurementPointCode
+      ? { measurementPointCode: row.measurementPointCode.trim() }
+      : {}),
+    ...(fields.measurementPointCode2
+      ? { measurementPointCode2: row.measurementPointCode2.trim() }
       : {}),
   };
 }
@@ -253,6 +405,8 @@ export async function updateScreenMetadataFromMaster(
     calendarSupport: true,
     quividiCameraName: true,
     quividiCameraName2: true,
+    measurementPointCode: true,
+    measurementPointCode2: true,
   },
 ): Promise<MasterMetadataUpdateResult> {
   const database = db();
@@ -279,11 +433,75 @@ export async function updateScreenMetadataFromMaster(
     }
   }
 
+  const pointOwners = new Map<string, string>();
+  for (const screen of existing) {
+    for (const id of pointIds(screen)) pointOwners.set(id, screen.id);
+  }
+  const preparedMatches = matches.map(({ screen, row }) => {
+    for (const id of pointIds(screen)) pointOwners.delete(id);
+    const patch = masterMetadataPatch(row, fields);
+    const support = fields.calendarSupport
+      ? row.calendarSupport.trim()
+      : screen.metadata.calendarSupport;
+    const code1 = fields.measurementPointCode
+      ? row.measurementPointCode.trim()
+      : (screen.metadata.measurementPointCode ?? '');
+    const code2 = fields.measurementPointCode2
+      ? row.measurementPointCode2.trim()
+      : (screen.metadata.measurementPointCode2 ?? '');
+    const point1 = buildMeasurementPointId(
+      screen.original['Numero de Tienda'],
+      support,
+      code1,
+    );
+    const point2 = buildMeasurementPointId(
+      screen.original['Numero de Tienda'],
+      support,
+      code2,
+    );
+    stablePointChangeError(
+      screen.metadata.measurementPointId,
+      point1,
+      'La cámara 1',
+    );
+    stablePointChangeError(
+      screen.metadata.measurementPointId2,
+      point2,
+      'La cámara 2',
+    );
+    const ids = [point1, point2].filter(
+      (value): value is string => Boolean(value),
+    );
+    if (ids.length !== new Set(ids).size) {
+      throw new Error(
+        `Fila ${row.sourceRow}: ambas cámaras comparten Punto SIGNAM.`,
+      );
+    }
+    for (const id of ids) {
+      const owner = pointOwners.get(id);
+      if (owner && owner !== screen.id) {
+        throw new Error(
+          `Fila ${row.sourceRow}: el Punto SIGNAM ${id} ya pertenece a otra pantalla.`,
+        );
+      }
+      pointOwners.set(id, screen.id);
+    }
+    return {
+      screen,
+      patch: {
+        ...patch,
+        measurementPointCode: code1,
+        measurementPointId: point1,
+        measurementPointCode2: code2,
+        measurementPointId2: point2,
+      },
+    };
+  });
+
   const now = Date.now();
-  for (let i = 0; i < matches.length; i += BATCH_LIMIT) {
+  for (let i = 0; i < preparedMatches.length; i += BATCH_LIMIT) {
     const batch = writeBatch(database);
-    for (const { screen, row } of matches.slice(i, i + BATCH_LIMIT)) {
-      const patch = masterMetadataPatch(row, fields);
+    for (const { screen, patch } of preparedMatches.slice(i, i + BATCH_LIMIT)) {
       if (Object.keys(patch).length === 0) continue;
       batch.update(doc(database, COLLECTION, screen.id), {
         metadata: bumpMetadata(screen.metadata, actor, now, patch),
