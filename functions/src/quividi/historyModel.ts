@@ -43,6 +43,27 @@ export const HISTORY_EXPORTS = [
   { type: 'retail_analytics_footfall_aggregated', resolution: '1h' },
 ] as const;
 
+/** Audience or traffic rows establish measurement; playback and estimates do not. */
+const MEASUREMENT_TYPES = new Set([
+  'viewers', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
+  'vehicles', 'vehicles_footfall', 'retail_analytics_footfall',
+  'retail_analytics_footfall_aggregated',
+]);
+
+export function isMeasurementExport(type: string): boolean {
+  return MEASUREMENT_TYPES.has(type);
+}
+
+export function earliestMeasuredDate(
+  previous: string | null,
+  date: string,
+  type: string,
+  rowCount: number,
+): string | null {
+  if (rowCount <= 0 || !isMeasurementExport(type)) return previous;
+  return previous && previous < date ? previous : date;
+}
+
 export interface StoreBinding {
   locationId: number;
   storeId: string;

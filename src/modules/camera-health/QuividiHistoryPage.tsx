@@ -141,8 +141,10 @@ export function QuividiHistoryPage() {
           <section className="quividi-history__panel">
             <h2>Carga histórica</h2>
             <p>
-              Desde el 1 de enero de 2026 hasta el último día completo
-              disponible. La captura diaria continúa automáticamente.
+              Se consulta desde el 1 de enero de 2026. Para cada location, el
+              histórico medido empieza en su primer día con datos; las
+              respuestas anteriores vacías no cuentan como medición faltante. La
+              captura diaria continúa automáticamente.
             </p>
             {!overview.started ? (
               <button
@@ -234,6 +236,9 @@ export function QuividiHistoryPage() {
                     {selected.validFrom
                       ? ` (observado desde ${selected.validFrom})`
                       : ''}
+                    <br />
+                    Primera medición encontrada:{' '}
+                    {selected.firstMeasuredDate ?? 'aún sin datos medidos'}
                     {selected.storeId && selected.pointId && (
                       <button
                         type="button"
