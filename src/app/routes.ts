@@ -71,6 +71,14 @@ export const NAV_ROUTES: RouteMeta[] = [
     permission: 'quividi.report',
   },
   {
+    path: '/historial-quividi',
+    label: 'Histórico Quividi',
+    icon: 'monitor',
+    description: 'Carga histórica Liverpool y conciliación de cámaras con tiendas.',
+    group: 'Operación',
+    permission: 'quividi.history',
+  },
+  {
     path: '/importar',
     label: 'Importar Calendario',
     icon: 'calendar',

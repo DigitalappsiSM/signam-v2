@@ -288,6 +288,29 @@ tres de ellos describían mal el separador de artículos.
   tickets retroactivos: la capa Odoo actúa solo sobre el estado vigente del
   último día completo (`no_ots` automático; `no_measurement` y
   `partial_measurement` bajo decisión manual).
+- **Histórico Quividi Liverpool (ingestión independiente)**: la network autorizada
+  es la `3089`; se obtiene su inventario mediante `/network/3089/locations/`,
+  incluidas las locations inactivas que devuelva Quividi. Ninguna consulta de
+  histórico usa `/locations/` sin acotar. Cada partición fuente conserva su
+  respuesta JSON original comprimida en Storage bajo `quividi-history/network-3089/`
+  y un manifiesto backend-only en `quividiHistoryPartitions`. Su identidad
+  idempotente es network + Location ID + fecha + tipo de export + resolución;
+  una huella del conjunto de filas independiente del orden omite respuestas
+  iguales y conserva revisiones distintas. Las exportaciones `extrapolated_*`
+  quedan etiquetadas `derived` y jamás se mezclan con medición observada. Los
+  exports por `site` se consultan una sola vez por sitio y quedan
+  `site_aggregate`, sin adjudicarse a las cámaras ni tiendas integrantes.
+  El catálogo vigente solo acredita una tienda **desde la fecha de observación**;
+  no se proyecta retroactivamente. `quividiHistoryBindings` guarda relaciones
+  Location ID → `LIV-TIENDA` / Punto SIGNAM con vigencia. Una fecha sin vínculo
+  único queda `needs_review`, sin tienda inventada. Guardar es por cámara y
+  periodo, sin ponderar ni extrapolar: las reglas multi-cámara pertenecen al
+  reporte. El histórico no modifica Campañas ni la salud/alertas existentes.
+  El backfill empieza el 2026-01-01 y el scheduler consulta también los siete
+  últimos días para capturar datos tardíos, con Cloud Tasks limitadas a dos
+  exportaciones concurrentes. La API solo expone los datos que efectivamente
+  conserva y autoriza; errores de familia/licencia se registran como
+  `unsupported`, no como cero medido.
 - **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. La carga
   normal y **Actualizar vista** solo leen los estados persistidos. Admin y
   operator disponen además de **Actualizar desde Quividi**, que ejecuta el mismo
