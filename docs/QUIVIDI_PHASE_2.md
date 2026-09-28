@@ -22,10 +22,16 @@ conservan íntegros en Storage y su índice estructurado en Firestore, evitando
 documentos que excedan el límite de tamaño.
 
 `quividiHistoryBindings` contiene la asociación fechada a `LIV-TIENDA` y al
-Punto SIGNAM. El catálogo actual solo crea una asociación desde el día en que
-se observa; **no asigna automáticamente el pasado**. Los registros anteriores,
-locations sin catálogo y conflictos quedan `needs_review` para conciliación
-manual. La ruta admin `/historial-quividi` inicia el backfill, muestra progreso
+Punto SIGNAM. El vínculo vigente se registra desde el día de observación.
+Cuando la location tiene una única tienda y Punto SIGNAM válidos en el catálogo,
+el tramo anterior desde 2026-01-01 se asocia a esa tienda como
+`catalog_inferred`: es una inferencia auditable, no evidencia de que la cámara
+estuvo siempre allí. Las locations sin vínculo inequívoco y los periodos con
+otra asociación documentada quedan `needs_review`. Una asignación manual
+reemplaza la inferencia de esa location y vuelve a indexar las particiones ya
+guardadas; los números y el RAW no cambian. El coordinador también incorpora
+automáticamente esta inferencia a un backfill que ya estuviera iniciado.
+La ruta admin `/historial-quividi` inicia el backfill, muestra progreso
 y captura tienda, punto y vigencia con `quividi-historyAssignBinding`; la tarea
 `quividi-historyReconcile` actualiza el índice de tienda de las particiones
 anteriores sin tocar el RAW ni alterar cifras. No se aplica ponderación, suma

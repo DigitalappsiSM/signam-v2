@@ -167,6 +167,12 @@ export function QuividiHistoryPage() {
                 </span>
                 <span>
                   <strong>
+                    {(overview.inferred ?? 0).toLocaleString('es-MX')}
+                  </strong>{' '}
+                  asociadas por catálogo (inferidas)
+                </span>
+                <span>
+                  <strong>
                     {overview.needsReview.toLocaleString('es-MX')}
                   </strong>{' '}
                   pendientes de tienda
@@ -196,9 +202,11 @@ export function QuividiHistoryPage() {
             <section className="quividi-history__panel">
               <h2>Conciliar tienda histórica</h2>
               <p>
-                La asignación actual del catálogo es solo una referencia. Indica
-                la tienda, el punto SIGNAM y las fechas que puedas comprobar.
-                Los periodos sin evidencia permanecen pendientes.
+                SIGNAM asocia automáticamente el histórico cuando el catálogo
+                actual tiene una única tienda y punto para la location. Esa
+                asociación anterior a hoy queda marcada como inferida. Aquí
+                puedes corregirla con una vigencia comprobada; las locations
+                ambiguas o sin catálogo quedan pendientes.
               </p>
               <form
                 onSubmit={(event) => void assign(event)}

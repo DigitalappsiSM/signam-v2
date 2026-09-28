@@ -51,7 +51,20 @@ export interface StoreBinding {
   pointId: string;
   validFrom: string;
   validTo: string | null;
-  source: 'catalog' | 'manual';
+  source: 'catalog' | 'catalog_inferred' | 'manual';
+}
+
+/** The current catalog is a useful historical hypothesis, never source evidence. */
+export function inferredCatalogBinding(binding: StoreBinding): StoreBinding | null {
+  if (binding.source !== 'catalog' || binding.validFrom <= HISTORY_START_DATE) return null;
+  const end = new Date(`${binding.validFrom}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return {
+    ...binding,
+    validFrom: HISTORY_START_DATE,
+    validTo: end.toISOString().slice(0, 10),
+    source: 'catalog_inferred',
+  };
 }
 
 /** Site-wide exports cannot safely be assigned to each location in that site. */

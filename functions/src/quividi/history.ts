@@ -16,6 +16,7 @@ import {
   LIVERPOOL_NETWORK_ID,
   exportDataClass,
   historyPartitionId,
+  inferredCatalogBinding,
   inventoryBindings,
   rawHistoryPath,
   resolveHistoricalBinding,
@@ -81,6 +82,45 @@ function todayMexico(): string {
 function dateAt(index: number): string {
   return new Date(Date.parse(HISTORY_START_DATE + 'T00:00:00Z') +
     index * 86_400_000).toISOString().slice(0, 10);
+}
+
+function mappingStatus(binding: StoreBinding | null): 'mapped' | 'inferred' | 'needs_review' {
+  if (!binding) return 'needs_review';
+  return binding.source === 'catalog_inferred' ? 'inferred' : 'mapped';
+}
+
+/** Upgrade an already running backfill once, including partitions saved before this change. */
+async function inferExistingCatalogHistory(): Promise<void> {
+  const db = getFirestore();
+  const control = db.collection(CONTROL).doc('liverpool');
+  const snapshot = await control.get();
+  if (!snapshot.exists || snapshot.get('catalogInferenceVersion') === 1) return;
+  const existing = await db.collection(BINDINGS).get();
+  const groups = new Map<number, StoreBinding[]>();
+  for (const doc of existing.docs) {
+    const binding = doc.data() as StoreBinding;
+    groups.set(binding.locationId, [...(groups.get(binding.locationId) ?? []), binding]);
+  }
+  const inferredLocations: number[] = [];
+  const batch = db.batch();
+  for (const [locationId, bindings] of groups) {
+    const current = bindings.filter((binding) =>
+      binding.source === 'catalog' && binding.validTo === null);
+    const historical = bindings.filter((binding) => binding.source !== 'catalog_inferred' &&
+      binding !== current[0]);
+    if (current.length !== 1 || historical.length ||
+        bindings.some((binding) => binding.source === 'manual')) continue;
+    const inferred = inferredCatalogBinding(current[0]!);
+    if (!inferred) continue;
+    const ref = db.collection(BINDINGS).doc(`${locationId}__${HISTORY_START_DATE}`);
+    if (!existing.docs.some((doc) => doc.id === ref.id)) batch.create(ref, inferred);
+    inferredLocations.push(locationId);
+  }
+  await batch.commit();
+  for (const locationId of inferredLocations) {
+    await getFunctions().taskQueue('quividi-historyReconcile').enqueue({ locationId } satisfies ReconcileTask);
+  }
+  await control.update({ catalogInferenceVersion: 1, catalogInferenceAt: Date.now() });
 }
 
 function taskAt(index: number, locationIds: readonly number[], plan: readonly ExportSpec[]): PartitionTask {
@@ -250,7 +290,8 @@ async function savePartition(task: PartitionTask): Promise<void> {
     storeId: binding?.storeId ?? null,
     pointId: binding?.pointId ?? null,
     mappingStatus: dataClass === 'site_aggregate' ? 'not_applicable' :
-      (binding ? 'mapped' : 'needs_review'),
+      mappingStatus(binding),
+    mappingSource: binding?.source ?? null,
     status: 'complete',
     dataClass,
     currentHash: hash,
@@ -291,7 +332,6 @@ export const historyStart = onCall({
   const screensSnap = await db.collection('screens').get();
   const screens = screensSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as ScreenDoc));
   const today = todayMexico();
-  await archiveNetworkTopology(today, locations);
   const { candidates, conflicts } = inventoryBindings(screens, new Set(ids), today);
   const batch = db.batch();
   for (const location of locations) {
@@ -303,12 +343,16 @@ export const historyStart = onCall({
   for (const binding of candidates) {
     const ref = db.collection(BINDINGS).doc(`${binding.locationId}__${today}`);
     if (!(await ref.get()).exists) batch.create(ref, binding);
+    const inferred = inferredCatalogBinding(binding);
+    if (inferred) batch.create(db.collection(BINDINGS)
+      .doc(`${binding.locationId}__${HISTORY_START_DATE}`), inferred);
   }
   await batch.commit();
   await db.collection(CONTROL).doc('liverpool').create({
     networkId: LIVERPOOL_NETWORK_ID, locationIds: ids, nextIndex: 0,
     exportPlan: HISTORY_EXPORTS.map((item) => ({ ...item })),
     startDate: HISTORY_START_DATE, status: 'running', startedAt: Date.now(),
+    catalogInferenceVersion: 1,
   });
   return { networkId: LIVERPOOL_NETWORK_ID, locations: ids.length,
     catalogBindings: candidates.length, conflicts, startDate: HISTORY_START_DATE };
@@ -319,12 +363,13 @@ export const historyOverview = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'Solo admin consulta el histórico.');
   }
   const db = getFirestore();
-  const [controls, inventory, bindings, completed, pending, unsupported, retrying] =
+  const [controls, inventory, bindings, completed, inferred, pending, unsupported, retrying] =
     await Promise.all([
       db.collection(CONTROL).get(),
       db.collection(INVENTORY).get(),
       db.collection(BINDINGS).where('validTo', '==', null).get(),
       db.collection(PARTITIONS).where('status', '==', 'complete').count().get(),
+      db.collection(PARTITIONS).where('mappingStatus', '==', 'inferred').count().get(),
       db.collection(PARTITIONS).where('mappingStatus', '==', 'needs_review').count().get(),
       db.collection(PARTITIONS).where('status', '==', 'unsupported').count().get(),
       db.collection(PARTITIONS).where('status', '==', 'retrying').count().get(),
@@ -338,6 +383,7 @@ export const historyOverview = onCall(async (request) => {
     started: controls.docs.some((doc) => doc.id === 'liverpool'),
     queued: controls.docs.reduce((sum, doc) => sum + (doc.get('nextIndex') as number ?? 0), 0),
     completed: completed.data().count,
+    inferred: inferred.data().count,
     needsReview: pending.data().count,
     unsupported: unsupported.data().count,
     retrying: retrying.data().count,
@@ -386,12 +432,18 @@ export const historyAssignBinding = onCall({ timeoutSeconds: 540 }, async (reque
   const siblings = await db.collection(BINDINGS).where('locationId', '==', input.locationId).get();
   for (const doc of siblings.docs) {
     const other = doc.data() as StoreBinding;
+    if (other.source === 'catalog_inferred') continue;
     if (doc.id === ref.id ||
         (binding.validTo !== null && binding.validTo < other.validFrom) ||
         (other.validTo !== null && other.validTo < binding.validFrom)) continue;
     throw new HttpsError('failed-precondition', 'La vigencia se superpone con otro vínculo de tienda.');
   }
-  await ref.set(binding);
+  const batch = db.batch();
+  for (const doc of siblings.docs) {
+    if (doc.get('source') === 'catalog_inferred' && doc.id !== ref.id) batch.delete(doc.ref);
+  }
+  batch.set(ref, binding);
+  await batch.commit();
   await getFunctions().taskQueue('quividi-historyReconcile').enqueue({
     locationId: input.locationId!,
   } satisfies ReconcileTask);
@@ -421,7 +473,7 @@ export const historyReconcile = onTaskDispatched<ReconcileTask>({
     const binding = resolveHistoricalBinding(bindings, locationId, doc.get('date') as string);
     batch.update(doc.ref, {
       storeId: binding?.storeId ?? null, pointId: binding?.pointId ?? null,
-      mappingStatus: binding ? 'mapped' : 'needs_review',
+      mappingStatus: mappingStatus(binding), mappingSource: binding?.source ?? null,
     });
   }
   await batch.commit();
@@ -454,6 +506,8 @@ export const historyInventoryDaily = onSchedule({
   );
   const current = new Map(candidates.map((binding) => [binding.locationId, binding]));
   const activeBindings = await db.collection(BINDINGS).where('validTo', '==', null).get();
+  const allBindings = await db.collection(BINDINGS).get();
+  const locationsWithHistory = new Set(allBindings.docs.map((doc) => doc.get('locationId') as number));
   const batch = db.batch();
   for (const location of locations) {
     batch.set(db.collection(INVENTORY).doc(String(location.id)), {
@@ -475,6 +529,11 @@ export const historyInventoryDaily = onSchedule({
   for (const candidate of current.values()) {
     const ref = db.collection(BINDINGS).doc(`${candidate.locationId}__${today}`);
     if (!(await ref.get()).exists) batch.create(ref, candidate);
+    if (!locationsWithHistory.has(candidate.locationId)) {
+      const inferred = inferredCatalogBinding(candidate);
+      if (inferred) batch.create(db.collection(BINDINGS)
+        .doc(`${candidate.locationId}__${HISTORY_START_DATE}`), inferred);
+    }
   }
   await batch.commit();
   if (newIds.length) {
@@ -520,6 +579,7 @@ export const historyCoordinator = onSchedule({
   const db = getFirestore();
   const controls = await db.collection(CONTROL).where('status', '==', 'running').get();
   if (controls.empty) return;
+  await inferExistingCatalogHistory();
   const queue = getFunctions().taskQueue('quividi-historyPartition');
   const primary = await db.collection(CONTROL).doc('liverpool').get();
   if (primary.exists) {
