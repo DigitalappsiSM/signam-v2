@@ -300,8 +300,12 @@ tres de ellos describían mal el separador de artículos.
   quedan etiquetadas `derived` y jamás se mezclan con medición observada. Los
   exports por `site` se consultan una sola vez por sitio y quedan
   `site_aggregate`, sin adjudicarse a las cámaras ni tiendas integrantes.
-  El catálogo vigente solo acredita una tienda **desde la fecha de observación**;
-  no se proyecta retroactivamente. `quividiHistoryBindings` guarda relaciones
+  El catálogo vigente acredita directamente una tienda desde la fecha de
+  observación. Si una location tiene una única tienda y Punto SIGNAM válidos,
+  se proyecta esa relación al backfill anterior como `catalog_inferred`,
+  distinguible de evidencia histórica. Una corrección manual elimina la
+  inferencia de esa location y reindexa sus particiones, sin alterar el RAW.
+  `quividiHistoryBindings` guarda relaciones
   Location ID → `LIV-TIENDA` / Punto SIGNAM con vigencia. Una fecha sin vínculo
   único queda `needs_review`, sin tienda inventada. Guardar es por cámara y
   periodo, sin ponderar ni extrapolar: las reglas multi-cámara pertenecen al

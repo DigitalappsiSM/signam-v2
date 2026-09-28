@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   historyPartitionId,
+  inferredCatalogBinding,
   exportDataClass,
   inventoryBindings,
   rawHistoryPath,
@@ -26,7 +27,7 @@ describe('Quividi Liverpool history', () => {
       11, '2026-05-01')).toBeNull();
   });
 
-  it('does not infer an old store from the current catalog and flags conflicts', () => {
+  it('marks retrospective catalog assignments as inferred and flags conflicts', () => {
     const screen = (pointId: string) => ({
       original: { 'Numero de Tienda': '7', 'Nombre de tienda': 'Santa Fe' },
       metadata: { active: true, calendarSupport: 'MEGA MUPI DIGITAL',
@@ -35,7 +36,13 @@ describe('Quividi Liverpool history', () => {
     const result = inventoryBindings([screen('LIV-007-MUPI-P1')],
       new Set([22, 33]), '2026-09-28');
     expect(result.candidates[0]?.validFrom).toBe('2026-09-28');
-    expect(resolveHistoricalBinding(result.candidates, 22, '2026-03-02')).toBeNull();
+    const inferred = inferredCatalogBinding(result.candidates[0]!);
+    expect(inferred).toMatchObject({ validFrom: '2026-01-01',
+      validTo: '2026-09-27', source: 'catalog_inferred' });
+    expect(resolveHistoricalBinding([inferred!, ...result.candidates], 22, '2026-03-02')?.storeId)
+      .toBe('LIV-007');
+    expect(resolveHistoricalBinding([inferred!, ...result.candidates], 22, '2026-09-28')?.source)
+      .toBe('catalog');
     expect(inventoryBindings([screen('LIV-007-MUPI-P1'),
       screen('LIV-007-MUPI-P2')], new Set([22]), '2026-09-28').conflicts)
       .toEqual([22]);

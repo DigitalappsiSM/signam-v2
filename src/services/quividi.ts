@@ -76,6 +76,7 @@ export interface QuividiHistoryOverview {
   started: boolean;
   queued: number;
   completed: number;
+  inferred: number;
   needsReview: number;
   unsupported: number;
   retrying: number;
