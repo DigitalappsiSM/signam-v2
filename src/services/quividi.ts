@@ -93,13 +93,18 @@ export interface QuividiHistoryOverview {
 
 export async function getQuividiHistoryOverview(): Promise<QuividiHistoryOverview> {
   const callable = httpsCallable<Record<string, never>, QuividiHistoryOverview>(
-    functions(), 'quividi-historyOverview');
+    functions(),
+    'quividi-historyOverview',
+  );
   return (await callable({})).data;
 }
 
 export async function startQuividiHistory(): Promise<void> {
   const callable = httpsCallable<Record<string, never>, unknown>(
-    functions(), 'quividi-historyStart', { timeout: 540_000 });
+    functions(),
+    'quividi-historyStart',
+    { timeout: 540_000 },
+  );
   await callable({});
 }
 
@@ -113,7 +118,9 @@ export async function assignQuividiHistoryBinding(input: {
   validTo: string | null;
 }): Promise<void> {
   const callable = httpsCallable<typeof input, unknown>(
-    functions(), 'quividi-historyAssignBinding');
+    functions(),
+    'quividi-historyAssignBinding',
+  );
   await callable(input);
 }
 
