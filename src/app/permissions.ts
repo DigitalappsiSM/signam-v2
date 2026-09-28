@@ -21,6 +21,7 @@ export type Permission =
   | 'tracking.write'
   | 'reporting.read'
   | 'quividi.report'
+  | 'quividi.history'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
   | 'digitalOperations.track'
@@ -55,6 +56,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tracking.write',
     'reporting.read',
     'quividi.report',
+    'quividi.history',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',

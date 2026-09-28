@@ -71,6 +71,59 @@ export async function validateQuividiLocation(
   return result.data.location;
 }
 
+export interface QuividiHistoryOverview {
+  networkId: number;
+  started: boolean;
+  queued: number;
+  completed: number;
+  needsReview: number;
+  unsupported: number;
+  retrying: number;
+  locations: Array<{
+    id: number;
+    label: string;
+    active: boolean;
+    storeId: string | null;
+    storeName: string;
+    support: string;
+    pointId: string | null;
+    validFrom: string | null;
+  }>;
+}
+
+export async function getQuividiHistoryOverview(): Promise<QuividiHistoryOverview> {
+  const callable = httpsCallable<Record<string, never>, QuividiHistoryOverview>(
+    functions(),
+    'quividi-historyOverview',
+  );
+  return (await callable({})).data;
+}
+
+export async function startQuividiHistory(): Promise<void> {
+  const callable = httpsCallable<Record<string, never>, unknown>(
+    functions(),
+    'quividi-historyStart',
+    { timeout: 540_000 },
+  );
+  await callable({});
+}
+
+export async function assignQuividiHistoryBinding(input: {
+  locationId: number;
+  storeId: string;
+  storeName: string;
+  support: string;
+  pointId: string;
+  validFrom: string;
+  validTo: string | null;
+}): Promise<void> {
+  const callable = httpsCallable<typeof input, unknown>(
+    functions(),
+    'quividi-historyAssignBinding',
+  );
+  await callable(input);
+}
+
 export async function getQuividiCameraHealthOverview(): Promise<QuividiCameraHealthOverview> {
   const callable = httpsCallable<
     Record<string, never>,

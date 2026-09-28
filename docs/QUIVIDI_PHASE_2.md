@@ -1,5 +1,52 @@
 # Quividi — Fase 2: salud operativa de cámaras
 
+## Histórico integral Liverpool — implementación inicial
+
+La ingestión histórica es independiente de la salud operativa que describe el
+resto de este documento. Lee exclusivamente la network **3089** desde su
+endpoint de locations, no el subconjunto de cámaras del catálogo. La callable
+administrativa `quividi-historyStart` verifica ese inventario e inicia cargas
+desde el **1 de enero de 2026**. `quividi-historyCoordinator` encola particiones
+por fecha, location y familia de datos; `quividi-historyPartition` obtiene el
+export asíncrono y guarda el JSON original comprimido en Storage. La cola limita
+las exportaciones simultáneas a dos y reintenta fallos transitorios. La revisión
+diaria de inventario incorpora nuevas locations con su propio backfill. El
+coordinador reconsulta los siete últimos días por datos tardíos.
+
+`quividiHistoryPartitions/{3089__locationId__fecha__tipo__resolución}` guarda
+hash, ruta RAW, número de filas, estado y, cuando cabe, las filas horarias
+estructuradas. `revisions/{hash}` conserva las versiones distintas. La misma
+respuesta en distinto orden conserva la misma huella; OTS cero y export vacío
+son distintos de un export fallido o no autorizado. Los eventos `finest` se
+conservan íntegros en Storage y su índice estructurado en Firestore, evitando
+documentos que excedan el límite de tamaño.
+
+`quividiHistoryBindings` contiene la asociación fechada a `LIV-TIENDA` y al
+Punto SIGNAM. El catálogo actual solo crea una asociación desde el día en que
+se observa; **no asigna automáticamente el pasado**. Los registros anteriores,
+locations sin catálogo y conflictos quedan `needs_review` para conciliación
+manual. La ruta admin `/historial-quividi` inicia el backfill, muestra progreso
+y captura tienda, punto y vigencia con `quividi-historyAssignBinding`; la tarea
+`quividi-historyReconcile` actualiza el índice de tienda de las particiones
+anteriores sin tocar el RAW ni alterar cifras. No se aplica ponderación, suma
+de cámaras ni extrapolación al escribir.
+Las familias `extrapolated_*` se archivan aparte como `derived`.
+Las familias por sitio se capturan una vez por `site_id` y quedan
+`site_aggregate`: no se multiplican por cada location del mismo sitio. Cada
+generación guarda su plan de tipos/resoluciones para que futuras ampliaciones
+no desplacen el cursor del backfill ya iniciado.
+
+Las colecciones históricas y la ruta Storage tienen acceso denegado desde el
+cliente por las reglas existentes; escribe únicamente Cloud Functions. El
+despliegue no inicia el backfill hasta que un admin invoque `historyStart`.
+Antes de activarlo hay que comprobar en producción el acceso de los secretos
+existentes a la network 3089, las familias efectivamente licenciadas y el
+volumen de los exports `finest`. La topología y las alertas de status solo
+pueden archivarse desde que empieza este proceso; Quividi limita las listas
+de mensajes recientes, así que no equivalen a un histórico de status anterior.
+
+---
+
 > Estado vigente de la integración operativa Quividi en SIGNAM V2.
 >
 > - Implementación base: PR #120 — persistencia diaria de salud por cámara.

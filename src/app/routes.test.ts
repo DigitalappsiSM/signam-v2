@@ -23,4 +23,12 @@ describe('rutas del perfil Comercial', () => {
       true,
     );
   });
+
+  it('reserva el histórico crudo y la conciliación Quividi para admin', () => {
+    const history = routeByPath('/historial-quividi');
+    expect(history && canAccessRoute('admin', history)).toBe(true);
+    for (const role of ['operator', 'viewer', 'commercial'] as const) {
+      expect(history && canAccessRoute(role, history)).toBe(false);
+    }
+  });
 });
