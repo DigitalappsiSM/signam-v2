@@ -107,7 +107,10 @@ tres de ellos describían mal el separador de artículos.
   conserva el `campaignId` (y con él seguimiento, testigos, Ekon), pasa a
   `origin: 'liverpool'`, guarda `adoptedFromManualAt/By` y `manualSnapshot`, y
   desde entonces manda el calendario (fechas/tiendas/soportes); si difieren, el
-  diff lo muestra. Si Liverpool cambia las fechas de una campaña con testigos, solo se
+  diff lo muestra; las correcciones (`manualOverrides`) hechas a la versión manual
+  **no se reaplican**: se limpian y quedan en `manualSnapshot`. El alta usa un id
+  determinístico (nombre + fechas) dentro de una transacción, más una verificación
+  fresca de duplicados, y exige años 2000–2100. Si Liverpool cambia las fechas de una campaña con testigos, solo se
   avisa: no se revalidan aprobaciones. Los metadatos de origen se guardan aparte
   de los datos importados y nunca entran al CSV.
 - **Seguimiento operativo**: colección independiente

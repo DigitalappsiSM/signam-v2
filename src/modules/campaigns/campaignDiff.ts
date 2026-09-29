@@ -263,7 +263,13 @@ export function diffCampaigns(
     unmatchedIncoming.delete(campaignIdentity(campaign));
     unmatchedStored.delete(saved.id);
     const adoptsManual = manualPool.delete(saved.id);
-    const effective = applyManualOverrides(campaign, saved.manualOverrides);
+    // Al adoptar manda el calendario: las correcciones que se hicieron a la
+    // versión manual no se reaplican (se limpian al guardar y quedan en el
+    // historial de la adopción).
+    const effective = applyManualOverrides(
+      campaign,
+      adoptsManual ? undefined : saved.manualOverrides,
+    );
     const overriddenFields = EDITABLE_CAMPAIGN_FIELDS.filter(
       (field) =>
         saved.manualOverrides?.[field] != null &&

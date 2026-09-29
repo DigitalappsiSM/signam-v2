@@ -203,3 +203,34 @@ describe('findManualDuplicates / manualSupportOptions', () => {
     expect(opts[0]!.stores.map((s) => s.numero)).toEqual(['2', '78']);
   });
 });
+
+describe('rango de años y id determinístico', () => {
+  it('rechaza años fuera de 2000–2100', () => {
+    const errors = validateManualCampaign(
+      input({ fechaInicio: '1999-01-01', fechaFin: '2101-01-01' }),
+    );
+    expect(errors.filter((e) => e.includes('entre los años'))).toHaveLength(2);
+  });
+
+  it('el id no depende de mayúsculas, acentos ni del formato de fecha', async () => {
+    const { manualCampaignId } = await import('./manualCampaign');
+    const a = manualCampaignId({
+      name: 'Nike Sampling',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-15',
+    });
+    const b = manualCampaignId({
+      name: ' NIKE  sampling ',
+      fechaInicio: '01/10/2026',
+      fechaFin: '15/10/2026',
+    });
+    expect(a).toBe(b);
+    expect(
+      manualCampaignId({
+        name: 'Nike Sampling',
+        fechaInicio: '2026-10-02',
+        fechaFin: '2026-10-15',
+      }),
+    ).not.toBe(a);
+  });
+});

@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   runTransaction,
@@ -15,6 +16,10 @@ import {
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import {
+  findManualDuplicates,
+  manualCampaignId,
+} from '@/modules/campaigns/manualCampaign';
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import {
   initialTracking,
@@ -365,7 +370,13 @@ export async function applyCampaignChanges(
               fechaInicio: op.adopts.fechaInicio,
               fechaFin: op.adopts.fechaFin,
               supports: op.adopts.supports,
+              ...(op.adopts.manualOverrides
+                ? { manualOverrides: op.adopts.manualOverrides }
+                : {}),
             },
+            // El calendario es la fuente de verdad: las correcciones hechas a la
+            // versión manual dejan de prevalecer en futuras importaciones.
+            manualOverrides: deleteField(),
           }
         : {};
       batch.set(
@@ -414,7 +425,21 @@ export async function createManualCampaign(
 ): Promise<string> {
   const database = db();
   const now = Date.now();
-  const ref = doc(collection(database, COLLECTION));
+  // Verificación fresca (el modal trabaja con una foto que pudo quedar vieja):
+  // otra persona o una importación pudo crear la misma campaña entretanto.
+  const duplicates = findManualDuplicates(
+    campaign,
+    await listCampaigns(),
+  ).blocking;
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Ya existe la campaña "${duplicates[0]!.campaign.name}" con las mismas fechas. Actualiza la pantalla: puede que Liverpool ya la haya subido.`,
+    );
+  }
+  // Id determinístico (nombre + fechas): dos altas simultáneas de la misma
+  // campaña colisionan en el mismo documento y la transacción rechaza la segunda.
+  const ref = doc(database, COLLECTION, manualCampaignId(campaign));
+  const trackingRef = doc(database, 'campaignOperationalTracking', ref.id);
   const classification =
     classifyFromTipo(campaign.tipo) === 'institutional'
       ? 'institutional'
@@ -435,14 +460,19 @@ export async function createManualCampaign(
   const { id: _trackingId, ...trackingData } = tracking;
   void _trackingId;
 
-  const batch = writeBatch(database);
-  batch.set(ref, {
-    ...campaignDoc(campaign, actor, now),
-    origin: 'manual',
-    createdAt: now,
-    createdBy: actor.email,
+  await runTransaction(database, async (tx) => {
+    if ((await tx.get(ref)).exists()) {
+      throw new Error(
+        'Esta campaña manual ya existe (mismo nombre y fechas). Actualiza la pantalla.',
+      );
+    }
+    tx.set(ref, {
+      ...campaignDoc(campaign, actor, now),
+      origin: 'manual',
+      createdAt: now,
+      createdBy: actor.email,
+    });
+    tx.set(trackingRef, trackingData);
   });
-  batch.set(doc(database, 'campaignOperationalTracking', ref.id), trackingData);
-  await batch.commit();
   return ref.id;
 }

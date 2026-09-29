@@ -1,6 +1,11 @@
 import { normalizeStore } from '@/modules/consolidation/consolidate';
 import { parseCampaignDate } from '@/modules/campaigns/dateFilter';
 import { classifySupport, normalizeSupport, type AdmiraScreen } from '@/domain';
+import type { CampaignManualOverrides } from './campaignCorrection';
+import {
+  MAX_CAMPAIGN_YEAR,
+  MIN_CAMPAIGN_YEAR,
+} from '@/modules/liverpool-import/campaignDateValidation';
 import type {
   CampaignSupport,
   ParsedCampaign,
@@ -36,7 +41,7 @@ export interface CampaignOriginMeta {
   manualSnapshot?: Pick<
     ParsedCampaign,
     'name' | 'tipo' | 'fechaInicio' | 'fechaFin' | 'supports'
-  >;
+  > & { manualOverrides?: CampaignManualOverrides };
 }
 
 export const MANUAL_CAMPAIGN_TIPOS = [
@@ -100,6 +105,20 @@ export function validateManualCampaign(input: ManualCampaignInput): string[] {
   const end = parseCampaignDate(input.fechaFin);
   if (!start) errors.push('La fecha de inicio no es válida.');
   if (!end) errors.push('La fecha de fin no es válida.');
+  for (const [label, date] of [
+    ['inicio', start],
+    ['fin', end],
+  ] as const) {
+    if (
+      date &&
+      (date.getUTCFullYear() < MIN_CAMPAIGN_YEAR ||
+        date.getUTCFullYear() > MAX_CAMPAIGN_YEAR)
+    ) {
+      errors.push(
+        `La fecha de ${label} debe estar entre los años ${MIN_CAMPAIGN_YEAR} y ${MAX_CAMPAIGN_YEAR}.`,
+      );
+    }
+  }
   if (start && end && start.getTime() > end.getTime()) {
     errors.push('La fecha de inicio no puede ser posterior a la de fin.');
   }
@@ -344,4 +363,24 @@ export function findManualDuplicates(
     });
   }
   return report;
+}
+
+/**
+ * Id determinístico de una campaña manual (nombre normalizado + fechas civiles).
+ * Sirve de cerrojo: dos altas simultáneas de la misma campaña apuntan al mismo
+ * documento y la segunda se rechaza dentro de la transacción.
+ */
+export function manualCampaignId(
+  campaign: Pick<ParsedCampaign, 'name' | 'fechaInicio' | 'fechaFin'>,
+): string {
+  const iso = (v: string) =>
+    parseCampaignDate(v)?.toISOString().slice(0, 10) ?? v.trim();
+  const raw = `${foldName(campaign.name)}|${iso(campaign.fechaInicio)}|${iso(campaign.fechaFin)}`;
+  let h = 0x811c9dc5;
+  let g = 0x01000193;
+  for (let i = 0; i < raw.length; i += 1) {
+    h = Math.imul(h ^ raw.charCodeAt(i), 0x01000193);
+    g = Math.imul(g ^ raw.charCodeAt(i), 0x85ebca6b);
+  }
+  return `manual-${(h >>> 0).toString(36)}${(g >>> 0).toString(36)}`;
 }

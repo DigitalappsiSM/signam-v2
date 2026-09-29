@@ -337,6 +337,28 @@ describe('diffCampaigns con campañas manuales', () => {
     expect(diff.removed).toEqual([]);
   });
 
+  it('al adoptar no se reaplican las correcciones de la versión manual', () => {
+    const withOverride = manual({
+      manualOverrides: {
+        fechaFin: {
+          value: '1/1/26',
+          reason: 'captura',
+          correctedAt: 1,
+          correctedByUid: 'u',
+          correctedByEmail: 'a@b.c',
+        },
+      },
+    });
+    const incoming = camp('Nike Sampling', { fechaFin: '2/20/26' });
+    const first = diffCampaigns([incoming], [withOverride]);
+    const selections = new Map([
+      [first.pendingMatches[0]!.incomingIdentity, 'm1'],
+    ]);
+    const diff = diffCampaigns([incoming], [withOverride], selections);
+    expect(diff.modified[0]!.campaign.fechaFin).toBe('2/20/26');
+    expect(diff.matched[0]!.overriddenFields).toEqual([]);
+  });
+
   it('una manual inactiva no se ofrece como candidata', () => {
     const diff = diffCampaigns(
       [camp('Nike Sampling')],
