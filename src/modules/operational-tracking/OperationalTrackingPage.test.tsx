@@ -218,6 +218,53 @@ describe('OperationalTrackingPage', () => {
     );
   });
 
+  it('conserva la página al marcar un check y vuelve a la 1 al cambiar el orden', async () => {
+    // 13 campañas > PAGE_SIZE (12): la última queda sola en la página 2.
+    const many = Array.from({ length: 13 }, (_, i) => {
+      const n = String(i + 1).padStart(2, '0');
+      return campaign({
+        id: `c${n}`,
+        name: `CAMP ${n}`,
+        nameKey: `camp ${n}`,
+        tipo: 'INSTITUCIONAL',
+        link: 'https://x.com/a.zip',
+      });
+    });
+    vi.mocked(listCampaigns).mockResolvedValue(many);
+    vi.mocked(updateCheck).mockResolvedValue(
+      initialTracking(
+        {
+          campaignId: 'c13',
+          campaignNameKey: campaignIdentity(many[12]!),
+          campaignName: 'CAMP 13',
+          classification: 'institutional',
+          classificationSource: 'import-user',
+          linkValid: true,
+        },
+        { uid: 'u1', email: 'a@b.mx' },
+        1000,
+      ),
+    );
+    await renderAllPeriods();
+    await screen.findByText('CAMP 01');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Página siguiente' }),
+    );
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Programación CSM de CAMP 13'));
+    await waitFor(() => expect(updateCheck).toHaveBeenCalledTimes(1));
+    // El guardado regenera las filas, pero la página seleccionada se mantiene.
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByText('CAMP 13')).toBeInTheDocument();
+    // Cambiar el orden sí reinicia a la primera página.
+    await userEvent.click(
+      within(screen.getByRole('columnheader', { name: /Campaña/ })).getByRole(
+        'button',
+      ),
+    );
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument();
+  });
+
   it('muestra los cinco indicadores como casillas en la tabla', async () => {
     await renderAllPeriods();
     await screen.findByText('BUEN FIN');
