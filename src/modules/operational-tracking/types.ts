@@ -9,7 +9,8 @@
 export type Classification = 'institutional' | 'provider';
 
 /** Origen de la clasificación (para trazabilidad). */
-export type ClassificationSource = 'calendar' | 'import-user' | 'tracking-user';
+export type ClassificationSource =
+  'calendar' | 'import-user' | 'tracking-user' | 'manual-campaign';
 
 /**
  * Estado de ciclo de vida operativo de la campaña (independiente de los

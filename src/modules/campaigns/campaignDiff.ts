@@ -5,6 +5,12 @@ import {
   type ParsedCampaign,
 } from '@/modules/liverpool-import/campaignParse';
 import {
+  isPendingManualCampaign,
+  scoreManualMatch,
+  type CampaignOriginMeta,
+  type ManualMatch,
+} from './manualCampaign';
+import {
   applyManualOverrides,
   EDITABLE_CAMPAIGN_FIELDS,
   type CampaignManualOverrides,
@@ -20,7 +26,7 @@ import {
  */
 
 /** Campaña tal como se guarda en la base de datos. */
-export interface StoredCampaign extends ParsedCampaign {
+export interface StoredCampaign extends ParsedCampaign, CampaignOriginMeta {
   id: string;
   nameKey: string;
   signature: string;
@@ -173,12 +179,14 @@ export interface CampaignChange {
   campaign: ParsedCampaign;
   stored: StoredCampaign;
   changes: string[];
+  /** La fila del calendario adopta una campaña manual (conserva su `id`). */
+  adoptsManual?: boolean;
 }
 
 /** Emparejamiento explícito elegido por el usuario: huella entrante → id guardado. */
 export type CampaignMatchSelections = ReadonlyMap<string, string | null>;
 
-export type CampaignMatchReason = 'homonymous' | 'name-change';
+export type CampaignMatchReason = 'homonymous' | 'name-change' | 'manual';
 
 /** Caso que SIGNAM no puede emparejar sin riesgo y debe confirmar el usuario. */
 export interface CampaignMatchPending {
@@ -186,6 +194,11 @@ export interface CampaignMatchPending {
   campaign: ParsedCampaign;
   candidates: StoredCampaign[];
   reason: CampaignMatchReason;
+  /**
+   * Candidatas que son campañas manuales, con su nivel de coincidencia
+   * (`strong` = sugerida; `partial` = posible duplicado). Por id guardado.
+   */
+  manualMatches?: Record<string, ManualMatch>;
 }
 
 export interface CampaignDiff {
@@ -212,6 +225,11 @@ export interface CampaignDiff {
  * - homónimos sin correspondencia inequívoca → confirmación manual;
  * - cambio de nombre con firma idéntica → confirmación manual;
  * - ausentes → baja lógica (solo los que estaban activos).
+ *
+ * Las campañas **manuales** aún no adoptadas quedan fuera de todo lo anterior:
+ * nunca se dan de baja por no venir en el calendario y nunca se emparejan solas.
+ * Solo se ofrecen como candidatas (`reason: 'manual'`) a las filas nuevas que se
+ * les parecen, y adoptarlas requiere una selección explícita del usuario.
  */
 export function diffCampaigns(
   incoming: readonly ParsedCampaign[],
@@ -222,7 +240,14 @@ export function diffCampaigns(
   const unmatchedIncoming = new Map(
     merged.map((c) => [campaignIdentity(c), c]),
   );
-  const unmatchedStored = new Map(stored.map((c) => [c.id, c]));
+  const manualPool = new Map(
+    stored
+      .filter((c) => isPendingManualCampaign(c) && c.active !== false)
+      .map((c) => [c.id, c]),
+  );
+  const unmatchedStored = new Map(
+    stored.filter((c) => !isPendingManualCampaign(c)).map((c) => [c.id, c]),
+  );
   const added: ParsedCampaign[] = [];
   const modified: CampaignChange[] = [];
   const pendingMatches: CampaignMatchPending[] = [];
@@ -237,6 +262,7 @@ export function diffCampaigns(
   const pair = (campaign: ParsedCampaign, saved: StoredCampaign) => {
     unmatchedIncoming.delete(campaignIdentity(campaign));
     unmatchedStored.delete(saved.id);
+    const adoptsManual = manualPool.delete(saved.id);
     const effective = applyManualOverrides(campaign, saved.manualOverrides);
     const overriddenFields = EDITABLE_CAMPAIGN_FIELDS.filter(
       (field) =>
@@ -245,6 +271,18 @@ export function diffCampaigns(
     );
     matched.push({ campaign: effective, stored: saved, overriddenFields });
     const changes = describeChanges(saved, effective);
+    if (adoptsManual) {
+      changes.unshift(
+        'Campaña manual adoptada: el calendario de Liverpool ya la trae (se conserva su seguimiento)',
+      );
+      modified.push({
+        campaign: effective,
+        stored: saved,
+        changes,
+        adoptsManual,
+      });
+      return;
+    }
     if (saved.active === false) changes.unshift('Campaña reactivada');
     if (changes.length === 0) unchanged += 1;
     else modified.push({ campaign: effective, stored: saved, changes });
@@ -255,7 +293,7 @@ export function diffCampaigns(
   for (const [incomingId, storedId] of selections) {
     if (storedId === null) continue;
     const campaign = unmatchedIncoming.get(incomingId);
-    const saved = unmatchedStored.get(storedId);
+    const saved = unmatchedStored.get(storedId) ?? manualPool.get(storedId);
     if (campaign && saved) pair(campaign, saved);
   }
 
@@ -326,6 +364,52 @@ export function diffCampaigns(
         reason: 'name-change',
       });
       pendingIncomingIds.add(incomingId);
+    }
+  }
+
+  // 5) Campañas manuales: una fila nueva que se parece a una manual pendiente
+  // se ofrece para adoptarla en lugar de duplicarla. Nunca se asume.
+  if (manualPool.size > 0) {
+    for (const campaign of unmatchedIncoming.values()) {
+      const incomingId = campaignIdentity(campaign);
+      if (forcedNew.has(incomingId)) continue;
+      const scored = [...manualPool.values()]
+        .map((manual) => ({
+          manual,
+          match: scoreManualMatch(campaign, manual),
+        }))
+        .filter(
+          (x): x is { manual: StoredCampaign; match: ManualMatch } =>
+            x.match !== null,
+        )
+        .sort(
+          (a, b) =>
+            Number(b.match.level === 'strong') -
+            Number(a.match.level === 'strong'),
+        );
+      if (scored.length === 0) continue;
+      const manualMatches = Object.fromEntries(
+        scored.map((x) => [x.manual.id, x.match]),
+      );
+      const existing = pendingMatches.find(
+        (p) => p.incomingIdentity === incomingId,
+      );
+      if (existing) {
+        existing.candidates = [
+          ...existing.candidates,
+          ...scored.map((x) => x.manual),
+        ];
+        existing.manualMatches = manualMatches;
+      } else {
+        pendingMatches.push({
+          incomingIdentity: incomingId,
+          campaign,
+          candidates: scored.map((x) => x.manual),
+          reason: 'manual',
+          manualMatches,
+        });
+        pendingIncomingIds.add(incomingId);
+      }
     }
   }
 

@@ -5,12 +5,14 @@ describe('permisos por rol', () => {
   it('admin puede administrar usuarios y escribir catálogo', () => {
     expect(can('admin', 'users.manage')).toBe(true);
     expect(can('admin', 'catalog.write')).toBe(true);
+    expect(can('admin', 'campaign.createManual')).toBe(true);
     expect(can('admin', 'catalog.deactivate')).toBe(true);
   });
 
   it('operator importa y exporta pero no modifica el catálogo', () => {
     expect(can('operator', 'calendar.import')).toBe(true);
     expect(can('operator', 'campaign.correct')).toBe(true);
+    expect(can('operator', 'campaign.createManual')).toBe(true);
     expect(can('operator', 'export.csv')).toBe(true);
     expect(can('operator', 'catalog.write')).toBe(false);
     expect(can('operator', 'users.manage')).toBe(false);
@@ -21,6 +23,7 @@ describe('permisos por rol', () => {
     expect(can('viewer', 'export.csv')).toBe(false);
     expect(can('viewer', 'calendar.import')).toBe(false);
     expect(can('viewer', 'campaign.correct')).toBe(false);
+    expect(can('viewer', 'campaign.createManual')).toBe(false);
   });
 
   it('los CSV de ocupación (operativos) los puede exportar cualquier rol', () => {
@@ -53,6 +56,7 @@ describe('permisos por rol', () => {
     expect(can('commercial', 'campaign.downloadOperational')).toBe(false);
     expect(can('commercial', 'campaign.linkEkon')).toBe(false);
     expect(can('commercial', 'campaign.correct')).toBe(false);
+    expect(can('commercial', 'campaign.createManual')).toBe(false);
     expect(can('commercial', 'export.csv')).toBe(false);
   });
 

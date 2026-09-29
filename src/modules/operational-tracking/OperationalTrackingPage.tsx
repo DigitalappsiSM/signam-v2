@@ -1,3 +1,4 @@
+import { campaignOrigin } from '@/modules/campaigns/manualCampaign';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -1136,6 +1137,12 @@ export function OperationalTrackingPage() {
                         : 'Pendiente'}
                   </span>
                 </div>
+                {campaignOrigin(detailRow.campaign) === 'manual' && (
+                  <div className="ot-kv">
+                    <span>Origen</span>
+                    <span>Campaña manual (no viene del calendario)</span>
+                  </div>
+                )}
                 <div className="ot-kv">
                   <span>Ventana</span>
                   <span>

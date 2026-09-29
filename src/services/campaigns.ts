@@ -15,6 +15,12 @@ import {
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
+import {
+  initialTracking,
+  type TrackingActor,
+} from '@/modules/operational-tracking/trackingFactory';
+import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import {
   campaignCorrectionError,
   correctionChanges,
@@ -270,7 +276,14 @@ export async function applyCampaignChanges(
   const now = Date.now();
 
   type Op =
-    | { kind: 'set'; id: string; campaign: ParsedCampaign; createdAt?: number }
+    | {
+        kind: 'set';
+        id: string;
+        campaign: ParsedCampaign;
+        createdAt?: number;
+        /** Campaña manual que el calendario de Liverpool adopta con este alta. */
+        adopts?: StoredCampaign;
+      }
     | { kind: 'deactivate'; campaign: StoredCampaign };
 
   const ops: Op[] = [
@@ -284,6 +297,7 @@ export async function applyCampaignChanges(
       kind: 'set' as const,
       id: m.stored.id,
       campaign: m.campaign,
+      adopts: m.adoptsManual ? m.stored : undefined,
     })),
     ...diff.removed.map((campaign) => ({
       kind: 'deactivate' as const,
@@ -338,9 +352,27 @@ export async function applyCampaignChanges(
         now,
         correction?.manualOverrides,
       );
+      // Adoptar una manual conserva su `id` (y con él seguimiento y Ekon); solo
+      // cambia el origen y deja el historial de cómo fue capturada a mano.
+      const adoption = op.adopts
+        ? {
+            origin: 'liverpool' as const,
+            adoptedFromManualAt: now,
+            adoptedFromManualBy: actor.email,
+            manualSnapshot: {
+              name: op.adopts.name,
+              tipo: op.adopts.tipo,
+              fechaInicio: op.adopts.fechaInicio,
+              fechaFin: op.adopts.fechaFin,
+              supports: op.adopts.supports,
+            },
+          }
+        : {};
       batch.set(
         ref,
-        op.createdAt ? { ...data, createdAt: op.createdAt } : data,
+        op.createdAt
+          ? { ...data, ...adoption, createdAt: op.createdAt }
+          : { ...data, ...adoption },
         { merge: true },
       );
       if (correction) {
@@ -365,4 +397,52 @@ export async function applyCampaignChanges(
         .map((op) => [campaignIdentity(op.campaign), op.id]),
     ),
   };
+}
+
+/**
+ * Crea una campaña **manual** (sampling, proveedor, etc.) y, en el mismo lote
+ * atómico, su seguimiento operativo. Regla de negocio: toda campaña manual tiene
+ * seguimiento desde el primer momento; sampling y proveedor se operan con la
+ * clasificación Proveedor (marca, testigos y aprobaciones completos).
+ *
+ * No toca `campaignEkonLinks` ni ninguna otra colección. Devuelve el `id`
+ * persistente, que se conserva si Liverpool sube después la campaña.
+ */
+export async function createManualCampaign(
+  campaign: ParsedCampaign,
+  actor: Actor,
+): Promise<string> {
+  const database = db();
+  const now = Date.now();
+  const ref = doc(collection(database, COLLECTION));
+  const classification =
+    classifyFromTipo(campaign.tipo) === 'institutional'
+      ? 'institutional'
+      : 'provider';
+  const trackingActor: TrackingActor = { uid: actor.uid, email: actor.email };
+  const tracking = initialTracking(
+    {
+      campaignId: ref.id,
+      campaignNameKey: campaignKey(campaign.name),
+      campaignName: campaign.name,
+      classification,
+      classificationSource: 'manual-campaign',
+      linkValid: isValidDownloadUrl(campaign.link),
+    },
+    trackingActor,
+    now,
+  );
+  const { id: _trackingId, ...trackingData } = tracking;
+  void _trackingId;
+
+  const batch = writeBatch(database);
+  batch.set(ref, {
+    ...campaignDoc(campaign, actor, now),
+    origin: 'manual',
+    createdAt: now,
+    createdBy: actor.email,
+  });
+  batch.set(doc(database, 'campaignOperationalTracking', ref.id), trackingData);
+  await batch.commit();
+  return ref.id;
 }

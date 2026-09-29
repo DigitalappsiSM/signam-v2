@@ -137,6 +137,12 @@ logic. The load-bearing ones:
   `nameKey`/`campaignIdentity` are copied idempotently to the canonical `campaignId`; `campaignIdentity` is a
   comparison fingerprint only, never a persistent key. Calendar import never touches these collections, and
   they never modify the imported campaign.
+- **Manual campaigns** (`origin: 'manual'`): samplings / provider campaigns Liverpool won't upload. Same as any
+  campaign (consolidates, Admira CSV, Quividi) and **always has operational tracking**, created atomically with it.
+  `origin` and `tipo` are independent; `tipo` is a closed list (`Institucional`, `Proveedor`, `Sampling`) and
+  `Sampling` classifies as Proveedor. The calendar diff never deactivates or auto-pairs a pending manual: rows that
+  resemble one are offered for **adoption** (`reason: 'manual'`, `manualCampaign.ts`), always human-confirmed; adopting
+  keeps the `campaignId`. See `AGENTS.md`.
 - **Ekon integration and Digital multiretailer operation** live in their own isolated collection sets
   (`ekon*` / `digital*`) that **never** write to `campaigns`, `screens`, `campaignEkonLinks`, consolidations,
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never

@@ -155,7 +155,18 @@ service cloud.firestore {
     // Campañas importadas del calendario Liverpool.
     match /campaigns/{campaignId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if canWriteWorkspace();
+      // Campañas manuales (`origin == 'manual'`: samplings o campañas de
+      // proveedor que Liverpool no sube): solo admin/operator las crean, y una
+      // campaña de Liverpool no puede convertirse en manual por actualización.
+      // La transición inversa (manual -> liverpool) es la adopción desde el
+      // calendario y sí está permitida.
+      allow create: if canWriteWorkspace()
+        && (request.resource.data.get('origin', 'liverpool') != 'manual'
+            || isAdmin() || isOperator());
+      allow update: if canWriteWorkspace()
+        && (request.resource.data.get('origin', 'liverpool') != 'manual'
+            || resource.data.get('origin', 'liverpool') == 'manual');
+      allow delete: if canWriteWorkspace();
 
       // Bitácora append-only de correcciones manuales. El documento padre se
       // actualiza en la misma transacción; el historial nunca se edita ni borra.

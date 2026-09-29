@@ -12,6 +12,8 @@ import {
   listCampaigns,
 } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
+import { ManualCampaignModal } from './ManualCampaignModal';
+import { campaignOrigin } from './manualCampaign';
 import {
   listEkonLinks,
   ekonNumberForCampaign,
@@ -352,6 +354,8 @@ export function CampaignsPage() {
     'campaign.downloadOperational',
   );
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
+  const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
+  const [creatingManual, setCreatingManual] = useState(false);
 
   const trackingCampaignIds = useMemo(
     () =>
@@ -704,9 +708,19 @@ export function CampaignsPage() {
             : 'Consulta de campañas, cobertura, tiendas, soportes e informes de audiencia.'
         }
         actions={
-          <button className="btn btn-secondary" onClick={() => void reload()}>
-            Actualizar
-          </button>
+          <>
+            {canCreateManual && (
+              <button
+                className="btn btn-primary"
+                onClick={() => setCreatingManual(true)}
+              >
+                Nueva campaña manual
+              </button>
+            )}
+            <button className="btn btn-secondary" onClick={() => void reload()}>
+              Actualizar
+            </button>
+          </>
         }
       />
 
@@ -928,6 +942,14 @@ export function CampaignsPage() {
                       <div className="avatar-cell">
                         <EntityAvatar decorative label={toInitials(c.name)} />
                         <span className="avatar-cell__name">{c.name}</span>
+                        {campaignOrigin(c) === 'manual' && (
+                          <span
+                            className="badge badge-info"
+                            title="Capturada a mano: Liverpool no la trae en su calendario. Si la sube después, la importación propondrá vincularla."
+                          >
+                            Campaña manual
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td>{ekon ?? '—'}</td>
@@ -1054,6 +1076,19 @@ export function CampaignsPage() {
           canEditEkon={canLinkEkon}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {creatingManual && (
+        <ManualCampaignModal
+          screens={screens}
+          campaigns={campaigns}
+          actor={actor}
+          onCreated={async () => {
+            await reload();
+            setCreatingManual(false);
+          }}
+          onClose={() => setCreatingManual(false)}
         />
       )}
 

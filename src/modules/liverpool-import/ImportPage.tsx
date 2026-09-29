@@ -850,7 +850,14 @@ export function ImportPage() {
                     <tbody>
                       {diff.modified.slice(0, 200).map((m) => (
                         <tr key={m.campaign.name}>
-                          <td>{m.campaign.name}</td>
+                          <td>
+                            {m.campaign.name}
+                            {m.adoptsManual && (
+                              <span className="badge badge-info">
+                                Manual adoptada
+                              </span>
+                            )}
+                          </td>
                           <td>{m.changes.join(' · ')}</td>
                         </tr>
                       ))}
@@ -1053,7 +1060,35 @@ function campaignMatchLabel(campaign: StoredCampaign): string {
   )}–${formatCivilString(campaign.fechaFin)} · fila ${campaign.row}`;
 }
 
-/** Confirmación humana para homónimos o correcciones de nombre ambiguas. */
+/**
+ * Sugerencias de adopción inequívocas: una fila del calendario cuya única
+ * candidata *fuerte* (mismo nombre y fechas) es una manual que ninguna otra
+ * fila reclama con la misma fuerza. Aun así requieren confirmación humana.
+ */
+function suggestedManualAdoptions(
+  items: CampaignMatchPending[],
+): Array<{ incomingIdentity: string; storedId: string }> {
+  const strongByIncoming = items.map((item) => ({
+    incomingIdentity: item.incomingIdentity,
+    strong: item.candidates
+      .filter((c) => item.manualMatches?.[c.id]?.level === 'strong')
+      .map((c) => c.id),
+  }));
+  const claims = new Map<string, number>();
+  for (const row of strongByIncoming) {
+    for (const id of row.strong) claims.set(id, (claims.get(id) ?? 0) + 1);
+  }
+  return strongByIncoming
+    .filter(
+      (row) => row.strong.length === 1 && claims.get(row.strong[0]!) === 1,
+    )
+    .map((row) => ({
+      incomingIdentity: row.incomingIdentity,
+      storedId: row.strong[0]!,
+    }));
+}
+
+/** Confirmación humana para homónimos, cambios de nombre o campañas manuales. */
 function CampaignMatchPanel({
   items,
   selectedStoredIds,
@@ -1063,6 +1098,10 @@ function CampaignMatchPanel({
   selectedStoredIds: Set<string>;
   onChange: (incomingIdentity: string, storedId: string) => void;
 }) {
+  const hasManual = items.some((item) =>
+    item.candidates.some((c) => item.manualMatches?.[c.id]),
+  );
+  const suggested = suggestedManualAdoptions(items);
   return (
     <Section
       title="Campañas por emparejar"
@@ -1075,6 +1114,31 @@ function CampaignMatchPanel({
         no puede asegurar cuál línea anterior corresponde. Elige la campaña que
         conserva el mismo ID, Ekon y seguimiento, o indícala como nueva.
       </p>
+      {hasManual && (
+        <div className="import__note">
+          <strong>Campañas manuales.</strong> Algunas filas se parecen a
+          campañas que ustedes capturaron a mano porque Liverpool no las traía.
+          Al <em>adoptarlas</em> la campaña conserva su ID, seguimiento y
+          testigos, y desde ahora manda el calendario de Liverpool; no se crea
+          una campaña duplicada. Si es otra campaña, elige “Es una campaña
+          nueva”.
+          {suggested.length > 0 && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  suggested.forEach((x) =>
+                    onChange(x.incomingIdentity, x.storedId),
+                  )
+                }
+              >
+                Adoptar las {suggested.length} sugeridas (mismo nombre y fechas)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <div className="diagnosis__table-wrap">
         <table className="catalog__table">
           <thead>
@@ -1094,6 +1158,9 @@ function CampaignMatchPanel({
                       Cambio de nombre
                     </span>
                   )}
+                  {item.reason === 'manual' && (
+                    <span className="badge badge-info">Posible manual</span>
+                  )}
                 </td>
                 <td>
                   {formatCivilString(item.campaign.fechaInicio)} –{' '}
@@ -1111,15 +1178,22 @@ function CampaignMatchPanel({
                     <option value="" disabled>
                       Selecciona…
                     </option>
-                    {item.candidates.map((candidate) => (
-                      <option
-                        key={candidate.id}
-                        value={candidate.id}
-                        disabled={selectedStoredIds.has(candidate.id)}
-                      >
-                        {campaignMatchLabel(candidate)}
-                      </option>
-                    ))}
+                    {item.candidates.map((candidate) => {
+                      const manual = item.manualMatches?.[candidate.id];
+                      return (
+                        <option
+                          key={candidate.id}
+                          value={candidate.id}
+                          disabled={selectedStoredIds.has(candidate.id)}
+                        >
+                          {manual
+                            ? `${manual.level === 'strong' ? 'Sugerida' : 'Posible duplicado'} · manual · `
+                            : ''}
+                          {campaignMatchLabel(candidate)}
+                          {manual ? ` (${manual.reasons.join(', ')})` : ''}
+                        </option>
+                      );
+                    })}
                     <option value="__new__">Es una campaña nueva</option>
                   </select>
                 </td>

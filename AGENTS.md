@@ -83,6 +83,33 @@ tres de ellos describían mal el separador de artículos.
   del número: al reutilizarlo, la UI avisa y pide confirmación. Los enlaces
   legacy basados en `nameKey` se copian una vez a cada flight existente y luego
   cada flight se edita de forma independiente.
+- **Campañas manuales** (`origin: 'manual'`). Liverpool no siempre sube al
+  calendario campañas que sí hay que operar (samplings, campañas de proveedor).
+  Se capturan a mano desde Campañas («Nueva campaña manual», permiso
+  `campaign.createManual`: admin/operator; `firestore.rules` lo exige también).
+  **Regla: todo lo manual tiene seguimiento operativo.** Es una campaña normal
+  en `campaigns`: consolida, genera CSV de Admira y Quividi, y su documento de
+  `campaignOperationalTracking/{campaignId}` se crea en el mismo lote atómico que
+  la campaña. **Origen y clasificación son ejes independientes**: `origin`
+  (`liverpool` | `manual`, legacy = `liverpool`) dice de dónde viene; `tipo`
+  (lista cerrada `Institucional` · `Proveedor` · `Sampling`) dice qué es.
+  `Sampling` se clasifica como **Proveedor** (`classifyFromTipo`): marca,
+  testigos y aprobaciones completos. Campos mínimos: nombre, tipo, fechas,
+  soportes y tiendas (del catálogo activo, o «todas»). Un alta se **bloquea** si
+  ya existe una campaña con mismo nombre y fechas (posiblemente Liverpool ya la
+  subió) y pide confirmación si solo se parece (`findManualDuplicates`).
+  **Vinculación con el calendario**: una manual no adoptada **nunca** se da de
+  baja por no venir en el archivo ni se empareja sola. Cada fila nueva se puntúa
+  contra ellas (`scoreManualMatch`): nombre igual + fechas idénticas = **sugerida**;
+  nombre igual/similar con fechas distintas o traslapadas, o mismas fechas y
+  ≥80 % de tiendas = **posible duplicado**. Ambas exigen confirmación en «Campañas
+  por emparejar» (`reason: 'manual'`); nunca se fusiona en silencio. **Adoptar**
+  conserva el `campaignId` (y con él seguimiento, testigos, Ekon), pasa a
+  `origin: 'liverpool'`, guarda `adoptedFromManualAt/By` y `manualSnapshot`, y
+  desde entonces manda el calendario (fechas/tiendas/soportes); si difieren, el
+  diff lo muestra. Si Liverpool cambia las fechas de una campaña con testigos, solo se
+  avisa: no se revalidan aprobaciones. Los metadatos de origen se guardan aparte
+  de los datos importados y nunca entran al CSV.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
   seguimientos independientes y una actualización de fechas, tiendas, soportes,

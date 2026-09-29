@@ -283,3 +283,72 @@ describe('describeChanges', () => {
     expect(changes.join(' ')).toContain('-2');
   });
 });
+
+describe('diffCampaigns con campañas manuales', () => {
+  const manual = (over: Partial<StoredCampaign> = {}): StoredCampaign => ({
+    ...stored(camp('Nike Sampling'), 'm1'),
+    origin: 'manual',
+    tipo: 'Sampling',
+    ...over,
+  });
+
+  it('una manual ausente del calendario NO se da de baja', () => {
+    const diff = diffCampaigns(
+      [camp('Otra', { fechaInicio: '6/1/26', fechaFin: '6/10/26' })],
+      [manual()],
+    );
+    expect(diff.removed).toEqual([]);
+    expect(diff.added).toHaveLength(1);
+  });
+
+  it('una manual nunca se empareja sola: se ofrece para adoptar', () => {
+    const diff = diffCampaigns([camp('Nike Sampling')], [manual()]);
+    expect(diff.added).toEqual([]);
+    expect(diff.modified).toEqual([]);
+    expect(diff.pendingMatches).toHaveLength(1);
+    const pending = diff.pendingMatches[0]!;
+    expect(pending.reason).toBe('manual');
+    expect(pending.manualMatches?.['m1']?.level).toBe('strong');
+  });
+
+  it('adoptar conserva el id y queda marcado como adopción', () => {
+    const incoming = camp('Nike Sampling', { fechaFin: '2/20/26' });
+    const first = diffCampaigns([incoming], [manual()]);
+    const selections = new Map([
+      [first.pendingMatches[0]!.incomingIdentity, 'm1'],
+    ]);
+    const diff = diffCampaigns([incoming], [manual()], selections);
+    expect(diff.pendingMatches).toEqual([]);
+    expect(diff.modified).toHaveLength(1);
+    expect(diff.modified[0]).toMatchObject({ adoptsManual: true });
+    expect(diff.modified[0]!.stored.id).toBe('m1');
+    expect(diff.modified[0]!.changes[0]).toContain('adoptada');
+    expect(diff.removed).toEqual([]);
+  });
+
+  it('"es una campaña nueva" crea la fila y deja la manual intacta', () => {
+    const incoming = camp('Nike Sampling');
+    const first = diffCampaigns([incoming], [manual()]);
+    const selections = new Map([
+      [first.pendingMatches[0]!.incomingIdentity, null],
+    ]);
+    const diff = diffCampaigns([incoming], [manual()], selections);
+    expect(diff.added).toHaveLength(1);
+    expect(diff.removed).toEqual([]);
+  });
+
+  it('una manual inactiva no se ofrece como candidata', () => {
+    const diff = diffCampaigns(
+      [camp('Nike Sampling')],
+      [manual({ active: false })],
+    );
+    expect(diff.pendingMatches).toEqual([]);
+    expect(diff.added).toHaveLength(1);
+  });
+
+  it('una manual ya adoptada (origin liverpool) sí sigue la regla normal', () => {
+    const adopted = manual({ origin: 'liverpool' });
+    const diff = diffCampaigns([], [adopted]);
+    expect(diff.removed).toHaveLength(1);
+  });
+});
