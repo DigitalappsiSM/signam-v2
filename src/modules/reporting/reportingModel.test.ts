@@ -65,6 +65,7 @@ function tracking(
     csmProgramming: completed,
     witnessStart: completed,
     witnessComplete: completed,
+    passesEvidence: completed,
   };
 }
 

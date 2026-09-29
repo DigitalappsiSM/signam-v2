@@ -253,7 +253,10 @@ export function buildReportingModel(input: ReportingInput): ReportingModel {
   const complete = accountable.filter(isFullyTracked);
   const withAlerts = applicable.filter((row) => criticalAlerts(row).length > 0);
   const overdue = applicable.filter(
-    (row) => row.startStatus === 'overdue' || row.completeStatus === 'overdue',
+    (row) =>
+      row.startStatus === 'overdue' ||
+      row.completeStatus === 'overdue' ||
+      row.passesStatus === 'overdue',
   );
   const readinessRows = applicable.filter(
     (row) => row.timeframe !== 'finished',

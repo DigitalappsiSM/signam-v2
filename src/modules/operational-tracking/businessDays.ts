@@ -67,6 +67,20 @@ export function witnessCompleteDeadline(end: Date): Date {
   return addDays(end, WITNESS_COMPLETE_GRACE_DAYS);
 }
 
+/**
+ * Días naturales desde el inicio de campaña en que Liverpool pide el reporte de
+ * pases de Admira (**Evidencia de pases**).
+ */
+export const PASSES_EVIDENCE_DAYS = 5;
+
+/**
+ * Vencimiento de la Evidencia de pases: `fechaInicio` + {@link PASSES_EVIDENCE_DAYS}
+ * días naturales (inclusivo: es el último día a tiempo).
+ */
+export function passesEvidenceDeadline(start: Date): Date {
+  return addDays(start, PASSES_EVIDENCE_DAYS);
+}
+
 /** Compara dos fechas civiles: <0, 0, >0. */
 export function compareCivil(a: Date, b: Date): number {
   return a.getTime() - b.getTime();

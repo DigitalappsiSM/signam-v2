@@ -12,6 +12,7 @@ import {
   normalizeTracking,
   CANCELLED_CHECK_MESSAGE,
   INSTITUTIONAL_WITNESS_MESSAGE,
+  PASSES_EVIDENCE_PROVIDER_MESSAGE,
 } from './trackingFactory';
 import type { CampaignOperationalTracking } from './types';
 import { campaignKeyId as ekonKeyId } from '@/modules/campaigns/ekon';
@@ -442,5 +443,59 @@ describe('setClassification', () => {
     expect(changed.liverpoolValidation.completed).toBe(
       t.liverpoolValidation.completed,
     );
+  });
+});
+
+describe('evidencia de pases', () => {
+  function provider() {
+    return setClassification(
+      institutional(),
+      'provider',
+      'tracking-user',
+      actor,
+      2000,
+    );
+  }
+
+  it('arranca desmarcada y se puede marcar en Proveedor', () => {
+    expect(institutional().passesEvidence?.completed).toBe(false);
+    const r = applyCheckChange(provider(), 'passesEvidence', true, actor, 3000);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.tracking.passesEvidence?.completed).toBe(true);
+      expect(r.tracking.passesEvidence?.source).toBe('manual');
+    }
+  });
+
+  it('se rechaza en Institucional', () => {
+    const r = applyCheckChange(
+      institutional(),
+      'passesEvidence',
+      true,
+      actor,
+      3000,
+    );
+    expect(r).toEqual({ ok: false, reason: PASSES_EVIDENCE_PROVIDER_MESSAGE });
+  });
+
+  it('"Marcar aplicables" no escribe undefined en documentos legacy sin el campo', () => {
+    const legacy = {
+      ...institutional(),
+    } as Partial<CampaignOperationalTracking>;
+    delete legacy.passesEvidence;
+    const r = markAllComplete(
+      legacy as CampaignOperationalTracking,
+      actor,
+      3000,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect('passesEvidence' in r.tracking).toBe(false);
+  });
+
+  it('"Marcar todas" la marca solo en Proveedor', () => {
+    const p = markAllComplete(provider(), actor, 3000);
+    const i = markAllComplete(institutional(), actor, 3000);
+    expect(p.ok && p.tracking.passesEvidence?.completed).toBe(true);
+    expect(i.ok && i.tracking.passesEvidence?.completed).toBe(false);
   });
 });

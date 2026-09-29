@@ -461,8 +461,8 @@ describe('OperationalTrackingPage — testigos no aplican a institucional', () =
   it('institucional muestra "No aplica" en testigos, objetivo y estado, sin casillas de testigo', async () => {
     await renderAllPeriods();
     const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
-    // 2 testigos + objetivo + estado general = 4 "No aplica".
-    expect(within(row).getAllByText('No aplica').length).toBe(4);
+    // 2 testigos + evidencia de pases + objetivo + estado general = 5 "No aplica".
+    expect(within(row).getAllByText('No aplica').length).toBe(5);
     // Sólo hay casillas de Link/Validación/CSM (3), ninguna de testigo.
     expect(within(row).getAllByRole('checkbox').length).toBe(3);
     expect(
@@ -476,7 +476,7 @@ describe('OperationalTrackingPage — testigos no aplican a institucional', () =
   it('clasificación pendiente exige clasificar antes de operar los testigos', async () => {
     await renderAllPeriods();
     const row = (await screen.findByText('REGRESO')).closest('tr')!;
-    expect(within(row).getAllByText('Clasifica primero').length).toBe(2);
+    expect(within(row).getAllByText('Clasifica primero').length).toBe(3);
     expect(
       within(row).queryByLabelText('T Arranque de REGRESO'),
     ).not.toBeInTheDocument();
@@ -628,8 +628,8 @@ describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () =>
     ]);
     await renderAllPeriods();
     const row = (await screen.findByText('TERMINADA')).closest('tr')!;
-    // "No aplica": 5 indicadores + objetivo (institucional) + estado general.
-    expect(within(row).getAllByText('No aplica').length).toBe(7);
+    // "No aplica": 6 indicadores + objetivo (institucional) + estado general.
+    expect(within(row).getAllByText('No aplica').length).toBe(8);
     // Sin casillas editables.
     expect(within(row).queryByRole('checkbox')).not.toBeInTheDocument();
     // Aunque está terminada, no ofrece "Marcar todas".

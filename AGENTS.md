@@ -155,12 +155,12 @@ tres de ellos describían mal el separador de artículos.
   al `campaignId`. Contiene solo
   datos operativos; nunca se mezcla con `campaigns` y la importación no borra ni
   sobrescribe checks manuales ni el estado de ciclo de vida. Los
-  indicadores se editan **inline como casillas** en la tabla (sin modal). Cinco
+  indicadores se editan **inline como casillas** en la tabla (sin modal). Seis
   indicadores editables: **Link de descarga** (por defecto automático — marcado
   si `campaign.link` es URL válida — pero editable: al cambiarlo `source:manual`
   manda; si no, se deriva del calendario), **Validación Liverpool** (por defecto
   marcada si Institucional **o** hay link válido; editable), **Programación
-  CSM**, **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar
+  CSM**, **T Arranque**, **T Completos** y **Evidencia de pases** (manuales). Reglas de testigos: marcar
   T Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
   T Completos siga marcado. **Los testigos NO aplican a campañas Institucional**:
   T Arranque y T Completos se muestran como **"No aplica"** (sin casilla), no
@@ -176,7 +176,7 @@ tres de ellos describían mal el separador de artículos.
   con pendientes_ en el Dashboard (alerta `finished-pending`), aunque los testigos
   no apliquen. En campañas **terminadas** (fecha de fin ya pasada) y **ya
   clasificadas** aparece un botón por fila: **"Marcar todas"** (Proveedor: marca
-  los cinco) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
+  los seis) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
   Liverpool y CSM). Cada campaña tiene
   además una **bitácora de comentarios** (`comments[]`,
   historial con autor y fecha) en un panel expandible; los comentarios se agregan
@@ -187,7 +187,18 @@ tres de ellos describían mal el separador de artículos.
   **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;
   aún sin festivos); T Completos: la entrega arranca el día inmediato posterior
   al fin de campaña y hay **4 días naturales** para completarla, por lo que vence
-  en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`). Objetivo de arranque =
+  en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`).
+  **Evidencia de pases** (`passesEvidence`, sexto check): reporte de pases de
+  Admira que Liverpool pide a los **5 días naturales** del inicio
+  (`PASSES_EVIDENCE_DAYS`, vence en `fechaInicio + 5`, inclusivo). **Solo aplica a
+  Proveedor** (incluye manuales/Sampling): `applyCheckChange` la rechaza en
+  Institucional o clasificación pendiente y `markAllComplete` solo la marca en
+  Proveedor; en otro caso no aplica (sin estado ni alerta) y cuenta como
+  satisfecha solo en agregados. Avisa (`due-soon`) 2 días naturales antes de
+  vencer y alerta `passes-overdue` al vencer; entra en `overall`, `nextDeadline`,
+  `isFullyTracked` y en el Dashboard (vencidas, atención inmediata y próximos
+  vencimientos). Campo opcional: documentos anteriores se leen como desmarcado.
+  Objetivo de arranque =
   `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
   evidencias ni se seleccionan tiendas individuales. Permisos: la matriz reserva
   `tracking.write` a admin/operator y las reglas de Firestore aplican la misma

@@ -23,6 +23,10 @@ export const CANCELLED_CHECK_MESSAGE =
 export const INSTITUTIONAL_WITNESS_MESSAGE =
   'Los testigos no aplican a campañas institucionales.';
 
+/** Mensaje de dominio: la Evidencia de pases solo aplica a campañas Proveedor. */
+export const PASSES_EVIDENCE_PROVIDER_MESSAGE =
+  'La evidencia de pases solo aplica a campañas de proveedor.';
+
 /**
  * Construcción y transición puras del documento de seguimiento operativo.
  *
@@ -99,6 +103,7 @@ export function initialTracking(
     csmProgramming: makeCheck(false, 'automatic', actor, now),
     witnessStart: makeCheck(false, 'automatic', actor, now),
     witnessComplete: makeCheck(false, 'automatic', actor, now),
+    passesEvidence: makeCheck(false, 'automatic', actor, now),
     comments: [],
     createdAt: now,
     createdByUid: actor.uid,
@@ -228,6 +233,12 @@ export function applyCheckChange(
     return { ok: false, reason: INSTITUTIONAL_WITNESS_MESSAGE };
   }
 
+  // La Evidencia de pases solo aplica a Proveedor (Institucional y clasificación
+  // pendiente se rechazan en dominio; sus valores históricos se conservan).
+  if (key === 'passesEvidence' && tracking.classification !== 'provider') {
+    return { ok: false, reason: PASSES_EVIDENCE_PROVIDER_MESSAGE };
+  }
+
   if (
     key === 'witnessStart' &&
     !completed &&
@@ -268,8 +279,9 @@ export function applyCheckChange(
  * usuario, `source: 'manual'`). Se usa en el botón "Marcar todas"/"Marcar
  * aplicables" de campañas terminadas y respeta la clasificación almacenada:
  *
- * - **Proveedor** (o pendiente): marca los cinco indicadores. Dejar todo marcado
- *   satisface la relación de testigos (T Completos ⇒ T Arranque).
+ * - **Proveedor**: marca los seis indicadores (incluida la Evidencia de pases).
+ *   Dejar todo marcado satisface la relación de testigos (T Completos ⇒ T Arranque).
+ * - **Pendiente**: marca Link, Validación, CSM y testigos; no la Evidencia de pases.
  * - **Institucional**: marca sólo Link, Validación Liverpool y Programación CSM;
  *   NO toca T Arranque ni T Completos (no aplican; sus valores se conservan).
  * - **Cancelada**: se rechaza (la reactivación es la única vía para editar).
@@ -298,6 +310,11 @@ export function markAllComplete(
       witnessComplete: institutional
         ? tracking.witnessComplete
         : makeCheck(true, 'manual', actor, now),
+      // Solo Proveedor. En otro caso el campo se conserva tal cual (o ausente en
+      // documentos legacy): asignar `undefined` haría fallar `tx.set()`.
+      ...(tracking.classification === 'provider'
+        ? { passesEvidence: makeCheck(true, 'manual', actor, now) }
+        : {}),
       updatedAt: now,
       updatedByUid: actor.uid,
       updatedByEmail: actor.email,
