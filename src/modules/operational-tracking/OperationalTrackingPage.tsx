@@ -352,10 +352,21 @@ export function OperationalTrackingPage() {
   );
   const onSort = (k: string) => setSort((s) => nextSortState(s, k));
 
-  // Al cambiar filtros u orden, vuelve a la primera página.
+  // Al cambiar filtros u orden, vuelve a la primera página. Se depende de los
+  // criterios (no de `filtered`): marcar un check regenera las filas y no debe
+  // reiniciar la paginación ni saltar al inicio de la pantalla.
   useEffect(() => {
     setPage(1);
-  }, [filtered, sort]);
+  }, [
+    search,
+    classFilter,
+    lifecycleFilter,
+    statusFilter,
+    desde,
+    hasta,
+    highlightKey,
+    sort,
+  ]);
 
   // Paginación en cliente sobre las filas ya filtradas y ordenadas.
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
