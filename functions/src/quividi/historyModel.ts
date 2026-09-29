@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ScreenDoc } from './effectiveScope';
-import { normalizedStoreCode } from './measurementPoint';
+import { buildBackendMeasurementPointId, normalizedStoreCode } from './measurementPoint';
 
 /** The only VidiCenter network this pipeline may read. */
 export const LIVERPOOL_NETWORK_ID = 3089;
@@ -69,10 +69,74 @@ export interface StoreBinding {
   storeId: string;
   storeName: string;
   support: string;
-  pointId: string;
+  pointId: string | null;
   validFrom: string;
   validTo: string | null;
   source: 'catalog' | 'catalog_inferred' | 'manual';
+}
+
+export interface HistoryCatalogStore {
+  storeId: string;
+  number: string;
+  name: string;
+  supports: string[];
+}
+
+/** Includes inactive screens and stores without cameras; never invents a store/support. */
+export function historyCatalogStores(screens: readonly ScreenDoc[]): HistoryCatalogStore[] {
+  const stores = new Map<string, HistoryCatalogStore>();
+  for (const screen of screens) {
+    const number = normalizedStoreCode(screen.original?.['Numero de Tienda'] ?? '');
+    if (!number || Number(number) === 0) continue;
+    const storeId = `LIV-${number}`;
+    const name = screen.original?.['Nombre de tienda']?.trim() ?? '';
+    const store = stores.get(storeId) ?? { storeId, number, name, supports: [] };
+    if (!store.name && name) store.name = name;
+    const support = screen.metadata?.calendarSupport?.trim() ?? '';
+    if (support && !store.supports.includes(support)) store.supports.push(support);
+    stores.set(storeId, store);
+  }
+  return [...stores.values()].map((store) => ({
+    ...store, supports: store.supports.sort((a, b) => a.localeCompare(b, 'es')),
+  })).sort((a, b) => Number(a.number) - Number(b.number));
+}
+
+export function validHistoryCatalogSelection(
+  stores: readonly HistoryCatalogStore[], storeId: string, support: string, pointId: string | null,
+): boolean {
+  if (!stores.some((store) => store.storeId === storeId && store.supports.includes(support))) return false;
+  return !pointId || buildBackendMeasurementPointId({
+    storeNumber: storeId.replace(/^LIV-/, ''), support,
+    pointCode: pointId.split('-').at(-1) ?? '',
+  }) === pointId;
+}
+
+/** Preserve evidence outside a manually replaced range; reject ambiguous human evidence. */
+export function replaceHistoricalBinding(
+  existing: readonly StoreBinding[], binding: StoreBinding,
+): StoreBinding[] {
+  const result: StoreBinding[] = [];
+  const shift = (date: string, days: number) => {
+    const value = new Date(`${date}T00:00:00Z`);
+    value.setUTCDate(value.getUTCDate() + days);
+    return value.toISOString().slice(0, 10);
+  };
+  for (const other of existing) {
+    if (other.locationId !== binding.locationId) { result.push(other); continue; }
+    if (other.source === 'catalog_inferred') continue;
+    if (other.source === 'manual' && other.validFrom === binding.validFrom) continue;
+    const overlaps = (binding.validTo === null || other.validFrom <= binding.validTo) &&
+      (other.validTo === null || other.validTo >= binding.validFrom);
+    if (!overlaps) { result.push(other); continue; }
+    if (other.source === 'manual') throw new RangeError('La vigencia se superpone con otro vínculo de tienda.');
+    if (other.validFrom < binding.validFrom) {
+      result.push({ ...other, validTo: shift(binding.validFrom, -1) });
+    }
+    if (binding.validTo && (!other.validTo || other.validTo > binding.validTo)) {
+      result.push({ ...other, validFrom: shift(binding.validTo, 1) });
+    }
+  }
+  return [...result, binding];
 }
 
 /** The current catalog is a useful historical hypothesis, never source evidence. */
@@ -108,13 +172,13 @@ export function inventoryBindings(
     if (screen.metadata?.active === false) continue;
     const store = normalizedStoreCode(screen.original?.['Numero de Tienda'] ?? '');
     const support = screen.metadata?.calendarSupport?.trim() ?? '';
-    if (!store || !support) continue;
+    if (!store || Number(store) === 0 || !support) continue;
     for (const [rawId, pointId] of [
       [screen.metadata?.quividiLocationId, screen.metadata?.measurementPointId],
       [screen.metadata?.quividiLocationId2, screen.metadata?.measurementPointId2],
     ] as const) {
-      if (typeof rawId !== 'number' || !locationIds.has(rawId) || !pointId) continue;
-      if (!pointId.trim().startsWith(`LIV-${store}-`)) {
+      if (typeof rawId !== 'number' || !locationIds.has(rawId)) continue;
+      if (pointId && !validHistoryCatalogSelection(historyCatalogStores([screen]), `LIV-${store}`, support, pointId.trim())) {
         invalid.add(rawId);
         continue;
       }
@@ -123,7 +187,7 @@ export function inventoryBindings(
         storeId: `LIV-${store}`,
         storeName: screen.original?.['Nombre de tienda']?.trim() ?? '',
         support,
-        pointId: pointId.trim(),
+        pointId: pointId?.trim() || null,
         validFrom: observedOn,
         validTo: null,
         source: 'catalog',
@@ -136,9 +200,13 @@ export function inventoryBindings(
   const candidates: StoreBinding[] = [];
   const conflicts: number[] = [];
   for (const [id, group] of byLocation) {
-    const unique = new Map(group.map((item) => [item.pointId, item]));
+    const unique = new Map(group.map((item) => [`${item.storeId}|${item.support}`, item]));
     if (unique.size !== 1 || invalid.has(id)) conflicts.push(id);
-    else candidates.push([...unique.values()][0]!);
+    else {
+      const candidate = [...unique.values()][0]!;
+      const points = new Set(group.map((item) => item.pointId).filter(Boolean));
+      candidates.push({ ...candidate, pointId: points.size === 1 ? [...points][0]! : null });
+    }
   }
   for (const id of invalid) if (!byLocation.has(id)) conflicts.push(id);
   return { candidates, conflicts: conflicts.sort((a, b) => a - b) };

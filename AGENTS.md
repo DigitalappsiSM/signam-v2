@@ -365,12 +365,12 @@ tres de ellos describían mal el separador de artículos.
   exports por `site` se consultan una sola vez por sitio y quedan
   `site_aggregate`, sin adjudicarse a las cámaras ni tiendas integrantes.
   El catálogo vigente acredita directamente una tienda desde la fecha de
-  observación. Si una location tiene una única tienda y Punto SIGNAM válidos,
+  observación. Si una location tiene una única tienda y soporte válidos,
   se proyecta esa relación al backfill anterior como `catalog_inferred`,
   distinguible de evidencia histórica. Una corrección manual elimina la
   inferencia de esa location y reindexa sus particiones, sin alterar el RAW.
   `quividiHistoryBindings` guarda relaciones
-  Location ID → `LIV-TIENDA` / Punto SIGNAM con vigencia. Una fecha sin vínculo
+  Location ID → `LIV-TIENDA` / soporte / Punto SIGNAM opcional con vigencia. Una fecha sin vínculo
   único queda `needs_review`, sin tienda inventada. Guardar es por cámara y
   periodo, sin ponderar ni extrapolar: las reglas multi-cámara pertenecen al
   reporte. El histórico no modifica Campañas ni la salud/alertas existentes.
@@ -391,6 +391,18 @@ tres de ellos describían mal el separador de artículos.
   formulario de conciliación muestra inicialmente solo las locations con
   datos pendientes; admin puede expandir el inventario para corregir una
   asociación ya hecha. La ingesta no espera esa conciliación.
+  La conciliación histórica exige tienda y soporte seleccionados del catálogo
+  Admira: número y nombre en un desplegable, con tiendas inactivas y sin cámara,
+  y soportes disponibles para la tienda elegida. No admite captura libre de tienda
+  ni soporte. El backend verifica el par vigente y obtiene el nombre del catálogo.
+  El Punto SIGNAM es opcional; si se proporciona, debe corresponder a tienda y
+  soporte. Esto no cambia la validación estricta de puntos en el catálogo ni salud.
+  Si falta tienda o soporte, queda pendiente sin detener importación. La vigencia
+  manual comienza por defecto en la primera medición encontrada, sin fin; puede
+  ajustarse al cambiar de tienda. Reemplaza vínculos automáticos traslapados,
+  conservando tramos fuera del intervalo; otros vínculos manuales no pueden
+  traslaparse. Una migración automática incorpora cámaras del catálogo que antes
+  se omitían por no tener punto y reindexa datos existentes sin volver a descargarlos.
 - **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. La carga
   normal y **Actualizar vista** solo leen los estados persistidos. Admin y
   operator disponen además de **Actualizar desde Quividi**, que ejecuta el mismo
