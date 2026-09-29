@@ -18,6 +18,7 @@ export interface OccupancyFilterValues {
   desde: string;
   hasta: string;
   classification: OccupancyClassification | 'all';
+  origin: 'liverpool' | 'manual' | 'all';
   owner: Owner | 'all';
   support: string;
   store: string;
@@ -48,6 +49,7 @@ const OWNER_LABELS: Record<Owner, string> = {
 const DEFAULT_PATCH: Partial<OccupancyFilterValues> = {
   preset: 'this-month',
   classification: 'all',
+  origin: 'all',
   owner: 'all',
   support: '',
   store: '',
@@ -176,6 +178,19 @@ export function OccupancyFilters({
         <option value="institutional">Institucional</option>
         <option value="provider">Proveedor</option>
         <option value="unknown">Pendiente</option>
+      </FilterSelect>
+
+      <FilterSelect
+        label="Origen"
+        value={values.origin}
+        active={values.origin !== 'all'}
+        onChange={(origin) =>
+          onChange({ origin: origin as 'liverpool' | 'manual' | 'all' })
+        }
+      >
+        <option value="all">Todos</option>
+        <option value="liverpool">Calendario Liverpool</option>
+        <option value="manual">Campaña manual</option>
       </FilterSelect>
 
       <FilterSelect

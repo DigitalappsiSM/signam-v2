@@ -12,6 +12,14 @@ import {
   listCampaigns,
 } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
+import { resolveCampaignsWithEkon } from '@/modules/consolidation/instoreEkon';
+import {
+  EMPTY_EKON_CONTEXT,
+  campaignsNeedingEkon,
+  ekonContextFor,
+  loadEkonStoreContext,
+  type LoadedEkonContext,
+} from '@/modules/consolidation/ekonStoreContext';
 import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
 import {
@@ -286,6 +294,30 @@ export function CampaignsPage() {
   const [quividiAvailabilityLoaded, setQuividiAvailabilityLoaded] =
     useState(false);
 
+  // Lee las asignaciones Ekon solo de las campañas que las necesitan (Mupi o
+  // Pendón sin detalle de tiendas). Los roles sin acceso a Ekon (comercial) no
+  // lo consultan: esos soportes quedan fuera sin incidencia, nunca expandidos.
+  const canReadEkon = can(user?.role ?? 'viewer', 'reconciliation.read');
+  const loadEkonContext = useCallback(
+    async (list: StoredCampaign[], links: CampaignEkonLink[]) => {
+      if (!canReadEkon || campaignsNeedingEkon(list).length === 0) {
+        setEkonLoaded(EMPTY_EKON_CONTEXT);
+        return;
+      }
+      try {
+        setEkonLoaded(await loadEkonStoreContext(list, links));
+        setEkonReadFailed(false);
+      } catch {
+        setEkonLoaded(EMPTY_EKON_CONTEXT);
+        setEkonReadFailed(true);
+        setError(
+          'No se pudieron leer los datos de Ekon: los Mupi y Pendón sin detalle de tiendas no se resolvieron y no generan CSV hasta reintentar.',
+        );
+      }
+    },
+    [canReadEkon],
+  );
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -310,6 +342,7 @@ export function CampaignsPage() {
       setScreens(s);
       setEkonLinks(e);
       setTrackingList(tracking);
+      await loadEkonContext(c, e);
       try {
         const availability = await getQuividiCampaignAvailability(
           c.map((campaign) => campaign.id),
@@ -327,10 +360,12 @@ export function CampaignsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadEkonContext]);
 
   const reloadEkon = useCallback(async () => {
-    setEkonLinks(await listEkonLinks());
+    const links = await listEkonLinks();
+    setEkonLinks(links);
+    await loadEkonContext(campaigns, links);
     try {
       const availability = await getQuividiCampaignAvailability(
         campaigns.map((campaign) => campaign.id),
@@ -341,7 +376,7 @@ export function CampaignsPage() {
     } catch {
       // La disponibilidad se volverá a validar al recargar la página.
     }
-  }, [campaigns]);
+  }, [campaigns, loadEkonContext]);
 
   useEffect(() => {
     void reload();
@@ -355,7 +390,14 @@ export function CampaignsPage() {
   );
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
   const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
+  // Contexto Ekon para resolver las tiendas de Mupi/Pendón sin detalle.
+  const [ekonLoaded, setEkonLoaded] =
+    useState<LoadedEkonContext>(EMPTY_EKON_CONTEXT);
+  const [ekonReadFailed, setEkonReadFailed] = useState(false);
   const [creatingManual, setCreatingManual] = useState(false);
+  const [editingManual, setEditingManual] = useState<StoredCampaign | null>(
+    null,
+  );
 
   const trackingCampaignIds = useMemo(
     () =>
@@ -376,10 +418,33 @@ export function CampaignsPage() {
     [trackingList],
   );
 
-  const result: ConsolidationResult = useMemo(
-    () => consolidate(campaigns, screens),
-    [campaigns, screens],
+  // Mupi/Pendón sin detalle toman sus tiendas de la campaña Ekon vinculada; los
+  // que no pueden resolverse quedan bloqueados con su incidencia.
+  const ekonResolution = useMemo(
+    () =>
+      resolveCampaignsWithEkon(campaigns, (campaign) =>
+        ekonContextFor(
+          campaign,
+          ekonLinks,
+          ekonLoaded,
+          canReadEkon && !ekonReadFailed,
+        ),
+      ),
+    [campaigns, ekonLinks, ekonLoaded, canReadEkon, ekonReadFailed],
   );
+  const resolvedCampaigns = ekonResolution.campaigns;
+  const resolvedById = useMemo(
+    () => new Map(resolvedCampaigns.map((c) => [c.id, c])),
+    [resolvedCampaigns],
+  );
+
+  const result: ConsolidationResult = useMemo(() => {
+    const base = consolidate(resolvedCampaigns, screens);
+    return {
+      ...base,
+      issues: [...base.issues, ...ekonResolution.issues],
+    };
+  }, [resolvedCampaigns, screens, ekonResolution.issues]);
 
   // Advertencia no bloqueante: pantallas con baja ocupación (1–2 proveedores)
   // para hoy. No cambia el CSV normal ni bloquea la exportación.
@@ -657,7 +722,13 @@ export function CampaignsPage() {
     setExcelError(null);
     setExcelBusyId(c.id);
     try {
-      const report = buildCampaignReport([c], screens, ekonByKey);
+      const report = buildCampaignReport(
+        [resolvedById.get(c.id) ?? c],
+        screens,
+        ekonByKey,
+        undefined,
+        ekonResolution.issues,
+      );
       const blob = await buildCampaignReportBlob(report);
       download(
         blob,
@@ -686,7 +757,13 @@ export function CampaignsPage() {
     setBulkError(null);
     setBulkBusy(true);
     try {
-      const report = buildCampaignReport(filtered, screens, ekonByKey);
+      const report = buildCampaignReport(
+        filtered.map((c) => resolvedById.get(c.id) ?? c),
+        screens,
+        ekonByKey,
+        undefined,
+        ekonResolution.issues,
+      );
       const blob = await buildCampaignReportBlob(report);
       download(blob, bulkReportFileName(desde, hasta));
     } catch {
@@ -1023,6 +1100,16 @@ export function CampaignsPage() {
                             </button>
                           </>
                         )}
+                        {canCreateManual && campaignOrigin(c) === 'manual' && (
+                          <button
+                            className="icon-btn"
+                            title={`Editar campaña manual ${c.name} (tiendas, vigencia, soportes)`}
+                            aria-label={`Editar campaña manual ${c.name}`}
+                            onClick={() => setEditingManual(c)}
+                          >
+                            🛠️
+                          </button>
+                        )}
                         {canCorrectCampaign && (
                           <button
                             className="icon-btn"
@@ -1089,6 +1176,23 @@ export function CampaignsPage() {
             setCreatingManual(false);
           }}
           onClose={() => setCreatingManual(false)}
+        />
+      )}
+
+      {editingManual && (
+        <ManualCampaignModal
+          screens={screens}
+          campaigns={campaigns}
+          actor={actor}
+          editing={editingManual}
+          tracking={
+            trackingList.find((t) => t.campaignId === editingManual.id) ?? null
+          }
+          onCreated={async () => {
+            await reload();
+            setEditingManual(null);
+          }}
+          onClose={() => setEditingManual(null)}
         />
       )}
 

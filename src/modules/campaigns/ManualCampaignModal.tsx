@@ -11,11 +11,20 @@ import {
   type ManualCampaignInput,
   type ManualCampaignSupportInput,
 } from './manualCampaign';
-import { createManualCampaign } from '@/services/campaigns';
+import {
+  createManualCampaign,
+  updateManualCampaign,
+} from '@/services/campaigns';
+import {
+  campaignToManualInput,
+  hasMarkedWitnesses,
+} from './manualCampaignEdit';
+import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
+import { isMupiPendonSupport } from '@/modules/consolidation/instoreEkon';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 
 /**
- * Alta de una campaña **manual** (sampling, proveedor…) que Liverpool no sube a
+ * Alta (o edición, con `editing`) de una campaña **manual** (sampling, proveedor…) que Liverpool no sube a
  * su calendario. Es una campaña normal de SIGNAM: consolida, genera CSV y tiene
  * seguimiento operativo completo desde su creación. Si Liverpool la sube
  * después, la importación propone adoptarla en lugar de duplicarla.
@@ -24,28 +33,51 @@ export function ManualCampaignModal({
   screens,
   campaigns,
   actor,
+  editing,
+  tracking,
   onCreated,
   onClose,
 }: {
   screens: AdmiraScreen[];
   campaigns: StoredCampaign[];
   actor: Actor;
+  /** Campaña manual a editar; sin ella el modal da de alta una nueva. */
+  editing?: StoredCampaign;
+  /** Seguimiento de la campaña editada (para avisar si ya hay testigos). */
+  tracking?: CampaignOperationalTracking | null;
   onCreated: () => Promise<void> | void;
   onClose: () => void;
 }) {
-  const options = useMemo(() => manualSupportOptions(screens), [screens]);
-  const [name, setName] = useState('');
-  const [tipo, setTipo] = useState('');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [link, setLink] = useState('');
-  const [supports, setSupports] = useState<ManualCampaignSupportInput[]>([]);
+  const initial = useMemo(
+    () => (editing ? campaignToManualInput(editing) : null),
+    [editing],
+  );
+  const options = useMemo(() => {
+    const fromCatalog = manualSupportOptions(screens);
+    // Al editar, un soporte guardado que el catálogo ya no tiene activo debe
+    // seguir visible para poder quitarlo o conservarlo a propósito.
+    const known = new Set(fromCatalog.map((o) => o.support));
+    const extra = (initial?.supports ?? [])
+      .filter((s) => !known.has(s.support))
+      .map((s) => ({ support: s.support, stores: s.stores }));
+    return [...fromCatalog, ...extra];
+  }, [screens, initial]);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [tipo, setTipo] = useState(initial?.tipo ?? '');
+  const [fechaInicio, setFechaInicio] = useState(initial?.fechaInicio ?? '');
+  const [fechaFin, setFechaFin] = useState(initial?.fechaFin ?? '');
+  const [link, setLink] = useState(initial?.link ?? '');
+  const [supports, setSupports] = useState<ManualCampaignSupportInput[]>(
+    initial?.supports ?? [],
+  );
+  const [reason, setReason] = useState('');
   const [storeFilter, setStoreFilter] = useState('');
   const [confirmedSimilar, setConfirmedSimilar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const input: ManualCampaignInput = {
+    vendidoPor: initial?.vendidoPor,
     name,
     tipo,
     fechaInicio,
@@ -57,20 +89,40 @@ export function ManualCampaignModal({
   const duplicates = useMemo(
     () =>
       errors.length === 0
-        ? findManualDuplicates(buildManualCampaign(input), campaigns)
+        ? findManualDuplicates(
+            buildManualCampaign(input),
+            editing ? campaigns.filter((c) => c.id !== editing.id) : campaigns,
+          )
         : { blocking: [], warnings: [] },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [errors.length, name, tipo, fechaInicio, fechaFin, supports, campaigns],
   );
   const blocked = duplicates.blocking.length > 0;
   const needsConfirm = duplicates.warnings.length > 0 && !confirmedSimilar;
-  const canSave = errors.length === 0 && !blocked && !needsConfirm && !saving;
+  const reasonMissing = !!editing && reason.trim() === '';
+  const canSave =
+    errors.length === 0 &&
+    !blocked &&
+    !needsConfirm &&
+    !reasonMissing &&
+    !saving;
+  const witnessWarning =
+    !!editing && hasMarkedWitnesses(tracking) && errors.length === 0;
 
   function toggleSupport(support: string) {
     setSupports((prev) =>
       prev.some((s) => s.support === support)
         ? prev.filter((s) => s.support !== support)
-        : [...prev, { support, scope: 'all', stores: [] }],
+        : [
+            ...prev,
+            {
+              support,
+              // En Mupi/Pendón no se preselecciona nada: Ekon solo entra si la
+              // persona lo elige.
+              scope: isMupiPendonSupport(support) ? 'pending' : 'all',
+              stores: [],
+            },
+          ],
     );
   }
 
@@ -103,13 +155,24 @@ export function ManualCampaignModal({
     setSaving(true);
     setError(null);
     try {
-      await createManualCampaign(buildManualCampaign(input), actor);
+      if (editing) {
+        await updateManualCampaign({
+          campaignId: editing.id,
+          campaign: { ...buildManualCampaign(input), row: editing.row },
+          reason,
+          actor,
+        });
+      } else {
+        await createManualCampaign(buildManualCampaign(input), actor);
+      }
       await onCreated();
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : 'No se pudo crear la campaña manual.',
+          : editing
+            ? 'No se pudo guardar la edición.'
+            : 'No se pudo crear la campaña manual.',
       );
       setSaving(false);
     }
@@ -120,20 +183,35 @@ export function ManualCampaignModal({
       className="modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Nueva campaña manual"
+      aria-label={
+        editing
+          ? `Editar campaña manual ${editing.name}`
+          : 'Nueva campaña manual'
+      }
     >
       <div className="modal__backdrop" onClick={onClose} aria-hidden="true" />
       <div
         className="modal__card campaign-correction"
         style={{ maxWidth: 820 }}
       >
-        <h2 className="modal__title">Nueva campaña manual</h2>
-        <p className="text-muted campaign-correction__intro">
-          Para campañas que Liverpool no sube a su calendario (samplings,
-          proveedor). Se opera igual que cualquier campaña: consolida, genera
-          CSV y tiene seguimiento con testigos y aprobaciones. Si Liverpool la
-          sube después, SIGNAM te propondrá vincularla y no se duplicará.
-        </p>
+        <h2 className="modal__title">
+          {editing ? `Editar ${editing.name}` : 'Nueva campaña manual'}
+        </h2>
+        {editing && (
+          <p className="text-muted campaign-correction__intro">
+            Cambia nombre, tipo, vigencia, soportes o tiendas. La campaña
+            conserva su seguimiento y su número Ekon. Cada edición queda en el
+            historial con su motivo.
+          </p>
+        )}
+        {!editing && (
+          <p className="text-muted campaign-correction__intro">
+            Para campañas que Liverpool no sube a su calendario (samplings,
+            proveedor). Se opera igual que cualquier campaña: consolida, genera
+            CSV y tiene seguimiento con testigos y aprobaciones. Si Liverpool la
+            sube después, SIGNAM te propondrá vincularla y no se duplicará.
+          </p>
+        )}
 
         <div className="campaign-correction__grid">
           <label>
@@ -236,6 +314,22 @@ export function ManualCampaignModal({
                       />{' '}
                       Todas las tiendas del soporte
                     </label>
+                    {isMupiPendonSupport(option.support) && (
+                      <label>
+                        <input
+                          type="radio"
+                          name={`scope-${option.support}`}
+                          checked={selected.scope === 'ekon'}
+                          onChange={() =>
+                            patchSupport(option.support, {
+                              scope: 'ekon',
+                              stores: [],
+                            })
+                          }
+                        />{' '}
+                        Sin detalle: usar las tiendas de la campaña en Ekon
+                      </label>
+                    )}
                     <label>
                       <input
                         type="radio"
@@ -340,6 +434,26 @@ export function ManualCampaignModal({
           </div>
         )}
 
+        {witnessWarning && (
+          <div className="occ-warning" role="status">
+            Esta campaña ya tiene testigos marcados. Si cambias tiendas o
+            fechas, SIGNAM no los revalida: revisa que sigan siendo correctos.
+          </div>
+        )}
+
+        {editing && (
+          <label className="campaign-correction__reason">
+            <span>Motivo de la edición</span>
+            <textarea
+              rows={2}
+              value={reason}
+              disabled={saving}
+              placeholder="Ej. Se asignaron tiendas equivocadas en el alta"
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+        )}
+
         {error && (
           <div className="catalog__error" role="alert">
             {error}
@@ -360,7 +474,13 @@ export function ManualCampaignModal({
             disabled={!canSave}
             aria-busy={saving}
           >
-            {saving ? 'Creando…' : 'Crear campaña manual'}
+            {saving
+              ? editing
+                ? 'Guardando…'
+                : 'Creando…'
+              : editing
+                ? 'Guardar edición'
+                : 'Crear campaña manual'}
           </button>
         </div>
       </div>

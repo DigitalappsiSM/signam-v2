@@ -63,8 +63,32 @@ tres de ellos describían mal el separador de artículos.
   `Nike Verano_ ARTICULO 1 + ARTICULO 2`.
 - **`TIPO DE PASES`**: informativo, va en cada fila del CSV; no divide campañas
   ni forma parte del nombre.
-- **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
-  de la consolidación en esta etapa.
+- **Soportes InStore Media** (`MUPPI'S`, `PENDON`): **consolidan y generan CSV**
+  como cualquier soporte (`consolidate` los incluye por defecto). En el catálogo
+  se cruzan por su equivalente digital (`MUPPI'S` → `MEGA MUPI DIGITAL`, `PENDON`
+  → `BANNER DIGITAL`, mismo alias de Quividi) salvo que el maestro ya los mapee con
+  su nombre literal. El **análisis de baja ocupación** conserva su criterio
+  histórico y los sigue excluyendo (`matchCampaignScreens` sin `includeInstore`).
+- **Mupi/Pendón sin detalle de tiendas** (`MUPPI'S`, `PENDON`, `MEGA MUPI DIGITAL`,
+  `BANNER DIGITAL` marcados sin comentario ni «todas» explícito;
+  `consolidation/instoreEkon.ts`): SIGNAM toma las tiendas de la campaña **Ekon
+  vinculada** (asignaciones vigentes de la última importación cuyo periodo se
+  traslapa con la vigencia, circuito compatible y `determinanteKey`; sin centro
+  administrativo ni conflictos). Es la misma regla del informe Quividi
+  (`functions/src/quividi/effectiveScope.ts`). Sin número Ekon vinculado, sin lote
+  completado o sin tiendas de ese circuito **se bloquea con incidencia**
+  (`ekon-sin-vinculo` / `ekon-sin-lote` / `ekon-sin-tiendas`) y **nunca** se expande
+  a todas las tiendas del catálogo. `consolidate` refuerza esto: un Mupi/Pendón sin
+  detalle que llegue **sin resolver** se deja fuera con la incidencia
+  `mupi-pendon-sin-resolver`, nunca se expande. La resolución se aplica en
+  Campañas (CSV, ZIP, Excel), Seguimiento, dashboard y Reporting
+  (`useEkonResolvedCampaigns`), para que metas de testigos y CSV coincidan. Los
+  roles que no pueden leer Ekon (comercial) no lo consultan: esos soportes se
+  retiran sin incidencia. Aplica a campañas de Liverpool y manuales;
+  el formulario manual ofrece «Sin detalle: usar las tiendas de Ekon» para estos
+  soportes **sin opción preseleccionada**: lo que la persona guarda (tiendas
+  específicas o «todas») siempre prevalece y Ekon solo entra si lo elige. El `fallbackCsv` descrito abajo (sintetizar un soporte no marcado) es
+  otra regla y sigue sin conectarse a la pantalla.
 - **CSV de Admira**: Admira **ignora la primera columna**, así que la **columna
   A** se usa como columna "guarda": va **vacía** en las filas de datos y su
   encabezado en `A1` es **`LIVERPOOL`** (`ADMIRA_CSV_TITLE`). Las columnas reales
@@ -113,6 +137,16 @@ tres de ellos describían mal el separador de artículos.
   fresca de duplicados, y exige años 2000–2100. Si Liverpool cambia las fechas de una campaña con testigos, solo se
   avisa: no se revalidan aprobaciones. Los metadatos de origen se guardan aparte
   de los datos importados y nunca entran al CSV.
+  **Edición**: mientras siga siendo manual (y activa), admin/operator la editan
+  con «Editar» en Campañas (nombre, tipo, vigencia, link, soportes y tiendas).
+  Exige un **motivo** y deja el evento en el historial append-only
+  `campaigns/{id}/corrections`; conserva el `campaignId`, el seguimiento y Ekon,
+  y sincroniza el nombre visible del seguimiento (su `campaignNameKey` es
+  inmutable). No revalida testigos: solo avisa si ya hay marcados. Una vez adoptada
+  por el calendario el botón desaparece y se usa «Corregir» (`manualOverrides`).
+  El Dashboard las trata como cualquier campaña (la clasificación sale del
+  seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
+  Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
   seguimientos independientes y una actualización de fechas, tiendas, soportes,

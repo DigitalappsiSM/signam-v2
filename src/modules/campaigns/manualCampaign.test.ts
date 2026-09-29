@@ -234,3 +234,47 @@ describe('rango de años y id determinístico', () => {
     ).not.toBe(a);
   });
 });
+
+describe('Mupi/Pendón sin detalle (tiendas de Ekon)', () => {
+  const ekonInput = (support: string) =>
+    input({ supports: [{ support, scope: 'ekon', stores: [] }] });
+
+  it('se guarda como «sin detalle»: alcance all + no-comment, sin tiendas', () => {
+    const c = buildManualCampaign(ekonInput("MUPPI'S"));
+    expect(c.supports[0]).toMatchObject({
+      scope: 'all',
+      scopeSource: 'no-comment',
+      stores: [],
+      owner: 'instore-media',
+    });
+  });
+
+  it('solo aplica a Mupi y Pendón', () => {
+    expect(validateManualCampaign(ekonInput('PENDON'))).toEqual([]);
+    expect(
+      validateManualCampaign(ekonInput('VIDEO WALL CRIUS')).some((e) =>
+        e.includes('solo aplica a Mupi y Pendón'),
+      ),
+    ).toBe(true);
+  });
+
+  it('«todas» explícito NO se confunde con sin detalle', () => {
+    const c = buildManualCampaign(
+      input({
+        supports: [{ support: "MUPPI'S", scope: 'all', stores: [] }],
+      }),
+    );
+    expect(c.supports[0]!.scopeSource).toBe('resolution-all');
+  });
+});
+
+describe('Mupi/Pendón: nada preseleccionado', () => {
+  it('un soporte sin elegir alcance bloquea el alta', () => {
+    const errors = validateManualCampaign(
+      input({
+        supports: [{ support: "MUPPI'S", scope: 'pending', stores: [] }],
+      }),
+    );
+    expect(errors.some((e) => e.includes('Elige cómo se asignan'))).toBe(true);
+  });
+});

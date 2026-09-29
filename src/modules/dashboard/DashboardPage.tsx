@@ -1,3 +1,4 @@
+import { useEkonResolvedCampaigns } from '@/modules/consolidation/useEkonResolvedCampaigns';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -225,6 +226,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     hasta: params.get('hasta') ?? '',
     classification:
       (params.get('clasificacion') as OccupancyClassification | 'all') || 'all',
+    origin:
+      params.get('origen') === 'manual'
+        ? 'manual'
+        : params.get('origen') === 'liverpool'
+          ? 'liverpool'
+          : 'all',
     owner: (params.get('propietario') as Owner | 'all') || 'all',
     support: params.get('soporte') ?? '',
     store: params.get('tienda') ?? '',
@@ -241,6 +248,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     }
     if (next.classification !== 'all')
       p.set('clasificacion', next.classification);
+    if (next.origin !== 'all') p.set('origen', next.origin);
     if (next.owner !== 'all') p.set('propietario', next.owner);
     if (next.support) p.set('soporte', next.support);
     if (next.store) p.set('tienda', next.store);
@@ -259,9 +267,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     return presetRange(filters.preset, today);
   }, [filters.preset, filters.desde, filters.hasta, today]);
 
+  // Mupi/Pendón sin detalle toman sus tiendas de Ekon (igual que el CSV) para
+  // que la meta de testigos no se calcule con tiendas de más ni de menos.
+  const resolved = useEkonResolvedCampaigns(campaigns, role);
   const rows = useMemo(
-    () => buildTrackingRows(campaigns, screens, tracking, today),
-    [campaigns, screens, tracking, today],
+    () => buildTrackingRows(resolved.campaigns, screens, tracking, today),
+    [resolved.campaigns, screens, tracking, today],
   );
 
   // Modelo de carga (fuente única de la resolución de colocaciones contra el
@@ -276,6 +287,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
         range,
         filters: {
           classification: filters.classification,
+          origin: filters.origin,
           owner: filters.owner,
           store: filters.store || null,
           support: filters.support || null,
@@ -288,6 +300,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       tracking,
       range,
       filters.classification,
+      filters.origin,
       filters.owner,
       filters.store,
       filters.support,
@@ -313,10 +326,18 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       filterDashboardRows(rows, {
         range,
         classification: filters.classification,
+        origin: filters.origin,
         search: filters.search,
         placementCampaignIds,
       }),
-    [rows, range, filters.classification, filters.search, placementCampaignIds],
+    [
+      rows,
+      range,
+      filters.classification,
+      filters.origin,
+      filters.search,
+      placementCampaignIds,
+    ],
   );
 
   const view = useMemo(() => {

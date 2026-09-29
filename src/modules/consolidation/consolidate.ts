@@ -10,6 +10,7 @@ import {
 } from '@/domain';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
 import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
+import { hasStoreDetail, isMupiPendonSupport } from './instoreEkon';
 
 /**
  * Motor de consolidación (paso 2b).
@@ -41,7 +42,11 @@ export type IssueCode =
   | 'store-support-mismatch'
   | 'screen-inactive'
   | 'support-not-in-catalog'
-  | 'invalid-store-scope';
+  | 'invalid-store-scope'
+  | 'mupi-pendon-sin-resolver'
+  | 'ekon-sin-vinculo'
+  | 'ekon-sin-lote'
+  | 'ekon-sin-tiendas';
 
 /** Incidencia estructurada (para agrupar por campaña/soporte y para el PDF). */
 export interface ConsolidationIssue {
@@ -162,9 +167,39 @@ export function buildScreenIndex(
  * participantes (activas, deduplicadas, sin ISM) más incidencias/exclusiones.
  * Función pura reutilizable por la consolidación y por el análisis de ocupación.
  */
+/**
+ * Los soportes InStore del calendario se programan sobre las mismas pantallas
+ * físicas que sus equivalentes digitales del maestro (mismo alias que usa
+ * Quividi): `MUPPI'S` → `MEGA MUPI DIGITAL`, `PENDON` → `BANNER DIGITAL`. Si el
+ * maestro ya tiene pantallas mapeadas con el nombre literal, se respeta.
+ */
+const INSTORE_CATALOG_ALIASES: Readonly<Record<string, string>> = {
+  MUPPIS: 'MEGA MUPI DIGITAL',
+  PENDON: 'BANNER DIGITAL',
+};
+
+export function catalogSupportName(
+  support: string,
+  index: ScreenIndex,
+): string {
+  const n = norm(support);
+  if (index.activeBySupport.has(n)) return support;
+  return INSTORE_CATALOG_ALIASES[n] ?? support;
+}
+
+export interface MatchOptions {
+  /**
+   * Incluir `MUPPI'S` / `PENDON` en la consolidación. La consolidación y el CSV
+   * de Admira lo activan; el análisis de baja ocupación no (mantiene su
+   * criterio histórico).
+   */
+  includeInstore?: boolean;
+}
+
 export function matchCampaignScreens(
   campaign: ParsedCampaign,
   index: ScreenIndex,
+  options: MatchOptions = {},
 ): CampaignMatch {
   const issues: ConsolidationIssue[] = [];
   const excludedInstore: { campaign: string; support: string }[] = [];
@@ -173,10 +208,27 @@ export function matchCampaignScreens(
   const gexc = GUADALAJARA_GALERIAS_EXCEPTION;
 
   for (const support of campaign.supports) {
-    if (support.owner === 'instore-media') {
+    if (support.owner === 'instore-media' && !options.includeInstore) {
       excludedInstore.push({
         campaign: campaign.name,
         support: support.support,
+      });
+      continue;
+    }
+
+    // Mupi/Pendón sin detalle de tiendas se resuelven desde Ekon ANTES de
+    // consolidar (ver `instoreEkon.ts`). Si llegan aquí sin resolver, nunca se
+    // expanden a todo el catálogo: quedan fuera con una incidencia.
+    if (
+      options.includeInstore &&
+      isMupiPendonSupport(support.support) &&
+      !hasStoreDetail(support)
+    ) {
+      issues.push({
+        code: 'mupi-pendon-sin-resolver',
+        campaign: campaign.name,
+        support: support.support,
+        message: `"${support.support}" en "${campaign.name}" no trae detalle de tiendas y aún no se resuelve con Ekon: no se incluye ninguna pantalla.`,
       });
       continue;
     }
@@ -195,10 +247,12 @@ export function matchCampaignScreens(
       continue;
     }
 
+    const lookupName = catalogSupportName(support.support, index);
+
     // Regla: alcance `all` explícito (o documento legacy sin tiendas) => todas
     // las pantallas activas del soporte.
     if (scope === 'all') {
-      const all = index.activeBySupport.get(norm(support.support)) ?? [];
+      const all = index.activeBySupport.get(norm(lookupName)) ?? [];
       if (all.length === 0) {
         issues.push({
           code: 'support-not-in-catalog',
@@ -215,7 +269,7 @@ export function matchCampaignScreens(
 
     for (const store of support.stores) {
       const num = normalizeStore(store.numero);
-      const k = key(support.support, num);
+      const k = key(lookupName, num);
       const activeMatches = index.active.get(k) ?? [];
 
       if (activeMatches.length === 0) {
@@ -297,6 +351,7 @@ interface ConsolidationAccumulator {
 export function consolidate(
   campaigns: readonly ParsedCampaign[],
   screens: readonly AdmiraScreen[],
+  options: MatchOptions = { includeInstore: true },
 ): ConsolidationResult {
   const index = buildScreenIndex(screens);
   const issues: ConsolidationIssue[] = [];
@@ -308,7 +363,7 @@ export function consolidate(
   const groups = new Map<string, ConsolidationAccumulator>();
 
   for (const campaign of campaigns) {
-    const match = matchCampaignScreens(campaign, index);
+    const match = matchCampaignScreens(campaign, index, options);
     issues.push(...match.issues);
     excludedInstore.push(...match.excludedInstore);
     ismExcludedCount += match.ismExcludedCount;

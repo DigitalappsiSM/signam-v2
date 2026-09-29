@@ -1,3 +1,4 @@
+import { resolveCampaignsWithEkon } from '@/modules/consolidation/instoreEkon';
 import type { AdmiraScreen } from '@/domain';
 import type {
   DigitalOperationalItem,
@@ -220,8 +221,26 @@ export function buildReportingModel(input: ReportingInput): ReportingModel {
       campaign.active !== false &&
       overlapsRange(campaign.fechaInicio, campaign.fechaFin, input.range),
   );
-  const trackingRows = buildTrackingRows(
+  // Mupi/Pendón sin detalle toman sus tiendas de Ekon con los datos que este
+  // reporte ya carga (misma regla que el CSV).
+  const hasBatch = input.ekonBatches.some((b) => b.status === 'completed');
+  const resolvedCampaigns = resolveCampaignsWithEkon(
     activeCampaigns,
+    (campaign) => {
+      const number = ekonNumberForCampaign(campaign, input.ekonLinks);
+      const rows =
+        number != null
+          ? (input.assignmentsByNumber.get(String(number)) ?? [])
+          : [];
+      return {
+        hasEkonLink: number != null,
+        hasCompletedBatch: hasBatch,
+        assignments: rows.filter((a) => a.active && !a.conflict),
+      };
+    },
+  ).campaigns;
+  const trackingRows = buildTrackingRows(
+    resolvedCampaigns,
     input.screens,
     input.tracking,
     now,
