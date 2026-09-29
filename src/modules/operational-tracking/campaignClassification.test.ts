@@ -13,6 +13,11 @@ describe('classifyFromTipo', () => {
     expect(classifyFromTipo('CAMPAÑA PROVEEDOR')).toBe('provider');
   });
 
+  it('un sampling se opera como proveedor', () => {
+    expect(classifyFromTipo('Sampling')).toBe('provider');
+    expect(classifyFromTipo('SAMPLING')).toBe('provider');
+  });
+
   it('deja pendiente el tipo vacío', () => {
     expect(classifyFromTipo('')).toBe('unknown');
     expect(classifyFromTipo('   ')).toBe('unknown');

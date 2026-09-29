@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   runTransaction,
@@ -15,6 +16,16 @@ import {
   type StoredCampaign,
 } from '@/modules/campaigns/campaignDiff';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
+import {
+  findManualDuplicates,
+  manualCampaignId,
+} from '@/modules/campaigns/manualCampaign';
+import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
+import {
+  initialTracking,
+  type TrackingActor,
+} from '@/modules/operational-tracking/trackingFactory';
+import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import {
   campaignCorrectionError,
   correctionChanges,
@@ -270,7 +281,14 @@ export async function applyCampaignChanges(
   const now = Date.now();
 
   type Op =
-    | { kind: 'set'; id: string; campaign: ParsedCampaign; createdAt?: number }
+    | {
+        kind: 'set';
+        id: string;
+        campaign: ParsedCampaign;
+        createdAt?: number;
+        /** Campaña manual que el calendario de Liverpool adopta con este alta. */
+        adopts?: StoredCampaign;
+      }
     | { kind: 'deactivate'; campaign: StoredCampaign };
 
   const ops: Op[] = [
@@ -284,6 +302,7 @@ export async function applyCampaignChanges(
       kind: 'set' as const,
       id: m.stored.id,
       campaign: m.campaign,
+      adopts: m.adoptsManual ? m.stored : undefined,
     })),
     ...diff.removed.map((campaign) => ({
       kind: 'deactivate' as const,
@@ -338,9 +357,33 @@ export async function applyCampaignChanges(
         now,
         correction?.manualOverrides,
       );
+      // Adoptar una manual conserva su `id` (y con él seguimiento y Ekon); solo
+      // cambia el origen y deja el historial de cómo fue capturada a mano.
+      const adoption = op.adopts
+        ? {
+            origin: 'liverpool' as const,
+            adoptedFromManualAt: now,
+            adoptedFromManualBy: actor.email,
+            manualSnapshot: {
+              name: op.adopts.name,
+              tipo: op.adopts.tipo,
+              fechaInicio: op.adopts.fechaInicio,
+              fechaFin: op.adopts.fechaFin,
+              supports: op.adopts.supports,
+              ...(op.adopts.manualOverrides
+                ? { manualOverrides: op.adopts.manualOverrides }
+                : {}),
+            },
+            // El calendario es la fuente de verdad: las correcciones hechas a la
+            // versión manual dejan de prevalecer en futuras importaciones.
+            manualOverrides: deleteField(),
+          }
+        : {};
       batch.set(
         ref,
-        op.createdAt ? { ...data, createdAt: op.createdAt } : data,
+        op.createdAt
+          ? { ...data, ...adoption, createdAt: op.createdAt }
+          : { ...data, ...adoption },
         { merge: true },
       );
       if (correction) {
@@ -365,4 +408,71 @@ export async function applyCampaignChanges(
         .map((op) => [campaignIdentity(op.campaign), op.id]),
     ),
   };
+}
+
+/**
+ * Crea una campaña **manual** (sampling, proveedor, etc.) y, en el mismo lote
+ * atómico, su seguimiento operativo. Regla de negocio: toda campaña manual tiene
+ * seguimiento desde el primer momento; sampling y proveedor se operan con la
+ * clasificación Proveedor (marca, testigos y aprobaciones completos).
+ *
+ * No toca `campaignEkonLinks` ni ninguna otra colección. Devuelve el `id`
+ * persistente, que se conserva si Liverpool sube después la campaña.
+ */
+export async function createManualCampaign(
+  campaign: ParsedCampaign,
+  actor: Actor,
+): Promise<string> {
+  const database = db();
+  const now = Date.now();
+  // Verificación fresca (el modal trabaja con una foto que pudo quedar vieja):
+  // otra persona o una importación pudo crear la misma campaña entretanto.
+  const duplicates = findManualDuplicates(
+    campaign,
+    await listCampaigns(),
+  ).blocking;
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Ya existe la campaña "${duplicates[0]!.campaign.name}" con las mismas fechas. Actualiza la pantalla: puede que Liverpool ya la haya subido.`,
+    );
+  }
+  // Id determinístico (nombre + fechas): dos altas simultáneas de la misma
+  // campaña colisionan en el mismo documento y la transacción rechaza la segunda.
+  const ref = doc(database, COLLECTION, manualCampaignId(campaign));
+  const trackingRef = doc(database, 'campaignOperationalTracking', ref.id);
+  const classification =
+    classifyFromTipo(campaign.tipo) === 'institutional'
+      ? 'institutional'
+      : 'provider';
+  const trackingActor: TrackingActor = { uid: actor.uid, email: actor.email };
+  const tracking = initialTracking(
+    {
+      campaignId: ref.id,
+      campaignNameKey: campaignKey(campaign.name),
+      campaignName: campaign.name,
+      classification,
+      classificationSource: 'manual-campaign',
+      linkValid: isValidDownloadUrl(campaign.link),
+    },
+    trackingActor,
+    now,
+  );
+  const { id: _trackingId, ...trackingData } = tracking;
+  void _trackingId;
+
+  await runTransaction(database, async (tx) => {
+    if ((await tx.get(ref)).exists()) {
+      throw new Error(
+        'Esta campaña manual ya existe (mismo nombre y fechas). Actualiza la pantalla.',
+      );
+    }
+    tx.set(ref, {
+      ...campaignDoc(campaign, actor, now),
+      origin: 'manual',
+      createdAt: now,
+      createdBy: actor.email,
+    });
+    tx.set(trackingRef, trackingData);
+  });
+  return ref.id;
 }

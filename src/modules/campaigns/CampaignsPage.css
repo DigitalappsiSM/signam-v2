@@ -85,3 +85,31 @@
   font-size: 0.72rem;
   line-height: 1.35;
 }
+
+.manual-campaign__supports {
+  display: grid;
+  gap: 0.6rem;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 0.8rem;
+}
+
+.manual-campaign__support {
+  border: 1px solid var(--border, #d9d9d9);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+}
+
+.manual-campaign__scope {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0 1.4rem;
+}
+
+.manual-campaign__stores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.2rem 0.8rem;
+  max-height: 180px;
+  overflow-y: auto;
+}

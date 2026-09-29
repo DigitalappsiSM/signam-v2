@@ -11,6 +11,7 @@ export type Permission =
   | 'catalog.deactivate'
   | 'calendar.import'
   | 'campaign.correct'
+  | 'campaign.createManual'
   | 'campaign.downloadOperational'
   | 'campaign.linkEkon'
   | 'ekon.import'
@@ -46,6 +47,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.deactivate',
     'calendar.import',
     'campaign.correct',
+    'campaign.createManual',
     'campaign.downloadOperational',
     'campaign.linkEkon',
     'ekon.import',
@@ -68,6 +70,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'catalog.read',
     'calendar.import',
     'campaign.correct',
+    'campaign.createManual',
     'campaign.downloadOperational',
     'campaign.linkEkon',
     'ekon.import',

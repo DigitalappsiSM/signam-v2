@@ -5,7 +5,8 @@ import type { Classification } from './types';
  *
  * - Contiene `INSTITUCIONAL` (ignorando mayúsculas, acentos y espacios) →
  *   `institutional`.
- * - Contiene `PROVEEDOR` → `provider`.
+ * - Contiene `PROVEEDOR` o `SAMPLING` → `provider`. Un sampling se opera como
+ *   campaña de proveedor: lleva marca, testigos y aprobaciones completos.
  * - En cualquier otro caso (vacío o desconocido) → `unknown`: exige que el
  *   usuario elija durante la importación. Nunca se asume Proveedor por defecto.
  */
@@ -23,7 +24,7 @@ function normalize(v: string): string {
 export function classifyFromTipo(tipo: string): AutoClassification {
   const t = normalize(tipo);
   const inst = t.includes('INSTITUCIONAL');
-  const prov = t.includes('PROVEEDOR');
+  const prov = t.includes('PROVEEDOR') || t.includes('SAMPLING');
   if (inst && !prov) return 'institutional';
   if (prov && !inst) return 'provider';
   return 'unknown';
