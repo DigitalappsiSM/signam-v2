@@ -12,6 +12,14 @@ import {
   listCampaigns,
 } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
+import { listActiveAssignmentsByEkonNumber } from '@/services/ekonAssignments';
+import { hasCompletedBatch } from '@/services/ekonImports';
+import type { StoredEkonAssignment } from '@/domain/ekon';
+import {
+  isMupiPendonSupport,
+  hasStoreDetail,
+  resolveCampaignsWithEkon,
+} from '@/modules/consolidation/instoreEkon';
 import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
 import {
@@ -286,6 +294,51 @@ export function CampaignsPage() {
   const [quividiAvailabilityLoaded, setQuividiAvailabilityLoaded] =
     useState(false);
 
+  // Lee las asignaciones Ekon solo de las campañas que las necesitan (Mupi o
+  // Pendón sin detalle de tiendas) y si existe un lote completado.
+  const loadEkonContext = useCallback(
+    async (list: StoredCampaign[], links: CampaignEkonLink[]) => {
+      const needy = list.filter((campaign) =>
+        campaign.supports.some(
+          (s) => isMupiPendonSupport(s.support) && !hasStoreDetail(s),
+        ),
+      );
+      // Sin Mupi/Pendón sin detalle no hay nada que resolver: no se lee Ekon.
+      if (needy.length === 0) {
+        setEkonAssignments(new Map());
+        setEkonCompletedBatch(false);
+        return;
+      }
+      const numbers = new Set<string>();
+      for (const campaign of needy) {
+        const number = ekonNumberForCampaign(campaign, links);
+        if (number != null) numbers.add(String(number));
+      }
+      const map = new Map<string, StoredEkonAssignment[]>();
+      const all = [...numbers];
+      try {
+        const batch = await hasCompletedBatch();
+        // Evita disparar decenas de consultas simultáneas contra Firestore.
+        for (let i = 0; i < all.length; i += 8) {
+          const chunk = all.slice(i, i + 8);
+          const rows = await Promise.all(
+            chunk.map((n) => listActiveAssignmentsByEkonNumber(n)),
+          );
+          chunk.forEach((n, offset) => map.set(n, rows[offset] ?? []));
+        }
+        setEkonAssignments(map);
+        setEkonCompletedBatch(batch);
+      } catch {
+        setEkonAssignments(new Map());
+        setEkonCompletedBatch(false);
+        setError(
+          'No se pudieron leer los datos de Ekon: los Mupi y Pendón sin detalle de tiendas no se resolvieron y no generan CSV hasta reintentar.',
+        );
+      }
+    },
+    [],
+  );
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -310,6 +363,7 @@ export function CampaignsPage() {
       setScreens(s);
       setEkonLinks(e);
       setTrackingList(tracking);
+      await loadEkonContext(c, e);
       try {
         const availability = await getQuividiCampaignAvailability(
           c.map((campaign) => campaign.id),
@@ -327,10 +381,12 @@ export function CampaignsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadEkonContext]);
 
   const reloadEkon = useCallback(async () => {
-    setEkonLinks(await listEkonLinks());
+    const links = await listEkonLinks();
+    setEkonLinks(links);
+    await loadEkonContext(campaigns, links);
     try {
       const availability = await getQuividiCampaignAvailability(
         campaigns.map((campaign) => campaign.id),
@@ -341,7 +397,7 @@ export function CampaignsPage() {
     } catch {
       // La disponibilidad se volverá a validar al recargar la página.
     }
-  }, [campaigns]);
+  }, [campaigns, loadEkonContext]);
 
   useEffect(() => {
     void reload();
@@ -355,6 +411,11 @@ export function CampaignsPage() {
   );
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
   const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
+  // Contexto Ekon para resolver las tiendas de Mupi/Pendón sin detalle.
+  const [ekonAssignments, setEkonAssignments] = useState<
+    Map<string, StoredEkonAssignment[]>
+  >(new Map());
+  const [ekonCompletedBatch, setEkonCompletedBatch] = useState(false);
   const [creatingManual, setCreatingManual] = useState(false);
   const [editingManual, setEditingManual] = useState<StoredCampaign | null>(
     null,
@@ -379,10 +440,34 @@ export function CampaignsPage() {
     [trackingList],
   );
 
-  const result: ConsolidationResult = useMemo(
-    () => consolidate(campaigns, screens),
-    [campaigns, screens],
+  // Mupi/Pendón sin detalle toman sus tiendas de la campaña Ekon vinculada; los
+  // que no pueden resolverse quedan bloqueados con su incidencia.
+  const ekonResolution = useMemo(
+    () =>
+      resolveCampaignsWithEkon(campaigns, (campaign) => {
+        const number = ekonNumberForCampaign(campaign, ekonLinks);
+        return {
+          hasEkonLink: number != null,
+          hasCompletedBatch: ekonCompletedBatch,
+          assignments:
+            number != null ? (ekonAssignments.get(String(number)) ?? []) : [],
+        };
+      }),
+    [campaigns, ekonLinks, ekonAssignments, ekonCompletedBatch],
   );
+  const resolvedCampaigns = ekonResolution.campaigns;
+  const resolvedById = useMemo(
+    () => new Map(resolvedCampaigns.map((c) => [c.id, c])),
+    [resolvedCampaigns],
+  );
+
+  const result: ConsolidationResult = useMemo(() => {
+    const base = consolidate(resolvedCampaigns, screens);
+    return {
+      ...base,
+      issues: [...base.issues, ...ekonResolution.issues],
+    };
+  }, [resolvedCampaigns, screens, ekonResolution.issues]);
 
   // Advertencia no bloqueante: pantallas con baja ocupación (1–2 proveedores)
   // para hoy. No cambia el CSV normal ni bloquea la exportación.
@@ -660,7 +745,13 @@ export function CampaignsPage() {
     setExcelError(null);
     setExcelBusyId(c.id);
     try {
-      const report = buildCampaignReport([c], screens, ekonByKey);
+      const report = buildCampaignReport(
+        [resolvedById.get(c.id) ?? c],
+        screens,
+        ekonByKey,
+        undefined,
+        ekonResolution.issues,
+      );
       const blob = await buildCampaignReportBlob(report);
       download(
         blob,
@@ -689,7 +780,13 @@ export function CampaignsPage() {
     setBulkError(null);
     setBulkBusy(true);
     try {
-      const report = buildCampaignReport(filtered, screens, ekonByKey);
+      const report = buildCampaignReport(
+        filtered.map((c) => resolvedById.get(c.id) ?? c),
+        screens,
+        ekonByKey,
+        undefined,
+        ekonResolution.issues,
+      );
       const blob = await buildCampaignReportBlob(report);
       download(blob, bulkReportFileName(desde, hasta));
     } catch {

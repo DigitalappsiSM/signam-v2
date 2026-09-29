@@ -63,8 +63,25 @@ tres de ellos describían mal el separador de artículos.
   `Nike Verano_ ARTICULO 1 + ARTICULO 2`.
 - **`TIPO DE PASES`**: informativo, va en cada fila del CSV; no divide campañas
   ni forma parte del nombre.
-- **Soportes InStore Media** (`MUPPI'S`, `PENDON`): se detectan pero se excluyen
-  de la consolidación en esta etapa.
+- **Soportes InStore Media** (`MUPPI'S`, `PENDON`): **consolidan y generan CSV**
+  como cualquier soporte (`consolidate` los incluye por defecto). En el catálogo
+  se cruzan por su equivalente digital (`MUPPI'S` → `MEGA MUPI DIGITAL`, `PENDON`
+  → `BANNER DIGITAL`, mismo alias de Quividi) salvo que el maestro ya los mapee con
+  su nombre literal. El **análisis de baja ocupación** conserva su criterio
+  histórico y los sigue excluyendo (`matchCampaignScreens` sin `includeInstore`).
+- **Mupi/Pendón sin detalle de tiendas** (`MUPPI'S`, `PENDON`, `MEGA MUPI DIGITAL`,
+  `BANNER DIGITAL` marcados sin comentario ni «todas» explícito;
+  `consolidation/instoreEkon.ts`): SIGNAM toma las tiendas de la campaña **Ekon
+  vinculada** (asignaciones vigentes de la última importación cuyo periodo se
+  traslapa con la vigencia, circuito compatible y `determinanteKey`; sin centro
+  administrativo ni conflictos). Es la misma regla del informe Quividi
+  (`functions/src/quividi/effectiveScope.ts`). Sin número Ekon vinculado, sin lote
+  completado o sin tiendas de ese circuito **se bloquea con incidencia**
+  (`ekon-sin-vinculo` / `ekon-sin-lote` / `ekon-sin-tiendas`) y **nunca** se expande
+  a todas las tiendas del catálogo. Aplica a campañas de Liverpool y manuales;
+  el formulario manual ofrece «Sin detalle: usar las tiendas de Ekon» para estos
+  soportes. El `fallbackCsv` descrito abajo (sintetizar un soporte no marcado) es
+  otra regla y sigue sin conectarse a la pantalla.
 - **CSV de Admira**: Admira **ignora la primera columna**, así que la **columna
   A** se usa como columna "guarda": va **vacía** en las filas de datos y su
   encabezado en `A1` es **`LIVERPOOL`** (`ADMIRA_CSV_TITLE`). Las columnas reales

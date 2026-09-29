@@ -20,6 +20,7 @@ import {
   hasMarkedWitnesses,
 } from './manualCampaignEdit';
 import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
+import { isMupiPendonSupport } from '@/modules/consolidation/instoreEkon';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 
 /**
@@ -112,7 +113,15 @@ export function ManualCampaignModal({
     setSupports((prev) =>
       prev.some((s) => s.support === support)
         ? prev.filter((s) => s.support !== support)
-        : [...prev, { support, scope: 'all', stores: [] }],
+        : [
+            ...prev,
+            {
+              support,
+              // Mupi/Pendón sin detalle toman sus tiendas de Ekon por defecto.
+              scope: isMupiPendonSupport(support) ? 'ekon' : 'all',
+              stores: [],
+            },
+          ],
     );
   }
 
@@ -304,6 +313,22 @@ export function ManualCampaignModal({
                       />{' '}
                       Todas las tiendas del soporte
                     </label>
+                    {isMupiPendonSupport(option.support) && (
+                      <label>
+                        <input
+                          type="radio"
+                          name={`scope-${option.support}`}
+                          checked={selected.scope === 'ekon'}
+                          onChange={() =>
+                            patchSupport(option.support, {
+                              scope: 'ekon',
+                              stores: [],
+                            })
+                          }
+                        />{' '}
+                        Sin detalle: usar las tiendas de la campaña en Ekon
+                      </label>
+                    )}
                     <label>
                       <input
                         type="radio"

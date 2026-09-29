@@ -185,21 +185,58 @@ describe('consolidate', () => {
     expect(result.consolidations[0]!.admiraCampaignName).toBe('Camp_ A1 + A2');
   });
 
-  it('excluye soportes InStore Media y los reporta', () => {
-    const campaigns = [
-      campaign('Camp', [
-        {
-          support: "MUPPI'S",
-          owner: 'instore-media',
-          stores: [{ numero: '1', nombre: '' }],
-        },
-      ]),
+  describe('Mupi y Pendón (InStore Media)', () => {
+    const mupiSupport = {
+      support: "MUPPI'S",
+      owner: 'instore-media' as const,
+      stores: [{ numero: '1', nombre: '' }],
+    };
+    const catalog = [
+      screen(
+        's1',
+        { 'Numero de Tienda': '1', RESOLUCION: 'R', ARTICULOS: 'A' },
+        'MEGA MUPI DIGITAL',
+      ),
     ];
-    const result = consolidate(campaigns, []);
-    expect(result.consolidations).toHaveLength(0);
-    expect(result.excludedInstore).toEqual([
-      { campaign: 'Camp', support: "MUPPI'S" },
-    ]);
+
+    it("consolidan y generan CSV por el alias del catálogo (MUPPI'S → MEGA MUPI DIGITAL)", () => {
+      const result = consolidate([campaign('Camp', [mupiSupport])], catalog);
+      expect(result.consolidations).toHaveLength(1);
+      expect(result.consolidations[0]!.rows).toHaveLength(1);
+      expect(result.excludedInstore).toEqual([]);
+    });
+
+    it('PENDON se resuelve contra BANNER DIGITAL', () => {
+      const result = consolidate(
+        [campaign('Camp', [{ ...mupiSupport, support: 'PENDON' }])],
+        [
+          screen(
+            's2',
+            { 'Numero de Tienda': '1', RESOLUCION: 'R' },
+            'BANNER DIGITAL',
+          ),
+        ],
+      );
+      expect(result.consolidations).toHaveLength(1);
+    });
+
+    it('si el catálogo ya mapea el nombre literal, se respeta', () => {
+      const result = consolidate(
+        [campaign('Camp', [mupiSupport])],
+        [screen('s3', { 'Numero de Tienda': '1', RESOLUCION: 'R' }, "MUPPI'S")],
+      );
+      expect(result.consolidations).toHaveLength(1);
+    });
+
+    it('con includeInstore:false se excluyen y se reportan (criterio de baja ocupación)', () => {
+      const result = consolidate([campaign('Camp', [mupiSupport])], catalog, {
+        includeInstore: false,
+      });
+      expect(result.consolidations).toHaveLength(0);
+      expect(result.excludedInstore).toEqual([
+        { campaign: 'Camp', support: "MUPPI'S" },
+      ]);
+    });
   });
 
   it('reporta pantalla inactiva solicitada y la excluye', () => {

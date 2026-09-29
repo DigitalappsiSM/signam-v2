@@ -22,6 +22,9 @@ export const ISSUE_LABELS: Record<IssueCode, string> = {
   'screen-inactive': 'Pantalla inactiva',
   'support-not-in-catalog': 'Soporte sin pantallas en el catálogo',
   'invalid-store-scope': 'Alcance de tiendas pendiente o inválido',
+  'ekon-sin-vinculo': 'Mupi/Pendón sin detalle y sin número Ekon vinculado',
+  'ekon-sin-lote': 'Mupi/Pendón sin detalle y sin lote Ekon completado',
+  'ekon-sin-tiendas': 'Campaña Ekon sin tiendas para este soporte',
 };
 
 function labelFor(code: string): string {

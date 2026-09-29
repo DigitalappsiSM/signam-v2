@@ -6,6 +6,7 @@ import {
   type ScreenIndex,
 } from '@/modules/consolidation/consolidate';
 import { parseCampaignDate } from '@/modules/campaigns/dateFilter';
+import type { ConsolidationIssue } from '@/modules/consolidation/consolidate';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 
 /**
@@ -148,14 +149,24 @@ export function buildCampaignReport(
   screens: readonly AdmiraScreen[],
   ekonByKey: ReadonlyMap<string, number>,
   prebuiltIndex?: ScreenIndex,
+  /**
+   * Incidencias de la resolución de Mupi/Pendón sin detalle (ver
+   * `consolidation/instoreEkon.ts`). Las campañas que se pasan aquí ya deben
+   * venir con esos soportes resueltos.
+   */
+  extraIssues: readonly ConsolidationIssue[] = [],
 ): CampaignReport {
   const index = prebuiltIndex ?? buildScreenIndex(screens);
   const rows: CampaignReportRow[] = [];
   const issues: CampaignReportIssue[] = [];
+  const reportedExtraNames = new Set<string>();
 
   for (const campaign of campaigns) {
     const ekonNumber = ekonByKey.get(campaign.id) ?? null;
-    const match = matchCampaignScreens(campaign, index);
+    // Mismo criterio que el CSV: Mupi y Pendón se cruzan como cualquier soporte.
+    const match = matchCampaignScreens(campaign, index, {
+      includeInstore: true,
+    });
 
     // Filas del desglose (deduplicadas por configuración dentro de la campaña).
     const seen = new Set<string>();
@@ -168,7 +179,11 @@ export function buildCampaignReport(
     }
 
     // Incidencias: cruces fallidos, InStore Media y pantallas ISM excluidas.
-    for (const issue of match.issues) {
+    const ekonIssues = reportedExtraNames.has(campaign.name)
+      ? []
+      : extraIssues.filter((i) => i.campaign === campaign.name);
+    reportedExtraNames.add(campaign.name);
+    for (const issue of [...match.issues, ...ekonIssues]) {
       issues.push({
         ekonNumber,
         campaignName: campaign.name,

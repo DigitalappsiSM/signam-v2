@@ -127,8 +127,11 @@ logic. The load-bearing ones:
   `LIVERPOOL,ARTICULOS,BRANDS,CENTROS,CIRCUITO,RESOLUCION,RETAILERS,Tipo de Pases`. `RETAILERS` is constant
   `LIVERPOOL`. The written header labels the last column `Tipo de Pases`, but the internal row key and master
   header stay `TIPO DE PASES`. RFC 4180 escaping, UTF-8 with optional BOM.
-- **InStore Media supports** (`MUPPI'S`, `PENDON`): detected but **excluded** from consolidation/CSV at this stage
-  (they still appear in the PPTX evidence and dashboard demand views).
+- **InStore Media supports** (`MUPPI'S`, `PENDON`): **consolidate and generate CSV** like any support (catalog lookup
+  via `MUPPI'S`→`MEGA MUPI DIGITAL`, `PENDON`→`BANNER DIGITAL`; low-occupancy analysis still excludes them). When
+  Mupi/Pendón come **without store detail**, stores are taken from the linked **Ekon** campaign
+  (`consolidation/instoreEkon.ts`, same rule as Quividi's effective scope); no link/batch/stores ⇒ blocked with an
+  issue, never expanded to all stores. See `AGENTS.md`.
 - **SIGNAM metadata** (`active`, `createdAt`, `version`, …) is stored **separately** from original master fields
   and is never exported inside the master.
 - **Campaign ↔ Ekon** (`campaignEkonLinks/{campaignId}`, many-to-one) and **operational tracking**

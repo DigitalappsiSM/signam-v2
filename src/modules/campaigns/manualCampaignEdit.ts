@@ -8,6 +8,10 @@ import {
   type ManualCampaignInput,
   type ManualCampaignSupportInput,
 } from './manualCampaign';
+import {
+  hasStoreDetail,
+  isMupiPendonSupport,
+} from '@/modules/consolidation/instoreEkon';
 import { parseCampaignDate } from '@/modules/campaigns/dateFilter';
 import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
@@ -40,12 +44,17 @@ export function campaignToManualInput(
   campaign: StoredCampaign,
 ): ManualCampaignInput {
   const supports: ManualCampaignSupportInput[] = campaign.supports.map((s) => {
-    const scope =
-      effectiveCampaignSupportScope(s) === 'all' ? 'all' : 'selected';
+    const effective = effectiveCampaignSupportScope(s);
+    const scope: ManualCampaignSupportInput['scope'] =
+      effective !== 'all'
+        ? 'selected'
+        : isMupiPendonSupport(s.support) && !hasStoreDetail(s)
+          ? 'ekon'
+          : 'all';
     return {
       support: s.support,
       scope,
-      stores: scope === 'all' ? [] : s.stores,
+      stores: scope === 'selected' ? s.stores : [],
     };
   });
   return {

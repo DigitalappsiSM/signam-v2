@@ -1,4 +1,5 @@
 import { normalizeStore } from '@/modules/consolidation/consolidate';
+import { isMupiPendonSupport } from '@/modules/consolidation/instoreEkon';
 import { parseCampaignDate } from '@/modules/campaigns/dateFilter';
 import { classifySupport, normalizeSupport, type AdmiraScreen } from '@/domain';
 import type { CampaignManualOverrides } from './campaignCorrection';
@@ -62,8 +63,12 @@ export function isPendingManualCampaign(campaign: CampaignOriginMeta): boolean {
 
 export interface ManualCampaignSupportInput {
   support: string;
-  /** `all` = todas las tiendas del soporte; `selected` = solo `stores`. */
-  scope: 'all' | 'selected';
+  /**
+   * `all` = todas las tiendas del soporte; `selected` = solo `stores`; `ekon` =
+   * sin detalle: SIGNAM toma las tiendas de la campaña Ekon vinculada (solo
+   * Mupi/Pendón, ver `consolidation/instoreEkon.ts`).
+   */
+  scope: 'all' | 'selected' | 'ekon';
   stores: StoreRef[];
 }
 
@@ -134,6 +139,11 @@ export function validateManualCampaign(input: ManualCampaignInput): string[] {
     }
     if (seen.has(key)) errors.push(`El soporte "${s.support}" está repetido.`);
     seen.add(key);
+    if (s.scope === 'ekon' && !isMupiPendonSupport(s.support)) {
+      errors.push(
+        `«Tiendas de Ekon» solo aplica a Mupi y Pendón; elige tiendas para "${s.support}".`,
+      );
+    }
     if (s.scope === 'selected' && s.stores.length === 0) {
       errors.push(
         `El soporte "${s.support}" no tiene tiendas: elige tiendas o marca "todas".`,
@@ -151,9 +161,16 @@ export function buildManualCampaign(
   const supports: CampaignSupport[] = input.supports.map((s) => ({
     support: s.support.trim(),
     owner: classifySupport(s.support),
-    stores: s.scope === 'all' ? [] : s.stores,
-    scope: s.scope,
-    scopeSource: s.scope === 'all' ? 'resolution-all' : 'resolution-selected',
+    stores: s.scope === 'selected' ? s.stores : [],
+    // `ekon` = sin detalle (equivale a «Asignada» sin comentario en el
+    // calendario): las tiendas se resuelven desde Ekon al consolidar.
+    scope: s.scope === 'selected' ? 'selected' : 'all',
+    scopeSource:
+      s.scope === 'all'
+        ? 'resolution-all'
+        : s.scope === 'ekon'
+          ? 'no-comment'
+          : 'resolution-selected',
   }));
   return {
     row: 0,

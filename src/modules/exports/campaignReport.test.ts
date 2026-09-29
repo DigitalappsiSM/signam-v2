@@ -386,9 +386,13 @@ describe('buildCampaignReport — reglas de cruce', () => {
     );
   });
 
-  it('excluye InStore Media y lo reporta como incidencia', () => {
+  it('Mupi/Pendón se desglosan como cualquier soporte (ya no se excluyen)', () => {
     const screens = [
-      screen('s1', { 'Numero de Tienda': '1', RESOLUCION: 'R' }, 'SOP'),
+      screen(
+        's1',
+        { 'Numero de Tienda': '1', RESOLUCION: 'R' },
+        'MEGA MUPI DIGITAL',
+      ),
     ];
     const c = campaign({
       name: 'Camp',
@@ -401,8 +405,10 @@ describe('buildCampaignReport — reglas de cruce', () => {
       ],
     });
     const report = buildCampaignReport([c], screens, ekon([]));
-    expect(report.rows).toHaveLength(0);
-    expect(report.issues.some((i) => i.code === 'instore-excluded')).toBe(true);
+    expect(report.rows).toHaveLength(1);
+    expect(report.issues.some((i) => i.code === 'instore-excluded')).toBe(
+      false,
+    );
   });
 
   it('respeta la excepción de Guadalajara (78 + VIDEO WALL CRIUS añade CUADRADA)', () => {

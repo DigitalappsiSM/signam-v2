@@ -107,3 +107,24 @@ describe('utilidades', () => {
     ).toBe(false);
   });
 });
+
+describe('edición de Mupi/Pendón sin detalle', () => {
+  it('reabre como «tiendas de Ekon» y no marca cambios', () => {
+    const c = stored({
+      supports: [
+        {
+          support: "MUPPI'S",
+          owner: 'instore-media',
+          stores: [],
+          scope: 'all',
+          scopeSource: 'no-comment',
+        },
+      ],
+    });
+    const input = campaignToManualInput(c);
+    expect(input.supports[0]!.scope).toBe('ekon');
+    expect(
+      manualEditChanges(c, { ...buildManualCampaign(input), row: c.row }),
+    ).toEqual([]);
+  });
+});
