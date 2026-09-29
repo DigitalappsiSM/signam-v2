@@ -113,6 +113,13 @@ tres de ellos describían mal el separador de artículos.
   fresca de duplicados, y exige años 2000–2100. Si Liverpool cambia las fechas de una campaña con testigos, solo se
   avisa: no se revalidan aprobaciones. Los metadatos de origen se guardan aparte
   de los datos importados y nunca entran al CSV.
+  **Edición**: mientras siga siendo manual (y activa), admin/operator la editan
+  con «Editar» en Campañas (nombre, tipo, vigencia, link, soportes y tiendas).
+  Exige un **motivo** y deja el evento en el historial append-only
+  `campaigns/{id}/corrections`; conserva el `campaignId`, el seguimiento y Ekon,
+  y sincroniza el nombre visible del seguimiento (su `campaignNameKey` es
+  inmutable). No revalida testigos: solo avisa si ya hay marcados. Una vez adoptada
+  por el calendario el botón desaparece y se usa «Corregir» (`manualOverrides`).
   El Dashboard las trata como cualquier campaña (la clasificación sale del
   seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
   Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.

@@ -356,6 +356,9 @@ export function CampaignsPage() {
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
   const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
   const [creatingManual, setCreatingManual] = useState(false);
+  const [editingManual, setEditingManual] = useState<StoredCampaign | null>(
+    null,
+  );
 
   const trackingCampaignIds = useMemo(
     () =>
@@ -1023,6 +1026,16 @@ export function CampaignsPage() {
                             </button>
                           </>
                         )}
+                        {canCreateManual && campaignOrigin(c) === 'manual' && (
+                          <button
+                            className="icon-btn"
+                            title={`Editar campaña manual ${c.name} (tiendas, vigencia, soportes)`}
+                            aria-label={`Editar campaña manual ${c.name}`}
+                            onClick={() => setEditingManual(c)}
+                          >
+                            🛠️
+                          </button>
+                        )}
                         {canCorrectCampaign && (
                           <button
                             className="icon-btn"
@@ -1089,6 +1102,23 @@ export function CampaignsPage() {
             setCreatingManual(false);
           }}
           onClose={() => setCreatingManual(false)}
+        />
+      )}
+
+      {editingManual && (
+        <ManualCampaignModal
+          screens={screens}
+          campaigns={campaigns}
+          actor={actor}
+          editing={editingManual}
+          tracking={
+            trackingList.find((t) => t.campaignId === editingManual.id) ?? null
+          }
+          onCreated={async () => {
+            await reload();
+            setEditingManual(null);
+          }}
+          onClose={() => setEditingManual(null)}
         />
       )}
 

@@ -19,7 +19,13 @@ import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
 import {
   findManualDuplicates,
   manualCampaignId,
+  scoreManualMatch,
 } from '@/modules/campaigns/manualCampaign';
+import {
+  manualEditBlocker,
+  manualEditChanges,
+  manualEditComment,
+} from '@/modules/campaigns/manualCampaignEdit';
 import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassification';
 import {
   initialTracking,
@@ -438,41 +444,139 @@ export async function createManualCampaign(
   }
   // Id determinístico (nombre + fechas): dos altas simultáneas de la misma
   // campaña colisionan en el mismo documento y la transacción rechaza la segunda.
-  const ref = doc(database, COLLECTION, manualCampaignId(campaign));
-  const trackingRef = doc(database, 'campaignOperationalTracking', ref.id);
+  // Si ese documento existe pero ya fue editado a otra cosa, el id ya no es un
+  // cerrojo válido y se usa uno nuevo.
+  const lockRef = doc(database, COLLECTION, manualCampaignId(campaign));
   const classification =
     classifyFromTipo(campaign.tipo) === 'institutional'
       ? 'institutional'
       : 'provider';
   const trackingActor: TrackingActor = { uid: actor.uid, email: actor.email };
-  const tracking = initialTracking(
-    {
-      campaignId: ref.id,
-      campaignNameKey: campaignKey(campaign.name),
-      campaignName: campaign.name,
-      classification,
-      classificationSource: 'manual-campaign',
-      linkValid: isValidDownloadUrl(campaign.link),
-    },
-    trackingActor,
-    now,
-  );
-  const { id: _trackingId, ...trackingData } = tracking;
-  void _trackingId;
 
-  await runTransaction(database, async (tx) => {
-    if ((await tx.get(ref)).exists()) {
-      throw new Error(
-        'Esta campaña manual ya existe (mismo nombre y fechas). Actualiza la pantalla.',
-      );
+  return runTransaction(database, async (tx) => {
+    let ref = lockRef;
+    const existing = await tx.get(lockRef);
+    if (existing.exists()) {
+      const current = existing.data() as ParsedCampaign;
+      if (scoreManualMatch(campaign, current)?.level === 'strong') {
+        throw new Error(
+          'Esta campaña manual ya existe (mismo nombre y fechas). Actualiza la pantalla.',
+        );
+      }
+      ref = doc(collection(database, COLLECTION));
     }
+    const tracking = initialTracking(
+      {
+        campaignId: ref.id,
+        campaignNameKey: campaignKey(campaign.name),
+        campaignName: campaign.name,
+        classification,
+        classificationSource: 'manual-campaign',
+        linkValid: isValidDownloadUrl(campaign.link),
+      },
+      trackingActor,
+      now,
+    );
+    const { id: _trackingId, ...trackingData } = tracking;
+    void _trackingId;
     tx.set(ref, {
       ...campaignDoc(campaign, actor, now),
       origin: 'manual',
       createdAt: now,
       createdBy: actor.email,
     });
-    tx.set(trackingRef, trackingData);
+    tx.set(doc(database, 'campaignOperationalTracking', ref.id), trackingData);
+    return ref.id;
   });
-  return ref.id;
+}
+
+export interface UpdateManualCampaignParams {
+  campaignId: string;
+  /** Campaña completa ya editada (misma forma que la del alta). */
+  campaign: ParsedCampaign;
+  reason: string;
+  actor: Actor;
+}
+
+/**
+ * Edita una campaña **manual** (nombre, tipo, vigencia, link, soportes y
+ * tiendas). En una sola transacción: valida que siga siendo manual y activa,
+ * guarda los cambios, sincroniza el nombre mostrado en su seguimiento y agrega el
+ * evento al historial append-only (`corrections`). No revalida testigos ni
+ * aprobaciones. Conserva el `campaignId`, y con él seguimiento y Ekon.
+ */
+export async function updateManualCampaign({
+  campaignId,
+  campaign,
+  reason,
+  actor,
+}: UpdateManualCampaignParams): Promise<{ changes: string[] }> {
+  if (reason.trim() === '')
+    throw new Error('El motivo de la edición es obligatorio.');
+  const database = db();
+  const campaignRef = doc(database, COLLECTION, campaignId);
+  const trackingRef = doc(database, 'campaignOperationalTracking', campaignId);
+  const eventRef = doc(
+    collection(database, COLLECTION, campaignId, 'corrections'),
+  );
+
+  // Verificación fresca: otra campaña con el mismo nombre y fechas.
+  const others = (await listCampaigns()).filter((c) => c.id !== campaignId);
+  const clash = findManualDuplicates(campaign, others).blocking[0];
+  if (clash) {
+    throw new Error(
+      `Ya existe la campaña "${clash.campaign.name}" con las mismas fechas.`,
+    );
+  }
+
+  return runTransaction(database, async (tx) => {
+    const snapshot = await tx.get(campaignRef);
+    if (!snapshot.exists()) throw new Error('La campaña ya no existe.');
+    const current: StoredCampaign = {
+      id: campaignId,
+      ...(snapshot.data() as Omit<StoredCampaign, 'id'>),
+    };
+    const blocker = manualEditBlocker(current);
+    if (blocker) throw new Error(blocker);
+
+    const changes = manualEditChanges(current, campaign);
+    if (changes.length === 0) throw new Error('No hay cambios que guardar.');
+
+    const now = Date.now();
+    tx.set(
+      campaignRef,
+      {
+        name: campaign.name,
+        nameKey: campaignKey(campaign.name),
+        tipo: campaign.tipo,
+        vendidoPor: campaign.vendidoPor,
+        fechaInicio: campaign.fechaInicio,
+        fechaFin: campaign.fechaFin,
+        mes: campaign.mes,
+        link: campaign.link,
+        supports: campaign.supports,
+        signature: campaignSignature(campaign),
+        updatedAt: now,
+        updatedBy: actor.email,
+      },
+      { merge: true },
+    );
+    // El seguimiento conserva `campaignNameKey` (inmutable por reglas); solo se
+    // sincroniza el nombre visible.
+    const trackingSnap = await tx.get(trackingRef);
+    if (trackingSnap.exists() && current.name !== campaign.name) {
+      tx.update(trackingRef, { campaignName: campaign.name, updatedAt: now });
+    }
+    tx.set(eventRef, {
+      campaignId,
+      campaignName: campaign.name,
+      changes: [],
+      reason: reason.trim(),
+      comment: manualEditComment(changes, reason, actor.email, now),
+      actorUid: actor.uid,
+      actorEmail: actor.email,
+      at: now,
+    });
+    return { changes };
+  });
 }
