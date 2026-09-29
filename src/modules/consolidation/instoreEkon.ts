@@ -80,6 +80,11 @@ export interface EkonStoreContext {
   assignments: readonly EkonAssignment[];
   hasEkonLink: boolean;
   hasCompletedBatch: boolean;
+  /**
+   * `false` cuando el usuario no puede leer Ekon (p. ej. rol comercial). El
+   * soporte sin detalle se retira sin incidencia: no se sabe, no está bloqueado.
+   */
+  available?: boolean;
 }
 
 export interface EkonResolution {
@@ -116,6 +121,8 @@ export function resolveNoDetailSupports(
       continue;
     }
     changed = true;
+
+    if (context.available === false) continue;
 
     if (!context.hasEkonLink) {
       issues.push(

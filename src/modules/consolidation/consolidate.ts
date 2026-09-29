@@ -10,6 +10,7 @@ import {
 } from '@/domain';
 import type { ParsedCampaign } from '@/modules/liverpool-import/campaignParse';
 import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
+import { hasStoreDetail, isMupiPendonSupport } from './instoreEkon';
 
 /**
  * Motor de consolidación (paso 2b).
@@ -42,6 +43,7 @@ export type IssueCode =
   | 'screen-inactive'
   | 'support-not-in-catalog'
   | 'invalid-store-scope'
+  | 'mupi-pendon-sin-resolver'
   | 'ekon-sin-vinculo'
   | 'ekon-sin-lote'
   | 'ekon-sin-tiendas';
@@ -210,6 +212,23 @@ export function matchCampaignScreens(
       excludedInstore.push({
         campaign: campaign.name,
         support: support.support,
+      });
+      continue;
+    }
+
+    // Mupi/Pendón sin detalle de tiendas se resuelven desde Ekon ANTES de
+    // consolidar (ver `instoreEkon.ts`). Si llegan aquí sin resolver, nunca se
+    // expanden a todo el catálogo: quedan fuera con una incidencia.
+    if (
+      options.includeInstore &&
+      isMupiPendonSupport(support.support) &&
+      !hasStoreDetail(support)
+    ) {
+      issues.push({
+        code: 'mupi-pendon-sin-resolver',
+        campaign: campaign.name,
+        support: support.support,
+        message: `"${support.support}" en "${campaign.name}" no trae detalle de tiendas y aún no se resuelve con Ekon: no se incluye ninguna pantalla.`,
       });
       continue;
     }

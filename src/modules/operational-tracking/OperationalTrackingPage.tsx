@@ -1,3 +1,4 @@
+import { useEkonResolvedCampaigns } from '@/modules/consolidation/useEkonResolvedCampaigns';
 import { campaignOrigin } from '@/modules/campaigns/manualCampaign';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -228,9 +229,11 @@ export function OperationalTrackingPage() {
 
   const today = useMemo(() => todayCivil(), []);
 
+  // Mupi/Pendón sin detalle toman sus tiendas de Ekon (igual que el CSV).
+  const resolved = useEkonResolvedCampaigns(campaigns, user?.role ?? 'viewer');
   const rows: TrackingRow[] = useMemo(
-    () => buildTrackingRows(campaigns, screens, trackingList, today),
-    [campaigns, screens, trackingList, today],
+    () => buildTrackingRows(resolved.campaigns, screens, trackingList, today),
+    [resolved.campaigns, screens, trackingList, today],
   );
 
   const perError = periodError(desde, hasta);

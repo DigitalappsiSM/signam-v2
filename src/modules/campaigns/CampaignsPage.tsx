@@ -12,14 +12,14 @@ import {
   listCampaigns,
 } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
-import { listActiveAssignmentsByEkonNumber } from '@/services/ekonAssignments';
-import { hasCompletedBatch } from '@/services/ekonImports';
-import type { StoredEkonAssignment } from '@/domain/ekon';
+import { resolveCampaignsWithEkon } from '@/modules/consolidation/instoreEkon';
 import {
-  isMupiPendonSupport,
-  hasStoreDetail,
-  resolveCampaignsWithEkon,
-} from '@/modules/consolidation/instoreEkon';
+  EMPTY_EKON_CONTEXT,
+  campaignsNeedingEkon,
+  ekonContextFor,
+  loadEkonStoreContext,
+  type LoadedEkonContext,
+} from '@/modules/consolidation/ekonStoreContext';
 import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
 import {
@@ -295,48 +295,27 @@ export function CampaignsPage() {
     useState(false);
 
   // Lee las asignaciones Ekon solo de las campañas que las necesitan (Mupi o
-  // Pendón sin detalle de tiendas) y si existe un lote completado.
+  // Pendón sin detalle de tiendas). Los roles sin acceso a Ekon (comercial) no
+  // lo consultan: esos soportes quedan fuera sin incidencia, nunca expandidos.
+  const canReadEkon = can(user?.role ?? 'viewer', 'reconciliation.read');
   const loadEkonContext = useCallback(
     async (list: StoredCampaign[], links: CampaignEkonLink[]) => {
-      const needy = list.filter((campaign) =>
-        campaign.supports.some(
-          (s) => isMupiPendonSupport(s.support) && !hasStoreDetail(s),
-        ),
-      );
-      // Sin Mupi/Pendón sin detalle no hay nada que resolver: no se lee Ekon.
-      if (needy.length === 0) {
-        setEkonAssignments(new Map());
-        setEkonCompletedBatch(false);
+      if (!canReadEkon || campaignsNeedingEkon(list).length === 0) {
+        setEkonLoaded(EMPTY_EKON_CONTEXT);
         return;
       }
-      const numbers = new Set<string>();
-      for (const campaign of needy) {
-        const number = ekonNumberForCampaign(campaign, links);
-        if (number != null) numbers.add(String(number));
-      }
-      const map = new Map<string, StoredEkonAssignment[]>();
-      const all = [...numbers];
       try {
-        const batch = await hasCompletedBatch();
-        // Evita disparar decenas de consultas simultáneas contra Firestore.
-        for (let i = 0; i < all.length; i += 8) {
-          const chunk = all.slice(i, i + 8);
-          const rows = await Promise.all(
-            chunk.map((n) => listActiveAssignmentsByEkonNumber(n)),
-          );
-          chunk.forEach((n, offset) => map.set(n, rows[offset] ?? []));
-        }
-        setEkonAssignments(map);
-        setEkonCompletedBatch(batch);
+        setEkonLoaded(await loadEkonStoreContext(list, links));
+        setEkonReadFailed(false);
       } catch {
-        setEkonAssignments(new Map());
-        setEkonCompletedBatch(false);
+        setEkonLoaded(EMPTY_EKON_CONTEXT);
+        setEkonReadFailed(true);
         setError(
           'No se pudieron leer los datos de Ekon: los Mupi y Pendón sin detalle de tiendas no se resolvieron y no generan CSV hasta reintentar.',
         );
       }
     },
-    [],
+    [canReadEkon],
   );
 
   const reload = useCallback(async () => {
@@ -412,10 +391,9 @@ export function CampaignsPage() {
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
   const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
   // Contexto Ekon para resolver las tiendas de Mupi/Pendón sin detalle.
-  const [ekonAssignments, setEkonAssignments] = useState<
-    Map<string, StoredEkonAssignment[]>
-  >(new Map());
-  const [ekonCompletedBatch, setEkonCompletedBatch] = useState(false);
+  const [ekonLoaded, setEkonLoaded] =
+    useState<LoadedEkonContext>(EMPTY_EKON_CONTEXT);
+  const [ekonReadFailed, setEkonReadFailed] = useState(false);
   const [creatingManual, setCreatingManual] = useState(false);
   const [editingManual, setEditingManual] = useState<StoredCampaign | null>(
     null,
@@ -444,16 +422,15 @@ export function CampaignsPage() {
   // que no pueden resolverse quedan bloqueados con su incidencia.
   const ekonResolution = useMemo(
     () =>
-      resolveCampaignsWithEkon(campaigns, (campaign) => {
-        const number = ekonNumberForCampaign(campaign, ekonLinks);
-        return {
-          hasEkonLink: number != null,
-          hasCompletedBatch: ekonCompletedBatch,
-          assignments:
-            number != null ? (ekonAssignments.get(String(number)) ?? []) : [],
-        };
-      }),
-    [campaigns, ekonLinks, ekonAssignments, ekonCompletedBatch],
+      resolveCampaignsWithEkon(campaigns, (campaign) =>
+        ekonContextFor(
+          campaign,
+          ekonLinks,
+          ekonLoaded,
+          canReadEkon && !ekonReadFailed,
+        ),
+      ),
+    [campaigns, ekonLinks, ekonLoaded, canReadEkon, ekonReadFailed],
   );
   const resolvedCampaigns = ekonResolution.campaigns;
   const resolvedById = useMemo(

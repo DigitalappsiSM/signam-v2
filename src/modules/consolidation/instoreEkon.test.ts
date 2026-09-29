@@ -153,6 +153,15 @@ describe('resolveNoDetailSupports', () => {
     expect(r.issues.map((i) => i.code)).toEqual(['ekon-sin-vinculo']);
   });
 
+  it('sin acceso a Ekon (rol comercial) retira el soporte sin incidencia', () => {
+    const r = resolveNoDetailSupports(
+      campaign([noDetail("MUPPI'S")]),
+      ctx({ available: false }),
+    );
+    expect(r.campaign.supports).toEqual([]);
+    expect(r.issues).toEqual([]);
+  });
+
   it('sin lote completado bloquea', () => {
     const r = resolveNoDetailSupports(
       campaign([noDetail("MUPPI'S")]),

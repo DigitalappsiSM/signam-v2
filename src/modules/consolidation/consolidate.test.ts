@@ -228,6 +228,28 @@ describe('consolidate', () => {
       expect(result.consolidations).toHaveLength(1);
     });
 
+    it('Mupi/Pendón sin detalle sin resolver NO se expande a todo el catálogo', () => {
+      const noDetail = {
+        support: "MUPPI'S",
+        owner: 'instore-media' as const,
+        stores: [],
+        scope: 'all' as const,
+        scopeSource: 'no-comment' as const,
+      };
+      const many = ['1', '2', '3'].map((n) =>
+        screen(
+          'm' + n,
+          { 'Numero de Tienda': n, RESOLUCION: 'R' },
+          'MEGA MUPI DIGITAL',
+        ),
+      );
+      const result = consolidate([campaign('Camp', [noDetail])], many);
+      expect(result.consolidations).toHaveLength(0);
+      expect(result.issues.map((i) => i.code)).toEqual([
+        'mupi-pendon-sin-resolver',
+      ]);
+    });
+
     it('con includeInstore:false se excluyen y se reportan (criterio de baja ocupación)', () => {
       const result = consolidate([campaign('Camp', [mupiSupport])], catalog, {
         includeInstore: false,

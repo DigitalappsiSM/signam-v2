@@ -542,6 +542,10 @@ export async function updateManualCampaign({
     const changes = manualEditChanges(current, campaign);
     if (changes.length === 0) throw new Error('No hay cambios que guardar.');
 
+    // Firestore exige TODAS las lecturas de la transacción antes de la primera
+    // escritura: el seguimiento se lee aquí, no después de `tx.set`.
+    const trackingSnap = await tx.get(trackingRef);
+
     const now = Date.now();
     tx.set(
       campaignRef,
@@ -563,7 +567,6 @@ export async function updateManualCampaign({
     );
     // El seguimiento conserva `campaignNameKey` (inmutable por reglas); solo se
     // sincroniza el nombre visible.
-    const trackingSnap = await tx.get(trackingRef);
     if (trackingSnap.exists() && current.name !== campaign.name) {
       tx.update(trackingRef, { campaignName: campaign.name, updatedAt: now });
     }

@@ -1,3 +1,4 @@
+import { useEkonResolvedCampaigns } from '@/modules/consolidation/useEkonResolvedCampaigns';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -266,9 +267,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     return presetRange(filters.preset, today);
   }, [filters.preset, filters.desde, filters.hasta, today]);
 
+  // Mupi/Pendón sin detalle toman sus tiendas de Ekon (igual que el CSV) para
+  // que la meta de testigos no se calcule con tiendas de más ni de menos.
+  const resolved = useEkonResolvedCampaigns(campaigns, role);
   const rows = useMemo(
-    () => buildTrackingRows(campaigns, screens, tracking, today),
-    [campaigns, screens, tracking, today],
+    () => buildTrackingRows(resolved.campaigns, screens, tracking, today),
+    [resolved.campaigns, screens, tracking, today],
   );
 
   // Modelo de carga (fuente única de la resolución de colocaciones contra el

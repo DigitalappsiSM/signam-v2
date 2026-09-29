@@ -78,7 +78,13 @@ tres de ellos describían mal el separador de artículos.
   (`functions/src/quividi/effectiveScope.ts`). Sin número Ekon vinculado, sin lote
   completado o sin tiendas de ese circuito **se bloquea con incidencia**
   (`ekon-sin-vinculo` / `ekon-sin-lote` / `ekon-sin-tiendas`) y **nunca** se expande
-  a todas las tiendas del catálogo. Aplica a campañas de Liverpool y manuales;
+  a todas las tiendas del catálogo. `consolidate` refuerza esto: un Mupi/Pendón sin
+  detalle que llegue **sin resolver** se deja fuera con la incidencia
+  `mupi-pendon-sin-resolver`, nunca se expande. La resolución se aplica en
+  Campañas (CSV, ZIP, Excel), Seguimiento, dashboard y Reporting
+  (`useEkonResolvedCampaigns`), para que metas de testigos y CSV coincidan. Los
+  roles que no pueden leer Ekon (comercial) no lo consultan: esos soportes se
+  retiran sin incidencia. Aplica a campañas de Liverpool y manuales;
   el formulario manual ofrece «Sin detalle: usar las tiendas de Ekon» para estos
   soportes **sin opción preseleccionada**: lo que la persona guarda (tiendas
   específicas o «todas») siempre prevalece y Ekon solo entra si lo elige. El `fallbackCsv` descrito abajo (sintetizar un soporte no marcado) es
