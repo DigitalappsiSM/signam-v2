@@ -438,6 +438,15 @@ export const historyOverview = onCall(async (request) => {
     const binding = doc.data() as StoreBinding;
     return [binding.locationId, binding] as const;
   }));
+  // One indexed result per location: the UI asks for cameras, not thousands of partitions.
+  const pendingByLocation = new Map(await Promise.all(inventory.docs.map(async (doc) => {
+    if (pending.data().count === 0) return [Number(doc.id), false] as const;
+    const result = await db.collection(PARTITIONS)
+      .where('locationId', '==', Number(doc.id))
+      .where('mappingStatus', '==', 'needs_review')
+      .limit(1).get();
+    return [Number(doc.id), !result.empty] as const;
+  })));
   return {
     networkId: LIVERPOOL_NETWORK_ID,
     started: controls.docs.some((doc) => doc.id === 'liverpool'),
@@ -454,7 +463,8 @@ export const historyOverview = onCall(async (request) => {
         active: location.active !== false, storeId: binding?.storeId ?? null,
         storeName: binding?.storeName ?? '', support: binding?.support ?? '',
         pointId: binding?.pointId ?? null, validFrom: binding?.validFrom ?? null,
-        firstMeasuredDate: doc.get('firstMeasuredDate') ?? null };
+        firstMeasuredDate: doc.get('firstMeasuredDate') ?? null,
+        hasPendingData: pendingByLocation.get(location.id) ?? false };
     }).sort((a, b) => a.label.localeCompare(b.label, 'es')),
   };
 });

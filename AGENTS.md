@@ -351,6 +351,12 @@ tres de ellos describían mal el separador de artículos.
   como pendientes de conciliación; no se infiere una fecha de instalación.
   Una revisión tardía puede adelantar esa fecha, nunca retrasarla. El catálogo
   diario conserva el índice `firstMeasuredDate` de cada location.
+  El tablero separa el inventario total de locations de las que tienen
+  particiones `needs_review`. Los contadores de asociadas, sin tienda y sin
+  acceso cuentan particiones (fecha + tipo + resolución), no cámaras. El
+  formulario de conciliación muestra inicialmente solo las locations con
+  datos pendientes; admin puede expandir el inventario para corregir una
+  asociación ya hecha. La ingesta no espera esa conciliación.
 - **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. La carga
   normal y **Actualizar vista** solo leen los estados persistidos. Admin y
   operator disponen además de **Actualizar desde Quividi**, que ejecuta el mismo

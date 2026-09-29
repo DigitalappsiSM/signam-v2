@@ -90,6 +90,7 @@ export interface QuividiHistoryOverview {
     pointId: string | null;
     validFrom: string | null;
     firstMeasuredDate: string | null;
+    hasPendingData: boolean;
   }>;
 }
 
