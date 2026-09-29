@@ -187,7 +187,18 @@ tres de ellos describían mal el separador de artículos.
   **5.º día hábil inclusivo** desde el inicio (solo se excluyen sábado/domingo;
   aún sin festivos); T Completos: la entrega arranca el día inmediato posterior
   al fin de campaña y hay **4 días naturales** para completarla, por lo que vence
-  en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`). Objetivo de arranque =
+  en `fechaFin` **+ 4 días naturales** (`WITNESS_COMPLETE_GRACE_DAYS`).
+  **Evidencia de pases** (`passesEvidence`, sexto check): reporte de pases de
+  Admira que Liverpool pide a los **5 días naturales** del inicio
+  (`PASSES_EVIDENCE_DAYS`, vence en `fechaInicio + 5`, inclusivo). **Solo aplica a
+  Proveedor** (incluye manuales/Sampling): `applyCheckChange` la rechaza en
+  Institucional o clasificación pendiente y `markAllComplete` solo la marca en
+  Proveedor; en otro caso no aplica (sin estado ni alerta) y cuenta como
+  satisfecha solo en agregados. Avisa (`due-soon`) 2 días naturales antes de
+  vencer y alerta `passes-overdue` al vencer; entra en `overall`, `nextDeadline`,
+  `isFullyTracked` y en el Dashboard (vencidas, atención inmediata y próximos
+  vencimientos). Campo opcional: documentos anteriores se leen como desmarcado.
+  Objetivo de arranque =
   `Math.ceil(tiendasDistintasConsolidadas * 0.10)`. En esta fase **no** se suben
   evidencias ni se seleccionan tiendas individuales. Permisos: la matriz reserva
   `tracking.write` a admin/operator y las reglas de Firestore aplican la misma

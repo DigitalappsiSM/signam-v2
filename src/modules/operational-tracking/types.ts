@@ -96,6 +96,12 @@ export interface CampaignOperationalTracking {
   witnessStart: OperationalCheck;
   /** T Completos (manual). */
   witnessComplete: OperationalCheck;
+  /**
+   * Evidencia de pases (reporte de pases de Admira que Liverpool pide a los 5
+   * días naturales del inicio). Solo aplica a **Proveedor**. Opcional: los
+   * documentos anteriores a este check no lo traen y se leen como desmarcado.
+   */
+  passesEvidence?: OperationalCheck;
 
   /** Bitácora de comentarios (orden cronológico, se agregan al final). */
   comments: OperationalComment[];
@@ -114,4 +120,5 @@ export type CheckKey =
   | 'liverpoolValidation'
   | 'csmProgramming'
   | 'witnessStart'
-  | 'witnessComplete';
+  | 'witnessComplete'
+  | 'passesEvidence';

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTrackingRows,
   criticalAlerts,
+  effectiveChecks,
   isFullyTracked,
   isOperationallyApplicable,
 } from './trackingModel';
@@ -521,5 +522,81 @@ describe('ciclo de vida en el modelo de vista', () => {
     );
     expect(criticalAlerts(rows[0]!).length).toBeGreaterThan(0);
     expect(rows[0]!.nextDeadline).not.toBeNull();
+  });
+});
+
+describe('evidencia de pases en el modelo de vista', () => {
+  // today = 2026-03-10; inicio 03-02 → límite de pases 03-07 (ya vencido).
+  const prov = campaign({
+    tipo: 'PROVEEDOR',
+    link: 'https://x.com/a.zip',
+    fechaInicio: '2026-03-02',
+    fechaFin: '2026-03-20',
+  });
+  const inst = campaign({
+    tipo: 'INSTITUCIONAL',
+    link: 'https://x.com/a.zip',
+    fechaInicio: '2026-03-02',
+    fechaFin: '2026-03-20',
+  });
+
+  it('Proveedor sin evidencia: vencida, con alerta', () => {
+    const row = buildTrackingRows([prov], [], [], today)[0]!;
+    expect(row.passesStatus).toBe('overdue');
+    expect(criticalAlerts(row).map((a) => a.kind)).toContain('passes-overdue');
+  });
+
+  it('Proveedor con evidencia marcada: cumple y no alerta', () => {
+    const tracking = {
+      campaignNameKey: campaignIdentity(prov),
+      classification: 'provider',
+      linkDownload: { completed: true, source: 'automatic' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: true },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+      passesEvidence: {
+        completed: true,
+        completedAt: new Date(2026, 2, 6, 12).getTime(),
+      },
+    } as unknown as CampaignOperationalTracking;
+    const row = buildTrackingRows([prov], [], [tracking], today)[0]!;
+    expect(row.passesStatus).toBe('completed-on-time');
+    expect(criticalAlerts(row).map((a) => a.kind)).not.toContain(
+      'passes-overdue',
+    );
+  });
+
+  it('avisa antes de vencer: due-soon entra en el estado general', () => {
+    const early = buildTrackingRows(
+      [prov],
+      [],
+      [],
+      parseCampaignDate('2026-03-05')!,
+    )[0]!;
+    expect(early.passesStatus).toBe('due-soon');
+  });
+
+  it('Institucional: no aplica, sin alerta ni vencimiento', () => {
+    const row = buildTrackingRows([inst], [], [], today)[0]!;
+    expect(row.passesStatus).toBe('not-applicable');
+    expect(effectiveChecks(row).passes).toBe(true);
+    expect(criticalAlerts(row).map((a) => a.kind)).not.toContain(
+      'passes-overdue',
+    );
+  });
+
+  it('documento legacy sin passesEvidence se lee como desmarcado', () => {
+    const tracking = {
+      campaignNameKey: campaignIdentity(prov),
+      classification: 'provider',
+      linkDownload: { completed: true, source: 'automatic' },
+      liverpoolValidation: { completed: true },
+      csmProgramming: { completed: true },
+      witnessStart: { completed: false },
+      witnessComplete: { completed: false },
+    } as unknown as CampaignOperationalTracking;
+    const row = buildTrackingRows([prov], [], [tracking], today)[0]!;
+    expect(effectiveChecks(row).passes).toBe(false);
   });
 });

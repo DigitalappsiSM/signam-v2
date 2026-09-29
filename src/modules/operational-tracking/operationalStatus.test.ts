@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   witnessStartStatus,
   witnessCompleteStatus,
+  passesEvidenceStatus,
   STATUS_SEVERITY,
 } from './operationalStatus';
 import { parseCampaignDate } from './businessDays';
@@ -168,5 +169,69 @@ describe('STATUS_SEVERITY', () => {
     expect(STATUS_SEVERITY['completed-on-time']).toBeLessThan(
       STATUS_SEVERITY.upcoming,
     );
+  });
+});
+
+describe('passesEvidenceStatus', () => {
+  const base = { startStr: '2026-09-10', endStr: '2026-09-30' };
+  const at = (d: string) => parseCampaignDate(d)!;
+
+  it('vence a los 5 días naturales del inicio (inclusivo)', () => {
+    // Inicio 10/09 → límite 15/09.
+    expect(
+      passesEvidenceStatus({
+        ...base,
+        completed: false,
+        completedAt: null,
+        today: at('2026-09-15'),
+      }),
+    ).toBe('due-today');
+    expect(
+      passesEvidenceStatus({
+        ...base,
+        completed: false,
+        completedAt: null,
+        today: at('2026-09-16'),
+      }),
+    ).toBe('overdue');
+  });
+
+  it('avisa antes de vencer y antes de eso está en curso', () => {
+    const s = (today: string) =>
+      passesEvidenceStatus({
+        ...base,
+        completed: false,
+        completedAt: null,
+        today: at(today),
+      });
+    expect(s('2026-09-09')).toBe('upcoming');
+    expect(s('2026-09-10')).toBe('on-track');
+    expect(s('2026-09-12')).toBe('on-track');
+    expect(s('2026-09-13')).toBe('due-soon');
+    expect(s('2026-09-14')).toBe('due-soon');
+  });
+
+  it('distingue entrega a tiempo de tardía', () => {
+    const done = (ts: number) =>
+      passesEvidenceStatus({
+        ...base,
+        completed: true,
+        completedAt: ts,
+        today: at('2026-09-30'),
+      });
+    expect(done(new Date(2026, 8, 15, 12).getTime())).toBe('completed-on-time');
+    expect(done(new Date(2026, 8, 16, 12).getTime())).toBe('completed-late');
+  });
+
+  it('fecha inválida', () => {
+    expect(
+      passesEvidenceStatus({
+        startStr: 'x',
+        endStr: 'x',
+        completed: false,
+        completedAt: null,
+        today: at('2026-09-15'),
+      }),
+    ).toBe('invalid-date');
   });
 });

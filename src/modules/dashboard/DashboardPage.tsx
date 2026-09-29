@@ -354,7 +354,10 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     const withAlerts = active.filter((r) => criticalAlerts(r).length > 0);
     const full = active.filter(isFullyTracked);
     const overduePending = active.filter(
-      (r) => r.startStatus === 'overdue' || r.completeStatus === 'overdue',
+      (r) =>
+        r.startStatus === 'overdue' ||
+        r.completeStatus === 'overdue' ||
+        r.passesStatus === 'overdue',
     );
     const onTrack = active.filter(
       (r) => criticalAlerts(r).length === 0 && !isFullyTracked(r),
@@ -379,7 +382,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
           r.startStatus === 'due-soon' ||
           r.startStatus === 'due-today' ||
           r.completeStatus === 'due-soon' ||
-          r.completeStatus === 'due-today',
+          r.completeStatus === 'due-today' ||
+          r.passesStatus === 'due-soon' ||
+          r.passesStatus === 'due-today',
       )
       .sort(
         (a, b) =>
@@ -426,8 +431,10 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       (r) =>
         r.startStatus === 'overdue' ||
         r.completeStatus === 'overdue' ||
+        r.passesStatus === 'overdue' ||
         r.startStatus === 'due-today' ||
-        r.completeStatus === 'due-today',
+        r.completeStatus === 'due-today' ||
+        r.passesStatus === 'due-today',
     );
     const immediateAttention: TrackingRow[] = [];
     const seenImmediate = new Set<string>();

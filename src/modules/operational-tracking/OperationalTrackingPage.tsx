@@ -76,6 +76,7 @@ const CHECK_COLUMNS: { key: CheckKey; label: string; short: string }[] = [
   { key: 'csmProgramming', label: 'Programación CSM', short: 'CSM' },
   { key: 'witnessStart', label: 'T Arranque', short: 'T Arr.' },
   { key: 'witnessComplete', label: 'T Completos', short: 'T Comp.' },
+  { key: 'passesEvidence', label: 'Evidencia de pases', short: 'Pases' },
 ];
 
 /** Filas por página en la tabla de seguimiento. */
@@ -112,6 +113,8 @@ function isDone(
       return checks.witnessStart;
     case 'witnessComplete':
       return checks.witnessComplete;
+    case 'passesEvidence':
+      return checks.passes;
   }
 }
 
@@ -318,7 +321,8 @@ export function OperationalTrackingPage() {
       if (
         statusFilter !== 'all' &&
         r.startStatus !== statusFilter &&
-        r.completeStatus !== statusFilter
+        r.completeStatus !== statusFilter &&
+        r.passesStatus !== statusFilter
       ) {
         return false;
       }
@@ -906,7 +910,8 @@ export function OperationalTrackingPage() {
                         {CHECK_COLUMNS.map((col) => {
                           const isWitness =
                             col.key === 'witnessStart' ||
-                            col.key === 'witnessComplete';
+                            col.key === 'witnessComplete' ||
+                            col.key === 'passesEvidence';
                           // Cancelada: no se muestran casillas (ni desmarcadas);
                           // los cinco indicadores quedan como "No aplica".
                           if (cancelled) {

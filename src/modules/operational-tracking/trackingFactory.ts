@@ -23,6 +23,10 @@ export const CANCELLED_CHECK_MESSAGE =
 export const INSTITUTIONAL_WITNESS_MESSAGE =
   'Los testigos no aplican a campañas institucionales.';
 
+/** Mensaje de dominio: la Evidencia de pases solo aplica a campañas Proveedor. */
+export const PASSES_EVIDENCE_PROVIDER_MESSAGE =
+  'La evidencia de pases solo aplica a campañas de proveedor.';
+
 /**
  * Construcción y transición puras del documento de seguimiento operativo.
  *
@@ -99,6 +103,7 @@ export function initialTracking(
     csmProgramming: makeCheck(false, 'automatic', actor, now),
     witnessStart: makeCheck(false, 'automatic', actor, now),
     witnessComplete: makeCheck(false, 'automatic', actor, now),
+    passesEvidence: makeCheck(false, 'automatic', actor, now),
     comments: [],
     createdAt: now,
     createdByUid: actor.uid,
@@ -228,6 +233,12 @@ export function applyCheckChange(
     return { ok: false, reason: INSTITUTIONAL_WITNESS_MESSAGE };
   }
 
+  // La Evidencia de pases solo aplica a Proveedor (Institucional y clasificación
+  // pendiente se rechazan en dominio; sus valores históricos se conservan).
+  if (key === 'passesEvidence' && tracking.classification !== 'provider') {
+    return { ok: false, reason: PASSES_EVIDENCE_PROVIDER_MESSAGE };
+  }
+
   if (
     key === 'witnessStart' &&
     !completed &&
@@ -298,6 +309,11 @@ export function markAllComplete(
       witnessComplete: institutional
         ? tracking.witnessComplete
         : makeCheck(true, 'manual', actor, now),
+      // Solo Proveedor: en cualquier otro caso se conserva intacto.
+      passesEvidence:
+        tracking.classification === 'provider'
+          ? makeCheck(true, 'manual', actor, now)
+          : tracking.passesEvidence,
       updatedAt: now,
       updatedByUid: actor.uid,
       updatedByEmail: actor.email,

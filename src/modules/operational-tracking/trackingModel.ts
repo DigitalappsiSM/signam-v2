@@ -19,11 +19,13 @@ import {
   parseCampaignDate,
   fifthBusinessDay,
   witnessCompleteDeadline,
+  passesEvidenceDeadline,
   compareCivil,
 } from './businessDays';
 import {
   witnessStartStatus,
   witnessCompleteStatus,
+  passesEvidenceStatus,
   STATUS_SEVERITY,
   type WitnessStatus,
 } from './operationalStatus';
@@ -60,6 +62,8 @@ export interface TrackingRow {
   target: number;
   startStatus: WitnessStatus;
   completeStatus: WitnessStatus;
+  /** Evidencia de pases (solo Proveedor; `not-applicable` en otro caso). */
+  passesStatus: WitnessStatus;
   overall: WitnessStatus;
   nextDeadline: Date | null;
   timeframe: Timeframe;
@@ -166,10 +170,21 @@ export function buildTrackingRows(
           today,
         })
       : 'not-applicable';
+    // La Evidencia de pases aplica solo a Proveedor, igual que los testigos.
+    const passes = t?.passesEvidence ?? null;
+    const passesStatus: WitnessStatus = witnessesApplicable
+      ? passesEvidenceStatus({
+          startStr: campaign.fechaInicio,
+          endStr: campaign.fechaFin,
+          completed: passes?.completed ?? false,
+          completedAt: passes?.completedAt ?? null,
+          today,
+        })
+      : 'not-applicable';
     const overall: WitnessStatus = witnessesApplicable
-      ? STATUS_SEVERITY[startStatus] <= STATUS_SEVERITY[completeStatus]
-        ? startStatus
-        : completeStatus
+      ? [startStatus, completeStatus, passesStatus].reduce((a, b) =>
+          STATUS_SEVERITY[a] <= STATUS_SEVERITY[b] ? a : b,
+        )
       : 'not-applicable';
 
     const startCivil = parseCampaignDate(campaign.fechaInicio);
@@ -185,6 +200,9 @@ export function buildTrackingRows(
       if (!(complete?.completed ?? false) && endCivil) {
         deadlines.push(witnessCompleteDeadline(endCivil));
       }
+      if (!(passes?.completed ?? false) && startCivil) {
+        deadlines.push(passesEvidenceDeadline(startCivil));
+      }
       deadlines.sort((a, b) => a.getTime() - b.getTime());
     }
 
@@ -199,6 +217,7 @@ export function buildTrackingRows(
       target: witnessStartTarget(distinctStores),
       startStatus,
       completeStatus,
+      passesStatus,
       overall,
       nextDeadline: deadlines[0] ?? null,
       timeframe: timeframeOf(startCivil, endCivil, today),
@@ -224,6 +243,7 @@ export function effectiveChecks(row: TrackingRow): {
   csm: boolean;
   witnessStart: boolean;
   witnessComplete: boolean;
+  passes: boolean;
 } {
   const t = row.tracking;
   const linkValid = row.linkStatus === 'valid';
@@ -242,12 +262,19 @@ export function effectiveChecks(row: TrackingRow): {
       : t
         ? t.witnessComplete.completed
         : false,
+    // Evidencia de pases: solo Proveedor; en otro caso cuenta como satisfecha
+    // (solo para agregados, sin persistirse ni marcarse).
+    passes:
+      row.classification === 'provider'
+        ? (t?.passesEvidence?.completed ?? false)
+        : true,
   };
 }
 
 export type AlertKind =
   | 'start-overdue'
   | 'complete-overdue'
+  | 'passes-overdue'
   | 'no-link'
   | 'invalid-date'
   | 'active-no-csm'
@@ -280,6 +307,12 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   if (row.completeStatus === 'overdue') {
     out.push({ kind: 'complete-overdue', label: 'T Completos vencido' });
   }
+  if (row.passesStatus === 'overdue') {
+    out.push({
+      kind: 'passes-overdue',
+      label: 'Evidencia de pases vencida',
+    });
+  }
   // Se basa en el check EFECTIVO del link (`c.link`), no en el link crudo del
   // calendario: si el calendario de Liverpool no trae URL pero el link se obtuvo
   // por fuera (p. ej. por correo) y el usuario marcó la casilla "Link" en el
@@ -291,7 +324,8 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   }
   if (
     row.startStatus === 'invalid-date' ||
-    row.completeStatus === 'invalid-date'
+    row.completeStatus === 'invalid-date' ||
+    row.passesStatus === 'invalid-date'
   ) {
     out.push({ kind: 'invalid-date', label: 'Fechas inválidas' });
   }
@@ -306,13 +340,19 @@ export function criticalAlerts(row: TrackingRow): RowAlert[] {
   // ya hay un testigo vencido (Proveedor) para no duplicar la alerta, y cuando la
   // clasificación está pendiente (ya la señala `classification-pending`).
   const applicableComplete =
-    c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
+    c.link &&
+    c.liverpool &&
+    c.csm &&
+    c.witnessStart &&
+    c.witnessComplete &&
+    c.passes;
   if (
     row.timeframe === 'finished' &&
     row.classification !== 'unknown' &&
     !applicableComplete &&
     row.startStatus !== 'overdue' &&
-    row.completeStatus !== 'overdue'
+    row.completeStatus !== 'overdue' &&
+    row.passesStatus !== 'overdue'
   ) {
     out.push({ kind: 'finished-pending', label: 'Terminada con pendientes' });
   }
@@ -341,5 +381,12 @@ export function isFullyTracked(row: TrackingRow): boolean {
   // Una campaña cancelada no se considera "seguimiento completo".
   if (row.lifecycleStatus === 'cancelled') return false;
   const c = effectiveChecks(row);
-  return c.link && c.liverpool && c.csm && c.witnessStart && c.witnessComplete;
+  return (
+    c.link &&
+    c.liverpool &&
+    c.csm &&
+    c.witnessStart &&
+    c.witnessComplete &&
+    c.passes
+  );
 }

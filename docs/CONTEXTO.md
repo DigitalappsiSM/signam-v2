@@ -416,6 +416,11 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
   excluyen sábado/domingo; aún sin festivos). T Completos confirma el 100% y
   vence en `fechaFin`. Marcar T Completos marca también T Arranque; no se puede
   desmarcar T Arranque mientras T Completos siga marcado.
+- **Evidencia de pases** (sexto indicador, manual, **solo Proveedor**): Liverpool
+  pide el reporte de pases de Admira a los **5 días naturales** del inicio; vence
+  en `fechaInicio + 5` (inclusivo). Avisa 2 días antes (`due-soon`) y alerta al
+  vencer (`passes-overdue`); afecta el estado general, los vencimientos y el
+  Dashboard. En Institucional o clasificación pendiente no aplica.
 - **Objetivo del 10%** = `Math.ceil(tiendasDistintas * 0.10)` (tiendas
   **distintas** de las pantallas que realmente consolidaron; 0 tiendas → 0).
 - **Fechas civiles**: todo el cálculo usa fechas civiles a medianoche UTC (sin

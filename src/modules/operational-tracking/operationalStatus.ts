@@ -2,6 +2,7 @@ import {
   parseCampaignDate,
   fifthBusinessDay,
   witnessCompleteDeadline,
+  passesEvidenceDeadline,
   businessDaysUntil,
   calendarDaysUntil,
   compareCivil,
@@ -103,6 +104,36 @@ export function witnessCompleteStatus(input: WitnessInput): WitnessStatus {
   if (cmp > 0) return 'overdue';
   if (cmp === 0) return 'due-today';
   return calendarDaysUntil(input.today, deadline) <= 5
+    ? 'due-soon'
+    : 'on-track';
+}
+
+/** Días naturales previos al vencimiento en que la Evidencia de pases avisa. */
+export const PASSES_EVIDENCE_WARNING_DAYS = 2;
+
+/**
+ * Estado de la Evidencia de pases: límite = `fechaInicio` + 5 días naturales
+ * (inclusivo). Avisa (`due-soon`) {@link PASSES_EVIDENCE_WARNING_DAYS} días antes.
+ * Solo tiene sentido para Proveedor; quien llama decide si aplica.
+ */
+export function passesEvidenceStatus(input: WitnessInput): WitnessStatus {
+  const start = parseCampaignDate(input.startStr);
+  if (!start) return 'invalid-date';
+  const deadline = passesEvidenceDeadline(start);
+
+  if (input.completed) {
+    if (input.completedAt == null) return 'completed-on-time';
+    return compareCivil(completedCivil(input.completedAt), deadline) <= 0
+      ? 'completed-on-time'
+      : 'completed-late';
+  }
+
+  if (compareCivil(input.today, start) < 0) return 'upcoming';
+  const cmp = compareCivil(input.today, deadline);
+  if (cmp > 0) return 'overdue';
+  if (cmp === 0) return 'due-today';
+  return calendarDaysUntil(input.today, deadline) <=
+    PASSES_EVIDENCE_WARNING_DAYS
     ? 'due-soon'
     : 'on-track';
 }
