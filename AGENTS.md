@@ -113,6 +113,9 @@ tres de ellos describían mal el separador de artículos.
   fresca de duplicados, y exige años 2000–2100. Si Liverpool cambia las fechas de una campaña con testigos, solo se
   avisa: no se revalidan aprobaciones. Los metadatos de origen se guardan aparte
   de los datos importados y nunca entran al CSV.
+  El Dashboard las trata como cualquier campaña (la clasificación sale del
+  seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
+  Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
   seguimientos independientes y una actualización de fechas, tiendas, soportes,

@@ -1051,3 +1051,57 @@ describe('occupancy — canceladas siguen participando en la carga', () => {
     expect(withCancel.totals).toEqual(withoutTrack.totals);
   });
 });
+
+// --- Campañas manuales ------------------------------------------------------
+
+describe('occupancy — campañas manuales', () => {
+  const manual = (
+    tipo: string,
+    over: Partial<OccupancyCampaignInput> = {},
+  ): OccupancyCampaignInput =>
+    campaign({
+      id: 'manual-1',
+      name: 'Nike Sampling',
+      tipo,
+      supports: [support({ support: CRIUS, stores: [{ numero: '5' }] })],
+      ...over,
+    });
+  const screens = [screen({ id: 'a', numero: '5', calendarSupport: CRIUS })];
+
+  it('un sampling manual cuenta como Proveedor en la carga', () => {
+    const d = build([manual('Sampling')], screens);
+    expect(d.totals.distinctCampaigns).toBe(1);
+    expect(d.classificationTotals.provider).toBe(1);
+    expect(d.classificationTotals.institutional).toBe(0);
+  });
+
+  it('un manual Institucional no cuenta como Proveedor', () => {
+    const d = build([manual('Institucional')], screens);
+    expect(d.classificationTotals.institutional).toBe(1);
+    expect(d.classificationTotals.provider).toBe(0);
+  });
+
+  it('el filtro de origen separa manuales de Liverpool', () => {
+    const list = [
+      { ...manual('Sampling'), origin: 'manual' as const },
+      campaign({
+        id: 'lp-1',
+        name: 'Liverpool',
+        tipo: 'Proveedor',
+        supports: [support({ support: CRIUS, stores: [{ numero: '5' }] })],
+      }),
+    ];
+    const only = (origin: 'manual' | 'liverpool' | 'all') =>
+      build(list, screens, { filters: { origin } }).totals.distinctCampaigns;
+    expect(only('all')).toBe(2);
+    expect(only('manual')).toBe(1);
+    expect(only('liverpool')).toBe(1);
+  });
+
+  it('el seguimiento (creado con la campaña) manda sobre el tipo', () => {
+    const d = build([manual('Sampling')], screens, {
+      tracking: [tracking('manual-1', 'institutional')],
+    });
+    expect(d.classificationTotals.institutional).toBe(1);
+  });
+});

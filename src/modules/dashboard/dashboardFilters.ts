@@ -19,6 +19,8 @@ export interface DashboardFilterValues {
   /** Periodo civil seleccionado (ambos extremos inclusivos). */
   range: DateRange;
   classification: OccupancyClassification | 'all';
+  /** Origen del registro (calendario de Liverpool o captura manual). */
+  origin?: 'liverpool' | 'manual' | 'all';
   /** Búsqueda por nombre de campaña. */
   search: string;
   /**
@@ -64,6 +66,10 @@ export function filterDashboardRows(
       filters.classification !== 'all' &&
       r.classification !== filters.classification
     ) {
+      return false;
+    }
+    const origin = filters.origin ?? 'all';
+    if (origin !== 'all' && (r.campaign.origin ?? 'liverpool') !== origin) {
       return false;
     }
     if (search && !normalizeText(r.campaign.name).includes(search)) {

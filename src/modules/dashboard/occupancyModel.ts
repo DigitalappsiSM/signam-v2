@@ -158,6 +158,8 @@ export interface OccupancyFilters {
   support?: string | null;
   /** Búsqueda por nombre de campaña. */
   search?: string;
+  /** Origen del registro: calendario de Liverpool o captura manual. */
+  origin?: 'liverpool' | 'manual' | 'all';
 }
 
 export interface OccupancyInput {
@@ -177,6 +179,8 @@ export interface OccupancyCampaignInput {
   fechaInicio: string;
   fechaFin: string;
   supports: readonly CampaignSupport[];
+  /** Ausente en documentos legacy: equivale a `liverpool`. */
+  origin?: 'liverpool' | 'manual';
 }
 
 const norm = normalizeSupport;
@@ -660,6 +664,7 @@ export function buildOccupancyDashboard(
   const { campaigns, screens, tracking, range } = input;
   const filters = input.filters ?? {};
   const classFilter = filters.classification ?? 'all';
+  const originFilter = filters.origin ?? 'all';
   const ownerFilter = filters.owner ?? 'all';
   const storeFilter = filters.store ? normalizeStore(filters.store) : null;
   const supportFilter = filters.support ? norm(filters.support) : null;
@@ -686,6 +691,8 @@ export function buildOccupancyDashboard(
     const classification = classify(c, trackingByKey);
     // Filtros a nivel campaña (afectan también los totales de periodo).
     if (classFilter !== 'all' && classification !== classFilter) continue;
+    if (originFilter !== 'all' && (c.origin ?? 'liverpool') !== originFilter)
+      continue;
     if (search && !normalizeText(c.name).includes(search)) continue;
 
     const resolved = resolveCampaign(c, classification, idx, range, issues);

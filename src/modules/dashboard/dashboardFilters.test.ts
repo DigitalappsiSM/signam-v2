@@ -179,3 +179,25 @@ describe('filterDashboardRows — búsqueda', () => {
     expect(out).toHaveLength(0);
   });
 });
+
+describe('filterDashboardRows — origen', () => {
+  const rows = rowsOf([
+    { ...campaign({ name: 'DEL CALENDARIO' }), id: 'lp' },
+    { ...campaign({ name: 'MANUAL' }), id: 'mn', origin: 'manual' as const },
+  ]);
+  const win = { range: range('2020-01-01', '2030-12-31'), ...base };
+
+  it('sin filtro deja ambas; con filtro separa por origen', () => {
+    expect(filterDashboardRows(rows, win)).toHaveLength(2);
+    expect(
+      filterDashboardRows(rows, { ...win, origin: 'manual' }).map(
+        (r) => r.campaign.name,
+      ),
+    ).toEqual(['MANUAL']);
+    expect(
+      filterDashboardRows(rows, { ...win, origin: 'liverpool' }).map(
+        (r) => r.campaign.name,
+      ),
+    ).toEqual(['DEL CALENDARIO']);
+  });
+});
