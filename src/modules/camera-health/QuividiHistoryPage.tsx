@@ -20,6 +20,7 @@ export function QuividiHistoryPage() {
   const [pointId, setPointId] = useState('');
   const [validFrom, setValidFrom] = useState('2026-01-01');
   const [validTo, setValidTo] = useState('');
+  const [showAllLocations, setShowAllLocations] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -98,6 +99,23 @@ export function QuividiHistoryPage() {
   const selected = overview?.locations.find(
     (item) => item.id === Number(locationId),
   );
+  const pendingLocations =
+    overview?.locations.filter((item) => item.hasPendingData) ?? [];
+  const visibleLocations = showAllLocations
+    ? (overview?.locations ?? [])
+    : pendingLocations;
+
+  useEffect(() => {
+    if (
+      !showAllLocations &&
+      locationId &&
+      !overview?.locations.some(
+        (item) => item.id === Number(locationId) && item.hasPendingData,
+      )
+    ) {
+      setLocationId('');
+    }
+  }, [overview, showAllLocations, locationId]);
 
   function selectLocation(id: string) {
     setLocationId(id);
@@ -171,13 +189,17 @@ export function QuividiHistoryPage() {
                   <strong>
                     {(overview.inferred ?? 0).toLocaleString('es-MX')}
                   </strong>{' '}
-                  asociadas por catálogo (inferidas)
+                  particiones asociadas por catálogo (inferidas)
                 </span>
                 <span>
                   <strong>
                     {overview.needsReview.toLocaleString('es-MX')}
                   </strong>{' '}
-                  pendientes de tienda
+                  particiones sin tienda
+                </span>
+                <span>
+                  <strong>{pendingLocations.length}</strong> locations por
+                  conciliar
                 </span>
                 <span>
                   <strong>
@@ -204,113 +226,139 @@ export function QuividiHistoryPage() {
             <section className="quividi-history__panel">
               <h2>Conciliar tienda histórica</h2>
               <p>
-                SIGNAM asocia automáticamente el histórico cuando el catálogo
-                actual tiene una única tienda y punto para la location. Esa
-                asociación anterior a hoy queda marcada como inferida. Aquí
-                puedes corregirla con una vigencia comprobada; las locations
-                ambiguas o sin catálogo quedan pendientes.
+                Por defecto se muestran solo las locations con al menos una
+                partición de datos sin tienda. Las demás ya están asociadas o no
+                tienen mediciones pendientes. Los números de arriba cuentan
+                particiones por fecha, tipo y resolución; no cámaras. La
+                importación continúa aunque pospongas esta conciliación.
               </p>
-              <form
-                onSubmit={(event) => void assign(event)}
-                className="quividi-history__form"
-              >
-                <label>
-                  Location Quividi
-                  <select
-                    required
-                    value={locationId}
-                    onChange={(event) => selectLocation(event.target.value)}
-                  >
-                    <option value="">Selecciona una cámara</option>
-                    {overview.locations.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label} · {item.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selected && (
-                  <p className="quividi-history__reference">
-                    Catálogo actual: {selected.storeId ?? 'sin tienda'} ·{' '}
-                    {selected.pointId ?? 'sin punto'}
-                    {selected.validFrom
-                      ? ` (observado desde ${selected.validFrom})`
-                      : ''}
-                    <br />
-                    Primera medición encontrada:{' '}
-                    {selected.firstMeasuredDate ?? 'aún sin datos medidos'}
-                    {selected.storeId && selected.pointId && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={useCurrentCatalog}
-                      >
-                        Copiar asignación actual
-                      </button>
-                    )}
-                  </p>
-                )}
-                <label>
-                  Número de tienda Liverpool
-                  <input
-                    required
-                    inputMode="numeric"
-                    pattern="[0-9]+"
-                    value={storeNumber}
-                    onChange={(event) => setStoreNumber(event.target.value)}
-                    placeholder="007"
-                  />
-                </label>
-                <label>
-                  Nombre de tienda
-                  <input
-                    value={storeName}
-                    onChange={(event) => setStoreName(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Soporte
-                  <input
-                    required
-                    value={support}
-                    onChange={(event) => setSupport(event.target.value)}
-                    placeholder="MEGA MUPI DIGITAL"
-                  />
-                </label>
-                <label>
-                  Punto SIGNAM
-                  <input
-                    required
-                    value={pointId}
-                    onChange={(event) => setPointId(event.target.value)}
-                    placeholder="LIV-007-MUPI-P1"
-                  />
-                </label>
-                <label>
-                  Desde
-                  <input
-                    required
-                    type="date"
-                    value={validFrom}
-                    onChange={(event) => setValidFrom(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Hasta (opcional)
-                  <input
-                    type="date"
-                    value={validTo}
-                    onChange={(event) => setValidTo(event.target.value)}
-                  />
-                </label>
-                <button
-                  className="btn btn-primary"
-                  type="submit"
-                  disabled={busy}
+              <label className="quividi-history__toggle">
+                <input
+                  type="checkbox"
+                  checked={showAllLocations}
+                  onChange={(event) => {
+                    setShowAllLocations(event.target.checked);
+                    setLocationId('');
+                  }}
+                />
+                Mostrar todas las {overview.locations.length} locations para
+                revisar o corregir una asociación
+              </label>
+              {!showAllLocations && pendingLocations.length === 0 && (
+                <p role="status">
+                  No hay locations con datos pendientes de tienda.
+                </p>
+              )}
+              {visibleLocations.length > 0 && (
+                <form
+                  onSubmit={(event) => void assign(event)}
+                  className="quividi-history__form"
                 >
-                  {busy ? 'Guardando…' : 'Guardar asignación histórica'}
-                </button>
-              </form>
+                  <label>
+                    Location Quividi
+                    <select
+                      required
+                      value={locationId}
+                      onChange={(event) => selectLocation(event.target.value)}
+                    >
+                      <option value="">
+                        Selecciona una location pendiente
+                      </option>
+                      {visibleLocations.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label} · {item.id}
+                          {showAllLocations
+                            ? item.hasPendingData
+                              ? ' · pendiente'
+                              : ' · asociada/sin datos pendientes'
+                            : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selected && (
+                    <p className="quividi-history__reference">
+                      Catálogo actual: {selected.storeId ?? 'sin tienda'} ·{' '}
+                      {selected.pointId ?? 'sin punto'}
+                      {selected.validFrom
+                        ? ` (observado desde ${selected.validFrom})`
+                        : ''}
+                      <br />
+                      Primera medición encontrada:{' '}
+                      {selected.firstMeasuredDate ?? 'aún sin datos medidos'}
+                      {selected.storeId && selected.pointId && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={useCurrentCatalog}
+                        >
+                          Copiar asignación actual
+                        </button>
+                      )}
+                    </p>
+                  )}
+                  <label>
+                    Número de tienda Liverpool
+                    <input
+                      required
+                      inputMode="numeric"
+                      pattern="[0-9]+"
+                      value={storeNumber}
+                      onChange={(event) => setStoreNumber(event.target.value)}
+                      placeholder="007"
+                    />
+                  </label>
+                  <label>
+                    Nombre de tienda
+                    <input
+                      value={storeName}
+                      onChange={(event) => setStoreName(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Soporte
+                    <input
+                      required
+                      value={support}
+                      onChange={(event) => setSupport(event.target.value)}
+                      placeholder="MEGA MUPI DIGITAL"
+                    />
+                  </label>
+                  <label>
+                    Punto SIGNAM
+                    <input
+                      required
+                      value={pointId}
+                      onChange={(event) => setPointId(event.target.value)}
+                      placeholder="LIV-007-MUPI-P1"
+                    />
+                  </label>
+                  <label>
+                    Desde
+                    <input
+                      required
+                      type="date"
+                      value={validFrom}
+                      onChange={(event) => setValidFrom(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Hasta (opcional)
+                    <input
+                      type="date"
+                      value={validTo}
+                      onChange={(event) => setValidTo(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    className="btn btn-primary"
+                    type="submit"
+                    disabled={busy}
+                  >
+                    {busy ? 'Guardando…' : 'Guardar asignación histórica'}
+                  </button>
+                </form>
+              )}
             </section>
           )}
         </>

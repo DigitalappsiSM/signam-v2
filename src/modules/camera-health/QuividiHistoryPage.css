@@ -38,6 +38,15 @@
   gap: 1rem;
   align-items: end;
 }
+.quividi-history__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.quividi-history__toggle input {
+  width: auto;
+}
 .quividi-history__form label {
   display: grid;
   gap: 0.35rem;

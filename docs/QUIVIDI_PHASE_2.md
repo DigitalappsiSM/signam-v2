@@ -46,6 +46,12 @@ y captura tienda, punto y vigencia con `quividi-historyAssignBinding`; la tarea
 `quividi-historyReconcile` actualiza el índice de tienda de las particiones
 anteriores sin tocar el RAW ni alterar cifras. No se aplica ponderación, suma
 de cámaras ni extrapolación al escribir.
+La tarjeta de inventario cuenta locations; las tarjetas de asociadas,
+pendientes y sin acceso cuentan particiones por fecha, familia y resolución.
+La pantalla consulta si cada location tiene al menos una partición
+`needs_review` y muestra **solo esas locations** en el selector inicial de
+conciliación. Una opción permite ver las demás para corregir asociaciones.
+La carga y la captura diaria siguen aunque existan pendientes.
 Las familias `extrapolated_*` se archivan aparte como `derived`.
 Las familias por sitio se capturan una vez por `site_id` y quedan
 `site_aggregate`: no se multiplican por cada location del mismo sitio. Cada

@@ -64,6 +64,14 @@
         { "fieldPath": "pointId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "quividiHistoryPartitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "mappingStatus", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
