@@ -279,8 +279,9 @@ export function applyCheckChange(
  * usuario, `source: 'manual'`). Se usa en el botón "Marcar todas"/"Marcar
  * aplicables" de campañas terminadas y respeta la clasificación almacenada:
  *
- * - **Proveedor** (o pendiente): marca los cinco indicadores. Dejar todo marcado
- *   satisface la relación de testigos (T Completos ⇒ T Arranque).
+ * - **Proveedor**: marca los seis indicadores (incluida la Evidencia de pases).
+ *   Dejar todo marcado satisface la relación de testigos (T Completos ⇒ T Arranque).
+ * - **Pendiente**: marca Link, Validación, CSM y testigos; no la Evidencia de pases.
  * - **Institucional**: marca sólo Link, Validación Liverpool y Programación CSM;
  *   NO toca T Arranque ni T Completos (no aplican; sus valores se conservan).
  * - **Cancelada**: se rechaza (la reactivación es la única vía para editar).
@@ -309,11 +310,11 @@ export function markAllComplete(
       witnessComplete: institutional
         ? tracking.witnessComplete
         : makeCheck(true, 'manual', actor, now),
-      // Solo Proveedor: en cualquier otro caso se conserva intacto.
-      passesEvidence:
-        tracking.classification === 'provider'
-          ? makeCheck(true, 'manual', actor, now)
-          : tracking.passesEvidence,
+      // Solo Proveedor. En otro caso el campo se conserva tal cual (o ausente en
+      // documentos legacy): asignar `undefined` haría fallar `tx.set()`.
+      ...(tracking.classification === 'provider'
+        ? { passesEvidence: makeCheck(true, 'manual', actor, now) }
+        : {}),
       updatedAt: now,
       updatedByUid: actor.uid,
       updatedByEmail: actor.email,

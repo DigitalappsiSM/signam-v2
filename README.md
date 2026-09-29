@@ -352,12 +352,12 @@ cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación). Vive
 **nunca** lo borra ni sobrescribe.
 
 - **Cancelar** (acción individual por fila, con confirmación accesible y un
-  **motivo opcional**): la campaña no requiere ninguno de los cinco checks (se
+  **motivo opcional**): la campaña no requiere ninguno de los seis checks (se
   muestran **“No aplica”**), no genera alertas, pendientes ni vencimientos, y
   desaparece del **resumen operativo** del Dashboard. Sus checks, clasificación y
   comentarios se **conservan** intactos.
 - **Reactivar** (con confirmación): vuelve a **Activa**, limpia el motivo y los
-  cinco checks reaparecen exactamente como estaban; se recalculan alertas y
+  seis checks reaparecen exactamente como estaban; se recalculan alertas y
   vencimientos con las reglas normales.
 - El estado **sobrevive a cambios de la misma línea lógica** porque el
   `campaign.id` se conserva aunque cambien fechas, link, tipo, vendedor,

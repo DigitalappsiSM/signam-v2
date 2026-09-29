@@ -368,8 +368,8 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
   la tabla** de `/seguimiento` (sin abrir un modal). Cada casilla guarda al
   instante (quién/cuándo se ve en su tooltip). La clasificación se corrige con un
   **selector en la misma fila**.
-- **Cinco indicadores** (editables): **Link de descarga**, **Validación
-  Liverpool**, **Programación CSM**, **T Arranque** y **T Completos**.
+- **Seis indicadores** (editables): **Link de descarga**, **Validación
+  Liverpool**, **Programación CSM**, **T Arranque**, **T Completos** y **Evidencia de pases**.
   - **Link de descarga**: por defecto **automático** (marcado si `campaign.link`
     es una URL válida) pero **editable**. Si el usuario lo cambia, su valor manda
     (`source: manual`); mientras no lo toque, se deriva del link del calendario y
@@ -393,7 +393,7 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
 - **Marcar todas / Marcar aplicables** (campañas terminadas): en las filas cuya
   `fechaFin` ya pasó (periodo **Terminada**) aparece un botón que marca de una vez
   los indicadores (`source: manual`, con quién/cuándo). En **Proveedor** se llama
-  **"Marcar todas"** y marca los cinco; en **Institucional** se llama **"Marcar
+  **"Marcar todas"** y marca los seis; en **Institucional** se llama **"Marcar
   aplicables"** y marca solo Link, Validación Liverpool y CSM (nunca los testigos).
   No aparece en campañas activas ni futuras.
 - **Bitácora de comentarios**: cada campaña tiene un **historial** de comentarios
@@ -473,14 +473,14 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
   canceladas **siguen contando** en la carga por tienda/soporte del Dashboard;
   solo se excluyen del **resumen operativo** superior.
   - **Cancelar** (acción individual por fila, confirmación accesible, **motivo
-    opcional**): la campaña no requiere ninguno de los cinco checks (se muestran
+    opcional**): la campaña no requiere ninguno de los seis checks (se muestran
     **“No aplica”**, sin casillas ni “Marcar todas”), no genera alertas,
     pendientes ni vencimientos (próximo vencimiento `—`) y muestra de forma
     accesible quién/cuándo/motivo. Los checks, la clasificación y los comentarios
     se **conservan** intactos. El diálogo bloquea dobles envíos; cerrarlo no
     guarda nada.
   - **Reactivar** (confirmación): vuelve a **Activa**, limpia el motivo y los
-    cinco checks reaparecen **exactamente** como estaban; se recalculan alertas y
+    seis checks reaparecen **exactamente** como estaban; se recalculan alertas y
     vencimientos con las reglas normales.
   - **Transición pura y probada** (`cancelTracking`/`reactivateTracking` en
     `trackingFactory.ts`), aplicada de forma **transaccional** por la capa de

@@ -155,12 +155,12 @@ tres de ellos describían mal el separador de artículos.
   al `campaignId`. Contiene solo
   datos operativos; nunca se mezcla con `campaigns` y la importación no borra ni
   sobrescribe checks manuales ni el estado de ciclo de vida. Los
-  indicadores se editan **inline como casillas** en la tabla (sin modal). Cinco
+  indicadores se editan **inline como casillas** en la tabla (sin modal). Seis
   indicadores editables: **Link de descarga** (por defecto automático — marcado
   si `campaign.link` es URL válida — pero editable: al cambiarlo `source:manual`
   manda; si no, se deriva del calendario), **Validación Liverpool** (por defecto
   marcada si Institucional **o** hay link válido; editable), **Programación
-  CSM**, **T Arranque** y **T Completos** (manuales). Reglas de testigos: marcar
+  CSM**, **T Arranque**, **T Completos** y **Evidencia de pases** (manuales). Reglas de testigos: marcar
   T Completos marca también T Arranque; no se puede desmarcar T Arranque mientras
   T Completos siga marcado. **Los testigos NO aplican a campañas Institucional**:
   T Arranque y T Completos se muestran como **"No aplica"** (sin casilla), no
@@ -176,7 +176,7 @@ tres de ellos describían mal el separador de artículos.
   con pendientes_ en el Dashboard (alerta `finished-pending`), aunque los testigos
   no apliquen. En campañas **terminadas** (fecha de fin ya pasada) y **ya
   clasificadas** aparece un botón por fila: **"Marcar todas"** (Proveedor: marca
-  los cinco) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
+  los seis) o **"Marcar aplicables"** (Institucional: marca solo Link, Validación
   Liverpool y CSM). Cada campaña tiene
   además una **bitácora de comentarios** (`comments[]`,
   historial con autor y fecha) en un panel expandible; los comentarios se agregan

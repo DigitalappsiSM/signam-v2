@@ -913,7 +913,7 @@ export function OperationalTrackingPage() {
                             col.key === 'witnessComplete' ||
                             col.key === 'passesEvidence';
                           // Cancelada: no se muestran casillas (ni desmarcadas);
-                          // los cinco indicadores quedan como "No aplica".
+                          // los seis indicadores quedan como "No aplica".
                           if (cancelled) {
                             return (
                               <td key={col.key} className="ot-check-cell">

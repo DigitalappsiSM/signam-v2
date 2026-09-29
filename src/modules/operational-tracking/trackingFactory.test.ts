@@ -478,6 +478,20 @@ describe('evidencia de pases', () => {
     expect(r).toEqual({ ok: false, reason: PASSES_EVIDENCE_PROVIDER_MESSAGE });
   });
 
+  it('"Marcar aplicables" no escribe undefined en documentos legacy sin el campo', () => {
+    const legacy = {
+      ...institutional(),
+    } as Partial<CampaignOperationalTracking>;
+    delete legacy.passesEvidence;
+    const r = markAllComplete(
+      legacy as CampaignOperationalTracking,
+      actor,
+      3000,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect('passesEvidence' in r.tracking).toBe(false);
+  });
+
   it('"Marcar todas" la marca solo en Proveedor', () => {
     const p = markAllComplete(provider(), actor, 3000);
     const i = markAllComplete(institutional(), actor, 3000);
