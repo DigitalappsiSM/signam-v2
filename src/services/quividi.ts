@@ -89,6 +89,7 @@ export interface QuividiHistoryOverview {
     support: string;
     pointId: string | null;
     validFrom: string | null;
+    firstMeasuredDate: string | null;
   }>;
 }
 

@@ -15,9 +15,11 @@ import {
   HISTORY_START_DATE,
   LIVERPOOL_NETWORK_ID,
   exportDataClass,
+  earliestMeasuredDate,
   historyPartitionId,
   inferredCatalogBinding,
   inventoryBindings,
+  isMeasurementExport,
   rawHistoryPath,
   resolveHistoricalBinding,
   rowsFingerprint,
@@ -87,6 +89,56 @@ function dateAt(index: number): string {
 function mappingStatus(binding: StoreBinding | null): 'mapped' | 'inferred' | 'needs_review' {
   if (!binding) return 'needs_review';
   return binding.source === 'catalog_inferred' ? 'inferred' : 'mapped';
+}
+
+/** A late or out-of-order export can move the start earlier, never later. */
+async function recordFirstMeasuredDate(locationId: number, date: string): Promise<void> {
+  const db = getFirestore();
+  const ref = db.collection(INVENTORY).doc(String(locationId));
+  await db.runTransaction(async (transaction) => {
+    const inventory = await transaction.get(ref);
+    if (!inventory.exists) return;
+    const current = inventory.get('firstMeasuredDate') as string | undefined;
+    if (!current || date < current) transaction.update(ref, { firstMeasuredDate: date });
+  });
+}
+
+/** Bring partitions saved before this rule into the measurement index gradually. */
+async function indexExistingMeasurements(): Promise<void> {
+  const db = getFirestore();
+  const control = db.collection(CONTROL).doc('liverpool');
+  const snapshot = await control.get();
+  if (!snapshot.exists || snapshot.get('measurementIndexVersion') === 1) return;
+  let query = db.collection(PARTITIONS).orderBy(FieldPath.documentId()).limit(200);
+  const after = snapshot.get('measurementIndexAfter') as string | undefined;
+  if (after) query = query.startAfter(after);
+  const page = await query.get();
+  const earliest = new Map<number, string>();
+  const batch = db.batch();
+  for (const doc of page.docs) {
+    if (doc.get('status') !== 'complete') continue;
+    const rows = doc.get('rowCount') as number | undefined;
+    if (rows === 0 && doc.get('mappingStatus') !== 'not_applicable') {
+      batch.update(doc.ref, {
+        storeId: null, pointId: null, mappingSource: null, mappingStatus: 'not_applicable',
+      });
+    }
+    if (!rows || !isMeasurementExport(doc.get('type') as string)) continue;
+    const locationId = doc.get('locationId') as number;
+    const date = doc.get('date') as string;
+    if (!Number.isInteger(locationId) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const next = earliestMeasuredDate(earliest.get(locationId) ?? null,
+      date, doc.get('type') as string, rows);
+    if (next) earliest.set(locationId, next);
+  }
+  await batch.commit();
+  for (const [locationId, date] of earliest) await recordFirstMeasuredDate(locationId, date);
+  if (page.size < 200) {
+    await control.update({ measurementIndexVersion: 1,
+      measurementIndexAfter: FieldValue.delete(), measurementIndexAt: Date.now() });
+  } else {
+    await control.update({ measurementIndexAfter: page.docs[page.size - 1]!.id });
+  }
 }
 
 /** Upgrade an already running backfill once, including partitions saved before this change. */
@@ -276,7 +328,12 @@ async function savePartition(task: PartitionTask): Promise<void> {
   // A changed response creates a new immutable object; an unchanged recheck is a no-op.
   const hash = rowsFingerprint(rows);
   const previous = await ref.get();
-  if (previous.get('currentHash') === hash) return;
+  if (previous.get('currentHash') === hash) {
+    if (rows.length && isMeasurementExport(task.type)) {
+      await recordFirstMeasuredDate(task.locationId, task.date);
+    }
+    return;
+  }
   const path = rawHistoryPath(id, hash);
   await saveRaw(path, payload);
   const bindingsSnap = await db.collection(BINDINGS).where('locationId', '==', task.locationId).get();
@@ -287,11 +344,11 @@ async function savePartition(task: PartitionTask): Promise<void> {
   await ref.set({
     ...task,
     networkId: LIVERPOOL_NETWORK_ID,
-    storeId: binding?.storeId ?? null,
-    pointId: binding?.pointId ?? null,
-    mappingStatus: dataClass === 'site_aggregate' ? 'not_applicable' :
+    storeId: rows.length ? (binding?.storeId ?? null) : null,
+    pointId: rows.length ? (binding?.pointId ?? null) : null,
+    mappingStatus: dataClass === 'site_aggregate' || !rows.length ? 'not_applicable' :
       mappingStatus(binding),
-    mappingSource: binding?.source ?? null,
+    mappingSource: rows.length ? (binding?.source ?? null) : null,
     status: 'complete',
     dataClass,
     currentHash: hash,
@@ -306,6 +363,9 @@ async function savePartition(task: PartitionTask): Promise<void> {
     hash, rawPath: path, rowCount: rows.length, capturedAt: Date.now(),
     sourceCreationDate: payload.creation_date ?? null,
   });
+  if (rows.length && isMeasurementExport(task.type)) {
+    await recordFirstMeasuredDate(task.locationId, task.date);
+  }
 }
 
 /** Explicit admin start: no historical jobs run before the network is verified. */
@@ -337,7 +397,7 @@ export const historyStart = onCall({
   for (const location of locations) {
     batch.set(db.collection(INVENTORY).doc(String(location.id)), {
       networkId: LIVERPOOL_NETWORK_ID, location, observedAt: Date.now(),
-    });
+    }, { merge: true });
   }
   // Current catalog confirms today's assignment only, never 2026-01-01.
   for (const binding of candidates) {
@@ -393,7 +453,8 @@ export const historyOverview = onCall(async (request) => {
       return { id: location.id, label: String(location.label ?? location.name ?? location.id),
         active: location.active !== false, storeId: binding?.storeId ?? null,
         storeName: binding?.storeName ?? '', support: binding?.support ?? '',
-        pointId: binding?.pointId ?? null, validFrom: binding?.validFrom ?? null };
+        pointId: binding?.pointId ?? null, validFrom: binding?.validFrom ?? null,
+        firstMeasuredDate: doc.get('firstMeasuredDate') ?? null };
     }).sort((a, b) => a.label.localeCompare(b.label, 'es')),
   };
 });
@@ -468,7 +529,7 @@ export const historyReconcile = onTaskDispatched<ReconcileTask>({
   const page = await query.get();
   const batch = db.batch();
   for (const doc of page.docs) {
-    if (doc.get('status') !== 'complete') continue;
+    if (doc.get('status') !== 'complete' || doc.get('rowCount') === 0) continue;
     if (exportDataClass(doc.get('type') as string) === 'site_aggregate') continue;
     const binding = resolveHistoricalBinding(bindings, locationId, doc.get('date') as string);
     batch.update(doc.ref, {
@@ -512,7 +573,7 @@ export const historyInventoryDaily = onSchedule({
   for (const location of locations) {
     batch.set(db.collection(INVENTORY).doc(String(location.id)), {
       networkId: LIVERPOOL_NETWORK_ID, location, observedAt: Date.now(),
-    });
+    }, { merge: true });
   }
   for (const doc of activeBindings.docs) {
     const prior = doc.data() as StoreBinding;
@@ -580,6 +641,7 @@ export const historyCoordinator = onSchedule({
   const controls = await db.collection(CONTROL).where('status', '==', 'running').get();
   if (controls.empty) return;
   await inferExistingCatalogHistory();
+  await indexExistingMeasurements();
   const queue = getFunctions().taskQueue('quividi-historyPartition');
   const primary = await db.collection(CONTROL).doc('liverpool').get();
   if (primary.exists) {

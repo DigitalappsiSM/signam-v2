@@ -21,6 +21,16 @@ son distintos de un export fallido o no autorizado. Los eventos `finest` se
 conservan íntegros en Storage y su índice estructurado en Firestore, evitando
 documentos que excedan el límite de tamaño.
 
+`quividiHistoryInventory/{locationId}.firstMeasuredDate` indica el primer día
+con filas de audiencia o tráfico observadas durante el backfill. Es el inicio
+del histórico medido para esa location, no una fecha de instalación. Las
+respuestas vacías anteriores se conservan en RAW pero no generan pendientes de
+tienda ni horas faltantes. Una respuesta fallida o no licenciada queda en otro
+estado y no prueba ausencia de medición. Las particiones ya guardadas se
+reindexan progresivamente sin reconsultar la API; si llega data tardía, la
+fecha puede adelantarse. La pantalla muestra la primera fecha encontrada
+hasta ese momento, que puede cambiar mientras continúa el backfill.
+
 `quividiHistoryBindings` contiene la asociación fechada a `LIV-TIENDA` y al
 Punto SIGNAM. El vínculo vigente se registra desde el día de observación.
 Cuando la location tiene una única tienda y Punto SIGNAM válidos en el catálogo,

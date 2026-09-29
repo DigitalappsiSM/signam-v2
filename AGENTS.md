@@ -315,6 +315,12 @@ tres de ellos describían mal el separador de artículos.
   exportaciones concurrentes. La API solo expone los datos que efectivamente
   conserva y autoriza; errores de familia/licencia se registran como
   `unsupported`, no como cero medido.
+  La fecha de inicio de medición de cada location es el primer día con filas
+  de audiencia o tráfico observadas en Quividi dentro de la ventana consultada.
+  Los exports vacíos anteriores se archivan, pero no cuentan como medición ni
+  como pendientes de conciliación; no se infiere una fecha de instalación.
+  Una revisión tardía puede adelantar esa fecha, nunca retrasarla. El catálogo
+  diario conserva el índice `firstMeasuredDate` de cada location.
 - **UI Salud de cámaras**: ruta `/salud-camaras` dentro de Operación. La carga
   normal y **Actualizar vista** solo leen los estados persistidos. Admin y
   operator disponen además de **Actualizar desde Quividi**, que ejecuta el mismo

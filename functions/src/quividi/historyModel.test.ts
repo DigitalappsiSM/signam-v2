@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   historyPartitionId,
   inferredCatalogBinding,
+  earliestMeasuredDate,
+  isMeasurementExport,
   exportDataClass,
   inventoryBindings,
   rawHistoryPath,
@@ -63,5 +65,15 @@ describe('Quividi Liverpool history', () => {
     expect(exportDataClass('proof_of_play_by_site')).toBe('site_aggregate');
     expect(exportDataClass('extrapolated_ots')).toBe('derived');
     expect(exportDataClass('ots')).toBe('source');
+    expect(isMeasurementExport('ots')).toBe(true);
+    expect(isMeasurementExport('viewers')).toBe(true);
+    expect(isMeasurementExport('content_plays')).toBe(false);
+    expect(isMeasurementExport('extrapolated_ots')).toBe(false);
+    expect(earliestMeasuredDate(null, '2026-01-01', 'ots', 0)).toBeNull();
+    expect(earliestMeasuredDate(null, '2026-04-12', 'ots', 1)).toBe('2026-04-12');
+    expect(earliestMeasuredDate('2026-04-12', '2026-03-30', 'viewers', 1))
+      .toBe('2026-03-30');
+    expect(earliestMeasuredDate('2026-03-30', '2026-01-01', 'content_plays', 8))
+      .toBe('2026-03-30');
   });
 });
