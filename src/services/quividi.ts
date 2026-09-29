@@ -80,6 +80,12 @@ export interface QuividiHistoryOverview {
   needsReview: number;
   unsupported: number;
   retrying: number;
+  stores: Array<{
+    storeId: string;
+    number: string;
+    name: string;
+    supports: string[];
+  }>;
   locations: Array<{
     id: number;
     label: string;
@@ -116,7 +122,7 @@ export async function assignQuividiHistoryBinding(input: {
   storeId: string;
   storeName: string;
   support: string;
-  pointId: string;
+  pointId: string | null;
   validFrom: string;
   validTo: string | null;
 }): Promise<void> {

@@ -31,9 +31,9 @@ reindexan progresivamente sin reconsultar la API; si llega data tardía, la
 fecha puede adelantarse. La pantalla muestra la primera fecha encontrada
 hasta ese momento, que puede cambiar mientras continúa el backfill.
 
-`quividiHistoryBindings` contiene la asociación fechada a `LIV-TIENDA` y al
-Punto SIGNAM. El vínculo vigente se registra desde el día de observación.
-Cuando la location tiene una única tienda y Punto SIGNAM válidos en el catálogo,
+`quividiHistoryBindings` contiene la asociación fechada a `LIV-TIENDA` y soporte, con
+Punto SIGNAM opcional. El vínculo vigente se registra desde el día de observación.
+Cuando la location tiene una única tienda y soporte válidos en el catálogo,
 el tramo anterior desde 2026-01-01 se asocia a esa tienda como
 `catalog_inferred`: es una inferencia auditable, no evidencia de que la cámara
 estuvo siempre allí. Las locations sin vínculo inequívoco y los periodos con
@@ -42,7 +42,7 @@ reemplaza la inferencia de esa location y vuelve a indexar las particiones ya
 guardadas; los números y el RAW no cambian. El coordinador también incorpora
 automáticamente esta inferencia a un backfill que ya estuviera iniciado.
 La ruta admin `/historial-quividi` inicia el backfill, muestra progreso
-y captura tienda, punto y vigencia con `quividi-historyAssignBinding`; la tarea
+y captura tienda, soporte, punto opcional y vigencia con `quividi-historyAssignBinding`; la tarea
 `quividi-historyReconcile` actualiza el índice de tienda de las particiones
 anteriores sin tocar el RAW ni alterar cifras. No se aplica ponderación, suma
 de cámaras ni extrapolación al escribir.
@@ -52,6 +52,18 @@ La pantalla consulta si cada location tiene al menos una partición
 `needs_review` y muestra **solo esas locations** en el selector inicial de
 conciliación. Una opción permite ver las demás para corregir asociaciones.
 La carga y la captura diaria siguen aunque existan pendientes.
+La conciliación histórica exige tienda y soporte seleccionados del catálogo
+Admira: número y nombre en un desplegable, con tiendas inactivas y sin cámara,
+y soportes disponibles para la tienda elegida. No admite captura libre de tienda
+ni soporte. El backend verifica el par vigente y obtiene el nombre del catálogo.
+El Punto SIGNAM es opcional; si se proporciona, debe corresponder a tienda y
+soporte. Esto no cambia la validación estricta de puntos en el catálogo ni salud.
+Si falta tienda o soporte, queda pendiente sin detener importación. La vigencia
+manual comienza por defecto en la primera medición encontrada, sin fin; puede
+ajustarse al cambiar de tienda. Reemplaza vínculos automáticos traslapados,
+conservando tramos fuera del intervalo; otros vínculos manuales no pueden
+traslaparse. Una migración automática incorpora cámaras del catálogo que antes
+se omitían por no tener punto y reindexa datos existentes sin volver a descargarlos.
 Las familias `extrapolated_*` se archivan aparte como `derived`.
 Las familias por sitio se capturan una vez por `site_id` y quedan
 `site_aggregate`: no se multiplican por cada location del mismo sitio. Cada

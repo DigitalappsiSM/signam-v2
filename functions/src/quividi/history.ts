@@ -9,7 +9,6 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { roleFromClaims } from './access';
 import type { ScreenDoc } from './effectiveScope';
-import { buildBackendMeasurementPointId } from './measurementPoint';
 import {
   HISTORY_EXPORTS,
   HISTORY_START_DATE,
@@ -19,6 +18,9 @@ import {
   historyPartitionId,
   inferredCatalogBinding,
   inventoryBindings,
+  historyCatalogStores,
+  validHistoryCatalogSelection,
+  replaceHistoricalBinding,
   isMeasurementExport,
   rawHistoryPath,
   resolveHistoricalBinding,
@@ -120,7 +122,7 @@ async function indexExistingMeasurements(): Promise<void> {
     const rows = doc.get('rowCount') as number | undefined;
     if (rows === 0 && doc.get('mappingStatus') !== 'not_applicable') {
       batch.update(doc.ref, {
-        storeId: null, pointId: null, mappingSource: null, mappingStatus: 'not_applicable',
+        storeId: null, support: null, pointId: null, mappingSource: null, mappingStatus: 'not_applicable',
       });
     }
     if (!rows || !isMeasurementExport(doc.get('type') as string)) continue;
@@ -146,15 +148,26 @@ async function inferExistingCatalogHistory(): Promise<void> {
   const db = getFirestore();
   const control = db.collection(CONTROL).doc('liverpool');
   const snapshot = await control.get();
-  if (!snapshot.exists || snapshot.get('catalogInferenceVersion') === 1) return;
+  if (!snapshot.exists || snapshot.get('catalogInferenceVersion') === 2) return;
   const existing = await db.collection(BINDINGS).get();
+  const [screens, inventory] = await Promise.all([
+    db.collection('screens').get(), db.collection(INVENTORY).get(),
+  ]);
+  const candidates = inventoryBindings(screens.docs.map((doc) => doc.data() as ScreenDoc),
+    new Set(inventory.docs.map((doc) => Number(doc.id))), todayMexico()).candidates;
+  const newBindings = candidates.filter((candidate) =>
+    !existing.docs.some((doc) => doc.get('locationId') === candidate.locationId));
   const groups = new Map<number, StoreBinding[]>();
   for (const doc of existing.docs) {
     const binding = doc.data() as StoreBinding;
     groups.set(binding.locationId, [...(groups.get(binding.locationId) ?? []), binding]);
   }
+  for (const binding of newBindings) groups.set(binding.locationId, [binding]);
   const inferredLocations: number[] = [];
   const batch = db.batch();
+  for (const binding of newBindings) {
+    batch.create(db.collection(BINDINGS).doc(`${binding.locationId}__${binding.validFrom}`), binding);
+  }
   for (const [locationId, bindings] of groups) {
     const current = bindings.filter((binding) =>
       binding.source === 'catalog' && binding.validTo === null);
@@ -172,7 +185,7 @@ async function inferExistingCatalogHistory(): Promise<void> {
   for (const locationId of inferredLocations) {
     await getFunctions().taskQueue('quividi-historyReconcile').enqueue({ locationId } satisfies ReconcileTask);
   }
-  await control.update({ catalogInferenceVersion: 1, catalogInferenceAt: Date.now() });
+  await control.update({ catalogInferenceVersion: 2, catalogInferenceAt: Date.now() });
 }
 
 function taskAt(index: number, locationIds: readonly number[], plan: readonly ExportSpec[]): PartitionTask {
@@ -345,6 +358,7 @@ async function savePartition(task: PartitionTask): Promise<void> {
     ...task,
     networkId: LIVERPOOL_NETWORK_ID,
     storeId: rows.length ? (binding?.storeId ?? null) : null,
+    support: rows.length ? (binding?.support ?? null) : null,
     pointId: rows.length ? (binding?.pointId ?? null) : null,
     mappingStatus: dataClass === 'site_aggregate' || !rows.length ? 'not_applicable' :
       mappingStatus(binding),
@@ -412,7 +426,7 @@ export const historyStart = onCall({
     networkId: LIVERPOOL_NETWORK_ID, locationIds: ids, nextIndex: 0,
     exportPlan: HISTORY_EXPORTS.map((item) => ({ ...item })),
     startDate: HISTORY_START_DATE, status: 'running', startedAt: Date.now(),
-    catalogInferenceVersion: 1,
+    catalogInferenceVersion: 2,
   });
   return { networkId: LIVERPOOL_NETWORK_ID, locations: ids.length,
     catalogBindings: candidates.length, conflicts, startDate: HISTORY_START_DATE };
@@ -423,7 +437,7 @@ export const historyOverview = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'Solo admin consulta el histórico.');
   }
   const db = getFirestore();
-  const [controls, inventory, bindings, completed, inferred, pending, unsupported, retrying] =
+  const [controls, inventory, bindings, completed, inferred, pending, unsupported, retrying, screens] =
     await Promise.all([
       db.collection(CONTROL).get(),
       db.collection(INVENTORY).get(),
@@ -433,6 +447,7 @@ export const historyOverview = onCall(async (request) => {
       db.collection(PARTITIONS).where('mappingStatus', '==', 'needs_review').count().get(),
       db.collection(PARTITIONS).where('status', '==', 'unsupported').count().get(),
       db.collection(PARTITIONS).where('status', '==', 'retrying').count().get(),
+      db.collection('screens').get(),
     ]);
   const activeByLocation = new Map(bindings.docs.map((doc) => {
     const binding = doc.data() as StoreBinding;
@@ -456,6 +471,7 @@ export const historyOverview = onCall(async (request) => {
     needsReview: pending.data().count,
     unsupported: unsupported.data().count,
     retrying: retrying.data().count,
+    stores: historyCatalogStores(screens.docs.map((doc) => doc.data() as ScreenDoc)),
     locations: inventory.docs.map((doc) => {
       const location = doc.get('location') as Location;
       const binding = activeByLocation.get(location.id);
@@ -477,13 +493,8 @@ export const historyAssignBinding = onCall({ timeoutSeconds: 540 }, async (reque
   const input = request.data as Partial<StoreBinding>;
   const storeId = input.storeId?.trim() ?? '';
   const pointId = input.pointId?.trim() ?? '';
-  const pointCode = pointId.split('-').at(-1) ?? '';
-  const expectedPointId = buildBackendMeasurementPointId({
-    storeNumber: storeId.replace(/^LIV-/, ''),
-    support: input.support ?? '', pointCode,
-  });
   if (!Number.isInteger(input.locationId) || !/^LIV-\d{3,}$/.test(storeId) ||
-      expectedPointId !== pointId || !/^\d{4}-\d{2}-\d{2}$/.test(input.validFrom ?? '') ||
+      !input.support?.trim() || (pointId && !/^LIV-/.test(pointId)) || !/^\d{4}-\d{2}-\d{2}$/.test(input.validFrom ?? '') ||
       (input.validTo !== null && input.validTo !== undefined &&
         !/^\d{4}-\d{2}-\d{2}$/.test(input.validTo)) ||
       (input.validTo && input.validFrom && input.validTo < input.validFrom)) {
@@ -494,27 +505,29 @@ export const historyAssignBinding = onCall({ timeoutSeconds: 540 }, async (reque
   if (inventory.get('networkId') !== LIVERPOOL_NETWORK_ID) {
     throw new HttpsError('failed-precondition', 'Location fuera de la network 3089.');
   }
-  const ref = db.collection(BINDINGS).doc(`${input.locationId}__${input.validFrom}`);
+  const catalog = historyCatalogStores((await db.collection('screens').get()).docs
+    .map((doc) => doc.data() as ScreenDoc));
+  const support = input.support!.trim();
+  if (!validHistoryCatalogSelection(catalog, storeId, support, pointId || null)) {
+    throw new HttpsError('failed-precondition', 'Selecciona una tienda y soporte existentes en el catálogo Admira; el punto es opcional y debe corresponder a ambos.');
+  }
   const binding: StoreBinding = {
-    locationId: input.locationId!, storeId, pointId,
-    storeName: input.storeName?.trim() ?? '', support: input.support?.trim() ?? '',
+    locationId: input.locationId!, storeId, pointId: pointId || null,
+    storeName: catalog.find((store) => store.storeId === storeId)!.name, support,
     validFrom: input.validFrom!, validTo: input.validTo ?? null, source: 'manual',
   };
-  const siblings = await db.collection(BINDINGS).where('locationId', '==', input.locationId).get();
-  for (const doc of siblings.docs) {
-    const other = doc.data() as StoreBinding;
-    if (other.source === 'catalog_inferred') continue;
-    if (doc.id === ref.id ||
-        (binding.validTo !== null && binding.validTo < other.validFrom) ||
-        (other.validTo !== null && other.validTo < binding.validFrom)) continue;
-    throw new HttpsError('failed-precondition', 'La vigencia se superpone con otro vínculo de tienda.');
-  }
-  const batch = db.batch();
-  for (const doc of siblings.docs) {
-    if (doc.get('source') === 'catalog_inferred' && doc.id !== ref.id) batch.delete(doc.ref);
-  }
-  batch.set(ref, binding);
-  await batch.commit();
+  await db.runTransaction(async (transaction) => {
+    const siblings = await transaction.get(db.collection(BINDINGS).where('locationId', '==', input.locationId));
+    let replacement: StoreBinding[];
+    try {
+      replacement = replaceHistoricalBinding(siblings.docs.map((doc) => doc.data() as StoreBinding), binding);
+    } catch (error) {
+      throw new HttpsError('failed-precondition', error instanceof Error ? error.message : 'Vigencia inválida.');
+    }
+    const next = new Map(replacement.map((item) => [`${item.locationId}__${item.validFrom}`, item]));
+    for (const doc of siblings.docs) if (!next.has(doc.id)) transaction.delete(doc.ref);
+    for (const [id, item] of next) transaction.set(db.collection(BINDINGS).doc(id), item);
+  });
   await getFunctions().taskQueue('quividi-historyReconcile').enqueue({
     locationId: input.locationId!,
   } satisfies ReconcileTask);
@@ -543,7 +556,7 @@ export const historyReconcile = onTaskDispatched<ReconcileTask>({
     if (exportDataClass(doc.get('type') as string) === 'site_aggregate') continue;
     const binding = resolveHistoricalBinding(bindings, locationId, doc.get('date') as string);
     batch.update(doc.ref, {
-      storeId: binding?.storeId ?? null, pointId: binding?.pointId ?? null,
+      storeId: binding?.storeId ?? null, support: binding?.support ?? null, pointId: binding?.pointId ?? null,
       mappingStatus: mappingStatus(binding), mappingSource: binding?.source ?? null,
     });
   }
@@ -591,7 +604,8 @@ export const historyInventoryDaily = onSchedule({
       current.delete(prior.locationId); // Human evidence is never overridden by catalog sync.
       continue;
     }
-    if (current.get(prior.locationId)?.pointId !== prior.pointId) {
+    const next = current.get(prior.locationId);
+    if (!next || next.storeId !== prior.storeId || next.support !== prior.support || next.pointId !== prior.pointId) {
       batch.update(doc.ref, { validTo: yesterdayMexico() });
     } else {
       current.delete(prior.locationId);
@@ -607,6 +621,11 @@ export const historyInventoryDaily = onSchedule({
     }
   }
   await batch.commit();
+  for (const candidate of current.values()) {
+    await getFunctions().taskQueue('quividi-historyReconcile').enqueue({
+      locationId: candidate.locationId,
+    } satisfies ReconcileTask);
+  }
   if (newIds.length) {
     await db.collection(CONTROL).doc(`liverpool-${today}`).create({
       networkId: LIVERPOOL_NETWORK_ID, locationIds: newIds.sort((a, b) => a - b),

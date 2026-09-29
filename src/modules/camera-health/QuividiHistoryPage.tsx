@@ -14,11 +14,10 @@ export function QuividiHistoryPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [locationId, setLocationId] = useState('');
-  const [storeNumber, setStoreNumber] = useState('');
-  const [storeName, setStoreName] = useState('');
+  const [storeId, setStoreId] = useState('');
   const [support, setSupport] = useState('');
   const [pointId, setPointId] = useState('');
-  const [validFrom, setValidFrom] = useState('2026-01-01');
+  const [validFrom, setValidFrom] = useState('');
   const [validTo, setValidTo] = useState('');
   const [showAllLocations, setShowAllLocations] = useState(false);
 
@@ -71,18 +70,20 @@ export function QuividiHistoryPage() {
     setError('');
     setNotice('');
     try {
-      const storeId = `LIV-${storeNumber.trim().padStart(3, '0')}`;
+      if (!selectedStore || !selectedStore.supports.includes(support)) {
+        throw new Error('Selecciona tienda y soporte del catálogo Admira.');
+      }
       await assignQuividiHistoryBinding({
         locationId: Number(locationId),
         storeId,
-        storeName,
+        storeName: selectedStore.name,
         support,
-        pointId: pointId.trim(),
+        pointId: pointId.trim() || null,
         validFrom,
         validTo: validTo || null,
       });
       setNotice(
-        'Vigencia guardada. SIGNAM está reasociando los índices; el RAW no cambia.',
+        'Asociación guardada. Los datos descargados se están vinculando a la tienda y soporte.',
       );
       await reload();
     } catch (reason) {
@@ -98,6 +99,9 @@ export function QuividiHistoryPage() {
 
   const selected = overview?.locations.find(
     (item) => item.id === Number(locationId),
+  );
+  const selectedStore = overview?.stores?.find(
+    (item) => item.storeId === storeId,
   );
   const pendingLocations =
     overview?.locations.filter((item) => item.hasPendingData) ?? [];
@@ -120,19 +124,18 @@ export function QuividiHistoryPage() {
   function selectLocation(id: string) {
     setLocationId(id);
     const current = overview?.locations.find((item) => item.id === Number(id));
-    if (current?.validFrom) {
-      const end = new Date(`${current.validFrom}T00:00:00Z`);
-      end.setUTCDate(end.getUTCDate() - 1);
-      setValidTo(end.toISOString().slice(0, 10));
-    } else setValidTo('');
+    setValidFrom(current?.firstMeasuredDate ?? '');
+    setValidTo('');
+    setStoreId(current?.storeId ?? '');
+    setSupport(current?.support ?? '');
+    setPointId(current?.pointId ?? '');
   }
 
   function useCurrentCatalog() {
-    if (!selected?.storeId || !selected.pointId) return;
-    setStoreNumber(selected.storeId.replace(/^LIV-/, ''));
-    setStoreName(selected.storeName);
+    if (!selected?.storeId) return;
+    setStoreId(selected.storeId);
     setSupport(selected.support);
-    setPointId(selected.pointId);
+    setPointId(selected.pointId ?? '');
   }
 
   return (
@@ -286,7 +289,7 @@ export function QuividiHistoryPage() {
                       <br />
                       Primera medición encontrada:{' '}
                       {selected.firstMeasuredDate ?? 'aún sin datos medidos'}
-                      {selected.storeId && selected.pointId && (
+                      {selected.storeId && (
                         <button
                           type="button"
                           className="btn btn-secondary"
@@ -298,43 +301,61 @@ export function QuividiHistoryPage() {
                     </p>
                   )}
                   <label>
-                    Número de tienda Liverpool
-                    <input
+                    Tienda Liverpool
+                    <select
                       required
-                      inputMode="numeric"
-                      pattern="[0-9]+"
-                      value={storeNumber}
-                      onChange={(event) => setStoreNumber(event.target.value)}
-                      placeholder="007"
-                    />
-                  </label>
-                  <label>
-                    Nombre de tienda
-                    <input
-                      value={storeName}
-                      onChange={(event) => setStoreName(event.target.value)}
-                    />
+                      value={storeId}
+                      onChange={(event) => {
+                        setStoreId(event.target.value);
+                        setSupport('');
+                        setPointId('');
+                      }}
+                    >
+                      <option value="">Selecciona una tienda de Admira</option>
+                      {(overview.stores ?? []).map((store) => (
+                        <option key={store.storeId} value={store.storeId}>
+                          {store.number} —{' '}
+                          {store.name || 'Sin nombre en catálogo'}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     Soporte
-                    <input
+                    <select
                       required
                       value={support}
-                      onChange={(event) => setSupport(event.target.value)}
-                      placeholder="MEGA MUPI DIGITAL"
-                    />
+                      disabled={!selectedStore}
+                      onChange={(event) => {
+                        setSupport(event.target.value);
+                        setPointId('');
+                      }}
+                    >
+                      <option value="">
+                        Selecciona un soporte de esa tienda
+                      </option>
+                      {(selectedStore?.supports ?? []).map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
                   </label>
+                  <p>
+                    Si falta la tienda o el soporte, agrégalo al catálogo Admira
+                    y vuelve a esta pantalla. La importación sigue aunque esta
+                    cámara quede pendiente.
+                  </p>
                   <label>
-                    Punto SIGNAM
+                    Punto SIGNAM (opcional)
                     <input
-                      required
                       value={pointId}
                       onChange={(event) => setPointId(event.target.value)}
                       placeholder="LIV-007-MUPI-P1"
                     />
                   </label>
                   <label>
-                    Desde
+                    Desde (primera medición; ajustable si cambió de tienda)
                     <input
                       required
                       type="date"
@@ -353,7 +374,12 @@ export function QuividiHistoryPage() {
                   <button
                     className="btn btn-primary"
                     type="submit"
-                    disabled={busy}
+                    disabled={
+                      busy ||
+                      !selectedStore?.supports.includes(support) ||
+                      !locationId ||
+                      !validFrom
+                    }
                   >
                     {busy ? 'Guardando…' : 'Guardar asignación histórica'}
                   </button>

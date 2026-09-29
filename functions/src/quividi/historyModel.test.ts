@@ -6,6 +6,9 @@ import {
   isMeasurementExport,
   exportDataClass,
   inventoryBindings,
+  historyCatalogStores,
+  validHistoryCatalogSelection,
+  replaceHistoricalBinding,
   rawHistoryPath,
   resolveHistoricalBinding,
   rowsFingerprint,
@@ -47,9 +50,54 @@ describe('Quividi Liverpool history', () => {
       .toBe('catalog');
     expect(inventoryBindings([screen('LIV-007-MUPI-P1'),
       screen('LIV-007-MUPI-P2')], new Set([22]), '2026-09-28').conflicts)
-      .toEqual([22]);
+      .toEqual([]);
     expect(inventoryBindings([screen('LIV-008-MUPI-P1')],
       new Set([22]), '2026-09-28').conflicts).toEqual([22]);
+  });
+
+  it('uses catalog stores and supports including inactive screens without cameras', () => {
+    const screens = [
+      { original: { 'Numero de Tienda': '7', 'Nombre de tienda': 'Santa Fe' },
+        metadata: { active: false, calendarSupport: 'MEGA MUPI DIGITAL' } },
+      { original: { 'Numero de Tienda': '8', 'Nombre de tienda': 'Otra' },
+        metadata: { calendarSupport: 'BANNER DIGITAL' } },
+      { original: { 'Numero de Tienda': '0' }, metadata: { calendarSupport: 'BANNER DIGITAL' } },
+    ];
+    const stores = historyCatalogStores([...screens, screens[0]!]);
+    expect(stores).toHaveLength(2);
+    expect(stores[0]).toMatchObject({ number: '007', name: 'Santa Fe', supports: ['MEGA MUPI DIGITAL'] });
+    expect(validHistoryCatalogSelection(stores, 'LIV-007', 'MEGA MUPI DIGITAL', null)).toBe(true);
+    expect(validHistoryCatalogSelection(stores, 'LIV-007', 'BANNER DIGITAL', null)).toBe(false);
+    expect(validHistoryCatalogSelection(stores, 'LIV-099', 'MEGA MUPI DIGITAL', null)).toBe(false);
+    expect(validHistoryCatalogSelection(stores, 'LIV-007', 'MEGA MUPI DIGITAL', 'LIV-008-MUPI-P1')).toBe(false);
+  });
+
+  it('automatically associates a location without requiring a point, preserving store/support conflicts', () => {
+    const screen = { original: { 'Numero de Tienda': '7', 'Nombre de tienda': 'Santa Fe' },
+      metadata: { calendarSupport: 'MEGA MUPI DIGITAL', quividiLocationId: 22 } };
+    const result = inventoryBindings([screen], new Set([22]), '2026-09-29');
+    expect(result.candidates[0]).toMatchObject({ storeId: 'LIV-007', support: 'MEGA MUPI DIGITAL', pointId: null });
+    expect(inventoryBindings([screen, { ...screen, original: { 'Numero de Tienda': '8' } }],
+      new Set([22]), '2026-09-29').conflicts).toEqual([22]);
+    expect(inventoryBindings([screen, { ...screen, metadata: { ...screen.metadata, calendarSupport: 'BANNER DIGITAL' } }],
+      new Set([22]), '2026-09-29').conflicts).toEqual([22]);
+  });
+
+  it('replaces overlapping catalog evidence and preserves dated changes without a point', () => {
+    const current = { locationId: 22, storeId: 'LIV-007', storeName: 'Santa Fe',
+      support: 'MEGA MUPI DIGITAL', pointId: null, source: 'catalog' as const,
+      validFrom: '2026-01-01', validTo: null };
+    const manual = { ...current, source: 'manual' as const,
+      validFrom: '2026-04-01', validTo: '2026-06-30' };
+    const result = replaceHistoricalBinding([current], manual);
+    expect(result).toHaveLength(3);
+    expect(resolveHistoricalBinding(result, 22, '2026-03-31')?.source).toBe('catalog');
+    expect(resolveHistoricalBinding(result, 22, '2026-04-01')?.source).toBe('manual');
+    expect(resolveHistoricalBinding(result, 22, '2026-07-01')?.source).toBe('catalog');
+    expect(replaceHistoricalBinding([current], { ...manual, validTo: null })).toHaveLength(2);
+    expect(() => replaceHistoricalBinding([manual], { ...manual, validFrom: '2026-05-01' })).toThrow(/superpone/);
+    expect(replaceHistoricalBinding([manual], { ...manual, storeId: 'LIV-008' })[0]?.storeId).toBe('LIV-008');
+    expect(replaceHistoricalBinding([current], { ...manual, validFrom: current.validFrom })).toHaveLength(2);
   });
 
   it('deduplicates reordered responses while preserving distinct equal rows', () => {
