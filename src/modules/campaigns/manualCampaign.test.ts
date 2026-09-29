@@ -267,3 +267,14 @@ describe('Mupi/Pendón sin detalle (tiendas de Ekon)', () => {
     expect(c.supports[0]!.scopeSource).toBe('resolution-all');
   });
 });
+
+describe('Mupi/Pendón: nada preseleccionado', () => {
+  it('un soporte sin elegir alcance bloquea el alta', () => {
+    const errors = validateManualCampaign(
+      input({
+        supports: [{ support: "MUPPI'S", scope: 'pending', stores: [] }],
+      }),
+    );
+    expect(errors.some((e) => e.includes('Elige cómo se asignan'))).toBe(true);
+  });
+});

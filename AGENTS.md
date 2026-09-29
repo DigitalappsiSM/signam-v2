@@ -80,7 +80,8 @@ tres de ellos describían mal el separador de artículos.
   (`ekon-sin-vinculo` / `ekon-sin-lote` / `ekon-sin-tiendas`) y **nunca** se expande
   a todas las tiendas del catálogo. Aplica a campañas de Liverpool y manuales;
   el formulario manual ofrece «Sin detalle: usar las tiendas de Ekon» para estos
-  soportes. El `fallbackCsv` descrito abajo (sintetizar un soporte no marcado) es
+  soportes **sin opción preseleccionada**: lo que la persona guarda (tiendas
+  específicas o «todas») siempre prevalece y Ekon solo entra si lo elige. El `fallbackCsv` descrito abajo (sintetizar un soporte no marcado) es
   otra regla y sigue sin conectarse a la pantalla.
 - **CSV de Admira**: Admira **ignora la primera columna**, así que la **columna
   A** se usa como columna "guarda": va **vacía** en las filas de datos y su

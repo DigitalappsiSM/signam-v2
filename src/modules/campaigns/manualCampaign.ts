@@ -66,9 +66,11 @@ export interface ManualCampaignSupportInput {
   /**
    * `all` = todas las tiendas del soporte; `selected` = solo `stores`; `ekon` =
    * sin detalle: SIGNAM toma las tiendas de la campaña Ekon vinculada (solo
-   * Mupi/Pendón, ver `consolidation/instoreEkon.ts`).
+   * Mupi/Pendón, ver `consolidation/instoreEkon.ts`). `pending` es solo del
+   * formulario: en Mupi/Pendón nada queda preseleccionado, quien captura debe
+   * elegir; Ekon nunca se usa por omisión.
    */
-  scope: 'all' | 'selected' | 'ekon';
+  scope: 'all' | 'selected' | 'ekon' | 'pending';
   stores: StoreRef[];
 }
 
@@ -139,6 +141,11 @@ export function validateManualCampaign(input: ManualCampaignInput): string[] {
     }
     if (seen.has(key)) errors.push(`El soporte "${s.support}" está repetido.`);
     seen.add(key);
+    if (s.scope === 'pending') {
+      errors.push(
+        `Elige cómo se asignan las tiendas de "${s.support}": específicas, todas o las de Ekon.`,
+      );
+    }
     if (s.scope === 'ekon' && !isMupiPendonSupport(s.support)) {
       errors.push(
         `«Tiendas de Ekon» solo aplica a Mupi y Pendón; elige tiendas para "${s.support}".`,

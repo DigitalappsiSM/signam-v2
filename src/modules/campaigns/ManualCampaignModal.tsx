@@ -117,8 +117,9 @@ export function ManualCampaignModal({
             ...prev,
             {
               support,
-              // Mupi/Pendón sin detalle toman sus tiendas de Ekon por defecto.
-              scope: isMupiPendonSupport(support) ? 'ekon' : 'all',
+              // En Mupi/Pendón no se preselecciona nada: Ekon solo entra si la
+              // persona lo elige.
+              scope: isMupiPendonSupport(support) ? 'pending' : 'all',
               stores: [],
             },
           ],
