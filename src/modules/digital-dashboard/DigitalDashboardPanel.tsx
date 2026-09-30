@@ -35,9 +35,13 @@ const relabel =
 export function DigitalDashboardPanel({
   retailerLabel,
   displayName,
+  refreshKey = 0,
 }: {
   retailerLabel: string;
   displayName: string;
+  /** Cambia cada vez que el Panel recarga ("Actualizar"): fuerza a releer las
+   * colecciones digitales para no dejar cifras obsoletas. */
+  refreshKey?: number;
 }) {
   const [data, setData] = useState<Metrics | null>(null);
   useEffect(() => {
@@ -54,7 +58,7 @@ export function DigitalDashboardPanel({
         ),
       () => setData(buildDigitalDashboard([], [])),
     );
-  }, [retailerLabel]);
+  }, [retailerLabel, refreshKey]);
   if (!data) return null;
 
   const progressPct = Math.round(data.averageProgress * 100);

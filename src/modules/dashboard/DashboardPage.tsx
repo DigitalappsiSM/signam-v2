@@ -825,6 +825,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
             <RetailerPanel
               def={RETAILERS.find((r) => r.id === retailer)!}
               role={role}
+              refreshKey={loadedAt?.getTime() ?? 0}
             />
           ) : (
             <>
@@ -1461,12 +1462,21 @@ function OccCard({
  * Liverpool: el panel de Operación Digital filtrado a uno solo, o el estado
  * vacío explícito cuando el retailer aún no tiene perfil en el Catálogo
  * digital (Soriana, San Pablo). */
-function RetailerPanel({ def, role }: { def: RetailerDef; role: UserRole }) {
+function RetailerPanel({
+  def,
+  role,
+  refreshKey,
+}: {
+  def: RetailerDef;
+  role: UserRole;
+  refreshKey: number;
+}) {
   if (def.kind === 'digital') {
     return (
       <DigitalDashboardPanel
         retailerLabel={def.retailerLabel!}
         displayName={def.label}
+        refreshKey={refreshKey}
       />
     );
   }

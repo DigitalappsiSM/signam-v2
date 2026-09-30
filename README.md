@@ -70,7 +70,7 @@ de persistir. El original se conserva inmutable en
 
 El seguimiento muestra únicamente Link de descarga, Validación de cadena y
 Programación CMS. Las cancelaciones son reversibles y conservan checks y
-comentarios. El panel agrega una sección independiente de métricas digitales y
+comentarios. El Panel muestra las métricas digitales por retailer desde su selector de cliente y
 el Excel propio genera `Resumen catorcena`, `Detalle EKON`, `Incidencias` y
 `Metadatos` sin imágenes.
 
@@ -391,14 +391,20 @@ gráfica principal, estado operativo, acciones rápidas y paneles de atención. 
 tonos no usan umbrales arbitrarios: **verde** = al día/sin incidencias,
 **amarillo** = revisión o vencimiento próximo, **rojo** = vencido o terminado
 con pendientes, **azul** = dato informativo y **gris** = neutral/no aplicable.
-Liverpool y la operación Digital multirretailer se muestran en secciones
-separadas y nunca combinan sus métricas.
+Un **selector de cliente** (Liverpool, Chedraui, La Comer, Soriana, San Pablo;
+color fijo por retailer) muestra un solo cliente a la vez, así que Liverpool y la
+operación Digital multirretailer nunca combinan sus métricas. Chedraui y La Comer
+abren el panel de Operación Digital filtrado a ese retailer; Soriana y San Pablo,
+sin perfil en el Catálogo digital, muestran un estado vacío explícito (con acceso
+a darlos de alta solo para admin). El selector solo aparece con permiso
+`digitalOperations.read`; sin él, el Panel muestra únicamente Liverpool.
 
-En escritorio, **Carga diaria** y **Atención operativa** comparten una columna
-principal independiente del rail de estado, urgencias, clasificación y atajos;
-así el contenido operativo continúa inmediatamente debajo de la gráfica sin
-depender de la altura del rail. En tablet el rail se organiza en dos columnas y
-en móvil todos los paneles se apilan.
+Liverpool se organiza en tres pestañas que comparten filtros y datos: **Hoy**
+(KPIs, estado operativo, **Atención inmediata** y **Carga diaria**),
+**Seguimiento** (**Atención operativa** y **Estados de campaña**) y **Carga**
+(detalle de ocupación por tienda/soporte); **Acciones rápidas** queda visible en
+las tres. El cliente y la pestaña se reflejan en la URL (`retailer`, `vista`). El
+botón **Actualizar** recarga también el panel digital del retailer seleccionado.
 
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.
