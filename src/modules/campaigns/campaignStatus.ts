@@ -159,6 +159,7 @@ export const STATUS_REASONS: Record<CampaignStatus, StatusReasonOption[]> = {
   ],
   paused: [
     { code: 'liverpool-request', label: 'Solicitud de Liverpool' },
+    { code: 'ism-request', label: 'Solicitud de ISM' },
     { code: 'provider-request', label: 'Solicitud del proveedor' },
     { code: 'content-pending', label: 'Contenido o material pendiente' },
     { code: 'technical-issue', label: 'Incidencia técnica' },
@@ -166,6 +167,7 @@ export const STATUS_REASONS: Record<CampaignStatus, StatusReasonOption[]> = {
   ],
   cancelled: [
     { code: 'liverpool-request', label: 'Cancelada por Liverpool' },
+    { code: 'ism-request', label: 'Cancelada por ISM' },
     { code: 'provider-request', label: 'Cancelada por el proveedor' },
     { code: 'capture-error', label: 'Error de captura' },
     OTHER_REASON,
