@@ -57,6 +57,7 @@ import { filterDashboardRows } from './dashboardFilters';
 import {
   formatStatusReason,
   isOperationallyApplicableStatus,
+  statusByCampaignId,
 } from '@/modules/campaigns/campaignStatus';
 import { campaignIntersectsPeriod } from '@/modules/campaigns/dateFilter';
 import { useTheme } from '@/app/theme';
@@ -284,6 +285,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     [resolved.campaigns, screens, tracking, today],
   );
 
+  // Estado efectivo por campaña (resuelve también seguimiento legacy).
+  const statuses = useMemo(
+    () => statusByCampaignId(campaigns, tracking),
+    [campaigns, tracking],
+  );
+
   // Modelo de carga (fuente única de la resolución de colocaciones contra el
   // catálogo). El resumen operativo reutiliza su conjunto de campañas para que
   // KPIs/alertas se recorten igual que la carga ante filtros de colocación.
@@ -294,6 +301,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
         screens,
         tracking,
         range,
+        statuses,
         filters: {
           classification: filters.classification,
           origin: filters.origin,
@@ -308,6 +316,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       screens,
       tracking,
       range,
+      statuses,
       filters.classification,
       filters.origin,
       filters.owner,
@@ -578,8 +587,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
         screens,
         tracking,
         range,
+        statuses,
       }),
-    [campaigns, screens, tracking, range],
+    [campaigns, screens, tracking, range, statuses],
   );
   const supportOptions = useMemo(
     () =>

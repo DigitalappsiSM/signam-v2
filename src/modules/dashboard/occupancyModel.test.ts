@@ -5,6 +5,7 @@ import {
   type DateRange,
   type OccupancyCampaignInput,
   type OccupancyFilters,
+  type OccupancyInput,
   type RangePreset,
 } from './occupancyModel';
 import { parseCampaignDate } from '@/modules/operational-tracking/businessDays';
@@ -109,6 +110,7 @@ function build(
     tracking?: CampaignOperationalTracking[];
     range?: DateRange;
     filters?: OccupancyFilters;
+    statuses?: OccupancyInput['statuses'];
   } = {},
 ) {
   return buildOccupancyDashboard({
@@ -117,6 +119,7 @@ function build(
     tracking: opts.tracking ?? [],
     range: opts.range ?? MAY,
     filters: opts.filters,
+    statuses: opts.statuses,
   });
 }
 
@@ -1049,6 +1052,13 @@ describe('occupancy — estado de campaña en la carga', () => {
     const d = withStatus('active');
     expect(d.totals.distinctCampaigns).toBe(1);
     expect(d.totals.physicalScreens).toBe(1);
+  });
+
+  it('usa el mapa de estados resuelto (seguimiento legacy por huella)', () => {
+    const d = build(campaigns, screens, {
+      statuses: new Map([[campaigns[0]!.id, 'cancelled' as const]]),
+    });
+    expect(d.totals.distinctCampaigns).toBe(0);
   });
 
   it.each(['paused', 'cancelled', 'duplicate'])(

@@ -8,6 +8,7 @@ import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassif
 import {
   effectiveCampaignStatus,
   statusAllows,
+  type EffectiveCampaignStatus,
 } from '@/modules/campaigns/campaignStatus';
 import {
   parseCampaignDate,
@@ -172,6 +173,11 @@ export interface OccupancyInput {
   tracking: readonly CampaignOperationalTracking[];
   range: DateRange;
   filters?: OccupancyFilters;
+  /**
+   * Estado efectivo por `campaign.id`, ya resuelto con la huella legacy
+   * (`statusByCampaignId`). Sin él se busca el seguimiento por id/nameKey.
+   */
+  statuses?: ReadonlyMap<string, EffectiveCampaignStatus>;
 }
 
 /** Entrada mínima de campaña (compatible con `StoredCampaign`). */
@@ -696,14 +702,13 @@ export function buildOccupancyDashboard(
   for (const c of campaigns) {
     // Solo las campañas activas cargan tiendas/soportes: en pausa, canceladas y
     // duplicadas (y las retiradas del calendario) quedan fuera de la carga.
-    const t = trackingByKey.get(c.id) ?? trackingByKey.get(c.nameKey) ?? null;
-    if (
-      !statusAllows(
-        effectiveCampaignStatus({ active: c.active }, t),
-        'dashboardLoad',
-      )
-    )
-      continue;
+    const status =
+      input.statuses?.get(c.id) ??
+      effectiveCampaignStatus(
+        { active: c.active },
+        trackingByKey.get(c.id) ?? trackingByKey.get(c.nameKey) ?? null,
+      );
+    if (!statusAllows(status, 'dashboardLoad')) continue;
     const classification = classify(c, trackingByKey);
     // Filtros a nivel campaña (afectan también los totales de periodo).
     if (classFilter !== 'all' && classification !== classFilter) continue;

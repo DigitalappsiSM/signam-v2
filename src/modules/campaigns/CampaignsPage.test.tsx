@@ -42,6 +42,7 @@ import { buildQuividiCampaignPdfBlob } from '@/modules/exports/quividiCampaignPd
 import {
   initializeTrackingForImport,
   listOperationalTracking,
+  migrateLegacyOperationalTracking,
 } from '@/services/campaignOperationalTracking';
 
 vi.mock('@/modules/exports/pptExport', async () => {
@@ -135,6 +136,7 @@ vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
 vi.mock('@/services/campaignOperationalTracking', () => ({
   listOperationalTracking: vi.fn(),
   initializeTrackingForImport: vi.fn(),
+  migrateLegacyOperationalTracking: vi.fn(async () => 0),
 }));
 vi.mock('@/services/campaignEkonLinks', async () => {
   const actual = await vi.importActual<
@@ -1690,5 +1692,20 @@ describe('CampaignsPage — estados de campaña', () => {
     expect(
       within(dialog).getByRole('button', { name: 'Cerrar' }),
     ).toBeInTheDocument();
+  });
+
+  it('migra el seguimiento legacy al campaign.id al cargar', async () => {
+    const legacy = {
+      campaignNameKey: 'legacy#x',
+      classification: 'provider',
+      lifecycleStatus: 'cancelled',
+    } as unknown as Awaited<ReturnType<typeof listOperationalTracking>>[number];
+    vi.mocked(listOperationalTracking).mockResolvedValue([legacy]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    expect(migrateLegacyOperationalTracking).toHaveBeenCalledWith(
+      [A, B],
+      [legacy],
+    );
   });
 });

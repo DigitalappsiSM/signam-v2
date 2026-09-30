@@ -242,10 +242,14 @@ service cloud.firestore {
                 && data.duplicateOfCampaignId is string))
         && (!('statusHistory' in data) || data.statusHistory is list);
     }
+    // El historial previo debe seguir intacto como prefijo del nuevo: no se
+    // pueden editar, reordenar ni borrar eventos, solo agregar al final.
     function historyOnlyGrows(before, after) {
       return !('statusHistory' in before)
         || ('statusHistory' in after
-            && after.statusHistory.size() >= before.statusHistory.size());
+            && after.statusHistory.size() >= before.statusHistory.size()
+            && after.statusHistory[0:before.statusHistory.size()]
+                == before.statusHistory);
     }
     function validCampaignReference(data) {
       return !('campaignId' in data) || data.campaignId is string;

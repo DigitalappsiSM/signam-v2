@@ -103,6 +103,7 @@ import {
 import {
   initializeTrackingForImport,
   listOperationalTracking,
+  migrateLegacyOperationalTracking,
 } from '@/services/campaignOperationalTracking';
 import type {
   CampaignOperationalTracking,
@@ -342,12 +343,27 @@ export function CampaignsPage() {
     try {
       // Incluye las retiradas del calendario: se muestran con su etiqueta, pero
       // su estado las deja fuera de CSV, Quividi y baja ocupación.
-      const [c, s, initialLinks, tracking] = await Promise.all([
+      const [c, s, initialLinks, initialTracking] = await Promise.all([
         listCampaigns({ includeInactive: true }),
         listScreens(),
         listEkonLinks(),
         listOperationalTracking(),
       ]);
+      // Copia el seguimiento legacy al `campaign.id`: el estado de campaña se
+      // escribe y se valida (Quividi en el servidor) sobre ese documento; sin
+      // esto, cambiar el estado de una campaña legacy crearía un documento
+      // nuevo sin sus checks.
+      let tracking = initialTracking;
+      try {
+        const migrated = await migrateLegacyOperationalTracking(
+          c,
+          initialTracking,
+        );
+        if (migrated > 0) tracking = await listOperationalTracking();
+      } catch {
+        // Idempotente: se reintenta en la próxima carga (roles sin escritura
+        // siguen leyendo el legacy por huella).
+      }
       let e = initialLinks;
       try {
         const migrated = await migrateLegacyEkonLinks(c, initialLinks);
@@ -1297,15 +1313,22 @@ export function CampaignsPage() {
           canWrite={canChangeStatus}
           actor={actor}
           onSaved={(updated) => {
-            setTrackingList((prev) => [
-              ...prev.filter(
+            const next = [
+              ...trackingList.filter(
                 (t) =>
                   (t.campaignId ?? t.campaignNameKey) !==
                   (updated.campaignId ?? updated.campaignNameKey),
               ),
               updated,
-            ]);
+            ];
+            setTrackingList(next);
             setStatusCampaign(null);
+            // Una campaña que vuelve al CSV (p. ej. Mupi/Pendón sin tiendas)
+            // necesita su contexto Ekon, que se omitió mientras estaba fuera.
+            void loadEkonContext(
+              campaignsAllowedFor('consolidationCsv', campaigns, next),
+              ekonLinks,
+            );
           }}
           onClose={() => setStatusCampaign(null)}
         />
