@@ -116,11 +116,9 @@ export function toIsoDate(d: Date): string {
 }
 
 /**
- * Ventana por defecto de Seguimiento operativo: del **día 1 del mes anterior**
- * al **último día del mes siguiente** (mes anterior + mes actual + mes
- * siguiente), en fechas civiles. Devuelve los extremos en ISO `AAAA-MM-DD`.
- * `Date.UTC` normaliza los desbordes de mes/año (p. ej. enero → dic del año
- * anterior; diciembre → ene/feb del año siguiente).
+ * Ventana por defecto de Seguimiento operativo: del día 1 al último día
+ * del mes actual al abrir la vista, en fechas civiles ISO `AAAA-MM-DD`.
+ * `Date.UTC` normaliza el fin de mes, incluidos años bisiestos.
  */
 export function defaultTrackingWindow(now: Date = new Date()): {
   desde: string;
@@ -129,9 +127,9 @@ export function defaultTrackingWindow(now: Date = new Date()): {
   const y = now.getFullYear();
   const m = now.getMonth();
   return {
-    desde: toIsoDate(new Date(Date.UTC(y, m - 1, 1))),
-    // Día 0 del mes (m+2) = último día del mes siguiente (m+1).
-    hasta: toIsoDate(new Date(Date.UTC(y, m + 2, 0))),
+    desde: toIsoDate(new Date(Date.UTC(y, m, 1))),
+    // Día 0 del mes siguiente = último día del mes actual.
+    hasta: toIsoDate(new Date(Date.UTC(y, m + 1, 0))),
   };
 }
 

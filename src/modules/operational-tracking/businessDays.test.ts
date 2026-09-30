@@ -136,18 +136,25 @@ describe('toIsoDate', () => {
 });
 
 describe('defaultTrackingWindow', () => {
-  it('abarca del día 1 del mes anterior al último día del mes siguiente', () => {
+  it('respeta febrero de un año bisiesto', () => {
+    expect(defaultTrackingWindow(new Date(2028, 1, 29))).toEqual({
+      desde: '2028-02-01',
+      hasta: '2028-02-29',
+    });
+  });
+
+  it('abarca exclusivamente el mes actual', () => {
     const w = defaultTrackingWindow(new Date(2026, 7, 15)); // agosto 2026
-    expect(w).toEqual({ desde: '2026-07-01', hasta: '2026-09-30' });
+    expect(w).toEqual({ desde: '2026-08-01', hasta: '2026-08-31' });
   });
 
-  it('cruza el fin de año correctamente (enero → dic previo)', () => {
+  it('mantiene enero dentro de su año', () => {
     const w = defaultTrackingWindow(new Date(2026, 0, 10)); // enero 2026
-    expect(w).toEqual({ desde: '2025-12-01', hasta: '2026-02-28' });
+    expect(w).toEqual({ desde: '2026-01-01', hasta: '2026-01-31' });
   });
 
-  it('cruza el fin de año correctamente (diciembre → enero siguiente)', () => {
+  it('mantiene diciembre dentro de su año', () => {
     const w = defaultTrackingWindow(new Date(2026, 11, 20)); // diciembre 2026
-    expect(w).toEqual({ desde: '2026-11-01', hasta: '2027-01-31' });
+    expect(w).toEqual({ desde: '2026-12-01', hasta: '2026-12-31' });
   });
 });

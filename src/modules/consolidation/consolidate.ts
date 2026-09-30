@@ -20,10 +20,14 @@ import { hasStoreDetail, isMupiPendonSupport } from './instoreEkon';
  * `calendarSupport`), consolida por `Campaña + RESOLUCION` y produce las filas
  * del CSV de Admira. Regla de negocio: `RETAILERS` es constante `LIVERPOOL`.
  *
- * Exclusiones de esta etapa (con incidencia):
- * - Soportes InStore Media (Muppi's / Pendón).
- * - Pantallas cuyo `TIPO DE pantallas` sea `ISM` (lógica pendiente).
- * - Pantallas inactivas solicitadas.
+ * Exclusiones (siempre con incidencia, nunca en silencio):
+ * - Pantallas inactivas, tiendas fuera del catálogo o sin el soporte pedido.
+ * - Mupi/Pendón sin detalle de tiendas que no se resolvieron con Ekon.
+ * - Soportes InStore Media solo cuando el llamador no los incluye (baja
+ *   ocupación); la consolidación y el CSV de Admira siempre los incluyen.
+ *
+ * Las pantallas ISM (`TIPO DE pantallas` con `ISM`) participan como cualquier
+ * otra: su exclusión era provisional mientras no existía el catálogo Admira.
  */
 
 export interface Consolidation {
@@ -62,13 +66,9 @@ export interface ConsolidationResult {
   issues: ConsolidationIssue[];
   /** Soportes InStore Media detectados y excluidos (campaña + soporte). */
   excludedInstore: { campaign: string; support: string }[];
-  /** Pantallas ISM excluidas (deferidas). */
-  ismExcludedCount: number;
 }
 
 const norm = (v: string) => normalizeSupport(v);
-const isISM = (screen: AdmiraScreen) =>
-  norm(screen.original['TIPO DE pantallas']).includes('ISM');
 
 /**
  * Normaliza un número de tienda: recorta y, si es numérico, elimina ceros a la
@@ -96,7 +96,7 @@ export interface ScreenIndex {
 
 /**
  * Resultado de cruzar UNA campaña contra el catálogo: sus pantallas activas
- * participantes (deduplicadas por id, orden estable, sin ISM) más las
+ * participantes (deduplicadas por id, orden estable) más las
  * incidencias y exclusiones generadas. Es la pieza reutilizable del motor: la
  * consolidación normal y el análisis de baja ocupación la comparten para no
  * mantener dos variantes incompatibles del cruce calendario↔catálogo.
@@ -105,7 +105,6 @@ export interface CampaignMatch {
   matched: AdmiraScreen[];
   issues: ConsolidationIssue[];
   excludedInstore: { campaign: string; support: string }[];
-  ismExcludedCount: number;
 }
 
 function push(map: Map<string, AdmiraScreen[]>, k: string, s: AdmiraScreen) {
@@ -164,7 +163,7 @@ export function buildScreenIndex(
 
 /**
  * Cruza UNA campaña contra el catálogo indexado y devuelve sus pantallas
- * participantes (activas, deduplicadas, sin ISM) más incidencias/exclusiones.
+ * participantes (activas, deduplicadas) más incidencias/exclusiones.
  * Función pura reutilizable por la consolidación y por el análisis de ocupación.
  */
 /**
@@ -310,20 +309,10 @@ export function matchCampaignScreens(
     }
   }
 
-  // Excluir pantallas ISM (lógica pendiente).
-  let ismExcludedCount = 0;
-  for (const [id, s] of matched) {
-    if (isISM(s)) {
-      matched.delete(id);
-      ismExcludedCount += 1;
-    }
-  }
-
   return {
     matched: [...matched.values()],
     issues,
     excludedInstore,
-    ismExcludedCount,
   };
 }
 
@@ -356,7 +345,6 @@ export function consolidate(
   const index = buildScreenIndex(screens);
   const issues: ConsolidationIssue[] = [];
   const excludedInstore: { campaign: string; support: string }[] = [];
-  let ismExcludedCount = 0;
 
   // Acumulador global por `Campaña + RESOLUCION`. El orden de inserción de las
   // llaves determina el orden de las consolidaciones resultantes.
@@ -366,7 +354,6 @@ export function consolidate(
     const match = matchCampaignScreens(campaign, index, options);
     issues.push(...match.issues);
     excludedInstore.push(...match.excludedInstore);
-    ismExcludedCount += match.ismExcludedCount;
 
     for (const s of match.matched) {
       // Resoluciones con diferencias cosméticas (mayúsculas/espacios) se
@@ -406,7 +393,7 @@ export function consolidate(
     });
   }
 
-  return { consolidations, issues, excludedInstore, ismExcludedCount };
+  return { consolidations, issues, excludedInstore };
 }
 
 export interface IssueSummary {

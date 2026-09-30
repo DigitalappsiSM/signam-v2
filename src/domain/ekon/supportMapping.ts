@@ -10,6 +10,10 @@ import { normalizeSupport } from '../support';
  *
  * Alias confirmado: el valor Ekon `MEGA MUPI DIGITAL` se normaliza al circuito
  * canónico `MEGA MUPI` antes de aplicar el mapeo.
+ *
+ * Del lado Liverpool, los soportes InStore del calendario se leen como su
+ * equivalente digital (mismo alias que la consolidación y Quividi):
+ * `MUPPI'S` → `MEGA MUPI DIGITAL` y `PENDON` → `BANNER DIGITAL`.
  */
 
 /** Circuitos canónicos Ekon. */
@@ -73,9 +77,16 @@ const NORMALIZED_SUPPORTS_BY_CIRCUIT = new Map<EkonCircuit, Set<string>>(
   ]),
 );
 
+/** Aliases de soporte Liverpool (InStore) → soporte digital equivalente. */
+const LIVERPOOL_SUPPORT_ALIASES: Record<string, string> = {
+  MUPPIS: 'MEGA MUPI DIGITAL',
+  PENDON: 'BANNER DIGITAL',
+};
+
 /**
  * true si el `soporte` Liverpool es compatible con el `circuito` Ekon (o con el
- * artículo, resolviendo su alias). La comparación es normalizada.
+ * artículo, resolviendo su alias). La comparación es normalizada y el soporte
+ * InStore (`MUPPI'S`, `PENDON`) se evalúa por su equivalente digital.
  */
 export function isCompatibleSupport(
   articuloOrCircuit: string,
@@ -84,7 +95,9 @@ export function isCompatibleSupport(
   const circuit = canonicalCircuit(articuloOrCircuit);
   if (!circuit) return false;
   const set = NORMALIZED_SUPPORTS_BY_CIRCUIT.get(circuit);
-  return set ? set.has(normalizeSupport(liverpoolSupport)) : false;
+  if (!set) return false;
+  const n = normalizeSupport(liverpoolSupport);
+  return set.has(LIVERPOOL_SUPPORT_ALIASES[n] ?? n);
 }
 
 /** Soportes Liverpool permitidos para un artículo/circuito Ekon (o vacío). */

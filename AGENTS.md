@@ -69,6 +69,13 @@ tres de ellos describían mal el separador de artículos.
   → `BANNER DIGITAL`, mismo alias de Quividi) salvo que el maestro ya los mapee con
   su nombre literal. El **análisis de baja ocupación** conserva su criterio
   histórico y los sigue excluyendo (`matchCampaignScreens` sin `includeInstore`).
+- **Pantallas ISM** (`TIPO DE pantallas` con `ISM`, p. ej. los Mega Mupi y Banner
+  digitales de In-Store Media): **entran al CSV** como cualquier pantalla del
+  catálogo. Su exclusión fue provisional mientras no existía el catálogo Admira y
+  se retiró; además lo hacía **en silencio** (sin incidencia), por lo que una
+  campaña de Mupi con tiendas quedaba con 0 CSV y 0 incidencias. Toda exclusión
+  de la consolidación debe dejar incidencia. El universo del **análisis de baja
+  ocupación** conserva su propio filtro ISM (`isEligibleScreen`).
 - **Mupi/Pendón sin detalle de tiendas** (`MUPPI'S`, `PENDON`, `MEGA MUPI DIGITAL`,
   `BANNER DIGITAL` marcados sin comentario ni «todas» explícito;
   `consolidation/instoreEkon.ts`): SIGNAM toma las tiendas de la campaña **Ekon
@@ -147,6 +154,22 @@ tres de ellos describían mal el separador de artículos.
   El Dashboard las trata como cualquier campaña (la clasificación sale del
   seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
   Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.
+- **Vista de Campañas**: inicia con la vigencia que intersecta el mes actual
+  al abrir el módulo (fecha local del navegador), igual que Seguimiento.
+  «Restablecer» y limpiar filtros recuperan ese mes; «Ver todo» quita las fechas.
+  La búsqueda, clasificación y estado se combinan con el periodo. Los contadores
+  visibles y la exportación masiva Excel respetan ese filtro, por lo que al abrir
+  se exporta el mes actual, no todo el histórico. No modifica datos, CSV
+  individuales, importación, permisos ni lecturas de Firestore.
+- **Vista de Seguimiento operativo**: por defecto muestra campañas cuya vigencia
+  intersecta el mes actual al abrir el módulo, no el campo textual `mes`.
+  «Restablecer» y limpiar filtros vuelven a ese mes; «Ver todo» quita las fechas.
+  Los enlaces `?campana=` conservan la excepción temporal de la campaña enlazada.
+  Marcar checks no reinicia la página: solo cambiar filtros u orden lo hace.
+  Si una fila deja de cumplir el filtro al marcarla, desaparece; si se reduce el
+  número de páginas, se muestra la última válida. El orden por estado o vencimiento
+  puede recolocar filas al guardar. Es una vista en cliente, sin reducir lecturas
+  de Firestore ni modificar históricos, exportaciones o alertas del Dashboard.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
   seguimientos independientes y una actualización de fechas, tiendas, soportes,
@@ -792,7 +815,11 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   filas con determinante real `0` quedan fuera de la conciliación de tienda.
 - **Mapeo circuito Ekon ↔ soporte Liverpool** (`supportMapping.ts`): tabla cerrada
   y probada; alias `MEGA MUPI DIGITAL → MEGA MUPI`. La conciliación acepta
-  cualquiera de los soportes permitidos del circuito (sin igualdad literal).
+  cualquiera de los soportes permitidos del circuito (sin igualdad literal). Los
+  soportes InStore del calendario se evalúan por su equivalente digital (mismo
+  alias que la consolidación y Quividi): `MUPPI'S` → `MEGA MUPI DIGITAL`
+  (circuito `MEGA MUPI`) y `PENDON` → `BANNER DIGITAL` (circuito `ESPECTACULAR
+  IN STORE`).
 - **Fallback CSV** (`fallbackCsv.ts` + `modules/consolidation/ekonFallback.ts`):
   solo `MEGA MUPI DIGITAL` (desde `MEGA MUPI`) y `BANNER DIGITAL` (desde
   `ESPECTACULAR IN STORE`). Precedencia: si Liverpool marca el soporte, se usa el

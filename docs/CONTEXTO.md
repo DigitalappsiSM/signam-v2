@@ -687,7 +687,8 @@ a los CSV auxiliares Ratio 1/3.
   con testigos; una campaña mixta con ≥1 línea Ratio 1 es Ratio 1 global.
 - **Conciliación** (`/conciliacion`): para cada campaña con vínculo manual compara
   número, tipo/Ratio, periodos, tiendas y soportes (mapeo circuito Ekon ↔ soporte
-  Liverpool, `supportMapping.ts`). **Solo compara, nunca corrige ni mueve
+  Liverpool, `supportMapping.ts`; `MUPPI'S`/`PENDON` del calendario se leen como
+  `MEGA MUPI DIGITAL`/`BANNER DIGITAL`). **Solo compara, nunca corrige ni mueve
   asociaciones.** Determinante `0` = Centro Administrativo (no es tienda).
 - **Fallback CSV Ekon** (`fallbackCsv.ts` + `consolidation/ekonFallback.ts`): solo
   `MEGA MUPI DIGITAL` (desde `MEGA MUPI`) y `BANNER DIGITAL` (desde `ESPECTACULAR

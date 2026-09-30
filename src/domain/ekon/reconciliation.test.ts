@@ -169,6 +169,22 @@ describe('conciliación Ekon ↔ Liverpool', () => {
     expect(res.status).toBe('circuito-no-compatible');
   });
 
+  it("MUPPI'S del calendario concilia con el circuito Ekon MEGA MUPI", () => {
+    const assignments = assignmentsFromSpecs([
+      { ...P32, Artículo: 'MEGA MUPI', Determinante: '3' },
+    ]);
+    const res = reconcileCampaign(
+      campaign({
+        fechaFin: '2026-08-03',
+        supports: [{ support: "MUPPI'S", stores: [{ numero: '3' }] }],
+      }),
+      '30001',
+      assignments,
+    );
+    expect(res.stores.details[0]!.status).toBe('matched');
+    expect(res.status).not.toBe('circuito-no-compatible');
+  });
+
   it('exige cobertura compatible en ambos sentidos por tienda', () => {
     const assignments = assignmentsFromSpecs([
       {

@@ -131,7 +131,11 @@ logic. The load-bearing ones:
   via `MUPPI'S`→`MEGA MUPI DIGITAL`, `PENDON`→`BANNER DIGITAL`; low-occupancy analysis still excludes them). When
   Mupi/Pendón come **without store detail**, stores are taken from the linked **Ekon** campaign
   (`consolidation/instoreEkon.ts`, same rule as Quividi's effective scope); no link/batch/stores ⇒ blocked with an
-  issue, never expanded to all stores. See `AGENTS.md`.
+  issue, never expanded to all stores. Reconciliation (`domain/ekon/supportMapping.ts`) reads them through the
+  same alias. See `AGENTS.md`.
+- **ISM screens** (`TIPO DE pantallas` containing `ISM`) go into the CSV like any other screen; their exclusion
+  was a temporary placeholder before the Admira catalog existed and has been removed. Consolidation never drops
+  a screen silently — every exclusion leaves an issue. Low occupancy keeps its own ISM filter.
 - **SIGNAM metadata** (`active`, `createdAt`, `version`, …) is stored **separately** from original master fields
   and is never exported inside the master.
 - **Campaign ↔ Ekon** (`campaignEkonLinks/{campaignId}`, many-to-one) and **operational tracking**
