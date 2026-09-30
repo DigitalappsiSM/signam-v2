@@ -123,8 +123,7 @@ export function DigitalDashboardPanel({
           <span className="dashboard-eyebrow">Fuente independiente</span>
           <h2 id="digital-dashboard">Operación Digital — {displayName}</h2>
           <p className="dashboard-section__description">
-            Métricas de {displayName}; no se mezclan con la operación
-            Liverpool.
+            Métricas de {displayName}; no se mezclan con la operación Liverpool.
           </p>
         </div>
       </div>

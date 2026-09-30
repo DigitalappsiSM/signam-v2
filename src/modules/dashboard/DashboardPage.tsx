@@ -91,12 +91,7 @@ const LIVERPOOL_VIEWS: { id: LiverpoolView; label: string }[] = [
 
 /** Identidad fija del cliente en el selector del Panel; el color siempre sale
  * de `--retailer-*` (visual-tokens de la skill de dashboards ISM). */
-type RetailerId =
-  | 'liverpool'
-  | 'chedraui'
-  | 'lacomer'
-  | 'soriana'
-  | 'sanpablo';
+type RetailerId = 'liverpool' | 'chedraui' | 'lacomer' | 'soriana' | 'sanpablo';
 interface RetailerDef {
   id: RetailerId;
   label: string;
@@ -807,11 +802,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       {loadedOnce && (
         <>
           {canSeeRetailers && (
-            <div
-              className="dash-retailers"
-              role="tablist"
-              aria-label="Cliente"
-            >
+            <div className="dash-retailers" role="tablist" aria-label="Cliente">
               {RETAILERS.map((r) => (
                 <button
                   key={r.id}
@@ -905,7 +896,10 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
                       className={`dashboard-panel dashboard-health dashboard-health--${operationalHealth.tone}`}
                       aria-label={`Estado operativo: ${operationalHealth.label}`}
                     >
-                      <div className="dashboard-health__ring" aria-hidden="true">
+                      <div
+                        className="dashboard-health__ring"
+                        aria-hidden="true"
+                      >
                         <svg viewBox="0 0 120 120" width="64" height="64">
                           <circle
                             className="dashboard-health__ring-bg"
@@ -1192,7 +1186,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
                 >
                   <div className="dashboard-section__head">
                     <div>
-                      <span className="dashboard-eyebrow">Detalle de carga</span>
+                      <span className="dashboard-eyebrow">
+                        Detalle de carga
+                      </span>
                       <h2 id="dashboard-occupancy-title">
                         Carga por tienda y soporte
                       </h2>
@@ -1200,9 +1196,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
                   </div>
                   <p className="dashboard-section__description">
                     La carga se mide como{' '}
-                    <strong>pico de campañas simultáneas</strong> en el
-                    periodo. No representa capacidad ni saturación porque aún
-                    no existe una capacidad máxima configurada por pantalla.
+                    <strong>pico de campañas simultáneas</strong> en el periodo.
+                    No representa capacidad ni saturación porque aún no existe
+                    una capacidad máxima configurada por pantalla.
                   </p>
 
                   {campaigns.length === 0 ? (

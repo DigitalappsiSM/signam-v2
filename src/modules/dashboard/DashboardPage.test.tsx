@@ -168,8 +168,10 @@ describe('DashboardPage — resumen operativo', () => {
   it('separa Hoy, Seguimiento y Carga en pestañas independientes', async () => {
     renderDash(VIEJA_ROUTE);
 
-    // Hoy (por defecto): salud + atención inmediata + carga diaria.
-    await screen.findByRole('heading', { name: /Atención inmediata/i });
+    // Hoy (por defecto): salud + atención inmediata + carga diaria. Se busca
+    // la sección (no el heading): la etiqueta de salud operativa también puede
+    // decir "Atención inmediata".
+    await screen.findByRole('region', { name: 'Atención inmediata' });
     expect(
       screen.getByRole('heading', { name: /Carga diaria/i }),
     ).toBeInTheDocument();
@@ -189,8 +191,8 @@ describe('DashboardPage — resumen operativo', () => {
       screen.queryByRole('heading', { name: /Carga diaria/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: /Atención inmediata/i }),
-    ).not.toBeInTheDocument();
+      screen.queryAllByRole('heading', { name: /Atención inmediata/i }),
+    ).toHaveLength(0);
 
     // Carga: detalle de ocupación (sin datos de colocación para VIEJA).
     await goTo('Carga');
