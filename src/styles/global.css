@@ -78,6 +78,15 @@
   /* RGB del acento azul para la intensidad relativa de la matriz. */
   --heat: 37, 99, 235;
 
+  /* Identidad fija por cliente/retailer del Panel (selector del dashboard).
+     Siempre el mismo color en todos los dashboards ISM, nunca la marca del
+     cliente. San Pablo reutiliza el morado reservado a HEB (no aplica aquí). */
+  --retailer-liverpool: #1f4fd1;
+  --retailer-soriana: #0f9d8a;
+  --retailer-chedraui: #d9822b;
+  --retailer-lacomer: #d6457a;
+  --retailer-sanpablo: #8b5cf6;
+
   /* Vidrio: superficies translúcidas con desenfoque para el "chrome". */
   --glass-bg: rgba(255, 255, 255, 0.66);
   --glass-strong: rgba(255, 255, 255, 0.86);
@@ -202,6 +211,12 @@
   --cls-prov: #2dd4a7;
   --cls-unknown: #fbbf24;
   --heat: 47, 117, 255;
+
+  --retailer-liverpool: #6a8dff;
+  --retailer-soriana: #3cc7b2;
+  --retailer-chedraui: #f0a55c;
+  --retailer-lacomer: #ee7aa3;
+  --retailer-sanpablo: #a98bfa;
 
   --glass-bg: rgba(16, 31, 53, 0.66);
   --glass-strong: rgba(20, 38, 65, 0.92);

@@ -90,31 +90,6 @@
   gap: 0.5rem 1rem;
 }
 
-.dashboard-analysis-row,
-.dashboard-priorities-row {
-  display: grid;
-  gap: 1rem;
-  align-items: stretch;
-  margin-bottom: 1rem;
-}
-
-.dashboard-analysis-row {
-  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
-}
-
-.dashboard-priorities-row {
-  grid-template-columns: minmax(250px, 1fr) minmax(0, 2fr);
-}
-
-.dashboard-content .dashboard-priorities-row .dashboard-attention {
-  margin-top: 0;
-}
-
-.dashboard-content .dashboard-priorities-row .dash-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-}
-
 .dashboard-content .dashboard-urgent {
   align-self: start;
 }
@@ -150,16 +125,12 @@
     margin-top: 0.6rem;
   }
 
-  .dashboard-priorities-row {
+  .dashboard-hero {
     grid-template-columns: 1fr;
   }
 }
 
 @container dashboard (max-width: 720px) {
-  .dashboard-analysis-row {
-    grid-template-columns: 1fr;
-  }
-
   .dashboard-content .dashboard-actions__list,
   .dashboard-content .dash-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -167,7 +138,6 @@
 }
 
 @container dashboard (max-width: 460px) {
-  .dashboard-content .dashboard-priorities-row .dash-grid,
   .dashboard-content .dashboard-actions__list,
   .dashboard-content .dash-summary {
     grid-template-columns: 1fr;
