@@ -29,6 +29,7 @@ import {
   roleFromClaims,
 } from './access';
 import { buildSupportHours, type SupportHour } from './hourly';
+import { quividiBlockedReason } from './campaignStatus';
 import {
   CAMERA_HEALTH_LOOKBACK_DAYS,
   CAMERA_HEALTH_MAX_BACKFILL_DAYS,
@@ -1315,6 +1316,15 @@ export const campaignReport = onCall(
       throw new HttpsError('not-found', 'La campaña no existe.');
     }
     const campaign = campaignSnap.data() as CampaignDoc;
+    const trackingSnap = await db
+      .collection('campaignOperationalTracking')
+      .doc(campaignId)
+      .get();
+    const blocked = quividiBlockedReason(
+      campaign as { active?: unknown },
+      trackingSnap.data() as { lifecycleStatus?: unknown } | undefined,
+    );
+    if (blocked) throw new HttpsError('failed-precondition', blocked);
     const startDate = parseCivilDate(campaign.fechaInicio ?? '');
     const endDate = parseCivilDate(campaign.fechaFin ?? '');
     if (!startDate || !endDate) {

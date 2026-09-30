@@ -10,12 +10,12 @@ import {
   addComment as addCommentPure,
   applyCheckChange,
   campaignKeyId,
-  cancelTracking as cancelTrackingPure,
+  changeTrackingStatus,
   initialTracking,
   markAllComplete,
   normalizeTracking,
-  reactivateTracking as reactivateTrackingPure,
   setClassification,
+  type StatusChange,
   type TrackingActor,
 } from '@/modules/operational-tracking/trackingFactory';
 import type {
@@ -49,6 +49,12 @@ function db() {
   const fb = getFirebase();
   if (!fb) throw new Error('Firebase no está configurado.');
   return fb.db;
+}
+
+function newId(now: number): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${now}-${Math.random().toString(36).slice(2)}`;
 }
 
 function trackingDocumentId(ref: {
@@ -184,12 +190,11 @@ export async function markAllChecks(
   });
 }
 
-export interface CancelTrackingParams {
+export interface ChangeCampaignStatusParams {
   campaignId?: string;
   campaignNameKey: string;
   campaignName: string;
-  /** Motivo opcional; texto vacío se persiste como `null`. */
-  reason: string;
+  change: StatusChange;
   /** Clasificación con la que crear el documento si aún no existe. */
   classification: Classification;
   /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
@@ -198,13 +203,14 @@ export interface CancelTrackingParams {
 }
 
 /**
- * Cancela una campaña (transición transaccional). Si no existe documento de
- * seguimiento lo crea con los defaults actuales dentro de la misma transacción y
- * después aplica la cancelación. Nunca modifica los checks, la clasificación ni
- * los comentarios.
+ * Cambia el estado de una campaña (transición transaccional) y agrega el evento
+ * al historial. Si no existe documento de seguimiento lo crea con los defaults
+ * actuales dentro de la misma transacción. Nunca modifica los checks, la
+ * clasificación ni los comentarios. La validación de negocio (motivo, original
+ * del duplicado) se hace antes con `validateStatusChange`.
  */
-export async function cancelCampaignTracking(
-  params: CancelTrackingParams,
+export async function changeCampaignStatus(
+  params: ChangeCampaignStatusParams,
 ): Promise<CampaignOperationalTracking> {
   const database = db();
   const documentId = trackingDocumentId(params);
@@ -229,56 +235,20 @@ export async function cancelCampaignTracking(
           params.actor,
           now,
         );
-    const tracking = cancelTrackingPure(base, params.reason, params.actor, now);
-    const { id: _id, ...data } = tracking;
-    void _id;
-    tx.set(ref, data);
-    return tracking;
-  });
-}
-
-export interface ReactivateTrackingParams {
-  campaignId?: string;
-  campaignNameKey: string;
-  campaignName: string;
-  /** Clasificación con la que crear el documento si aún no existe. */
-  classification: Classification;
-  /** ¿El link del calendario es válido? Fija defaults al crear el documento. */
-  linkValid: boolean;
-  actor: TrackingActor;
-}
-
-/**
- * Reactiva una campaña cancelada (transición transaccional): vuelve a `active` y
- * limpia el motivo. No modifica los checks: reaparecen con sus valores previos.
- */
-export async function reactivateCampaignTracking(
-  params: ReactivateTrackingParams,
-): Promise<CampaignOperationalTracking> {
-  const database = db();
-  const documentId = trackingDocumentId(params);
-  const ref = doc(database, COLLECTION, documentId);
-  return runTransaction(database, async (tx) => {
-    const snap = await tx.get(ref);
-    const now = Date.now();
-    const base = snap.exists()
-      ? normalizeTracking({
-          id: documentId,
-          ...(snap.data() as Omit<CampaignOperationalTracking, 'id'>),
-        })
-      : initialTracking(
-          {
-            campaignId: params.campaignId,
-            campaignNameKey: params.campaignNameKey,
-            campaignName: params.campaignName,
-            classification: params.classification,
-            classificationSource: 'import-user',
-            linkValid: params.linkValid,
-          },
-          params.actor,
-          now,
-        );
-    const tracking = reactivateTrackingPure(base, params.actor, now);
+    let tracking: CampaignOperationalTracking;
+    try {
+      tracking = changeTrackingStatus(
+        base,
+        params.change,
+        params.actor,
+        now,
+        newId(now),
+      );
+    } catch (error) {
+      throw new TrackingError(
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     const { id: _id, ...data } = tracking;
     void _id;
     tx.set(ref, data);
@@ -329,10 +299,7 @@ export async function addComment(
       id: documentId,
       ...base,
     });
-    const commentId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${now}-${Math.random().toString(36).slice(2)}`;
+    const commentId = newId(now);
     const tracking = addCommentPure(
       current,
       commentId,

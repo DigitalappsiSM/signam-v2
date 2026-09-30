@@ -266,9 +266,57 @@ describe('DashboardPage — resumen operativo', () => {
     renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
     // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
+    const attention = await screen.findByRole('region', {
+      name: /Atención operativa/i,
+    });
     expect(
-      screen.queryByRole('link', { name: 'VIEJA' }),
+      within(attention).queryByRole('link', { name: 'VIEJA' }),
     ).not.toBeInTheDocument();
+    // Aparece, en cambio, en «Estados de campaña» → Canceladas.
+    const cancelled = await screen.findByRole('region', {
+      name: 'Canceladas',
+    });
+    expect(
+      within(cancelled).getByRole('link', { name: 'VIEJA' }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('region', { name: 'En pausa' })).queryByRole(
+        'link',
+        { name: 'VIEJA' },
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it('una campaña en pausa sale del resumen y aparece en «En pausa»', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      {
+        campaignNameKey: campaignIdentity(VIEJA),
+        classification: 'provider',
+        lifecycleStatus: 'paused',
+        statusReason: {
+          code: 'provider-request',
+          label: 'Solicitud del proveedor',
+          detail: null,
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof listOperationalTracking>
+      >[number],
+    ]);
+    renderDash(VIEJA_ROUTE);
+    await screen.findByRole('heading', { name: /Módulos/i });
+    const attention = await screen.findByRole('region', {
+      name: /Atención operativa/i,
+    });
+    expect(
+      within(attention).queryByRole('link', { name: 'VIEJA' }),
+    ).not.toBeInTheDocument();
+    const paused = await screen.findByRole('region', { name: 'En pausa' });
+    expect(
+      within(paused).getByRole('link', { name: 'VIEJA' }),
+    ).toBeInTheDocument();
+    expect(
+      within(paused).getByText(/Solicitud del proveedor/),
+    ).toBeInTheDocument();
   });
 });
 

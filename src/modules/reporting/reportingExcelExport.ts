@@ -40,7 +40,9 @@ export async function exportReportingWorkbook(
     ['Cumplimiento operativo', `${model.executive.completePct}%`],
     ['Con alertas', model.executive.withAlerts],
     ['Testigos vencidos', model.executive.overdue],
+    ['En pausa', model.executive.paused],
     ['Canceladas', model.executive.cancelled],
+    ['Duplicadas', model.executive.duplicate],
     ['Tiendas', model.executive.stores],
     ['Soportes', model.executive.supports],
     ['Pantallas físicas activas', model.executive.physicalScreens],
@@ -98,8 +100,7 @@ export async function exportReportingWorkbook(
   sla.autoFilter = 'A1:F1';
   for (const row of model.trackingRows.filter(
     (item) =>
-      item.lifecycleStatus !== 'cancelled' &&
-      item.classification === 'provider',
+      item.lifecycleStatus === 'active' && item.classification === 'provider',
   )) {
     sla.addRow([
       row.campaign.name,

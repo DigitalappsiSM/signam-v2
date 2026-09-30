@@ -42,6 +42,9 @@ vi.mock('@/app/providers/AuthProvider', () => ({
 
 vi.mock('@/services/campaigns', () => ({ listCampaigns: vi.fn() }));
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
+vi.mock('@/services/campaignOperationalTracking', () => ({
+  listOperationalTracking: vi.fn(async () => []),
+}));
 vi.mock('./readAdmiraPassesWorkbook', () => ({
   readAdmiraPassesWorkbook: vi.fn(),
 }));

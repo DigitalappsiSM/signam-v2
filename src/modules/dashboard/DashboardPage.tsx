@@ -54,6 +54,12 @@ import { KpiDetailPanel } from './components/KpiDetailPanel';
 import { DailyLoadChart } from './components/DailyLoadChart';
 import { ClassificationDonut } from './components/ClassificationDonut';
 import { filterDashboardRows } from './dashboardFilters';
+import {
+  formatStatusReason,
+  isOperationallyApplicableStatus,
+  statusByCampaignId,
+} from '@/modules/campaigns/campaignStatus';
+import { campaignIntersectsPeriod } from '@/modules/campaigns/dateFilter';
 import { useTheme } from '@/app/theme';
 import './DashboardPage.css';
 import './DashboardLayout.css';
@@ -176,6 +182,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   ).filter((route): route is (typeof NAV_ROUTES)[number] => Boolean(route));
   const { theme } = useTheme();
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
+  // Retiradas del calendario (baja lógica de la importación): solo alimentan la
+  // sección «Estados de campaña».
+  const [withdrawn, setWithdrawn] = useState<StoredCampaign[]>([]);
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
   const [tracking, setTracking] = useState<CampaignOperationalTracking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,13 +197,14 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     setRefreshing(true);
     setFailed(false);
     try {
-      const [c, s, t] = await Promise.all([
-        listCampaigns(),
+      const [all, s, t] = await Promise.all([
+        listCampaigns({ includeInactive: true }),
         listScreens(),
         listOperationalTracking(),
       ]);
       // Conserva datos previos hasta tener la respuesta (no vacía la pantalla).
-      setCampaigns(c);
+      setCampaigns(all.filter((c) => c.active !== false));
+      setWithdrawn(all.filter((c) => c.active === false));
       setScreens(s);
       setTracking(t);
       setLoadedAt(new Date());
@@ -275,6 +285,12 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     [resolved.campaigns, screens, tracking, today],
   );
 
+  // Estado efectivo por campaña (resuelve también seguimiento legacy).
+  const statuses = useMemo(
+    () => statusByCampaignId(campaigns, tracking),
+    [campaigns, tracking],
+  );
+
   // Modelo de carga (fuente única de la resolución de colocaciones contra el
   // catálogo). El resumen operativo reutiliza su conjunto de campañas para que
   // KPIs/alertas se recorten igual que la carga ante filtros de colocación.
@@ -285,6 +301,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
         screens,
         tracking,
         range,
+        statuses,
         filters: {
           classification: filters.classification,
           origin: filters.origin,
@@ -299,6 +316,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       screens,
       tracking,
       range,
+      statuses,
       filters.classification,
       filters.origin,
       filters.owner,
@@ -341,14 +359,13 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   );
 
   const view = useMemo(() => {
-    // Las campañas canceladas se excluyen por completo del resumen operativo
-    // (KPIs, alertas, vencimientos, inicios y terminadas con pendientes). Se
-    // filtran explícitamente ANTES de calcular las secciones para que una
-    // cancelada no acabe contada como "En curso sin atrasos" solo porque
-    // `criticalAlerts()` devuelva un arreglo vacío. Siguen participando en la
-    // sección de carga (que usa `campaigns`/`tracking`, no estas filas).
-    const applicable = filteredRows.filter(
-      (r) => r.lifecycleStatus !== 'cancelled',
+    // Solo las campañas activas entran en el resumen operativo (KPIs, alertas,
+    // vencimientos, inicios y terminadas con pendientes); en pausa, canceladas y
+    // duplicadas se muestran aparte en «Estados de campaña». Se filtran ANTES de
+    // calcular las secciones para que no acaben contadas como "En curso sin
+    // atrasos" solo porque `criticalAlerts()` devuelva un arreglo vacío.
+    const applicable = filteredRows.filter((r) =>
+      isOperationallyApplicableStatus(r.lifecycleStatus),
     );
     const active = applicable.filter((r) => r.timeframe === 'active');
     const withAlerts = active.filter((r) => criticalAlerts(r).length > 0);
@@ -467,6 +484,59 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     };
   }, [filteredRows, today]);
 
+  // --- Estados de campaña --------------------------------------------------
+  // En pausa / canceladas / duplicadas del contexto del panel, más las
+  // retiradas del calendario que se cruzan con el periodo.
+  const withdrawnRows = useMemo(() => {
+    const inPeriod = withdrawn.filter((c) =>
+      campaignIntersectsPeriod(
+        c.fechaInicio,
+        c.fechaFin,
+        range.start,
+        range.end,
+      ),
+    );
+    return filterDashboardRows(
+      buildTrackingRows(inPeriod, screens, tracking, today),
+      {
+        range,
+        classification: filters.classification,
+        origin: filters.origin,
+        search: filters.search,
+        placementCampaignIds: null,
+      },
+    );
+  }, [
+    withdrawn,
+    screens,
+    tracking,
+    today,
+    range,
+    filters.classification,
+    filters.origin,
+    filters.search,
+  ]);
+  const statusView = useMemo(
+    () => ({
+      paused: filteredRows.filter((r) => r.lifecycleStatus === 'paused'),
+      cancelled: filteredRows.filter((r) => r.lifecycleStatus === 'cancelled'),
+      duplicate: filteredRows.filter((r) => r.lifecycleStatus === 'duplicate'),
+      withdrawn: withdrawnRows,
+    }),
+    [filteredRows, withdrawnRows],
+  );
+  const statusText = (r: TrackingRow): string => {
+    const reason = formatStatusReason(r.tracking?.statusReason);
+    const origin =
+      r.lifecycleStatus === 'duplicate' && r.tracking?.duplicateOfCampaignName
+        ? ` · Original: ${r.tracking.duplicateOfCampaignName}`
+        : '';
+    const when = r.tracking?.lifecycleUpdatedAt
+      ? ` · ${formatDdMmYyyy(new Date(r.tracking.lifecycleUpdatedAt))}`
+      : '';
+    return `${reason || 'Sin motivo'}${origin}${when}`;
+  };
+
   const operationalHealth = useMemo(() => {
     const measuredIds = new Set(view.active.map((row) => row.campaign.id));
     const alertIds = new Set(
@@ -511,8 +581,15 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   // --- Carga operativa (ocupación) -----------------------------------------
   // Opciones de soporte/tienda: modelo del periodo sin filtros de tienda/soporte.
   const optionsModel = useMemo(
-    () => buildOccupancyDashboard({ campaigns, screens, tracking, range }),
-    [campaigns, screens, tracking, range],
+    () =>
+      buildOccupancyDashboard({
+        campaigns,
+        screens,
+        tracking,
+        range,
+        statuses,
+      }),
+    [campaigns, screens, tracking, range, statuses],
   );
   const supportOptions = useMemo(
     () =>
@@ -910,6 +987,61 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
           </div>
 
           <section
+            id="dashboard-statuses"
+            className="dashboard-section"
+            aria-labelledby="dashboard-statuses-title"
+          >
+            <div className="dashboard-section__head">
+              <div>
+                <span className="dashboard-eyebrow">Fuera de operación</span>
+                <h2 id="dashboard-statuses-title">Estados de campaña</h2>
+              </div>
+              <Link className="dashboard-section__link" to="/campanas">
+                Ver campañas
+              </Link>
+            </div>
+            <div className="dash-grid">
+              <AlertList
+                title="En pausa"
+                empty="Ninguna campaña en pausa."
+                tone="warning"
+                items={statusView.paused.map((r) => ({
+                  row: r,
+                  text: statusText(r),
+                }))}
+              />
+              <AlertList
+                title="Canceladas"
+                empty="Ninguna campaña cancelada."
+                tone="danger"
+                items={statusView.cancelled.map((r) => ({
+                  row: r,
+                  text: statusText(r),
+                }))}
+              />
+              <AlertList
+                title="Duplicadas"
+                empty="Ninguna campaña duplicada."
+                tone="info"
+                items={statusView.duplicate.map((r) => ({
+                  row: r,
+                  text: statusText(r),
+                }))}
+              />
+              <AlertList
+                title="Retiradas del calendario"
+                empty="Ninguna retirada del calendario."
+                tone="info"
+                linkTo={() => '/campanas'}
+                items={statusView.withdrawn.map((r) => ({
+                  row: r,
+                  text: `Vigencia ${formatCivilString(r.campaign.fechaInicio)} – ${formatCivilString(r.campaign.fechaFin)}`,
+                }))}
+              />
+            </div>
+          </section>
+
+          <section
             id="dashboard-load"
             className="occ-section dashboard-section"
             aria-labelledby="dashboard-occupancy-title"
@@ -1161,11 +1293,13 @@ function AlertList({
   empty,
   items,
   tone,
+  linkTo = trackingLink,
 }: {
   title: string;
   empty: string;
   items: { row: TrackingRow; text: string }[];
   tone: Extract<DashboardTone, 'info' | 'warning' | 'danger'>;
+  linkTo?: (row: TrackingRow) => string;
 }) {
   return (
     <section className={`card dash-list dash-list--${tone}`} aria-label={title}>
@@ -1180,7 +1314,7 @@ function AlertList({
         <ul className="dash-list__items">
           {items.slice(0, 12).map((it) => (
             <li key={it.row.campaign.id}>
-              <Link to={trackingLink(it.row)}>{it.row.campaign.name}</Link>
+              <Link to={linkTo(it.row)}>{it.row.campaign.name}</Link>
               <span className="text-muted"> — {it.text}</span>
             </li>
           ))}

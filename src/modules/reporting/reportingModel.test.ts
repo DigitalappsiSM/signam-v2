@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
 import {
-  cancelTracking,
+  changeTrackingStatus,
   initialTracking,
 } from '@/modules/operational-tracking/trackingFactory';
 import type { CampaignOperationalTracking } from '@/modules/operational-tracking/types';
@@ -97,11 +97,20 @@ describe('buildReportingModel', () => {
     const institutional = campaign('institutional', 'Institucional');
     const cancelledCampaign = campaign('cancelled', 'Proveedor');
     const completedAt = Date.UTC(2026, 8, 3);
-    const cancelled = cancelTracking(
+    const cancelled = changeTrackingStatus(
       tracking(cancelledCampaign, 'provider', completedAt),
-      'Cancelación comercial',
+      {
+        to: 'cancelled',
+        reason: {
+          code: 'other',
+          label: 'Otro',
+          detail: 'Cancelación comercial',
+        },
+        duplicateOf: null,
+      },
       actor,
       Date.UTC(2026, 8, 4),
+      'e1',
     );
 
     const model = buildReportingModel(

@@ -5,6 +5,7 @@ import {
   type DateRange,
   type OccupancyCampaignInput,
   type OccupancyFilters,
+  type OccupancyInput,
   type RangePreset,
 } from './occupancyModel';
 import { parseCampaignDate } from '@/modules/operational-tracking/businessDays';
@@ -109,6 +110,7 @@ function build(
     tracking?: CampaignOperationalTracking[];
     range?: DateRange;
     filters?: OccupancyFilters;
+    statuses?: OccupancyInput['statuses'];
   } = {},
 ) {
   return buildOccupancyDashboard({
@@ -117,6 +119,7 @@ function build(
     tracking: opts.tracking ?? [],
     range: opts.range ?? MAY,
     filters: opts.filters,
+    statuses: opts.statuses,
   });
 }
 
@@ -1023,33 +1026,49 @@ describe('buildOccupancyDashboard — serie diaria y dona por clasificación', (
   });
 });
 
-describe('occupancy — canceladas siguen participando en la carga', () => {
-  it('una campaña cancelada NO se excluye de la carga por tienda/soporte', () => {
-    const campaigns = [
-      campaign({
-        name: 'A',
-        nameKey: 'a',
-        supports: [
-          support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] }),
-        ],
-      }),
-    ];
-    const screens = [
-      screen({ id: 's1', numero: '1', calendarSupport: 'VIDEO WALL' }),
-    ];
-    // Documento de seguimiento CANCELADO para la misma campaña.
-    const cancelled = {
-      campaignNameKey: 'a',
-      classification: 'institutional',
-      lifecycleStatus: 'cancelled',
-    } as unknown as CampaignOperationalTracking;
-    const withCancel = build(campaigns, screens, { tracking: [cancelled] });
-    const withoutTrack = build(campaigns, screens);
-    // La carga es idéntica: el estado cancelado no altera la carga.
-    expect(withCancel.totals.distinctCampaigns).toBe(1);
-    expect(withCancel.totals.physicalScreens).toBe(1);
-    expect(withCancel.totals).toEqual(withoutTrack.totals);
+describe('occupancy — estado de campaña en la carga', () => {
+  const campaigns = [
+    campaign({
+      name: 'A',
+      nameKey: 'a',
+      supports: [support({ support: 'VIDEO WALL', stores: [{ numero: '1' }] })],
+    }),
+  ];
+  const screens = [
+    screen({ id: 's1', numero: '1', calendarSupport: 'VIDEO WALL' }),
+  ];
+  const withStatus = (lifecycleStatus: string) =>
+    build(campaigns, screens, {
+      tracking: [
+        {
+          campaignNameKey: 'a',
+          classification: 'institutional',
+          lifecycleStatus,
+        } as unknown as CampaignOperationalTracking,
+      ],
+    });
+
+  it('una campaña activa carga su tienda/soporte', () => {
+    const d = withStatus('active');
+    expect(d.totals.distinctCampaigns).toBe(1);
+    expect(d.totals.physicalScreens).toBe(1);
   });
+
+  it('usa el mapa de estados resuelto (seguimiento legacy por huella)', () => {
+    const d = build(campaigns, screens, {
+      statuses: new Map([[campaigns[0]!.id, 'cancelled' as const]]),
+    });
+    expect(d.totals.distinctCampaigns).toBe(0);
+  });
+
+  it.each(['paused', 'cancelled', 'duplicate'])(
+    'una campaña %s NO participa en la carga por tienda/soporte',
+    (status) => {
+      const d = withStatus(status);
+      expect(d.totals.distinctCampaigns).toBe(0);
+      expect(d.totals.physicalScreens).toBe(0);
+    },
+  );
 });
 
 // --- Campañas manuales ------------------------------------------------------

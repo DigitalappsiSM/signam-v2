@@ -11,8 +11,9 @@ Aplicación web para operar el flujo de programación de pantallas entre
 6. Generar los **CSV de programación** de Admira.
 7. **Seguimiento operativo** por campaña (clasificación Institucional/Proveedor,
    link, validación, programación CSM y testigos con fechas límite y alertas;
-   los **testigos no aplican a campañas Institucional**), con un **estado manual
-   Activa/Cancelada** por campaña, más un **Dashboard** con el resumen y las
+   los **testigos no aplican a campañas Institucional**), con **estados de
+   campaña** (Activa/En pausa/Cancelada/Duplicada, con motivo e historial), más
+   un **Dashboard** con el resumen y las
    alertas críticas (periodo predeterminado: **Mes actual**).
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
 9. **Alertas de baja ocupación**: importar el reporte de pases de Admira para
@@ -41,7 +42,8 @@ Conciliación.
   Programación.
 - **Operación y SLA:** cumplimiento de T. Arranque y T. Completos exclusivamente
   para campañas Proveedor, más el detalle accionable de campañas con incidencias.
-  Las canceladas no participan y las Institucionales no generan SLA de testigos.
+  Solo participan las campañas activas (en pausa, canceladas y duplicadas se
+  cuentan aparte) y las Institucionales no generan SLA de testigos.
 - **Calidad y conciliación:** vínculos faltantes, bloqueos, fechas inválidas,
   correcciones protegidas, ausencias en fuente, última importación Ekon y detalle
   Liverpool–Ekon.
@@ -342,43 +344,47 @@ para el masivo, siempre sanitizados.
 > generación completa de CSV) se implementa en iteraciones posteriores. Los
 > módulos de la UI muestran explícitamente el alcance pendiente.
 
-## Seguimiento operativo: estado Activa/Cancelada
+## Estados de campaña
 
-Cada campaña del seguimiento tiene un **estado de ciclo de vida** manual —
-**Activa** o **Cancelada**— que **solo** afecta al seguimiento operativo (no
-cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación). Vive en
-`campaignOperationalTracking/{campaignId}` (campos `lifecycleStatus`,
-`lifecycleUpdatedAt/By*` y `cancellationReason`); la importación del calendario
-**nunca** lo borra ni sobrescribe.
+Cada campaña tiene un **estado** manual —**Activa**, **En pausa**, **Cancelada**
+o **Duplicada**— editable por admin/operator desde **Campañas** (columna
+«Estado») y **Seguimiento operativo** (botón «Estado»). Todo cambio exige un
+**motivo** (lista por estado + «Otro» con texto libre; reactivar también pide
+motivo) y queda en un **historial completo** (quién, cuándo, de qué a qué y por
+qué). **Duplicada** exige elegir la campaña original entre las vigentes de
+SIGNAM. Además, **Retirada del calendario** se muestra cuando la importación da
+de baja una campaña; no se edita a mano.
 
-- **Cancelar** (acción individual por fila, con confirmación accesible y un
-  **motivo opcional**): la campaña no requiere ninguno de los seis checks (se
-  muestran **“No aplica”**), no genera alertas, pendientes ni vencimientos, y
-  desaparece del **resumen operativo** del Dashboard. Sus checks, clasificación y
-  comentarios se **conservan** intactos.
-- **Reactivar** (con confirmación): vuelve a **Activa**, limpia el motivo y los
-  seis checks reaparecen exactamente como estaban; se recalculan alertas y
-  vencimientos con las reglas normales.
-- El estado **sobrevive a cambios de la misma línea lógica** porque el
-  `campaign.id` se conserva aunque cambien fechas, link, tipo, vendedor,
-  soportes o tiendas. Los flights homónimos siguen siendo independientes.
-- Las canceladas **permanecen visibles** por defecto (filtro
-  Todas/Activas/Canceladas, inicial **Todas**) con un badge inequívoco
-  **“Cancelada”** (icono + texto). Los comentarios y la clasificación siguen
-  disponibles y editables según los permisos actuales.
-- Documentos **legacy** sin el campo se interpretan como **Activa** (sin
-  migración manual). `updateCheck`/`markAllChecks` **rechazan** cambios sobre una
-  cancelada (`TrackingError`); reactivar es la única vía para volver a editar los
-  checks.
+Vive en `campaignOperationalTracking/{campaignId}` (`lifecycleStatus`,
+`statusReason`, `duplicateOfCampaignId`, `statusHistory`); la importación del
+calendario **nunca** lo sobrescribe: si Liverpool vuelve a subir o modifica una
+campaña con estado manual, se conserva y se avisa en la vista previa.
+
+| Área | Activa | En pausa | Cancelada / Duplicada / Retirada |
+|---|---|---|---|
+| Alertas y vencimientos del seguimiento | sí | no | no |
+| Resumen operativo del Dashboard | sí | no (va a «Estados de campaña») | no (ídem) |
+| Carga por tienda/soporte | sí | no | no |
+| Consolidación y CSV de Admira | sí | **sí** | no |
+| Baja ocupación | sí | no | no |
+| Informe Quividi | sí | sí | no |
+
+- Los checks se conservan siempre; en Cancelada/Duplicada se muestran «No
+  aplica» y no se pueden editar hasta reactivar. En pausa siguen editables.
+- Al sacar del CSV una campaña con **Programación CSM** marcada, el diálogo avisa
+  que hay que **retirarla manualmente en Admira** (SIGNAM no la desprograma).
+- Las cancelaciones previas se migran solas: sin motivo quedan como «Migrado (sin
+  motivo registrado)».
+- El informe Quividi se bloquea también en la Cloud Function, no solo en la UI.
 
 ## Panel: carga por tienda y soporte
 
 El Dashboard incluye la sección **Carga por tienda y soporte** (además del
 resumen operativo y las alertas). Deriva todo en memoria de `campaigns`,
 `screens` y `campaignOperationalTracking` (modelo puro `occupancyModel.ts`); no
-persiste métricas en Firestore ni reejecuta la consolidación CSV. **Las campañas
-canceladas siguen contando aquí**: solo se excluyen del resumen operativo
-superior, no de la carga.
+persiste métricas en Firestore ni reejecuta la consolidación CSV. Solo cuentan
+las campañas **activas**: en pausa, canceladas, duplicadas y retiradas quedan
+fuera de la carga (ver «Estados de campaña»).
 
 La vista prioriza la lectura ejecutiva con tarjetas KPI, semáforos textuales,
 gráfica principal, estado operativo, acciones rápidas y paneles de atención. Los

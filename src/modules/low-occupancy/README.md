@@ -13,7 +13,9 @@ con el cálculo histórico de Signam, pero en esta fase son fuentes independient
 - **Reporte Admira:** evidencia programada por player, fecha, campaña, contenido,
   categoría y pases por hora. Es la fuente del diagnóstico de repetición.
 - **Planeación Signam:** campañas vigentes y catálogo; conserva la generación de
-  CSV auxiliares y no se altera.
+  CSV auxiliares y no se altera. Solo considera campañas en estado **Activa**
+  (en pausa, canceladas, duplicadas y retiradas quedan fuera; ver «Estados de
+  campaña» en `AGENTS.md`).
 - **Sin conciliación de campañas:** no se normalizan ni se comparan todavía los
   nombres de campaña/contenido entre ambas fuentes.
 

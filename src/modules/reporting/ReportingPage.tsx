@@ -251,7 +251,7 @@ function ExecutiveTab({ model }: { model: ReportingModel }) {
               <h2>Distribución del periodo</h2>
             </div>
           </div>
-          <div className="reporting-distribution">
+          <div className="reporting-distribution reporting-distribution--three">
             <div>
               <strong>{model.executive.active}</strong>
               <span>Activas</span>
@@ -265,8 +265,16 @@ function ExecutiveTab({ model }: { model: ReportingModel }) {
               <span>Terminadas</span>
             </div>
             <div>
+              <strong>{model.executive.paused}</strong>
+              <span>En pausa</span>
+            </div>
+            <div>
               <strong>{model.executive.cancelled}</strong>
               <span>Canceladas</span>
+            </div>
+            <div>
+              <strong>{model.executive.duplicate}</strong>
+              <span>Duplicadas</span>
             </div>
           </div>
           <div className="reporting-callout">

@@ -435,11 +435,10 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
 - El **Dashboard** deriva (no persiste) el resumen operativo: activas,
   seguimiento completo, en curso sin atrasos, con alertas y vencidas; alertas
   críticas ordenadas por urgencia; próximos vencimientos e inicios; y terminadas
-  con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`. Las campañas
-  **canceladas se excluyen por completo** de este resumen (se filtran las filas
-  operacionalmente aplicables **antes** de calcular todas las secciones, para que
-  una cancelada no acabe como “En curso sin atrasos” solo porque `criticalAlerts`
-  devuelva un arreglo vacío).
+  con pendientes. Cada alerta enlaza a la campaña en `/seguimiento`. Solo las
+  campañas **activas** entran en este resumen (se filtran **antes** de calcular
+  todas las secciones); las en pausa, canceladas, duplicadas y retiradas se
+  listan aparte en **Estados de campaña**.
 - **Filtro de periodo (rango de fechas)**: por defecto la tabla muestra solo las
   campañas cuya vigencia **se traslapa** con la ventana **mes anterior + mes
   actual + mes siguiente** (del día 1 del mes anterior al último día del mes
@@ -465,39 +464,13 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
   (viewer solo lectura) se activará antes de liberar, sustituyendo `isSignedIn()`
   por la comprobación de `role` en `firestore.rules`. Se conservan ya las
   validaciones estructurales y la prohibición de **borrado físico**.
-- **Estado Activa/Cancelada (ciclo de vida)**: campo tipado
-  `lifecycleStatus: 'active' | 'cancelled'` en el documento de seguimiento (más
-  `lifecycleUpdatedAt`, `lifecycleUpdatedByUid/Email` y
-  `cancellationReason: string | null`). **Alcance exclusivamente operativo**: no
-  cambia ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación, y las
-  canceladas **siguen contando** en la carga por tienda/soporte del Dashboard;
-  solo se excluyen del **resumen operativo** superior.
-  - **Cancelar** (acción individual por fila, confirmación accesible, **motivo
-    opcional**): la campaña no requiere ninguno de los seis checks (se muestran
-    **“No aplica”**, sin casillas ni “Marcar todas”), no genera alertas,
-    pendientes ni vencimientos (próximo vencimiento `—`) y muestra de forma
-    accesible quién/cuándo/motivo. Los checks, la clasificación y los comentarios
-    se **conservan** intactos. El diálogo bloquea dobles envíos; cerrarlo no
-    guarda nada.
-  - **Reactivar** (confirmación): vuelve a **Activa**, limpia el motivo y los
-    seis checks reaparecen **exactamente** como estaban; se recalculan alertas y
-    vencimientos con las reglas normales.
-  - **Transición pura y probada** (`cancelTracking`/`reactivateTracking` en
-    `trackingFactory.ts`), aplicada de forma **transaccional** por la capa de
-    servicio (`cancelCampaignTracking`/`reactivateCampaignTracking`), que crea el
-    documento con los defaults actuales si aún no existe antes de aplicar la
-    transición. Nunca modifica checks, clasificación ni comentarios.
-  - **Protección de reglas operativas**: `updateCheck` y `markAllChecks`
-    **rechazan** cambios sobre una cancelada (`TrackingError`);
-    `updateClassification` y `addComment` siguen permitidos. No se depende de
-    ocultar las casillas.
-  - **Compatibilidad legacy**: los documentos sin estos campos se interpretan
-    como `active` (`normalizeTracking`, aplicada en **lecturas** y **dentro de
-    las transacciones**); no requiere migración manual. Las reglas de Firestore
-    validan el enum y los tipos de los metadatos; la lectura no los exige.
-  - **Reimportaciones**: actualizar una línea con el mismo `campaign.id` conserva
-    `cancelled`; `initializeTrackingForImport` no cambia `lifecycleStatus`, el
-    motivo ni los metadatos de transición.
+- **Estados de campaña**: Activa / En pausa / Cancelada / Duplicada (más
+  Retirada del calendario, derivada de la importación), con motivo obligatorio,
+  historial completo y matriz de efectos única en `campaigns/campaignStatus.ts`.
+  La especificación completa está en `AGENTS.md` (**Estados de campaña**) y el
+  resumen funcional en `README.md`. Los checks, la clasificación y los
+  comentarios se conservan en cualquier cambio de estado; la importación nunca
+  altera el estado.
   - **Integridad al importar**: las fechas vacías, imposibles, invertidas o con
     año fuera de `2000–2100` bloquean el guardado (por ejemplo, `8/31/0266` se
     identifica por fila y campaña). Tras escribir, la UI vuelve a consultar
