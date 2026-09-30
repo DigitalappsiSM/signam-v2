@@ -154,6 +154,15 @@ tres de ellos describían mal el separador de artículos.
   El Dashboard las trata como cualquier campaña (la clasificación sale del
   seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
   Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.
+- **Vista de Seguimiento operativo**: por defecto muestra campañas cuya vigencia
+  intersecta el mes actual al abrir el módulo, no el campo textual `mes`.
+  «Restablecer» y limpiar filtros vuelven a ese mes; «Ver todo» quita las fechas.
+  Los enlaces `?campana=` conservan la excepción temporal de la campaña enlazada.
+  Marcar checks no reinicia la página: solo cambiar filtros u orden lo hace.
+  Si una fila deja de cumplir el filtro al marcarla, desaparece; si se reduce el
+  número de páginas, se muestra la última válida. El orden por estado o vencimiento
+  puede recolocar filas al guardar. Es una vista en cliente, sin reducir lecturas
+  de Firestore ni modificar históricos, exportaciones o alertas del Dashboard.
 - **Seguimiento operativo**: colección independiente
   `campaignOperationalTracking/{campaignId}`. Dos flights homónimos tienen
   seguimientos independientes y una actualización de fechas, tiendas, soportes,
