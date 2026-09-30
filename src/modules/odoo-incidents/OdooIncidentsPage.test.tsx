@@ -3,6 +3,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OdooIncidentsPage } from './OdooIncidentsPage';
 import { can } from '@/app/permissions';
+vi.mock('@/components/charts/EChart', () => ({
+  EChart: ({ ariaLabel }: { ariaLabel: string }) => (
+    <div role="img" aria-label={ariaLabel} />
+  ),
+}));
 vi.mock('@/services/odooIncidents', () => ({
   getOdooOverview: vi.fn().mockResolvedValue({
     month: '2026-09',

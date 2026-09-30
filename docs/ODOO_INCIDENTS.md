@@ -53,3 +53,24 @@ persistente. Máximo 5,000 registros por modelo en una consulta. La clasificaci�
 conservadora deja tickets legacy sin clasificar; se puede extender con un catálogo
 aprobado de etiquetas técnicas sin modificar tickets originales. Queda pendiente
 conciliar partners históricos por ID con catálogo para cubrir más tiendas.
+
+## Informes visuales y Excel
+
+El panel ejecutivo añade gráficas interactivas (tooltip) de volumen diario,
+SLA por categoría, modalidades y horas medias por retailer, además de mediana,
+P90, antigüedad de abiertos, calidad de datos y tablas por responsable/solicitante.
+Los datos de cada gráfica también se ofrecen en tablas accesibles. En oscuro
+se respeta el tema de SIGNAM. No se muestran promedios como cero si faltan datos.
+
+La evolución usa fechas de creación: no cuenta todos los cierres de la operación
+cuando pertenecen a tickets creados antes del mes. La antigüedad usa horas
+naturales, independiente de horarios de SLA. Los responsables reflejan la
+asignación actual, no productividad histórica atribuida a cada intervención.
+El tamaño de muestra acompaña los tiempos promedio; el P90 es interpolado.
+
+«Descargar informe Excel» produce un libro con Resumen, Tickets, Políticas SLA,
+Retailers, Categorías, Atención, Responsables, Solicitantes, Tiendas técnicas,
+Evolución diaria, Calidad y antigüedad y Metodología. Todas las hojas derivan de
+los mismos tickets filtrados; los rankings de pantalla muestran 10 filas y el
+Excel guarda todas. La descarga ocurre en el navegador, sin envío ni guardado
+nuevo en Firestore. No se presenta como informe PDF ni como sincronización continua.

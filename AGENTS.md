@@ -926,3 +926,12 @@ actualiza también `firestore.rules` / `storage.rules`.
 - Lectura paginada, máximo 5,000 registros por modelo/mes; si se excede se
   rechaza toda la consulta, nunca se publica un total truncado. Errores de SLA
   se advierten y se omiten sus porcentajes. Ver `docs/ODOO_INCIDENTS.md`.
+- El análisis Odoo incorpora gráficas interactivas de creación diaria, SLA por
+  categoría, modalidad y horas medias por retailer; el detalle textual de cada
+  gráfica es accesible. Mediana y P90 usan solo observaciones disponibles;
+  percentiles interpolados, sin metas inventadas. Antigüedad abierta = horas
+  naturales desde alta a consulta (no SLA; reapertura no reinicia edad).
+  Desglose por responsable refleja asignación actual, no intervención histórica.
+  Excel con resumen, tickets, políticas, agrupaciones, evolución, calidad y
+  metodología: todas las hojas respetan los mismos filtros. Descarga autorizada
+  para los mismos roles de lectura; sin almacenamiento ni envío automático.

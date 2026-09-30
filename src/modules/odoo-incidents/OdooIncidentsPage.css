@@ -95,3 +95,72 @@
     grid-template-columns: 1fr;
   }
 }
+.odoo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.odoo-executive {
+  margin: 1.5rem 0;
+  padding: 1.8rem;
+  background: var(--grad-primary);
+  color: white;
+  border-radius: 16px;
+}
+.odoo-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  opacity: 0.9;
+}
+.odoo-executive h2 {
+  color: white;
+  font-size: 1.7rem;
+  margin: 0.5rem 0 1rem;
+}
+.odoo-executive-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+.odoo-executive-facts p {
+  margin: 0;
+}
+.odoo-executive-facts strong {
+  display: block;
+  font-size: 1.4rem;
+  margin-bottom: 0.4rem;
+}
+.odoo-secondary-kpis {
+  margin-top: 1.5rem;
+}
+.odoo-secondary-kpis strong {
+  font-size: 1.4rem;
+}
+.odoo-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.odoo-chart-grid .odoo-table table {
+  min-width: 680px;
+}
+.odoo-progress-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 1fr 2rem;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 0;
+  font-size: 0.85rem;
+}
+.odoo-progress-row progress {
+  width: 100%;
+  height: 0.6rem;
+  accent-color: var(--color-primary);
+}
+@media (max-width: 850px) {
+  .odoo-chart-grid,
+  .odoo-executive-facts {
+    grid-template-columns: 1fr;
+  }
+}

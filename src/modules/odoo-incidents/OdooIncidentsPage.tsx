@@ -1,3 +1,5 @@
+import { OdooAnalyticsPanels } from './OdooAnalyticsPanels';
+import { downloadOdooWorkbook } from './odooIncidentExport';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -50,6 +52,8 @@ export function OdooIncidentsPage() {
   const [month, setMonth] = useState(mexicoMonth);
   const [data, setData] = useState<OdooOverview | null>(null);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [retailer, setRetailer] = useState('');
@@ -121,13 +125,43 @@ export function OdooIncidentsPage() {
         title="Análisis de incidencias Odoo · Digital Signage"
         description="Cumplimiento y atención por retailer, tienda y tipo de incidencia."
         actions={
-          <button
-            className="btn btn-primary"
-            disabled={loading || !month}
-            onClick={() => setRefresh((value) => value + 1)}
-          >
-            Actualizar
-          </button>
+          <div className="odoo-actions">
+            <button
+              className="btn btn-secondary"
+              disabled={!data || loading || exporting}
+              onClick={async () => {
+                if (!data) return;
+                setExporting(true);
+                setExportError('');
+                try {
+                  await downloadOdooWorkbook(visible, month, data.fetchedAt, {
+                    Retailer: retailer,
+                    Tienda: store,
+                    Categoría: category,
+                    Atención: modality,
+                    Solicitante: requester,
+                    Responsable: assignee,
+                    SLA: sla,
+                  });
+                } catch {
+                  setExportError(
+                    'No se pudo generar el Excel. Vuelve a intentar.',
+                  );
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              {exporting ? 'Generando informe…' : 'Descargar informe Excel'}
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={loading || !month}
+              onClick={() => setRefresh((value) => value + 1)}
+            >
+              Actualizar
+            </button>
+          </div>
         }
       />
       <section className="odoo-filters" aria-label="Filtros de incidencias">
@@ -205,6 +239,7 @@ export function OdooIncidentsPage() {
         <p role="status">Consultando tickets y resultados de SLA en Odoo…</p>
       )}
       {error && <p role="alert">{error}</p>}
+      {exportError && <p role="alert">{exportError}</p>}
       {data && (
         <>
           <p className="text-muted">
@@ -266,6 +301,11 @@ export function OdooIncidentsPage() {
             dato no entran al porcentaje. No se recalculan calendarios ni
             pausas.
           </p>
+          <OdooAnalyticsPanels
+            tickets={visible}
+            month={month}
+            reference={data.fetchedAt}
+          />
           <section className="odoo-split">
             <article className="odoo-panel">
               <h2>Tickets por categoría</h2>
