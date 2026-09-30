@@ -11,7 +11,6 @@ function result(): ConsolidationResult {
   return {
     consolidations: [],
     excludedInstore: [],
-    ismExcludedCount: 0,
     issues: [
       {
         code: 'store-support-mismatch',
@@ -67,7 +66,6 @@ describe('issueDetailRows', () => {
     const r: ConsolidationResult = {
       consolidations: [],
       excludedInstore: [],
-      ismExcludedCount: 0,
       issues: [
         {
           code: 'store-not-in-catalog',
@@ -109,7 +107,6 @@ describe('issuesSummaryMetrics', () => {
     const r: ConsolidationResult = {
       consolidations: [],
       excludedInstore: [{ campaign: 'A', support: "MUPPI'S" }],
-      ismExcludedCount: 0,
       issues: [
         {
           code: 'support-not-in-catalog',

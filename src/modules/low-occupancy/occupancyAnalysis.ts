@@ -270,7 +270,6 @@ export function analyzeLowOccupancy(input: AnalyzeInput): OccupancyAnalysis {
   // 2. Contenidos de proveedor vigentes por unidad.
   const index = buildScreenIndex(screens);
   const excludedInstore: { campaign: string; support: string }[] = [];
-  let ismExcludedCount = 0;
 
   for (const campaign of campaigns) {
     if (!countsForOccupancy(campaign)) continue;
@@ -279,7 +278,6 @@ export function analyzeLowOccupancy(input: AnalyzeInput): OccupancyAnalysis {
     const match = matchCampaignScreens(campaign, index);
     issues.push(...match.issues);
     excludedInstore.push(...match.excludedInstore);
-    ismExcludedCount += match.ismExcludedCount;
 
     for (const screen of match.matched) {
       const support = screen.metadata.calendarSupport;
@@ -386,7 +384,6 @@ export function analyzeLowOccupancy(input: AnalyzeInput): OccupancyAnalysis {
     groups: groupList,
     issues,
     excludedInstore,
-    ismExcludedCount,
     summary,
   };
 }

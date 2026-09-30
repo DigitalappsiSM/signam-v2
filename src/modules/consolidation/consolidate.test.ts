@@ -325,7 +325,7 @@ describe('consolidate', () => {
     );
   });
 
-  it('excluye pantallas cuyo TIPO DE pantallas es ISM', () => {
+  it('incluye pantallas cuyo TIPO DE pantallas es ISM (ya no se excluyen)', () => {
     const screens = [
       screen(
         'a',
@@ -348,8 +348,41 @@ describe('consolidate', () => {
       ]),
     ];
     const result = consolidate(campaigns, screens);
-    expect(result.consolidations).toHaveLength(0);
-    expect(result.ismExcludedCount).toBe(1);
+    expect(result.consolidations).toHaveLength(1);
+    expect(result.consolidations[0]?.screenIds).toEqual(['a']);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("MUPPI'S con tiendas genera CSV sobre Mega Mupi ISM del catálogo", () => {
+    const mupi = (id: string, store: string) =>
+      screen(
+        id,
+        {
+          'Numero de Tienda': store,
+          RESOLUCION: '1080x1920',
+          ARTICULOS: 'MEGA MUPI',
+          'TIPO DE pantallas': 'ISM',
+        },
+        'MEGA MUPI DIGITAL',
+      );
+    const screens = [mupi('m3', '3'), mupi('m6', '6'), mupi('m99', '99')];
+    const campaigns = [
+      campaign('TOKI', [
+        {
+          support: "MUPPI'S",
+          owner: 'instore-media',
+          stores: [
+            { numero: '3', nombre: 'POLANCO' },
+            { numero: '6', nombre: 'COAPA' },
+          ],
+          scope: 'selected',
+        },
+      ]),
+    ];
+    const result = consolidate(campaigns, screens);
+    expect(result.consolidations).toHaveLength(1);
+    expect(result.consolidations[0]?.screenIds).toEqual(['m3', 'm6']);
+    expect(result.issues).toHaveLength(0);
   });
 
   it('aplica la excepción de Guadalajara Galerías (tienda 78 + VIDEO WALL CRIUS)', () => {

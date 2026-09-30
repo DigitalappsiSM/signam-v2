@@ -109,8 +109,6 @@ export interface OccupancyAnalysis {
   issues: ConsolidationIssue[];
   /** Soportes InStore Media excluidos (campaña + soporte). */
   excludedInstore: { campaign: string; support: string }[];
-  /** Pantallas ISM excluidas. */
-  ismExcludedCount: number;
   summary: OccupancySummary;
 }
 

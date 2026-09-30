@@ -178,7 +178,7 @@ export function buildCampaignReport(
       rows.push(row);
     }
 
-    // Incidencias: cruces fallidos, InStore Media y pantallas ISM excluidas.
+    // Incidencias: cruces fallidos e InStore Media excluidos.
     const ekonIssues = reportedExtraNames.has(campaign.name)
       ? []
       : extraIssues.filter((i) => i.campaign === campaign.name);
@@ -206,22 +206,6 @@ export function buildCampaignReport(
         support: ex.support,
         code: 'instore-excluded',
         message: `Soporte InStore Media "${ex.support}" excluido del desglose en esta etapa. Campaña "${campaign.name}".`,
-      });
-    }
-    if (match.ismExcludedCount > 0) {
-      issues.push({
-        ekonNumber,
-        campaignName: campaign.name,
-        campaignType: campaign.tipo.trim(),
-        startDate: campaign.fechaInicio,
-        endDate: campaign.fechaFin,
-        support: '',
-        code: 'ism-excluded',
-        message: `${match.ismExcludedCount} ${
-          match.ismExcludedCount === 1
-            ? 'pantalla ISM excluida'
-            : 'pantallas ISM excluidas'
-        } del desglose. Campaña "${campaign.name}".`,
       });
     }
   }

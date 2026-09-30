@@ -36,6 +36,14 @@ describe('mapeo de circuito Ekon ↔ soporte Liverpool', () => {
     ).toBe(true);
   });
 
+  it("acepta MUPPI'S y PENDON del calendario por su equivalente digital", () => {
+    expect(isCompatibleSupport('MEGA MUPI', "MUPPI'S")).toBe(true);
+    expect(isCompatibleSupport('MEGA MUPI DIGITAL', 'Muppi’s')).toBe(true);
+    expect(isCompatibleSupport('ESPECTACULAR IN STORE', 'PENDON')).toBe(true);
+    expect(isCompatibleSupport('MEGA MUPI', 'PENDON')).toBe(false);
+    expect(isCompatibleSupport('ESPECTACULAR IN STORE', "MUPPI'S")).toBe(false);
+  });
+
   it('lista los soportes permitidos de un circuito', () => {
     expect(allowedSupportsFor('MEGA MUPI')).toEqual(['MEGA MUPI DIGITAL']);
     expect(allowedSupportsFor('ESPECTACULAR IN STORE')).toContain(

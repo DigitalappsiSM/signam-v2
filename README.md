@@ -305,14 +305,14 @@ El libro tiene hasta tres hojas:
   cero). El tipo de campaña conserva el valor guardado en SIGNAM (por ejemplo,
   `Institucional` o `Proveedor`) y queda vacío si el campo no tiene valor.
 - **`Incidencias`** (solo si las hay): cruces fallidos y soportes/pantallas
-  excluidos (InStore Media / ISM), con Ekon, campaña, tipo, fechas, soporte,
+  excluidos (InStore Media cuando no se incluye), con Ekon, campaña, tipo, fechas, soporte,
   tienda, código y mensaje.
 - **`Resumen`** (opcional): una fila por campaña con su tipo y el número de
   **configuraciones únicas** y **tiendas distintas** (sin contar pantallas).
 
 El cruce reutiliza `buildScreenIndex` / `matchCampaignScreens` de la consolidación
 (pantallas activas, cruce por `Numero de Tienda` + `calendarSupport`, excepción de
-Guadalajara y exclusión de InStore Media / ISM), construyendo el índice **una sola
+Guadalajara; las pantallas ISM participan como cualquier otra), construyendo el índice **una sola
 vez** por reporte. El formato incluye encabezados en negritas, **fila superior
 congelada**, **autofiltro**, anchos legibles, ajuste de texto, fechas visibles en
 `dd/mm/aaaa` (sin desfases de zona horaria), número de tienda como **texto** y

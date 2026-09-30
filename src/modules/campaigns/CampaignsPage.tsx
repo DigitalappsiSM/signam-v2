@@ -732,7 +732,6 @@ export function CampaignsPage() {
       excludedInstore: result.excludedInstore.filter(
         (e) => e.campaign === c.name,
       ),
-      ismExcludedCount: 0,
     };
     download(
       await buildIssuesPdf(res, { campaignName: c.name, storeNames }),
