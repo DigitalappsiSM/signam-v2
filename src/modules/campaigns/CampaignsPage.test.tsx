@@ -368,9 +368,89 @@ beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
 });
 
+/** Las pruebas existentes usan campañas históricas; consultarlas explícitamente. */
+async function renderAllPeriods() {
+  render(<CampaignsPage />);
+  await userEvent.click(screen.getByRole('button', { name: 'Ver todo' }));
+}
+
+describe('CampaignsPage — mes actual por defecto', () => {
+  it('incluye vigencias cruzadas, permite Ver todo y restablece el mes actual', async () => {
+    const now = new Date();
+    const m = now.getMonth();
+    const iso = (month: number, day: number) =>
+      new Date(Date.UTC(now.getFullYear(), month, day))
+        .toISOString()
+        .slice(0, 10);
+    const current = campaign({
+      id: 'current',
+      name: 'MES ACTUAL',
+      fechaInicio: iso(m, 1),
+      fechaFin: iso(m + 1, 0),
+    });
+    const previous = campaign({
+      id: 'previous',
+      name: 'MES ANTERIOR',
+      fechaInicio: iso(m - 1, 1),
+      fechaFin: iso(m, 0),
+    });
+    const next = campaign({
+      id: 'next',
+      name: 'MES SIGUIENTE',
+      fechaInicio: iso(m + 1, 1),
+      fechaFin: iso(m + 2, 0),
+    });
+    const crossing = campaign({
+      id: 'crossing',
+      name: 'VIGENCIA CRUZADA',
+      fechaInicio: iso(m - 1, 15),
+      fechaFin: iso(m + 1, 15),
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([
+      current,
+      previous,
+      next,
+      crossing,
+    ]);
+    render(<CampaignsPage />);
+    expect(await screen.findByText('MES ACTUAL')).toBeInTheDocument();
+    expect(screen.getByText('VIGENCIA CRUZADA')).toBeInTheDocument();
+    expect(screen.queryByText('MES ANTERIOR')).not.toBeInTheDocument();
+    expect(screen.queryByText('MES SIGUIENTE')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Desde')).toHaveValue(iso(m, 1));
+    expect(screen.getByLabelText('Hasta')).toHaveValue(iso(m + 1, 0));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Exportar filtradas (2)' }),
+    );
+    await waitFor(() => expect(buildCampaignReport).toHaveBeenCalled());
+    const calls = vi.mocked(buildCampaignReport).mock.calls;
+    expect(calls[calls.length - 1]![0].map((c) => c.id).sort()).toEqual([
+      'crossing',
+      'current',
+    ]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todo' }));
+    expect(await screen.findByText('MES ANTERIOR')).toBeInTheDocument();
+    expect(screen.getByText('MES SIGUIENTE')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restablecer' }));
+    expect(screen.queryByText('MES ANTERIOR')).not.toBeInTheDocument();
+    expect(screen.queryByText('MES SIGUIENTE')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todo' }));
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      'MES',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Limpiar filtros' }),
+    );
+    expect(screen.getByLabelText('Desde')).toHaveValue(iso(m, 1));
+    expect(screen.getByLabelText('Hasta')).toHaveValue(iso(m + 1, 0));
+    expect(screen.queryByText('MES ANTERIOR')).not.toBeInTheDocument();
+  });
+});
+
 describe('CampaignsPage — columna Ekon y filtros', () => {
   it('muestra la columna "# campaña Ekon" con el número o "—"', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     expect(
       await screen.findByRole('columnheader', { name: /# campaña Ekon/i }),
     ).toBeInTheDocument();
@@ -384,7 +464,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 
   it('filtra por el número Ekon completo o parcial', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     const searchInput = await screen.findByPlaceholderText(
       /Buscar por campaña o # Ekon/i,
     );
@@ -425,7 +505,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await userEvent.type(
       await screen.findByPlaceholderText(/Buscar por campaña o # Ekon/i),
       '777',
@@ -476,7 +556,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await userEvent.type(
       await screen.findByPlaceholderText(/Buscar por campaña o # Ekon/i),
       '2002',
@@ -488,7 +568,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 
   it('combina búsqueda por nombre y filtro por periodo', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
 
     // Filtro por periodo de agosto → solo REGRESO A CLASES.
@@ -510,7 +590,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 
   it('valida el rango invertido y no presenta resultados', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(screen.getByLabelText('Desde'), '2026-09-01');
     await userEvent.type(screen.getByLabelText('Hasta'), '2026-01-01');
@@ -521,7 +601,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 
   it('guarda una asociación Ekon nueva desde el modal', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('REGRESO A CLASES');
 
     const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
@@ -543,7 +623,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
 
   it('avisa qué campaña ya usa el número y guarda si se confirma', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('REGRESO A CLASES');
 
     const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
@@ -569,7 +649,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
 
   it('avisa y NO guarda si se cancela la confirmación', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('REGRESO A CLASES');
 
     const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
@@ -584,7 +664,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
   });
 
   it('rechaza en la UI un número Ekon inválido sin llamar al servicio', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('REGRESO A CLASES');
     const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
     await userEvent.click(within(rowB).getByTitle(/Ver detalle/i));
@@ -640,7 +720,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
     ]);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     const names = await screen.findAllByText('VENTA VERANO VECI');
     const mayRow = names
       .map((node) => node.closest('tr'))
@@ -667,7 +747,7 @@ describe('CampaignsPage — columna Ekon y filtros', () => {
 
 describe('CampaignsPage — métricas Quividi', () => {
   it('deshabilita métricas cuando la campaña no tiene cobertura Quividi', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     expect(
       screen.getByRole('button', {
@@ -710,7 +790,7 @@ describe('CampaignsPage — métricas Quividi', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('COCOMERCIAL');
     const button = screen.getByRole('button', {
       name: /Informe de audiencia de COCOMERCIAL/i,
@@ -747,7 +827,7 @@ describe('CampaignsPage — métricas Quividi', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('CAMPAÑA QUIVIDI');
     const button = screen.getByRole('button', {
       name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
@@ -797,7 +877,7 @@ describe('CampaignsPage — métricas Quividi', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('CAMPAÑA QUIVIDI');
     await userEvent.click(
       screen.getByRole('button', {
@@ -831,7 +911,7 @@ describe('CampaignsPage — perfil Comercial', () => {
       },
     ]);
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('CAMPAÑA QUIVIDI');
 
     expect(
@@ -887,7 +967,7 @@ describe('CampaignsPage — menú de descargas', () => {
   }
 
   it('ofrece el desglose Excel como primera opción, luego ZIP y resoluciones', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     const items = within(menu).getAllByRole('menuitem');
@@ -899,7 +979,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('descarga el desglose Excel de la instancia exacta de esa campaña', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     await userEvent.click(within(menu).getByText('Descargar desglose Excel'));
@@ -919,7 +999,7 @@ describe('CampaignsPage — menú de descargas', () => {
       issues: [],
       excludedInstore: [],
     });
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     expect(
@@ -929,7 +1009,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('solo permite un menú abierto a la vez', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await openMenu('BUEN FIN');
     await userEvent.click(
@@ -941,7 +1021,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('genera el ZIP con todas las consolidaciones de esa campaña y cierra el menú', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     await userEvent.click(within(menu).getByText('Descargar todos en ZIP'));
@@ -955,7 +1035,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('conserva las descargas individuales y cierra el menú al elegir una', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     await userEvent.click(within(menu).getByText('914 x 908 — 9 filas'));
@@ -966,7 +1046,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('cierra el menú con Escape', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await openMenu('BUEN FIN');
     await userEvent.keyboard('{Escape}');
@@ -976,7 +1056,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('cierra el menú al pulsar fuera', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await openMenu('BUEN FIN');
     await userEvent.click(document.body);
@@ -986,7 +1066,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('una campaña sin consolidaciones muestra "Sin CSV" y no ofrece ZIP', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('REGRESO A CLASES');
     const menu = await openMenu('REGRESO A CLASES');
     expect(within(menu).getByText('Sin CSV')).toBeInTheDocument();
@@ -996,7 +1076,7 @@ describe('CampaignsPage — menú de descargas', () => {
   });
 
   it('renderiza el panel fuera del contenedor desplazable de la tabla', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     const menu = await openMenu('BUEN FIN');
     expect(menu.closest('.diagnosis__table-wrap')).toBeNull();
@@ -1069,7 +1149,7 @@ describe('CampaignsPage — flights homónimos (dedup de descargas)', () => {
 
   it('muestra una sola opción por resolución pese a los flights repetidos', async () => {
     await setupHomonymousFlights();
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findAllByText('EL CORTE INGLES');
 
     // Hay varias filas homónimas; abrimos el menú de la primera.
@@ -1094,7 +1174,7 @@ describe('CampaignsPage — flights homónimos (dedup de descargas)', () => {
 
   it('el ZIP recibe una sola consolidación por resolución', async () => {
     await setupHomonymousFlights();
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findAllByText('EL CORTE INGLES');
 
     const triggers = screen.getAllByRole('button', {
@@ -1121,7 +1201,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
     screen.getByRole('button', { name: /Exportar (todas|filtradas)/i });
 
   it('sin filtros muestra "Exportar todas (N)" con el total visible', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     expect(
       screen.getByRole('button', { name: 'Exportar todas (2)' }),
@@ -1129,7 +1209,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
   });
 
   it('con búsqueda muestra "Exportar filtradas (N)" y exporta exactamente el filtrado', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(
       screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
@@ -1150,7 +1230,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
   });
 
   it('exporta exactamente las campañas filtradas por número Ekon', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(
       screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
@@ -1169,7 +1249,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
   });
 
   it('el periodo Desde/Hasta afecta el conjunto exportado', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     // Solo agosto: excluye BUEN FIN (mayo), incluye REGRESO A CLASES.
     await userEvent.type(screen.getByLabelText('Desde'), '2026-08-01');
@@ -1186,7 +1266,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
   });
 
   it('deshabilita el botón con periodo inválido', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(screen.getByLabelText('Desde'), '2026-09-01');
     await userEvent.type(screen.getByLabelText('Hasta'), '2026-01-01');
@@ -1194,7 +1274,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
   });
 
   it('deshabilita el botón cuando no hay resultados', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(
       screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
@@ -1205,7 +1285,7 @@ describe('CampaignsPage — exportación masiva Excel', () => {
 
   it('muestra un error comprensible si la generación masiva falla', async () => {
     vi.mocked(buildCampaignReportBlob).mockRejectedValue(new Error('boom'));
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(bulkBtn());
     expect(
@@ -1221,7 +1301,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
     });
 
   it('muestra un botón PPT accesible por campaña, con el nombre en el aria-label', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     expect(pptBtn('BUEN FIN')).toBeInTheDocument();
     expect(pptBtn('REGRESO A CLASES')).toBeInTheDocument();
@@ -1260,7 +1340,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
       },
     };
     vi.mocked(listScreens).mockResolvedValue([scr]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(pptBtn('BUEN FIN'));
     await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
@@ -1272,7 +1352,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
   });
 
   it('genera exclusivamente la campaña seleccionada', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(pptBtn('BUEN FIN'));
     await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
@@ -1292,7 +1372,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
         return el;
       });
     try {
-      render(<CampaignsPage />);
+      await renderAllPeriods();
       await screen.findByText('BUEN FIN');
       await userEvent.click(pptBtn('BUEN FIN'));
       await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
@@ -1313,7 +1393,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
           resolveFn = res;
         }),
     );
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(pptBtn('BUEN FIN'));
     await waitFor(() =>
@@ -1329,7 +1409,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
 
   it('muestra un error comprensible si la generación falla', async () => {
     vi.mocked(buildCampaignPpt).mockRejectedValue(new Error('boom'));
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(pptBtn('BUEN FIN'));
     expect(
@@ -1338,7 +1418,7 @@ describe('CampaignsPage — PPT de evidencias', () => {
   });
 
   it('no interfiere con el menú de CSV ni genera ZIP', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(pptBtn('BUEN FIN'));
     await waitFor(() => expect(buildCampaignPpt).toHaveBeenCalledTimes(1));
@@ -1415,7 +1495,7 @@ describe('CampaignsPage — advertencia de baja ocupación', () => {
 
 describe('CampaignsPage — correcciones manuales', () => {
   it('corrige una fecha con motivo y crea el seguimiento faltante', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
 
     await userEvent.click(
@@ -1476,7 +1556,7 @@ describe('CampaignsPage — correcciones manuales', () => {
       })
       .mockResolvedValueOnce({ created: 1, reclassified: 0, failures: [] });
 
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', { name: /Corregir datos de BUEN FIN/i }),
@@ -1516,7 +1596,7 @@ describe('CampaignsPage — correcciones manuales', () => {
 
 describe('CampaignsPage — contadores', () => {
   it('sin filtros muestra los totales globales', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     expect(
       screen.getByText('2 campañas · 2 CSV · 3 incidencias'),
@@ -1524,7 +1604,7 @@ describe('CampaignsPage — contadores', () => {
   });
 
   it('con filtro muestra "N de total" y los CSV/incidencias visibles', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(
       screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
@@ -1536,7 +1616,7 @@ describe('CampaignsPage — contadores', () => {
   });
 
   it('con filtro sin coincidencias los conteos visibles son 0', async () => {
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.type(
       screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
@@ -1575,7 +1655,7 @@ describe('CampaignsPage — estados de campaña', () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       tracked(A, 'cancelled'),
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     const rowA = (await screen.findByText('BUEN FIN')).closest('tr')!;
     expect(within(rowA).getByText('Cancelada')).toBeInTheDocument();
     const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
@@ -1600,7 +1680,7 @@ describe('CampaignsPage — estados de campaña', () => {
         scopeOrigins: [],
       },
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await waitFor(() => expect(consolidate).toHaveBeenCalled());
     const calls = vi.mocked(consolidate).mock.calls;
@@ -1625,7 +1705,7 @@ describe('CampaignsPage — estados de campaña', () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       tracked(A, 'paused'),
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await waitFor(() => expect(consolidate).toHaveBeenCalled());
     const calls = vi.mocked(consolidate).mock.calls;
@@ -1642,7 +1722,7 @@ describe('CampaignsPage — estados de campaña', () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       tracked(A, 'duplicate'),
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.selectOptions(
       screen.getByRole('combobox', { name: 'Estado' }),
@@ -1656,7 +1736,7 @@ describe('CampaignsPage — estados de campaña', () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       tracked(A, 'cancelled'),
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', { name: 'Estado de BUEN FIN: Cancelada' }),
@@ -1678,7 +1758,7 @@ describe('CampaignsPage — estados de campaña', () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       tracked(A, 'paused'),
     ]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     await userEvent.click(
       screen.getByRole('button', { name: 'Estado de BUEN FIN: En pausa' }),
@@ -1697,7 +1777,7 @@ describe('CampaignsPage — estados de campaña', () => {
       lifecycleStatus: 'cancelled',
     } as unknown as Awaited<ReturnType<typeof listOperationalTracking>>[number];
     vi.mocked(listOperationalTracking).mockResolvedValue([legacy]);
-    render(<CampaignsPage />);
+    await renderAllPeriods();
     await screen.findByText('BUEN FIN');
     expect(migrateLegacyOperationalTracking).toHaveBeenCalledWith(
       [A, B],
