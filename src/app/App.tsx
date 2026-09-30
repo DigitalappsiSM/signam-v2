@@ -1,3 +1,4 @@
+import { OdooIncidentsPage } from '@/modules/odoo-incidents/OdooIncidentsPage';
 import { Navigate, Routes, Route } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -74,6 +75,14 @@ export function App() {
   return (
     <AppLayout>
       <Routes>
+        <Route
+          path="/analisis-incidencias-odoo"
+          element={
+            <RouteAccess path="/analisis-incidencias-odoo">
+              <OdooIncidentsPage />
+            </RouteAccess>
+          }
+        />
         <Route path="/" element={<DashboardPage role={user.role} />} />
         <Route
           path="/importar"

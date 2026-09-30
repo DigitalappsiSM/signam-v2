@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { evaluate } from './check-docs-freshness.mjs';
 
 describe('guardia de deriva entre código y documentación', () => {
+  it('protege la metodología del dashboard Odoo', () => {
+    expect(
+      evaluate(['functions/src/odoo/analysis.ts']).failures.length,
+    ).toBeGreaterThan(0);
+    expect(
+      evaluate(['functions/src/odoo/analysis.ts', 'docs/ODOO_INCIDENTS.md'])
+        .failures,
+    ).toHaveLength(0);
+  });
   it('bloquea un cambio de dominio sin documentación', () => {
     const { failures } = evaluate(['src/domain/csv.ts']);
     expect(failures.length).toBeGreaterThan(0);
@@ -26,9 +35,7 @@ describe('guardia de deriva entre código y documentación', () => {
   });
 
   it('no molesta cuando sólo cambian pruebas', () => {
-    expect(
-      evaluate(['src/domain/csv.test.ts']).failures,
-    ).toHaveLength(0);
+    expect(evaluate(['src/domain/csv.test.ts']).failures).toHaveLength(0);
   });
 
   it('no molesta con código fuera del alcance declarado', () => {
