@@ -738,8 +738,10 @@ a los CSV auxiliares Ratio 1/3.
   solo operaciones `active:true` cuyo seguimiento no esté cancelado, concatena
   toda la bitácora en `Comentarios` y mantiene `Arte` vacío con su espacio para
   captura manual. La generación deja auditoría en `digitalReportExports`.
-- El **Dashboard** muestra las métricas digitales en una **sección independiente**
-  que no agrega cifras con Liverpool.
+- El **Dashboard** muestra las métricas digitales desde un **selector de cliente**
+  (un retailer a la vez: Chedraui / La Comer; Soriana y San Pablo con estado
+  vacío mientras no tengan perfil en el Catálogo digital), sin agregar cifras con
+  Liverpool.
 
 ## 7. Pendientes / próximos pasos
 

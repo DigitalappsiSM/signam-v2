@@ -27,17 +27,38 @@ const relabel =
       Object.entries(values).map(([k, v]) => [map[k] ?? k, v]),
     );
 
-export function DigitalDashboardPanel() {
+/**
+ * Panel de KPI's de un retailer del multirretailer (hoy: Chedraui / La Comer).
+ * Siempre se usa filtrado a uno solo desde el selector del Panel; por eso no
+ * incluye el desglose "Por retailer" (no aporta nada con un solo valor).
+ */
+export function DigitalDashboardPanel({
+  retailerLabel,
+  displayName,
+  refreshKey = 0,
+}: {
+  retailerLabel: string;
+  displayName: string;
+  /** Cambia cada vez que el Panel recarga ("Actualizar"): fuerza a releer las
+   * colecciones digitales para no dejar cifras obsoletas. */
+  refreshKey?: number;
+}) {
   const [data, setData] = useState<Metrics | null>(null);
   useEffect(() => {
     void Promise.all([
       listDigitalOperationalItems(),
       listDigitalTracking(),
     ]).then(
-      ([i, t]) => setData(buildDigitalDashboard(i, t)),
+      ([items, tracking]) =>
+        setData(
+          buildDigitalDashboard(
+            items.filter((i) => i.retailerLabel === retailerLabel),
+            tracking,
+          ),
+        ),
       () => setData(buildDigitalDashboard([], [])),
     );
-  }, []);
+  }, [retailerLabel, refreshKey]);
   if (!data) return null;
 
   const progressPct = Math.round(data.averageProgress * 100);
@@ -104,10 +125,9 @@ export function DigitalDashboardPanel() {
       <div className="dashboard-section__head">
         <div>
           <span className="dashboard-eyebrow">Fuente independiente</span>
-          <h2 id="digital-dashboard">Operación Digital multirretailer</h2>
+          <h2 id="digital-dashboard">Operación Digital — {displayName}</h2>
           <p className="dashboard-section__description">
-            Métricas exclusivas de La Comer y Chedraui; no se mezclan con la
-            operación Liverpool.
+            Métricas de {displayName}; no se mezclan con la operación Liverpool.
           </p>
         </div>
       </div>
@@ -124,7 +144,6 @@ export function DigitalDashboardPanel() {
       </div>
       <div className="digital-dist">
         <ChecksCard pending={data.pendingByCheck} active={data.activeItems} />
-        <Breakdown title="Por retailer" icon="users" values={data.byRetailer} />
         <Breakdown title="Por soporte" icon="monitor" values={data.bySupport} />
         <Breakdown
           title="Por catorcena"

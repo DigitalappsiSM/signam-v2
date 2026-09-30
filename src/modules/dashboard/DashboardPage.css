@@ -16,6 +16,145 @@
   white-space: nowrap;
 }
 
+/* --- Selector de retailer (identidad fija por cliente) ------------------- */
+.dash-retailers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dash-retailer {
+  --tone: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dash-retailer:hover {
+  border-color: color-mix(in srgb, var(--tone) 45%, var(--color-border));
+  color: var(--color-text);
+}
+
+.dash-retailer:focus-visible {
+  outline: 2px solid var(--tone);
+  outline-offset: 2px;
+}
+
+.dash-retailer--active {
+  border-color: var(--tone);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--tone) 12%, var(--color-surface));
+}
+
+.dash-retailer__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.dash-retailer--liverpool {
+  --tone: var(--retailer-liverpool);
+}
+.dash-retailer--chedraui {
+  --tone: var(--retailer-chedraui);
+}
+.dash-retailer--lacomer {
+  --tone: var(--retailer-lacomer);
+}
+.dash-retailer--soriana {
+  --tone: var(--retailer-soriana);
+}
+.dash-retailer--sanpablo {
+  --tone: var(--retailer-sanpablo);
+}
+
+/* --- Pestañas de vista de Liverpool (Hoy / Seguimiento / Carga) ---------- */
+.dash-tabs {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1rem;
+}
+
+.dash-tab {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  position: relative;
+}
+
+.dash-tab:hover {
+  color: var(--color-text);
+  background: var(--row-hover);
+}
+
+.dash-tab--active {
+  color: var(--color-primary);
+}
+
+.dash-tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  right: 0.4rem;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-primary);
+}
+
+.dash-tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* --- Estado vacío: retailer sin perfil en el Catálogo digital ------------ */
+.digital-empty {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding: 2rem 1.1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.digital-empty__text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.digital-empty__link {
+  color: var(--color-primary-dark);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 /* --- KPI / semáforo ------------------------------------------------------ */
 .dash-summary {
   display: grid;
@@ -561,12 +700,6 @@
 
 .dashboard-classification [role='img'] {
   margin: -0.35rem 0 -0.25rem;
-}
-
-.dashboard-rail__empty {
-  margin: 1rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
 }
 
 .dashboard-actions__list {

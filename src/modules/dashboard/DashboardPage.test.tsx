@@ -129,6 +129,13 @@ function renderDash(route = '/') {
   );
 }
 
+// El Panel reorganiza a Liverpool en pestañas (Hoy/Seguimiento/Carga); esto
+// cambia a la pestaña indicada antes de buscar su contenido.
+async function goTo(view: 'Seguimiento' | 'Carga') {
+  const tab = await screen.findByRole('tab', { name: view });
+  await userEvent.click(tab);
+}
+
 // Periodo que intersecta la vigencia de VIEJA (campaña de 2020). El periodo por
 // defecto es "Hoy", que excluiría al histórico; estas rutas lo vuelven visible.
 const VIEJA_ROUTE = '/?periodo=custom&desde=2020-01-01&hasta=2020-12-31';
@@ -158,31 +165,43 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveAttribute('href', '/importar');
   });
 
-  it('mantiene gráficas y prioridades en filas independientes', async () => {
-    const { container } = renderDash(VIEJA_ROUTE);
-    await screen.findByRole('heading', { name: /Atención operativa/i });
-    const analysis = container.querySelector('.dashboard-analysis-row')!;
-    const priorities = container.querySelector('.dashboard-priorities-row')!;
+  it('separa Hoy, Seguimiento y Carga en pestañas independientes', async () => {
+    renderDash(VIEJA_ROUTE);
+
+    // Hoy (por defecto): salud + atención inmediata + carga diaria. Se busca
+    // la sección (no el heading): la etiqueta de salud operativa también puede
+    // decir "Atención inmediata".
+    await screen.findByRole('region', { name: 'Atención inmediata' });
     expect(
-      within(analysis as HTMLElement).getByRole('heading', {
-        name: /Carga diaria/i,
-      }),
+      screen.getByRole('heading', { name: /Carga diaria/i }),
     ).toBeInTheDocument();
     expect(
-      within(analysis as HTMLElement).getByRole('heading', {
-        name: /Mezcla por clasificación/i,
-      }),
+      screen.queryByRole('heading', { name: /Atención operativa/i }),
+    ).not.toBeInTheDocument();
+
+    // Seguimiento: atención operativa + estados de campaña.
+    await goTo('Seguimiento');
+    expect(
+      await screen.findByRole('heading', { name: /Atención operativa/i }),
     ).toBeInTheDocument();
     expect(
-      within(priorities as HTMLElement).getByRole('heading', {
-        name: /Atención inmediata/i,
-      }),
+      screen.getByRole('heading', { name: /Estados de campaña/i }),
     ).toBeInTheDocument();
     expect(
-      within(priorities as HTMLElement).getByRole('heading', {
-        name: /Atención operativa/i,
-      }),
+      screen.queryByRole('heading', { name: /Carga diaria/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryAllByRole('heading', { name: /Atención inmediata/i }),
+    ).toHaveLength(0);
+
+    // Carga: detalle de ocupación (sin datos de colocación para VIEJA).
+    await goTo('Carga');
+    expect(
+      await screen.findByRole('heading', { name: /Carga por tienda/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Atención operativa/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('marca atención inmediata cuando hay terminadas con pendientes', async () => {
@@ -265,6 +284,7 @@ describe('DashboardPage — resumen operativo', () => {
     ]);
     renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
+    await goTo('Seguimiento');
     // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
     const attention = await screen.findByRole('region', {
       name: /Atención operativa/i,
@@ -304,6 +324,7 @@ describe('DashboardPage — resumen operativo', () => {
     ]);
     renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
+    await goTo('Seguimiento');
     const attention = await screen.findByRole('region', {
       name: /Atención operativa/i,
     });
@@ -474,6 +495,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
 
   it('renderiza tarjetas, gráficas y clasificación', async () => {
     renderDash();
+    await goTo('Carga');
     expect(
       await screen.findByRole('heading', {
         name: /Carga por tienda y soporte/i,
@@ -487,24 +509,31 @@ describe('DashboardPage — carga por tienda y soporte', () => {
     expect(
       screen.getByRole('heading', { name: /Tiendas con mayor carga/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Mezcla por clasificación/i }),
+    ).toBeInTheDocument();
     // Clasificación por texto (no solo color): leyenda + chip.
     expect(screen.getAllByText('Institucional').length).toBeGreaterThan(0);
   });
 
   it('muestra las gráficas ECharts (área diaria y dona) accesibles', async () => {
     renderDash();
-    await screen.findByRole('heading', { name: /Carga por tienda y soporte/i });
-    // El lienzo ECharts se difiere; el contenedor accesible siempre está.
+    // Carga diaria vive en Hoy (por defecto); el lienzo ECharts se difiere,
+    // el contenedor accesible siempre está.
     expect(
-      screen.getByRole('img', { name: /Campañas simultáneas por día/i }),
+      await screen.findByRole('img', { name: /Campañas simultáneas por día/i }),
     ).toBeInTheDocument();
+
+    // Mezcla por clasificación vive en Carga.
+    await goTo('Carga');
     expect(
-      screen.getByRole('img', { name: /Campañas por clasificación/i }),
+      await screen.findByRole('img', { name: /Campañas por clasificación/i }),
     ).toBeInTheDocument();
   });
 
   it('las barras exponen aria-label con el pico (accesibilidad)', async () => {
     renderDash();
+    await goTo('Carga');
     await screen.findByRole('heading', { name: /Soportes con mayor carga/i });
     expect(
       screen.getByRole('button', {
@@ -515,6 +544,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
 
   it('abre el detalle de un soporte con enlace a Seguimiento', async () => {
     renderDash();
+    await goTo('Carga');
     const bar = await screen.findByRole('button', {
       name: /^VIDEO WALL CRIUS\. .*Ver detalle/i,
     });
@@ -526,6 +556,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
 
   it('abre el detalle de una tienda', async () => {
     renderDash();
+    await goTo('Carga');
     const bar = await screen.findByRole('button', {
       name: /^Polanco 03, tienda 5\./i,
     });
@@ -535,7 +566,8 @@ describe('DashboardPage — carga por tienda y soporte', () => {
 
   it('cambiar el periodo (rango personalizado futuro) recalcula y vacía', async () => {
     renderDash();
-    await screen.findByRole('heading', { name: /Carga por tienda y soporte/i });
+    // Carga diaria (Hoy, por defecto) refleja el mismo filtro de periodo.
+    await screen.findByRole('heading', { name: /Carga diaria/i });
     await userEvent.selectOptions(screen.getByLabelText('Periodo'), 'custom');
     await userEvent.type(screen.getByLabelText('Desde'), '2030-01-01');
     await userEvent.type(screen.getByLabelText('Hasta'), '2030-01-31');
@@ -546,7 +578,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
 
   it('filtrar por clasificación Proveedor deja sin datos a una campaña institucional', async () => {
     renderDash();
-    await screen.findByRole('heading', { name: /Carga por tienda y soporte/i });
+    await screen.findByRole('heading', { name: /Carga diaria/i });
     await userEvent.selectOptions(
       screen.getByLabelText('Clasificación'),
       'provider',
@@ -566,6 +598,7 @@ describe('DashboardPage — carga por tienda y soporte', () => {
   it('estado vacío cuando no hay campañas', async () => {
     vi.mocked(listCampaigns).mockResolvedValue([]);
     renderDash();
+    await goTo('Carga');
     expect(
       await screen.findByText(/Aún no hay campañas\. Importa el calendario/i),
     ).toBeInTheDocument();
