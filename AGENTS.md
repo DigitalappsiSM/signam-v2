@@ -154,6 +154,13 @@ tres de ellos describían mal el separador de artículos.
   El Dashboard las trata como cualquier campaña (la clasificación sale del
   seguimiento y, si falta, del `tipo`) y ofrece un filtro **Origen** (Todos /
   Calendario Liverpool / Campaña manual) que recorta carga y resumen operativo.
+- **Vista de Campañas**: inicia con la vigencia que intersecta el mes actual
+  al abrir el módulo (fecha local del navegador), igual que Seguimiento.
+  «Restablecer» y limpiar filtros recuperan ese mes; «Ver todo» quita las fechas.
+  La búsqueda, clasificación y estado se combinan con el periodo. Los contadores
+  visibles y la exportación masiva Excel respetan ese filtro, por lo que al abrir
+  se exporta el mes actual, no todo el histórico. No modifica datos, CSV
+  individuales, importación, permisos ni lecturas de Firestore.
 - **Vista de Seguimiento operativo**: por defecto muestra campañas cuya vigencia
   intersecta el mes actual al abrir el módulo, no el campo textual `mes`.
   «Restablecer» y limpiar filtros vuelven a ese mes; «Ver todo» quita las fechas.

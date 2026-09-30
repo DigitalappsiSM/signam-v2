@@ -66,7 +66,10 @@ import {
   formatFilterSearch,
 } from '@/components/filters';
 import { nextSortState, sortRows, type SortState } from '@/lib/tableSort';
-import { formatCivilString } from '@/modules/operational-tracking/businessDays';
+import {
+  formatCivilString,
+  defaultTrackingWindow,
+} from '@/modules/operational-tracking/businessDays';
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
@@ -281,8 +284,9 @@ export function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const defaultWindow = useMemo(() => defaultTrackingWindow(), []);
+  const [desde, setDesde] = useState(defaultWindow.desde);
+  const [hasta, setHasta] = useState(defaultWindow.hasta);
   const [classFilter, setClassFilter] = useState<ClassificationFilter>('all');
   const [statusFilter, setStatusFilter] = useState<
     'all' | EffectiveCampaignStatus
@@ -668,8 +672,8 @@ export function CampaignsPage() {
     setSearch('');
     setClassFilter('all');
     setStatusFilter('all');
-    setDesde('');
-    setHasta('');
+    setDesde(defaultWindow.desde);
+    setHasta(defaultWindow.hasta);
   }
 
   const filterChips = compactChips([
@@ -915,6 +919,26 @@ export function CampaignsPage() {
         onClear={clearFilters}
         extra={
           <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setDesde(defaultWindow.desde);
+                setHasta(defaultWindow.hasta);
+              }}
+              title="Volver al periodo por defecto (mes actual)"
+            >
+              Restablecer
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setDesde('');
+                setHasta('');
+              }}
+              title="Quitar el filtro de fechas y mostrar todas las campañas"
+            >
+              Ver todo
+            </button>
             <span className="fb-note">
               {filtersActive
                 ? `${filtered.length} de ${campaigns.length} campañas · ${visibleStats.csv} CSV · ${visibleStats.issues} incidencias`
