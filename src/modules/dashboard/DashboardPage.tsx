@@ -91,7 +91,12 @@ const LIVERPOOL_VIEWS: { id: LiverpoolView; label: string }[] = [
 
 /** Identidad fija del cliente en el selector del Panel; el color siempre sale
  * de `--retailer-*` (visual-tokens de la skill de dashboards ISM). */
-type RetailerId = 'liverpool' | 'chedraui' | 'lacomer' | 'soriana' | 'sanpablo';
+type RetailerId =
+  | 'liverpool'
+  | 'chedraui'
+  | 'lacomer'
+  | 'soriana'
+  | 'sanpablo';
 interface RetailerDef {
   id: RetailerId;
   label: string;
@@ -299,7 +304,10 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     set('periodo', next.preset !== 'this-month' ? next.preset : '');
     set('desde', next.preset === 'custom' ? next.desde : '');
     set('hasta', next.preset === 'custom' ? next.hasta : '');
-    set('clasificacion', next.classification !== 'all' ? next.classification : '');
+    set(
+      'clasificacion',
+      next.classification !== 'all' ? next.classification : '',
+    );
     set('origen', next.origin !== 'all' ? next.origin : '');
     set('propietario', next.owner !== 'all' ? next.owner : '');
     set('soporte', next.support);
