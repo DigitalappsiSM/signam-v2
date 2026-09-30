@@ -253,7 +253,6 @@ function defaultConsolidation() {
     ],
     issues: [issue('BUEN FIN'), issue('BUEN FIN'), issue('BUEN FIN')],
     excludedInstore: [],
-    ismExcludedCount: 0,
   });
 }
 
@@ -730,7 +729,6 @@ describe('CampaignsPage — métricas Quividi', () => {
       consolidations: [],
       issues: [],
       excludedInstore: [],
-      ismExcludedCount: 0,
     });
     vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
       {
@@ -781,7 +779,6 @@ describe('CampaignsPage — métricas Quividi', () => {
       consolidations: [],
       issues: [],
       excludedInstore: [],
-      ismExcludedCount: 0,
     });
     vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
       {
@@ -921,7 +918,6 @@ describe('CampaignsPage — menú de descargas', () => {
       consolidations: [cons('BUEN FIN', '914 x 908', 9)],
       issues: [],
       excludedInstore: [],
-      ismExcludedCount: 0,
     });
     render(<CampaignsPage />);
     await screen.findByText('BUEN FIN');

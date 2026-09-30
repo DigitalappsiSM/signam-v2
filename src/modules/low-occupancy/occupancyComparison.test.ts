@@ -80,7 +80,6 @@ function analysis(
     groups,
     issues: [],
     excludedInstore: [],
-    ismExcludedCount: 0,
     summary: {
       totalUnits: 0,
       zero: 0,

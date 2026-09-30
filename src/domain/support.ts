@@ -29,7 +29,8 @@ const INSTORE_MEDIA_NORMALIZED = new Set(
 
 /**
  * Indica si un soporte pertenece a InStore Media (`MUPPI'S`, `PENDON`).
- * Estos soportes se detectan pero se excluyen de la consolidación en esta etapa.
+ * Consolidan y generan CSV como cualquier soporte; solo el análisis de baja
+ * ocupación los sigue excluyendo.
  */
 export function isInStoreMediaSupport(support: string): boolean {
   return INSTORE_MEDIA_NORMALIZED.has(normalizeSupport(support));
