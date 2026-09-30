@@ -149,7 +149,10 @@ export const MIGRATED_REASON: StatusReasonOption = {
  */
 export const STATUS_REASONS: Record<CampaignStatus, StatusReasonOption[]> = {
   active: [
-    { code: 'liverpool-confirmed', label: 'Liverpool confirmó la campaña' },
+    {
+      code: 'liverpool-or-ism-confirmed',
+      label: 'Liverpool o ISM confirmó la campaña',
+    },
     { code: 'resumed', label: 'Se reanuda la campaña' },
     { code: 'status-error', label: 'Estado aplicado por error' },
     OTHER_REASON,
