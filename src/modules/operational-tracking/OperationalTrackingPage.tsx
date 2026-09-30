@@ -187,7 +187,7 @@ export function OperationalTrackingPage() {
   >('all');
   // Diálogo de estado (consulta, cambio con motivo e historial) de una fila.
   const [statusRow, setStatusRow] = useState<TrackingRow | null>(null);
-  // Ventana por defecto: mes anterior + mes actual + mes siguiente.
+  // Ventana por defecto: mes actual al abrir la vista.
   const defaultWindow = useMemo(() => defaultTrackingWindow(), []);
   const [desde, setDesde] = useState(defaultWindow.desde);
   const [hasta, setHasta] = useState(defaultWindow.hasta);
@@ -603,7 +603,7 @@ export function OperationalTrackingPage() {
                 setDesde(defaultWindow.desde);
                 setHasta(defaultWindow.hasta);
               }}
-              title="Volver al periodo por defecto (mes anterior, actual y siguiente)"
+              title="Volver al periodo por defecto (mes actual)"
             >
               Restablecer
             </button>
@@ -1023,7 +1023,7 @@ export function OperationalTrackingPage() {
                 type="button"
                 className="ot-pager__btn"
                 disabled={currentPage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
                 aria-label="Página anterior"
               >
                 ‹
@@ -1035,7 +1035,7 @@ export function OperationalTrackingPage() {
                 type="button"
                 className="ot-pager__btn"
                 disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                 aria-label="Página siguiente"
               >
                 ›

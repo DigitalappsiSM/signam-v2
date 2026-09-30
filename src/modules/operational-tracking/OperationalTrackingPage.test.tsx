@@ -220,9 +220,9 @@ describe('OperationalTrackingPage', () => {
     );
   });
 
-  it('conserva la página al marcar un check y vuelve a la 1 al cambiar el orden', async () => {
-    // 13 campañas > PAGE_SIZE (12): la última queda sola en la página 2.
-    const many = Array.from({ length: 13 }, (_, i) => {
+  it('conserva la página 5 al marcar un check y vuelve a la 1 al cambiar el orden', async () => {
+    // 60 campañas: cinco páginas de 12 filas.
+    const many = Array.from({ length: 60 }, (_, i) => {
       const n = String(i + 1).padStart(2, '0');
       return campaign({
         id: `c${n}`,
@@ -233,38 +233,60 @@ describe('OperationalTrackingPage', () => {
       });
     });
     vi.mocked(listCampaigns).mockResolvedValue(many);
-    vi.mocked(updateCheck).mockResolvedValue(
-      initialTracking(
-        {
-          campaignId: 'c13',
-          campaignNameKey: campaignIdentity(many[12]!),
-          campaignName: 'CAMP 13',
-          classification: 'institutional',
-          classificationSource: 'import-user',
-          linkValid: true,
-        },
-        { uid: 'u1', email: 'a@b.mx' },
-        1000,
-      ),
+    const saved = initialTracking(
+      {
+        campaignId: 'c49',
+        campaignNameKey: campaignIdentity(many[48]!),
+        campaignName: 'CAMP 49',
+        classification: 'institutional',
+        classificationSource: 'import-user',
+        linkValid: true,
+      },
+      { uid: 'u1', email: 'a@b.mx' },
+      1000,
     );
+    saved.csmProgramming = {
+      ...saved.csmProgramming,
+      completed: true,
+      completedAt: 1000,
+      completedByUid: 'u1',
+      completedByEmail: 'a@b.mx',
+      source: 'manual',
+    };
+    vi.mocked(updateCheck).mockResolvedValue(saved);
     await renderAllPeriods();
     await screen.findByText('CAMP 01');
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Página siguiente' }),
-    );
-    expect(screen.getByText('2 / 2')).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('Programación CSM de CAMP 13'));
+    for (let i = 0; i < 4; i++) {
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Página siguiente' }),
+      );
+    }
+    expect(screen.getByText('5 / 5')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Programación CSM de CAMP 49'));
     await waitFor(() => expect(updateCheck).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('Programación CSM de CAMP 49'),
+      ).toBeChecked(),
+    );
     // El guardado regenera las filas, pero la página seleccionada se mantiene.
-    expect(screen.getByText('2 / 2')).toBeInTheDocument();
-    expect(screen.getByText('CAMP 13')).toBeInTheDocument();
+    expect(screen.getByText('5 / 5')).toBeInTheDocument();
+    expect(screen.getByText('CAMP 49')).toBeInTheDocument();
+    // Si al actualizar quedan tres páginas, se ajusta a la última válida.
+    vi.mocked(listCampaigns).mockResolvedValue(many.slice(0, 25));
+    await userEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+    expect(await screen.findByText('3 / 3')).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Página anterior' }),
+    );
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
     // Cambiar el orden sí reinicia a la primera página.
     await userEvent.click(
       within(screen.getByRole('columnheader', { name: /Campaña/ })).getByRole(
         'button',
       ),
     );
-    expect(await screen.findByText('1 / 2')).toBeInTheDocument();
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument();
   });
 
   it('muestra los cinco indicadores como casillas en la tabla', async () => {
@@ -522,7 +544,7 @@ describe('OperationalTrackingPage — testigos no aplican a institucional', () =
 });
 
 describe('OperationalTrackingPage — filtro de periodo', () => {
-  it('por defecto solo muestra campañas dentro de la ventana de 3 meses', async () => {
+  it('por defecto solo muestra campañas dentro de la mes actual', async () => {
     const IN = campaign({
       id: 'in',
       name: 'EN VENTANA',
@@ -553,6 +575,41 @@ describe('OperationalTrackingPage — filtro de periodo', () => {
       expect(screen.queryByText('LEJANA')).not.toBeInTheDocument(),
     );
     expect(screen.getByText('EN VENTANA')).toBeInTheDocument();
+  });
+
+  it('excluye meses vecinos e incluye vigencias que atraviesan el mes actual', async () => {
+    const now = new Date();
+    const iso = (month: number, day: number) =>
+      new Date(Date.UTC(now.getFullYear(), month, day))
+        .toISOString()
+        .slice(0, 10);
+    const m = now.getMonth();
+    vi.mocked(listCampaigns).mockResolvedValue([
+      campaign({
+        id: 'prev',
+        name: 'MES ANTERIOR',
+        fechaInicio: iso(m - 1, 1),
+        fechaFin: iso(m, 0),
+      }),
+      campaign({
+        id: 'next',
+        name: 'MES SIGUIENTE',
+        fechaInicio: iso(m + 1, 1),
+        fechaFin: iso(m + 2, 0),
+      }),
+      campaign({
+        id: 'cross',
+        name: 'VIGENCIA CRUZADA',
+        fechaInicio: iso(m - 1, 15),
+        fechaFin: iso(m + 1, 15),
+      }),
+    ]);
+    renderPage();
+    expect(await screen.findByText('VIGENCIA CRUZADA')).toBeInTheDocument();
+    expect(screen.queryByText('MES ANTERIOR')).not.toBeInTheDocument();
+    expect(screen.queryByText('MES SIGUIENTE')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Periodo desde')).toHaveValue(iso(m, 1));
+    expect(screen.getByLabelText('Periodo hasta')).toHaveValue(iso(m + 1, 0));
   });
 
   it('permite filtrar por un rango de fechas personalizado', async () => {
@@ -587,7 +644,7 @@ describe('OperationalTrackingPage — filtro de periodo', () => {
         <OperationalTrackingPage />
       </MemoryRouter>,
     );
-    // Aunque está fuera de la ventana de 3 meses, el deep link la muestra.
+    // Aunque está fuera de la mes actual, el deep link la muestra.
     expect(await screen.findByText('VIEJA')).toBeInTheDocument();
   });
 
