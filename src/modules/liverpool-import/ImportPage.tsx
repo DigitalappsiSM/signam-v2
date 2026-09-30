@@ -59,6 +59,10 @@ import { nextBulk, type BulkState } from './accordionBulk';
 import { formatCivilString } from '@/modules/operational-tracking/businessDays';
 import { validateCampaignDates } from './campaignDateValidation';
 import { campaignsMissingOperationalTracking } from '@/modules/operational-tracking/trackingReconciliation';
+import {
+  EFFECTIVE_STATUS_LABELS,
+  importStatusNotices,
+} from '@/modules/campaigns/campaignStatus';
 import { CAMPAIGN_FIELD_LABELS } from '@/modules/campaigns/campaignCorrection';
 import {
   applyImportDateCorrections,
@@ -330,6 +334,22 @@ export function ImportPage() {
     }
     return out;
   }, [resolvedList, existingKeys, existingTracking, diff]);
+
+  // Campañas modificadas o que vuelven al calendario con un estado manual
+  // distinto de Activa: conservan su estado, solo se avisa.
+  const statusNotices = useMemo(
+    () =>
+      diff
+        ? importStatusNotices(
+            [
+              ...diff.modified,
+              ...diff.matched.filter((m) => m.stored.active === false),
+            ],
+            existingTracking,
+          )
+        : [],
+    [diff, existingTracking],
+  );
 
   // Preselección de clasificación por identidad: agrega defaults para las
   // identidades nuevas sin pisar lo que el usuario ya haya elegido.
@@ -867,6 +887,30 @@ export function ImportPage() {
               </Section>
             )}
 
+            {statusNotices.length > 0 && (
+              <Section
+                title="Campañas con estado manual"
+                chip={statusNotices.length}
+                tone="warning"
+                defaultOpen
+              >
+                <p className="import__note" style={{ marginTop: 0 }}>
+                  El calendario vuelve a traer o modifica estas campañas. Se
+                  guardarán los cambios, pero{' '}
+                  <strong>conservan su estado</strong> (no se reactivan solas).
+                  Revísalas en Campañas.
+                </p>
+                <ul className="text-muted">
+                  {statusNotices.slice(0, 100).map((n) => (
+                    <li key={n.campaignId}>
+                      {n.campaignName} — {EFFECTIVE_STATUS_LABELS[n.status]}
+                      {n.reason ? ` · ${n.reason}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            )}
+
             {diff && diff.removed.length > 0 && (
               <Section
                 title="Campañas inactivadas"
@@ -875,8 +919,9 @@ export function ImportPage() {
                 defaultOpen
               >
                 <p className="import__note" style={{ marginTop: 0 }}>
-                  Estas campañas dejarán de mostrarse, pero conservarán su ID,
-                  Ekon y seguimiento para una posible reactivación.
+                  Estas campañas pasarán a «Retirada del calendario»: salen de
+                  la operación, pero conservan su ID, Ekon y seguimiento para
+                  una posible reactivación.
                 </p>
                 <ul className="text-muted">
                   {diff.removed.slice(0, 100).map((c) => (

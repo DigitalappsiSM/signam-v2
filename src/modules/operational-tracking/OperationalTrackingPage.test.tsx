@@ -21,14 +21,13 @@ import {
   updateClassification,
   markAllChecks,
   addComment,
-  cancelCampaignTracking,
-  reactivateCampaignTracking,
+  changeCampaignStatus,
 } from '@/services/campaignOperationalTracking';
 import type { UserRole } from '@/domain';
 import {
   initialTracking,
   addComment as addCommentPure,
-  cancelTracking as cancelTrackingPure,
+  changeTrackingStatus,
 } from './trackingFactory';
 
 const authState = { role: 'admin' as UserRole };
@@ -58,8 +57,7 @@ vi.mock('@/services/campaignOperationalTracking', async () => {
     updateClassification: vi.fn(),
     markAllChecks: vi.fn(),
     addComment: vi.fn(),
-    cancelCampaignTracking: vi.fn(),
-    reactivateCampaignTracking: vi.fn(),
+    changeCampaignStatus: vi.fn(),
   };
 });
 
@@ -129,8 +127,7 @@ beforeEach(() => {
   vi.mocked(updateClassification).mockReset();
   vi.mocked(markAllChecks).mockReset();
   vi.mocked(addComment).mockReset();
-  vi.mocked(cancelCampaignTracking).mockReset();
-  vi.mocked(reactivateCampaignTracking).mockReset();
+  vi.mocked(changeCampaignStatus).mockReset();
 });
 
 /** Documento de seguimiento CANCELADO para una campaña dada. */
@@ -146,11 +143,16 @@ function cancelledTracking(c: StoredCampaign) {
     { uid: 'u1', email: 'a@b.mx' },
     1000,
   );
-  return cancelTrackingPure(
+  return changeTrackingStatus(
     base,
-    'Sin presupuesto',
+    {
+      to: 'cancelled',
+      reason: { code: 'other', label: 'Otro', detail: 'Sin presupuesto' },
+      duplicateOf: null,
+    },
     { uid: 'u1', email: 'a@b.mx' },
     2000,
+    'e1',
   );
 }
 
@@ -603,7 +605,7 @@ describe('OperationalTrackingPage — filtro de periodo', () => {
   });
 });
 
-describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () => {
+describe('OperationalTrackingPage — estado de campaña', () => {
   it('las canceladas aparecen por defecto y muestran el badge Cancelada', async () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       cancelledTracking(INST),
@@ -654,67 +656,121 @@ describe('OperationalTrackingPage — ciclo de vida (cancelar/reactivar)', () =>
     expect(screen.queryByText('BUEN FIN')).not.toBeInTheDocument();
   });
 
-  it('cancelar pide confirmación, acepta motivo vacío y persiste', async () => {
-    vi.mocked(cancelCampaignTracking).mockResolvedValue(
+  it('cancelar exige motivo, guarda el cambio y lo registra', async () => {
+    vi.mocked(changeCampaignStatus).mockResolvedValue(
       cancelledTracking(INST) as never,
     );
     await renderAllPeriods();
     const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
     await userEvent.click(
-      within(row).getByRole('button', { name: 'Cancelar' }),
+      within(row).getByRole('button', { name: 'Estado de BUEN FIN' }),
     );
-    // Aparece el diálogo accesible.
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/No aplica/i)).toBeInTheDocument();
-    // Confirmar sin escribir motivo.
     await userEvent.click(
-      within(dialog).getByRole('button', { name: /Confirmar cancelación/i }),
+      within(dialog).getByRole('radio', { name: /^Cancelada/ }),
     );
-    await waitFor(() =>
-      expect(cancelCampaignTracking).toHaveBeenCalledTimes(1),
+    const confirm = within(dialog).getByRole('button', {
+      name: /Marcar como cancelada/i,
+    });
+    // Sin motivo no se puede confirmar.
+    expect(confirm).toBeDisabled();
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Motivo' }),
+      'liverpool-request',
     );
-    expect(cancelCampaignTracking).toHaveBeenCalledWith(
+    expect(confirm).not.toBeDisabled();
+    await userEvent.click(confirm);
+    await waitFor(() => expect(changeCampaignStatus).toHaveBeenCalledTimes(1));
+    expect(changeCampaignStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         campaignNameKey: campaignIdentity(INST),
-        reason: '',
+        change: {
+          to: 'cancelled',
+          reason: {
+            code: 'liverpool-request',
+            label: 'Cancelada por Liverpool',
+            detail: null,
+          },
+          duplicateOf: null,
+        },
       }),
     );
+  });
+
+  it('con el motivo «Otro» exige escribir el detalle', async () => {
+    await renderAllPeriods();
+    const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    await userEvent.click(
+      within(row).getByRole('button', { name: 'Estado de BUEN FIN' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(
+      within(dialog).getByRole('radio', { name: /^En pausa/ }),
+    );
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Motivo' }),
+      'other',
+    );
+    const confirm = within(dialog).getByRole('button', {
+      name: /Marcar como en pausa/i,
+    });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(
+      within(dialog).getByRole('textbox', { name: 'Describe el motivo' }),
+      'Cambio de creatividad',
+    );
+    expect(confirm).not.toBeDisabled();
   });
 
   it('si se cierra el diálogo no se guarda nada', async () => {
     await renderAllPeriods();
     const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
     await userEvent.click(
-      within(row).getByRole('button', { name: 'Cancelar' }),
+      within(row).getByRole('button', { name: 'Estado de BUEN FIN' }),
     );
     const dialog = await screen.findByRole('dialog');
-    // Botón "Cancelar" del diálogo (cierra sin guardar).
     await userEvent.click(
-      within(dialog).getAllByRole('button', { name: 'Cancelar' })[0]!,
+      within(dialog).getByRole('button', { name: 'Cancelar' }),
     );
-    expect(cancelCampaignTracking).not.toHaveBeenCalled();
+    expect(changeCampaignStatus).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('reactivar pide confirmación y persiste', async () => {
+  it('reactivar también exige motivo y muestra el historial', async () => {
     vi.mocked(listOperationalTracking).mockResolvedValue([
       cancelledTracking(INST),
     ]);
-    vi.mocked(reactivateCampaignTracking).mockResolvedValue({} as never);
+    vi.mocked(changeCampaignStatus).mockResolvedValue({} as never);
     await renderAllPeriods();
     const row = (await screen.findByText('BUEN FIN')).closest('tr')!;
     await userEvent.click(
-      within(row).getByRole('button', { name: 'Reactivar' }),
+      within(row).getByRole('button', { name: 'Estado de BUEN FIN' }),
     );
     const dialog = await screen.findByRole('dialog');
+    // Historial con el cambio previo.
+    expect(
+      within(dialog).getByText(/Sin presupuesto/, { selector: 'li p' }),
+    ).toBeInTheDocument();
     await userEvent.click(
-      within(dialog).getByRole('button', { name: /Confirmar reactivación/i }),
+      within(dialog).getByRole('radio', { name: /^Reactivar/ }),
     );
-    await waitFor(() =>
-      expect(reactivateCampaignTracking).toHaveBeenCalledTimes(1),
+    const confirm = within(dialog).getByRole('button', {
+      name: /Confirmar reactivación/i,
+    });
+    expect(confirm).toBeDisabled();
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', {
+        name: 'Motivo de la reactivación',
+      }),
+      'resumed',
     );
-    expect(reactivateCampaignTracking).toHaveBeenCalledWith(
-      expect.objectContaining({ campaignNameKey: campaignIdentity(INST) }),
+    await userEvent.click(confirm);
+    await waitFor(() => expect(changeCampaignStatus).toHaveBeenCalledTimes(1));
+    expect(changeCampaignStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignNameKey: campaignIdentity(INST),
+        change: expect.objectContaining({ to: 'active' }),
+      }),
     );
   });
 

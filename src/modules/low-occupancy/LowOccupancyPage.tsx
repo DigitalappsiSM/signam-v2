@@ -5,6 +5,8 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { can } from '@/app/permissions';
 import { listCampaigns } from '@/services/campaigns';
+import { listOperationalTracking } from '@/services/campaignOperationalTracking';
+import { campaignsAllowedFor } from '@/modules/campaigns/campaignStatus';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain';
 import type { StoredCampaign } from '@/modules/campaigns/campaignDiff';
@@ -83,8 +85,14 @@ export function LowOccupancyPage() {
     setLoading(true);
     setError(null);
     try {
-      const [c, s] = await Promise.all([listCampaigns(), listScreens()]);
-      setCampaigns(c);
+      const [c, s, t] = await Promise.all([
+        listCampaigns(),
+        listScreens(),
+        listOperationalTracking(),
+      ]);
+      // Solo campañas activas: en pausa, canceladas y duplicadas no generan
+      // alertas de baja ocupación.
+      setCampaigns(campaignsAllowedFor('lowOccupancy', c, t));
       setScreens(s);
     } catch {
       setError('No se pudieron cargar las campañas o el catálogo.');

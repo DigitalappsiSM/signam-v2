@@ -1,4 +1,5 @@
 import { resolveCampaignsWithEkon } from '@/modules/consolidation/instoreEkon';
+import { isOperationallyApplicableStatus } from '@/modules/campaigns/campaignStatus';
 import type { AdmiraScreen } from '@/domain';
 import type {
   DigitalOperationalItem,
@@ -91,6 +92,8 @@ export interface ReportingModel {
     withAlerts: number;
     overdue: number;
     cancelled: number;
+    paused: number;
+    duplicate: number;
     stores: number;
     supports: number;
     physicalScreens: number;
@@ -245,10 +248,16 @@ export function buildReportingModel(input: ReportingInput): ReportingModel {
     input.tracking,
     now,
   );
-  const applicable = trackingRows.filter(
-    (row) => row.lifecycleStatus !== 'cancelled',
+  // Solo las campañas activas cuentan en el reporte operativo; en pausa,
+  // canceladas y duplicadas se reportan aparte.
+  const applicable = trackingRows.filter((row) =>
+    isOperationallyApplicableStatus(row.lifecycleStatus),
   );
-  const cancelled = trackingRows.length - applicable.length;
+  const countStatus = (status: TrackingRow['lifecycleStatus']) =>
+    trackingRows.filter((row) => row.lifecycleStatus === status).length;
+  const cancelled = countStatus('cancelled');
+  const paused = countStatus('paused');
+  const duplicate = countStatus('duplicate');
   const accountable = applicable.filter((row) => row.timeframe !== 'upcoming');
   const complete = accountable.filter(isFullyTracked);
   const withAlerts = applicable.filter((row) => criticalAlerts(row).length > 0);
@@ -356,6 +365,8 @@ export function buildReportingModel(input: ReportingInput): ReportingModel {
       withAlerts: withAlerts.length,
       overdue: overdue.length,
       cancelled,
+      paused,
+      duplicate,
       stores: stores.size,
       supports: supports.size,
       physicalScreens: input.screens.filter((screen) => screen.metadata.active)

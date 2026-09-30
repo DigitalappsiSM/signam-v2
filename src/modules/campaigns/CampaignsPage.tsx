@@ -125,6 +125,17 @@ import {
   quividiCampaignPdfFileName,
 } from '@/modules/exports/quividiCampaignPdf';
 import { useAnchoredMenu } from './useAnchoredMenu';
+import { CampaignStatusDialog } from './CampaignStatusDialog';
+import { CampaignStatusBadge } from './CampaignStatusBadge';
+import {
+  EFFECTIVE_STATUS_LABELS,
+  campaignsAllowedFor,
+  formatStatusReason,
+  statusAllows,
+  statusByCampaignId,
+  trackingByCampaign,
+  type EffectiveCampaignStatus,
+} from './campaignStatus';
 import './CampaignsPage.css';
 
 function normalize(v: string): string {
@@ -272,6 +283,12 @@ export function CampaignsPage() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [classFilter, setClassFilter] = useState<ClassificationFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | EffectiveCampaignStatus
+  >('all');
+  const [statusCampaign, setStatusCampaign] = useState<StoredCampaign | null>(
+    null,
+  );
   const [detail, setDetail] = useState<StoredCampaign | null>(null);
   const [correction, setCorrection] = useState<StoredCampaign | null>(null);
   // Menú de descargas: solo uno abierto a la vez (por id de campaña).
@@ -323,8 +340,10 @@ export function CampaignsPage() {
     setError(null);
     setQuividiAvailabilityLoaded(false);
     try {
+      // Incluye las retiradas del calendario: se muestran con su etiqueta, pero
+      // su estado las deja fuera de CSV, Quividi y baja ocupación.
       const [c, s, initialLinks, tracking] = await Promise.all([
-        listCampaigns(),
+        listCampaigns({ includeInactive: true }),
         listScreens(),
         listEkonLinks(),
         listOperationalTracking(),
@@ -342,7 +361,10 @@ export function CampaignsPage() {
       setScreens(s);
       setEkonLinks(e);
       setTrackingList(tracking);
-      await loadEkonContext(c, e);
+      await loadEkonContext(
+        campaignsAllowedFor('consolidationCsv', c, tracking),
+        e,
+      );
       try {
         const availability = await getQuividiCampaignAvailability(
           c.map((campaign) => campaign.id),
@@ -365,7 +387,10 @@ export function CampaignsPage() {
   const reloadEkon = useCallback(async () => {
     const links = await listEkonLinks();
     setEkonLinks(links);
-    await loadEkonContext(campaigns, links);
+    await loadEkonContext(
+      campaignsAllowedFor('consolidationCsv', campaigns, trackingList),
+      links,
+    );
     try {
       const availability = await getQuividiCampaignAvailability(
         campaigns.map((campaign) => campaign.id),
@@ -376,7 +401,7 @@ export function CampaignsPage() {
     } catch {
       // La disponibilidad se volverá a validar al recargar la página.
     }
-  }, [campaigns, loadEkonContext]);
+  }, [campaigns, trackingList, loadEkonContext]);
 
   useEffect(() => {
     void reload();
@@ -390,6 +415,7 @@ export function CampaignsPage() {
   );
   const canLinkEkon = can(user?.role ?? 'viewer', 'campaign.linkEkon');
   const canCreateManual = can(user?.role ?? 'viewer', 'campaign.createManual');
+  const canChangeStatus = can(user?.role ?? 'viewer', 'tracking.write');
   // Contexto Ekon para resolver las tiendas de Mupi/Pendón sin detalle.
   const [ekonLoaded, setEkonLoaded] =
     useState<LoadedEkonContext>(EMPTY_EKON_CONTEXT);
@@ -418,11 +444,33 @@ export function CampaignsPage() {
     [trackingList],
   );
 
+  // Estado de cada campaña (manual o retirada del calendario). Decide qué entra
+  // en consolidación/CSV, Quividi y baja ocupación (`statusAllows`).
+  const statuses = useMemo(
+    () => statusByCampaignId(campaigns, trackingList),
+    [campaigns, trackingList],
+  );
+  const trackingById = useMemo(
+    () => trackingByCampaign(campaigns, trackingList),
+    [campaigns, trackingList],
+  );
+  const statusOf = useCallback(
+    (c: StoredCampaign): EffectiveCampaignStatus =>
+      statuses.get(c.id) ?? 'active',
+    [statuses],
+  );
+  // Solo las campañas activas o en pausa consolidan y generan CSV.
+  const csvCampaigns = useMemo(
+    () =>
+      campaigns.filter((c) => statusAllows(statusOf(c), 'consolidationCsv')),
+    [campaigns, statusOf],
+  );
+
   // Mupi/Pendón sin detalle toman sus tiendas de la campaña Ekon vinculada; los
   // que no pueden resolverse quedan bloqueados con su incidencia.
   const ekonResolution = useMemo(
     () =>
-      resolveCampaignsWithEkon(campaigns, (campaign) =>
+      resolveCampaignsWithEkon(csvCampaigns, (campaign) =>
         ekonContextFor(
           campaign,
           ekonLinks,
@@ -430,7 +478,7 @@ export function CampaignsPage() {
           canReadEkon && !ekonReadFailed,
         ),
       ),
-    [campaigns, ekonLinks, ekonLoaded, canReadEkon, ekonReadFailed],
+    [csvCampaigns, ekonLinks, ekonLoaded, canReadEkon, ekonReadFailed],
   );
   const resolvedCampaigns = ekonResolution.campaigns;
   const resolvedById = useMemo(
@@ -452,11 +500,13 @@ export function CampaignsPage() {
   const lowOccupancyToday = useMemo(
     () =>
       analyzeLowOccupancy({
-        campaigns,
+        campaigns: campaigns.filter((c) =>
+          statusAllows(statusOf(c), 'lowOccupancy'),
+        ),
         screens,
         analysisDate: today,
       }).units.filter((u) => u.recommendedRatio === 1).length,
-    [campaigns, screens, today],
+    [campaigns, statusOf, screens, today],
   );
 
   const consByCampaign = useMemo(() => {
@@ -539,6 +589,7 @@ export function CampaignsPage() {
     const d = parseCampaignDate(desde);
     const h = parseCampaignDate(hasta);
     return campaigns.filter((c) => {
+      if (statusFilter !== 'all' && statusOf(c) !== statusFilter) return false;
       const ekon = ekonByKey.get(c.id);
       const matchesSearch =
         !q ||
@@ -558,6 +609,8 @@ export function CampaignsPage() {
     perError,
     classificationById,
     classFilter,
+    statusFilter,
+    statusOf,
   ]);
 
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
@@ -569,15 +622,17 @@ export function CampaignsPage() {
         inicio: (c) => parseCampaignDate(c.fechaInicio)?.getTime() ?? 0,
         fin: (c) => parseCampaignDate(c.fechaFin)?.getTime() ?? 0,
         ekon: (c) => ekonByKey.get(c.id) ?? 0,
+        estado: (c) => EFFECTIVE_STATUS_LABELS[statusOf(c)],
         tiendas: (c) => storeCountByCampaign.get(c.name) ?? 0,
       }),
-    [filtered, sort, ekonByKey, storeCountByCampaign],
+    [filtered, sort, ekonByKey, storeCountByCampaign, statusOf],
   );
   const onSort = (k: string) => setSort((s) => nextSortState(s, k));
 
   const filtersActive =
     search.trim() !== '' ||
     classFilter !== 'all' ||
+    statusFilter !== 'all' ||
     hasPeriodFilter(desde, hasta) ||
     perError !== null;
 
@@ -586,15 +641,17 @@ export function CampaignsPage() {
     let csv = 0;
     let issues = 0;
     for (const c of filtered) {
+      if (!statusAllows(statusOf(c), 'consolidationCsv')) continue;
       csv += consByCampaign.get(c.name)?.length ?? 0;
       issues += (issuesByCampaign.get(c.name) ?? []).length;
     }
     return { csv, issues };
-  }, [filtered, consByCampaign, issuesByCampaign]);
+  }, [filtered, consByCampaign, issuesByCampaign, statusOf]);
 
   function clearFilters() {
     setSearch('');
     setClassFilter('all');
+    setStatusFilter('all');
     setDesde('');
     setHasta('');
   }
@@ -613,6 +670,12 @@ export function CampaignsPage() {
         CLASSIFICATION_FILTER_OPTIONS.find((o) => o.value === classFilter)
           ?.label ?? classFilter,
       onRemove: () => setClassFilter('all'),
+    },
+    statusFilter !== 'all' && {
+      key: 'estado',
+      label: 'Estado',
+      value: EFFECTIVE_STATUS_LABELS[statusFilter],
+      onRemove: () => setStatusFilter('all'),
     },
     desde !== '' && {
       key: 'desde',
@@ -880,6 +943,23 @@ export function CampaignsPage() {
             </option>
           ))}
         </FilterSelect>
+        <FilterSelect
+          label="Estado"
+          value={statusFilter}
+          active={statusFilter !== 'all'}
+          onChange={(v) =>
+            setStatusFilter(v as 'all' | EffectiveCampaignStatus)
+          }
+        >
+          <option value="all">Todos</option>
+          {(
+            Object.keys(EFFECTIVE_STATUS_LABELS) as EffectiveCampaignStatus[]
+          ).map((s) => (
+            <option key={s} value={s}>
+              {EFFECTIVE_STATUS_LABELS[s]}
+            </option>
+          ))}
+        </FilterSelect>
         <FilterDate
           label="Desde"
           value={desde}
@@ -978,6 +1058,12 @@ export function CampaignsPage() {
                   onSort={onSort}
                 />
                 <SortableTh
+                  label="Estado"
+                  sortKey="estado"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortableTh
                   label="Inicio"
                   sortKey="inicio"
                   sort={sort}
@@ -1001,18 +1087,30 @@ export function CampaignsPage() {
             </thead>
             <tbody>
               {sorted.map((c) => {
-                const cons = consByCampaign.get(c.name) ?? [];
-                const nIssues = (issuesByCampaign.get(c.name) ?? []).length;
+                const status = statusOf(c);
+                const inCsv = statusAllows(status, 'consolidationCsv');
+                const quividiAllowed = statusAllows(status, 'quividiReport');
+                const cons = inCsv ? (consByCampaign.get(c.name) ?? []) : [];
+                const nIssues = inCsv
+                  ? (issuesByCampaign.get(c.name) ?? []).length
+                  : 0;
                 const ekon = ekonByKey.get(c.id);
                 const quividi = quividiAvailability.get(c.id);
                 const hasQuividi = quividi?.available === true;
+                const statusTracking = trackingById.get(c.id) ?? null;
+                const statusReason =
+                  status !== 'active' && status !== 'withdrawn'
+                    ? formatStatusReason(statusTracking?.statusReason)
+                    : '';
                 const quividiTitle = !canReportQuividi
                   ? 'Tu rol no permite descargar métricas Quividi'
-                  : !quividiAvailabilityLoaded
-                    ? 'Verificando cobertura Quividi…'
-                    : hasQuividi
-                      ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
-                      : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
+                  : !quividiAllowed
+                    ? `Sin informe Quividi: la campaña está ${EFFECTIVE_STATUS_LABELS[status].toLowerCase()}`
+                    : !quividiAvailabilityLoaded
+                      ? 'Verificando cobertura Quividi…'
+                      : hasQuividi
+                        ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
+                        : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
                 return (
                   <tr key={c.id}>
                     <td>
@@ -1031,6 +1129,22 @@ export function CampaignsPage() {
                     </td>
                     <td>{ekon ?? '—'}</td>
                     <td>{c.tipo || '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="campaign-status-cell"
+                        onClick={() => setStatusCampaign(c)}
+                        aria-label={`Estado de ${c.name}: ${EFFECTIVE_STATUS_LABELS[status]}`}
+                        title={
+                          (statusReason ? `Motivo: ${statusReason}. ` : '') +
+                          (canChangeStatus && status !== 'withdrawn'
+                            ? 'Cambiar estado y ver historial'
+                            : 'Ver estado e historial')
+                        }
+                      >
+                        <CampaignStatusBadge status={status} />
+                      </button>
+                    </td>
                     <td>{formatCivilString(c.fechaInicio)}</td>
                     <td>{formatCivilString(c.fechaFin)}</td>
                     <td>
@@ -1062,6 +1176,7 @@ export function CampaignsPage() {
                           busy={quividiBusyId === c.id}
                           disabled={
                             !canReportQuividi ||
+                            !quividiAllowed ||
                             quividiBusyId !== null ||
                             !quividiAvailabilityLoaded ||
                             !hasQuividi
@@ -1163,6 +1278,36 @@ export function CampaignsPage() {
           canEditEkon={canLinkEkon}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {statusCampaign && (
+        <CampaignStatusDialog
+          campaign={statusCampaign}
+          tracking={trackingById.get(statusCampaign.id) ?? null}
+          campaigns={campaigns}
+          statuses={statuses}
+          trackingList={trackingList}
+          classification={
+            classificationById.get(statusCampaign.id) === 'provider'
+              ? 'provider'
+              : 'institutional'
+          }
+          linkValid={isValidDownloadUrl(statusCampaign.link)}
+          canWrite={canChangeStatus}
+          actor={actor}
+          onSaved={(updated) => {
+            setTrackingList((prev) => [
+              ...prev.filter(
+                (t) =>
+                  (t.campaignId ?? t.campaignNameKey) !==
+                  (updated.campaignId ?? updated.campaignNameKey),
+              ),
+              updated,
+            ]);
+            setStatusCampaign(null);
+          }}
+          onClose={() => setStatusCampaign(null)}
         />
       )}
 

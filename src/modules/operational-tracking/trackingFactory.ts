@@ -1,6 +1,16 @@
 import { campaignKeyId } from '@/modules/campaigns/ekon';
+import {
+  EFFECTIVE_STATUS_LABELS,
+  MIGRATED_REASON,
+  OTHER_REASON,
+  formatStatusReason,
+  statusAllows,
+  storedStatus,
+} from '@/modules/campaigns/campaignStatus';
 import type {
   CampaignOperationalTracking,
+  CampaignStatusEvent,
+  CampaignStatusReason,
   CheckKey,
   Classification,
   ClassificationSource,
@@ -15,6 +25,10 @@ import type {
  */
 export const CANCELLED_CHECK_MESSAGE =
   'La campaña está cancelada: reactívala para volver a editar sus indicadores.';
+
+/** Mensaje de dominio: los indicadores de una campaña duplicada no se editan. */
+export const DUPLICATE_CHECK_MESSAGE =
+  'La campaña está marcada como duplicada: reactívala para volver a editar sus indicadores.';
 
 /**
  * Mensaje de dominio cuando se intenta editar los testigos (T Arranque /
@@ -98,6 +112,10 @@ export function initialTracking(
     lifecycleUpdatedByUid: actor.uid,
     lifecycleUpdatedByEmail: actor.email,
     cancellationReason: null,
+    statusReason: null,
+    duplicateOfCampaignId: null,
+    duplicateOfCampaignName: null,
+    statusHistory: [],
     linkDownload: makeCheck(params.linkValid, 'automatic', actor, now),
     liverpoolValidation: makeCheck(validationDefault, 'automatic', actor, now),
     csmProgramming: makeCheck(false, 'automatic', actor, now),
@@ -115,11 +133,13 @@ export function initialTracking(
 }
 
 /**
- * Rellena los campos de ciclo de vida ausentes en documentos **legacy** (los
- * creados antes de esta funcionalidad). Un documento sin `lifecycleStatus` se
- * interpreta como `active`; los metadatos de transición faltantes se derivan de
- * la creación y `cancellationReason` ausente se normaliza a `null`. Es idempotente
- * y no altera un documento que ya trae ciclo de vida válido.
+ * Rellena los campos de estado ausentes en documentos **legacy** (los creados
+ * antes de esta funcionalidad). Un documento sin `lifecycleStatus` se interpreta
+ * como `active`; los metadatos de transición faltantes se derivan de la
+ * creación. Una cancelación legacy (motivo opcional, sin historial) recibe su
+ * motivo estructurado (el texto que tuviera como «Otro», o «Migrado (sin motivo
+ * registrado)») y un evento de historial sintético. Es idempotente y no altera
+ * un documento que ya trae estos campos.
  *
  * Debe aplicarse tanto en lecturas de cliente como **dentro** de las
  * transacciones de escritura, para que ningún camino escriba un documento sin
@@ -128,17 +148,60 @@ export function initialTracking(
 export function normalizeTracking(
   tracking: CampaignOperationalTracking,
 ): CampaignOperationalTracking {
-  const status: TrackingLifecycleStatus =
-    tracking.lifecycleStatus === 'cancelled' ? 'cancelled' : 'active';
+  const status: TrackingLifecycleStatus = storedStatus(tracking);
+  const lifecycleUpdatedAt = tracking.lifecycleUpdatedAt ?? tracking.createdAt;
+  const lifecycleUpdatedByUid =
+    tracking.lifecycleUpdatedByUid ?? tracking.createdByUid;
+  const lifecycleUpdatedByEmail =
+    tracking.lifecycleUpdatedByEmail ?? tracking.createdByEmail;
+  const legacyText = tracking.cancellationReason?.trim() || null;
+  let statusReason: CampaignStatusReason | null =
+    status === 'active' ? null : (tracking.statusReason ?? null);
+  if (status !== 'active' && !statusReason) {
+    statusReason = legacyText
+      ? {
+          code: OTHER_REASON.code,
+          label: OTHER_REASON.label,
+          detail: legacyText,
+        }
+      : {
+          code: MIGRATED_REASON.code,
+          label: MIGRATED_REASON.label,
+          detail: null,
+        };
+  }
+  let statusHistory: CampaignStatusEvent[] = tracking.statusHistory ?? [];
+  if (!tracking.statusHistory && status !== 'active' && statusReason) {
+    statusHistory = [
+      {
+        id: `legacy-${lifecycleUpdatedAt}`,
+        from: 'active',
+        to: status,
+        reason: statusReason,
+        duplicateOfCampaignId: null,
+        duplicateOfCampaignName: null,
+        at: lifecycleUpdatedAt,
+        byUid: lifecycleUpdatedByUid,
+        byEmail: lifecycleUpdatedByEmail,
+      },
+    ];
+  }
   return {
     ...tracking,
     lifecycleStatus: status,
-    lifecycleUpdatedAt: tracking.lifecycleUpdatedAt ?? tracking.createdAt,
-    lifecycleUpdatedByUid:
-      tracking.lifecycleUpdatedByUid ?? tracking.createdByUid,
-    lifecycleUpdatedByEmail:
-      tracking.lifecycleUpdatedByEmail ?? tracking.createdByEmail,
-    cancellationReason: tracking.cancellationReason ?? null,
+    lifecycleUpdatedAt,
+    lifecycleUpdatedByUid,
+    lifecycleUpdatedByEmail,
+    cancellationReason:
+      status === 'active' ? null : formatStatusReason(statusReason) || null,
+    statusReason,
+    duplicateOfCampaignId:
+      status === 'duplicate' ? (tracking.duplicateOfCampaignId ?? null) : null,
+    duplicateOfCampaignName:
+      status === 'duplicate'
+        ? (tracking.duplicateOfCampaignName ?? null)
+        : null,
+    statusHistory,
   };
 }
 
@@ -147,55 +210,76 @@ export function isCancelled(tracking: CampaignOperationalTracking): boolean {
   return normalizeTracking(tracking).lifecycleStatus === 'cancelled';
 }
 
+export interface StatusChange {
+  to: TrackingLifecycleStatus;
+  reason: CampaignStatusReason;
+  /** Obligatorio cuando `to === 'duplicate'`. */
+  duplicateOf: { campaignId: string; campaignName: string } | null;
+}
+
 /**
- * Marca la campaña como **Cancelada** (transición pura). No toca los checks, la
- * clasificación ni los comentarios: sus valores quedan intactos para recuperarse
- * al reactivar. El motivo es opcional: texto vacío se persiste como `null`.
- * Registra quién y cuándo realizó la transición.
+ * Cambia el estado de la campaña (transición pura) y agrega el evento al
+ * historial. **No** toca checks, clasificación ni comentarios: al reactivar
+ * reaparecen tal cual estaban. La validación de negocio (motivo obligatorio,
+ * original del duplicado, etc.) vive en `validateStatusChange`; aquí solo se
+ * rechazan transiciones incoherentes.
  */
-export function cancelTracking(
+export function changeTrackingStatus(
   tracking: CampaignOperationalTracking,
-  reason: string,
+  change: StatusChange,
   actor: TrackingActor,
   now: number,
+  eventId: string,
 ): CampaignOperationalTracking {
   const base = normalizeTracking(tracking);
-  const trimmed = reason.trim();
+  const from = base.lifecycleStatus;
+  if (from === change.to) {
+    throw new Error(
+      `La campaña ya está en estado «${EFFECTIVE_STATUS_LABELS[from]}».`,
+    );
+  }
+  if (change.to === 'duplicate' && !change.duplicateOf) {
+    throw new Error('Falta la campaña original del duplicado.');
+  }
+  const duplicateOf = change.to === 'duplicate' ? change.duplicateOf : null;
+  const event: CampaignStatusEvent = {
+    id: eventId,
+    from,
+    to: change.to,
+    reason: change.reason,
+    duplicateOfCampaignId: duplicateOf?.campaignId ?? null,
+    duplicateOfCampaignName: duplicateOf?.campaignName ?? null,
+    at: now,
+    byUid: actor.uid,
+    byEmail: actor.email,
+  };
+  const active = change.to === 'active';
   return {
     ...base,
-    lifecycleStatus: 'cancelled',
+    lifecycleStatus: change.to,
     lifecycleUpdatedAt: now,
     lifecycleUpdatedByUid: actor.uid,
     lifecycleUpdatedByEmail: actor.email,
-    cancellationReason: trimmed === '' ? null : trimmed,
+    cancellationReason: active ? null : formatStatusReason(change.reason),
+    statusReason: active ? null : change.reason,
+    duplicateOfCampaignId: duplicateOf?.campaignId ?? null,
+    duplicateOfCampaignName: duplicateOf?.campaignName ?? null,
+    statusHistory: [...(base.statusHistory ?? []), event],
     updatedAt: now,
     updatedByUid: actor.uid,
     updatedByEmail: actor.email,
   };
 }
 
-/**
- * Reactiva la campaña (transición pura): vuelve a `active`, limpia el motivo de
- * cancelación y registra quién/cuándo. **No** modifica los checks: reaparecen
- * exactamente con los valores que tenían antes de cancelar.
- */
-export function reactivateTracking(
+/** Motivo de rechazo al editar checks según el estado (o `null` si se permite). */
+function checksBlockedReason(
   tracking: CampaignOperationalTracking,
-  actor: TrackingActor,
-  now: number,
-): CampaignOperationalTracking {
-  const base = normalizeTracking(tracking);
-  return {
-    ...base,
-    lifecycleStatus: 'active',
-    lifecycleUpdatedAt: now,
-    lifecycleUpdatedByUid: actor.uid,
-    lifecycleUpdatedByEmail: actor.email,
-    cancellationReason: null,
-    updatedAt: now,
-    updatedByUid: actor.uid,
-    updatedByEmail: actor.email,
-  };
+): string | null {
+  const status = normalizeTracking(tracking).lifecycleStatus;
+  if (statusAllows(status, 'trackingChecks')) return null;
+  return status === 'duplicate'
+    ? DUPLICATE_CHECK_MESSAGE
+    : CANCELLED_CHECK_MESSAGE;
 }
 
 export type CheckChangeResult =
@@ -217,11 +301,11 @@ export function applyCheckChange(
   actor: TrackingActor,
   now: number,
 ): CheckChangeResult {
-  // Una campaña cancelada no acepta cambios en sus indicadores: la reactivación
-  // es la única vía para volver a editarlos (no basta ocultar las casillas).
-  if (isCancelled(tracking)) {
-    return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
-  }
+  // Una campaña cancelada o duplicada no acepta cambios en sus indicadores: la
+  // reactivación es la única vía para volver a editarlos (no basta ocultar las
+  // casillas). En pausa sí se pueden editar.
+  const blocked = checksBlockedReason(tracking);
+  if (blocked) return { ok: false, reason: blocked };
 
   // Los testigos no aplican a las campañas Institucional: se rechaza cualquier
   // cambio en dominio (no basta ocultar las casillas). No se tocan sus valores
@@ -284,17 +368,16 @@ export function applyCheckChange(
  * - **Pendiente**: marca Link, Validación, CSM y testigos; no la Evidencia de pases.
  * - **Institucional**: marca sólo Link, Validación Liverpool y Programación CSM;
  *   NO toca T Arranque ni T Completos (no aplican; sus valores se conservan).
- * - **Cancelada**: se rechaza (la reactivación es la única vía para editar).
+ * - **Cancelada / Duplicada**: se rechaza (la reactivación es la única vía).
  */
 export function markAllComplete(
   tracking: CampaignOperationalTracking,
   actor: TrackingActor,
   now: number,
 ): CheckChangeResult {
-  // "Marcar todas" también se rechaza sobre una campaña cancelada.
-  if (isCancelled(tracking)) {
-    return { ok: false, reason: CANCELLED_CHECK_MESSAGE };
-  }
+  // "Marcar todas" también se rechaza sobre una campaña cancelada o duplicada.
+  const blocked = checksBlockedReason(tracking);
+  if (blocked) return { ok: false, reason: blocked };
   const institutional = tracking.classification === 'institutional';
   return {
     ok: true,

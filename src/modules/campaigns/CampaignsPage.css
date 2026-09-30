@@ -113,3 +113,11 @@
   max-height: 180px;
   overflow-y: auto;
 }
+
+.campaign-status-cell {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}

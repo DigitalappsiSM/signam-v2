@@ -213,27 +213,48 @@ tres de ellos describían mal el separador de artículos.
   PDF o Excel; no ve contenido creativo, PPT, PDF de errores, Excel general,
   CSV, ZIP ni exportación masiva. Firestore permite únicamente las lecturas que
   requieren esos tres módulos y bloquea todas sus escrituras.
-- **Estado de ciclo de vida operativo (Activa/Cancelada)**: campo tipado
-  `lifecycleStatus: 'active' | 'cancelled'` (más `lifecycleUpdatedAt`,
-  `lifecycleUpdatedByUid/Email` y `cancellationReason: string | null`) en el
-  documento de seguimiento. **Solo afecta al seguimiento operativo**: no toca
-  ejecución, consolidación, CSV/ZIP, Excel, PPT ni baja ocupación, y **las
-  canceladas siguen contando** en la carga por tienda/soporte del Dashboard.
-  Reglas: (1) documentos legacy sin el campo se interpretan como `active`
-  (`normalizeTracking`, aplicada en lecturas **y** dentro de las transacciones);
-  (2) cancelar/reactivar son transiciones **transaccionales y puras**
-  (`cancelTracking`/`reactivateTracking` en `trackingFactory.ts`) que **no**
-  modifican checks, clasificación ni comentarios; (3) una campaña cancelada no
-  requiere checks (se muestran "No aplica"), no genera alertas/pendientes/
-  vencimientos y queda **fuera** del resumen operativo del Dashboard (se filtran
-  las filas aplicables antes de calcular todas las secciones); (4) `updateCheck`
-  y `markAllChecks` **rechazan** cambios sobre una cancelada (`TrackingError`);
-  `updateClassification` y `addComment` siguen permitidos; (5) el estado
-  sobrevive a actualizaciones de la misma línea lógica (mismo `campaignId`); (6)
-  `cancellationReason` vacío se persiste
-  como `null` y se limpia al reactivar; al reactivar los checks reaparecen tal
-  cual estaban. Las reglas de Firestore validan el enum y los tipos de estos
-  campos; la lectura no los exige (compatibilidad legacy).
+- **Estados de campaña (Activa / En pausa / Cancelada / Duplicada)**: estado
+  manual editable desde **Campañas** y **Seguimiento operativo** por
+  admin/operator (`tracking.write`), siempre con **motivo** (catálogo por estado
+  + «Otro» con texto libre obligatorio; reactivar también exige motivo) e
+  **historial completo** (`statusHistory`, solo se agrega). Se guarda en el
+  documento de seguimiento `campaignOperationalTracking/{campaignId}`
+  (`lifecycleStatus`, `statusReason {code,label,detail}`,
+  `duplicateOfCampaignId/Name`, `lifecycleUpdatedAt/By*`; `cancellationReason`
+  queda como resumen de texto por compatibilidad), por lo que la importación del
+  calendario **nunca** lo toca. Un quinto estado, **Retirada del calendario**, no
+  se edita: se deriva de la baja lógica de la importación
+  (`campaign.active === false`) y domina sobre el manual. La matriz de efectos
+  vive en `campaigns/campaignStatus.ts` (`STATUS_EFFECTS`/`statusAllows`) y es la
+  única fuente de decisión:
+
+  | Área | Activa | En pausa | Cancelada | Duplicada | Retirada |
+  |---|---|---|---|---|---|
+  | Alertas/vencimientos del seguimiento | sí | no | no | no | no |
+  | Checks editables | sí | sí | no («No aplica») | no | — |
+  | Resumen operativo del Dashboard | sí | no (sección «Estados de campaña») | no (ídem) | no (ídem) | no (ídem) |
+  | Carga por tienda/soporte | sí | no | no | no | no |
+  | Consolidación y CSV de Admira | sí | **sí** | no | no | no |
+  | Baja ocupación | sí | no | no | no | no |
+  | Informe Quividi | sí | sí | no | no | no |
+
+  Reglas: (1) documentos legacy sin estado se interpretan como `active`;
+  cancelaciones legacy sin motivo reciben «Migrado (sin motivo registrado)» (o
+  «Otro» con su texto) y un evento de historial sintético (`normalizeTracking`,
+  aplicada en lecturas **y** dentro de las transacciones); (2) la transición es
+  pura (`changeTrackingStatus`) y transaccional (`changeCampaignStatus`), no
+  modifica checks, clasificación ni comentarios, y la validación de negocio
+  (`validateStatusChange`) exige motivo y, para **Duplicada**, una campaña
+  original vigente de SIGNAM (distinta, no duplicada y sin duplicados propios
+  apuntándole); (3) `updateCheck`/`markAllChecks` rechazan cambios sobre una
+  Cancelada o Duplicada (`TrackingError`); (4) al sacar del CSV una campaña con
+  **Programación CSM** marcada se avisa que debe retirarse **a mano en Admira**;
+  (5) si el calendario modifica o vuelve a subir una campaña con estado manual,
+  la importación **conserva** el estado y solo avisa (`importStatusNotices`);
+  (6) la Cloud Function `quividi-campaignReport` rechaza canceladas, duplicadas
+  y retiradas (`functions/src/quividi/campaignStatus.ts`), no solo el botón; (7)
+  `firestore.rules` valida el enum, exige motivo fuera de `active` y original en
+  `duplicate`, y solo deja crecer el historial.
 - **Reimportación y emparejamiento**: coincidencias exactas usan
   `campaignIdentity` como huella; una única campaña entrante y una única guardada
   con el mismo nombre se actualizan conservando `campaign.id`. Si varios

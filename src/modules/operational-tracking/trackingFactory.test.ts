@@ -6,9 +6,9 @@ import {
   markAllComplete,
   addComment,
   campaignKeyId,
-  cancelTracking,
-  reactivateTracking,
+  changeTrackingStatus,
   isCancelled,
+  DUPLICATE_CHECK_MESSAGE,
   normalizeTracking,
   CANCELLED_CHECK_MESSAGE,
   INSTITUTIONAL_WITNESS_MESSAGE,
@@ -280,11 +280,52 @@ describe('markAllComplete', () => {
   });
 });
 
-describe('ciclo de vida — cancelar / reactivar', () => {
-  it('un seguimiento nuevo comienza activo', () => {
+function reason(detail: string | null = null) {
+  return detail
+    ? { code: 'other', label: 'Otro', detail }
+    : { code: 'liverpool-request', label: 'Cancelada por Liverpool', detail };
+}
+
+function cancelTracking(
+  t: CampaignOperationalTracking,
+  detail: string | null,
+  who: typeof actor,
+  now: number,
+) {
+  return changeTrackingStatus(
+    t,
+    { to: 'cancelled', reason: reason(detail), duplicateOf: null },
+    who,
+    now,
+    `ev-${now}`,
+  );
+}
+
+function reactivateTracking(
+  t: CampaignOperationalTracking,
+  who: typeof actor,
+  now: number,
+) {
+  return changeTrackingStatus(
+    t,
+    {
+      to: 'active',
+      reason: { code: 'resumed', label: 'Se reanuda la campaña', detail: null },
+      duplicateOf: null,
+    },
+    who,
+    now,
+    `ev-${now}`,
+  );
+}
+
+describe('estado de campaña — cambios con motivo e historial', () => {
+  it('un seguimiento nuevo comienza activo y sin historial', () => {
     const t = institutional();
     expect(t.lifecycleStatus).toBe('active');
     expect(t.cancellationReason).toBeNull();
+    expect(t.statusReason).toBeNull();
+    expect(t.statusHistory).toEqual([]);
     expect(t.lifecycleUpdatedAt).toBe(1000);
     expect(isCancelled(t)).toBe(false);
   });
@@ -304,12 +345,58 @@ describe('ciclo de vida — cancelar / reactivar', () => {
     const norm = normalizeTracking(legacy);
     expect(norm.lifecycleStatus).toBe('active');
     expect(norm.cancellationReason).toBeNull();
+    expect(norm.statusHistory).toEqual([]);
     // Metadatos de transición faltantes se derivan de la creación.
     expect(norm.lifecycleUpdatedAt).toBe(500);
     expect(norm.lifecycleUpdatedByUid).toBe('u9');
   });
 
-  it('cancelar conserva los cinco checks y registra usuario/fecha/motivo', () => {
+  it('migra una cancelación legacy sin motivo a «Migrado (sin motivo registrado)»', () => {
+    const legacy = {
+      ...institutional(),
+      lifecycleStatus: 'cancelled',
+      lifecycleUpdatedAt: 4000,
+      lifecycleUpdatedByEmail: 'c@d.mx',
+      cancellationReason: null,
+      statusReason: undefined,
+      statusHistory: undefined,
+    } as unknown as CampaignOperationalTracking;
+    const norm = normalizeTracking(legacy);
+    expect(norm.statusReason).toEqual({
+      code: 'migrated',
+      label: 'Migrado (sin motivo registrado)',
+      detail: null,
+    });
+    expect(norm.cancellationReason).toBe('Migrado (sin motivo registrado)');
+    expect(norm.statusHistory).toHaveLength(1);
+    expect(norm.statusHistory![0]).toMatchObject({
+      from: 'active',
+      to: 'cancelled',
+      at: 4000,
+      byEmail: 'c@d.mx',
+    });
+    // Idempotente.
+    expect(normalizeTracking(norm)).toEqual(norm);
+  });
+
+  it('migra una cancelación legacy con motivo como «Otro» con su texto', () => {
+    const legacy = {
+      ...institutional(),
+      lifecycleStatus: 'cancelled',
+      cancellationReason: 'Sin presupuesto',
+      statusReason: undefined,
+      statusHistory: undefined,
+    } as unknown as CampaignOperationalTracking;
+    const norm = normalizeTracking(legacy);
+    expect(norm.statusReason).toEqual({
+      code: 'other',
+      label: 'Otro',
+      detail: 'Sin presupuesto',
+    });
+    expect(norm.cancellationReason).toBe('Sin presupuesto');
+  });
+
+  it('cancelar conserva los checks y registra usuario/fecha/motivo e historial', () => {
     const marked = applyCheckChange(
       institutional(),
       'csmProgramming',
@@ -321,22 +408,31 @@ describe('ciclo de vida — cancelar / reactivar', () => {
     if (!marked.ok) return;
     const cancelled = cancelTracking(
       marked.tracking,
-      '  Sin presupuesto  ',
+      'Sin presupuesto',
       actor2,
       5000,
     );
     expect(cancelled.lifecycleStatus).toBe('cancelled');
     expect(cancelled.cancellationReason).toBe('Sin presupuesto');
+    expect(cancelled.statusReason?.code).toBe('other');
     expect(cancelled.lifecycleUpdatedByEmail).toBe('c@d.mx');
     expect(cancelled.lifecycleUpdatedAt).toBe(5000);
+    expect(cancelled.statusHistory).toEqual([
+      {
+        id: 'ev-5000',
+        from: 'active',
+        to: 'cancelled',
+        reason: { code: 'other', label: 'Otro', detail: 'Sin presupuesto' },
+        duplicateOfCampaignId: null,
+        duplicateOfCampaignName: null,
+        at: 5000,
+        byUid: 'u2',
+        byEmail: 'c@d.mx',
+      },
+    ]);
     // Los checks NO se tocan.
     expect(cancelled.csmProgramming.completed).toBe(true);
     expect(cancelled.liverpoolValidation.completed).toBe(true);
-  });
-
-  it('cancelar sin motivo guarda null', () => {
-    const cancelled = cancelTracking(institutional(), '   ', actor, 5000);
-    expect(cancelled.cancellationReason).toBeNull();
   });
 
   it('cancelar conserva clasificación y comentarios', () => {
@@ -348,7 +444,7 @@ describe('ciclo de vida — cancelar / reactivar', () => {
   });
 
   it('no se puede modificar un check mientras está cancelada', () => {
-    const cancelled = cancelTracking(institutional(), '', actor, 5000);
+    const cancelled = cancelTracking(institutional(), null, actor, 5000);
     const res = applyCheckChange(
       cancelled,
       'csmProgramming',
@@ -362,14 +458,81 @@ describe('ciclo de vida — cancelar / reactivar', () => {
   });
 
   it('no se puede ejecutar "Marcar todas" mientras está cancelada', () => {
-    const cancelled = cancelTracking(institutional(), '', actor, 5000);
+    const cancelled = cancelTracking(institutional(), null, actor, 5000);
     const res = markAllComplete(cancelled, actor, 6000);
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.reason).toBe(CANCELLED_CHECK_MESSAGE);
   });
 
-  it('reactivar restaura la aplicabilidad sin alterar los checks y limpia el motivo', () => {
+  it('en pausa los checks siguen editables', () => {
+    const paused = changeTrackingStatus(
+      institutional(),
+      {
+        to: 'paused',
+        reason: {
+          code: 'provider-request',
+          label: 'Solicitud del proveedor',
+          detail: null,
+        },
+        duplicateOf: null,
+      },
+      actor,
+      5000,
+      'e1',
+    );
+    expect(paused.lifecycleStatus).toBe('paused');
+    const res = applyCheckChange(paused, 'csmProgramming', true, actor, 6000);
+    expect(res.ok).toBe(true);
+  });
+
+  it('duplicada guarda la original y bloquea los checks', () => {
+    const dup = changeTrackingStatus(
+      institutional(),
+      {
+        to: 'duplicate',
+        reason: {
+          code: 'calendar-duplicate',
+          label: 'Duplicada en el calendario de Liverpool',
+          detail: null,
+        },
+        duplicateOf: { campaignId: 'orig', campaignName: 'ORIGINAL' },
+      },
+      actor,
+      5000,
+      'e1',
+    );
+    expect(dup.duplicateOfCampaignId).toBe('orig');
+    expect(dup.duplicateOfCampaignName).toBe('ORIGINAL');
+    expect(dup.statusHistory![0]!.duplicateOfCampaignId).toBe('orig');
+    const res = markAllComplete(dup, actor, 6000);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.reason).toBe(DUPLICATE_CHECK_MESSAGE);
+  });
+
+  it('rechaza duplicada sin original y un cambio al mismo estado', () => {
+    expect(() =>
+      changeTrackingStatus(
+        institutional(),
+        { to: 'duplicate', reason: reason(), duplicateOf: null },
+        actor,
+        5000,
+        'e1',
+      ),
+    ).toThrow(/original/);
+    expect(() =>
+      changeTrackingStatus(
+        institutional(),
+        { to: 'active', reason: reason(), duplicateOf: null },
+        actor,
+        5000,
+        'e1',
+      ),
+    ).toThrow(/ya está/);
+  });
+
+  it('reactivar restaura la aplicabilidad sin alterar los checks y acumula historial', () => {
     const marked = applyCheckChange(
       institutional(),
       'csmProgramming',
@@ -383,8 +546,14 @@ describe('ciclo de vida — cancelar / reactivar', () => {
     const reactivated = reactivateTracking(cancelled, actor2, 7000);
     expect(reactivated.lifecycleStatus).toBe('active');
     expect(reactivated.cancellationReason).toBeNull();
+    expect(reactivated.statusReason).toBeNull();
     expect(reactivated.lifecycleUpdatedByEmail).toBe('c@d.mx');
     expect(reactivated.lifecycleUpdatedAt).toBe(7000);
+    expect(reactivated.statusHistory!.map((e) => [e.from, e.to])).toEqual([
+      ['active', 'cancelled'],
+      ['cancelled', 'active'],
+    ]);
+    expect(reactivated.statusHistory![1]!.reason.code).toBe('resumed');
     // El check conserva exactamente su valor previo.
     expect(reactivated.csmProgramming.completed).toBe(true);
     // Y ahora vuelve a aceptar cambios.

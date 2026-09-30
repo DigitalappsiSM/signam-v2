@@ -160,6 +160,11 @@ logic. The load-bearing ones:
   numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. The Excel's
   **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure functions*, so sheet and
   report cannot disagree. See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
+- **Campaign status** (`Activa`/`En pausa`/`Cancelada`/`Duplicada`, plus derived `Retirada del calendario`)
+  lives in the tracking doc with mandatory reason + append-only history; its effects on alerts, Dashboard,
+  load, consolidation/CSV, low occupancy and Quividi come **only** from `STATUS_EFFECTS` in
+  `campaigns/campaignStatus.ts` (paused stays in CSV/Quividi; cancelled/duplicate leave everything). See
+  `AGENTS.md` (**Estados de campaña**).
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete

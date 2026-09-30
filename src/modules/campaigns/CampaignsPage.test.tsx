@@ -1549,3 +1549,146 @@ describe('CampaignsPage — contadores', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('CampaignsPage — estados de campaña', () => {
+  function tracked(
+    c: StoredCampaign,
+    lifecycleStatus: 'paused' | 'cancelled' | 'duplicate',
+  ) {
+    return {
+      id: c.id,
+      campaignId: c.id,
+      campaignNameKey: c.nameKey,
+      campaignName: c.name,
+      classification: 'provider',
+      lifecycleStatus,
+      statusReason: {
+        code: 'capture-error',
+        label: 'Error de captura',
+        detail: null,
+      },
+      csmProgramming: { completed: false },
+    } as unknown as Awaited<ReturnType<typeof listOperationalTracking>>[number];
+  }
+
+  it('muestra la etiqueta de estado, incluidas las retiradas del calendario', async () => {
+    const W = campaign({ id: 'w', name: 'RETIRADA', active: false });
+    vi.mocked(listCampaigns).mockResolvedValue([A, B, W]);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'cancelled'),
+    ]);
+    render(<CampaignsPage />);
+    const rowA = (await screen.findByText('BUEN FIN')).closest('tr')!;
+    expect(within(rowA).getByText('Cancelada')).toBeInTheDocument();
+    const rowB = screen.getByText('REGRESO A CLASES').closest('tr')!;
+    expect(within(rowB).getByText('Activa')).toBeInTheDocument();
+    const rowW = screen.getByText('RETIRADA').closest('tr')!;
+    expect(
+      within(rowW).getByText('Retirada del calendario'),
+    ).toBeInTheDocument();
+    expect(listCampaigns).toHaveBeenCalledWith({ includeInactive: true });
+  });
+
+  it('una cancelada no consolida, no ofrece CSV ni informe Quividi', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'cancelled'),
+    ]);
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'a',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [],
+      },
+    ]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await waitFor(() => expect(consolidate).toHaveBeenCalled());
+    const calls = vi.mocked(consolidate).mock.calls;
+    const consolidated = calls[calls.length - 1]![0];
+    expect(consolidated.map((c) => (c as StoredCampaign).id)).toEqual(['b']);
+    const quividi = screen.getByRole('button', {
+      name: /Informe de audiencia de BUEN FIN/i,
+    });
+    expect(quividi).toBeDisabled();
+    expect(quividi).toHaveAttribute(
+      'title',
+      expect.stringContaining('cancelada'),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /Descargas de BUEN FIN/i }),
+    );
+    const menu = screen.getByRole('menu', { name: /Descargas de BUEN FIN/i });
+    expect(within(menu).getByText('Sin CSV')).toBeInTheDocument();
+  });
+
+  it('una campaña en pausa sigue en la consolidación/CSV', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'paused'),
+    ]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await waitFor(() => expect(consolidate).toHaveBeenCalled());
+    const calls = vi.mocked(consolidate).mock.calls;
+    const consolidated = calls[calls.length - 1]![0];
+    expect(consolidated.map((c) => (c as StoredCampaign).id)).toEqual([
+      'a',
+      'b',
+    ]);
+    const rowA = screen.getByText('BUEN FIN').closest('tr')!;
+    expect(within(rowA).getByText('En pausa')).toBeInTheDocument();
+  });
+
+  it('filtra por estado', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'duplicate'),
+    ]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Estado' }),
+      'duplicate',
+    );
+    expect(screen.getByText('BUEN FIN')).toBeInTheDocument();
+    expect(screen.queryByText('REGRESO A CLASES')).not.toBeInTheDocument();
+  });
+
+  it('abre el diálogo de estado con el motivo y el historial', async () => {
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'cancelled'),
+    ]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Estado de BUEN FIN: Cancelada' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    // Motivo vigente + su evento en el historial.
+    expect(within(dialog).getAllByText(/Error de captura/)).toHaveLength(2);
+    expect(
+      within(dialog).getByRole('heading', { name: 'Historial de estados' }),
+    ).toBeInTheDocument();
+    // Admin puede reactivar (con motivo).
+    expect(
+      within(dialog).getByRole('radio', { name: /^Reactivar/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('el perfil Comercial ve el estado pero no puede cambiarlo', async () => {
+    authState.role = 'commercial';
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      tracked(A, 'paused'),
+    ]);
+    render(<CampaignsPage />);
+    await screen.findByText('BUEN FIN');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Estado de BUEN FIN: En pausa' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: 'Cerrar' }),
+    ).toBeInTheDocument();
+  });
+});
