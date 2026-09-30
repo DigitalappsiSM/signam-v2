@@ -266,14 +266,16 @@ describe('DashboardPage — resumen operativo', () => {
     renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
     // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
-    const attention = screen.getByRole('region', {
+    const attention = await screen.findByRole('region', {
       name: /Atención operativa/i,
     });
     expect(
       within(attention).queryByRole('link', { name: 'VIEJA' }),
     ).not.toBeInTheDocument();
     // Aparece, en cambio, en «Estados de campaña» → Canceladas.
-    const cancelled = screen.getByRole('region', { name: 'Canceladas' });
+    const cancelled = await screen.findByRole('region', {
+      name: 'Canceladas',
+    });
     expect(
       within(cancelled).getByRole('link', { name: 'VIEJA' }),
     ).toBeInTheDocument();
@@ -302,13 +304,13 @@ describe('DashboardPage — resumen operativo', () => {
     ]);
     renderDash(VIEJA_ROUTE);
     await screen.findByRole('heading', { name: /Módulos/i });
-    const attention = screen.getByRole('region', {
+    const attention = await screen.findByRole('region', {
       name: /Atención operativa/i,
     });
     expect(
       within(attention).queryByRole('link', { name: 'VIEJA' }),
     ).not.toBeInTheDocument();
-    const paused = screen.getByRole('region', { name: 'En pausa' });
+    const paused = await screen.findByRole('region', { name: 'En pausa' });
     expect(
       within(paused).getByRole('link', { name: 'VIEJA' }),
     ).toBeInTheDocument();
