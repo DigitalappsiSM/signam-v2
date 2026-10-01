@@ -879,9 +879,7 @@ export function brandStoreAttribution(
         // `rate * formatRows.length` para todas las tiendas —sin restar su
         // propio dato— las igualaba a todas al mismo valor, perdiendo
         // exactamente lo que «Tiendas TOP» necesita mostrar: quién rinde más.
-        const formatMeasuredOts = sum(
-          measured.map((row) => row.publishedOts),
-        );
+        const formatMeasuredOts = sum(measured.map((row) => row.publishedOts));
         const gap = Math.max(0, formatRows.length - measured.length);
         adjustedOts += formatMeasuredOts + gap * rate;
         measuredOts += formatMeasuredOts;
