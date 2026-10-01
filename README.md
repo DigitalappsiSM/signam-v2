@@ -592,6 +592,7 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 | Editar vínculo Ekon de campaña      |   ✓   |    ✓     |   ✓    |            |
 | Leer catálogo                       |   ✓   |    ✓     |   ✓    |            |
 | Editar / inactivar catálogo         |   ✓   |          |        |            |
+| Editar directorio de tiendas        |   ✓   |          |        |            |
 | Importar calendarios                |   ✓   |    ✓     |        |            |
 | Importar Ekon                       |   ✓   |    ✓     |        |            |
 | Ver conciliación                    |   ✓   |    ✓     |   ✓    |            |

@@ -124,6 +124,25 @@ service cloud.firestore {
       allow create, update, delete: if canWriteWorkspace();
     }
 
+    // Directorio de tiendas (ubicación: dirección, CP, estado, zona, GPS). Una
+    // ficha por número de tienda; el catálogo y el panel la leen. No se borra:
+    // una tienda cerrada se marca `status = 'inactive'`.
+    match /storeDirectory/{storeNumber} {
+      allow read: if isSignedIn();
+      allow create, update: if canWriteWorkspace()
+        && request.resource.data.storeNumber == storeNumber
+        // Id canónico: sin ceros a la izquierda (`0078` y `78` son la misma).
+        && !storeNumber.matches('^0[0-9]+$')
+        && request.resource.data.status in ['active', 'inactive']
+        && (request.resource.data.postalCode == null
+            || (request.resource.data.postalCode is string
+                && request.resource.data.postalCode.matches('^[0-9]{5}$')))
+        && (request.resource.data.lat == null || request.resource.data.lat is number)
+        && (request.resource.data.lng == null || request.resource.data.lng is number)
+        && request.resource.data.updatedAt is int;
+      allow delete: if false;
+    }
+
     // Diagnóstico vigente del reporte de pases Admira. El cliente publica un
     // snapshot completo, cambia el puntero `current` y elimina el reemplazado;
     // no existe una consulta de históricos ni se conserva el Excel original.

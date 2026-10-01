@@ -34,6 +34,16 @@ describe('guardia de deriva entre código y documentación', () => {
     );
   });
 
+  it('exige documentación al tocar el directorio de tiendas', () => {
+    const { failures } = evaluate(['src/domain/stores/geography.ts']);
+    expect(failures.map((failure) => failure.rule.name)).toContain(
+      'Directorio de tiendas',
+    );
+    expect(
+      evaluate(['src/domain/stores/geography.ts', 'AGENTS.md']).failures,
+    ).toHaveLength(0);
+  });
+
   it('no molesta cuando sólo cambian pruebas', () => {
     expect(evaluate(['src/domain/csv.test.ts']).failures).toHaveLength(0);
   });

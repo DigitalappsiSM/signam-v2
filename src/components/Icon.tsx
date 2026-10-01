@@ -16,6 +16,7 @@ export type IconName =
   | 'bell'
   | 'calendar'
   | 'monitor'
+  | 'map-pin'
   | 'megaphone'
   | 'users'
   | 'shield'
@@ -58,6 +59,12 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <rect x="3" y="4.5" width="18" height="16" rx="2" />
       <path d="M3 9.5h18M8 3v4M16 3v4" />
+    </>
+  ),
+  'map-pin': (
+    <>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
     </>
   ),
   monitor: (

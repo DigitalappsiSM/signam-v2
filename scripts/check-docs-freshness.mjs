@@ -80,6 +80,12 @@ const RULES = [
     why: 'La operación Digital no debe tocar el flujo Liverpool↔Admira; su alcance está documentado.',
   },
   {
+    name: 'Directorio de tiendas',
+    code: [/^src\/domain\/stores\//],
+    docs: ['AGENTS.md', 'CLAUDE.md'],
+    why: 'El directorio es la fuente única de ubicación de las tiendas; sus reglas de CP, estado y coordenadas están documentadas.',
+  },
+  {
     name: 'Control de acceso',
     code: [
       /^firestore\.rules$/,

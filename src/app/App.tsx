@@ -8,6 +8,7 @@ import { LoginPage } from '@/modules/auth/LoginPage';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { ImportPage } from '@/modules/liverpool-import/ImportPage';
 import { CatalogPage } from '@/modules/admira-catalog/CatalogPage';
+import { StoreDirectoryPage } from '@/modules/store-directory/StoreDirectoryPage';
 import { EkonImportPage } from '@/modules/ekon-import/EkonImportPage';
 import { CampaignsPage } from '@/modules/campaigns/CampaignsPage';
 import { ReconciliationPage } from '@/modules/reconciliation/ReconciliationPage';
@@ -97,6 +98,14 @@ export function App() {
           element={
             <RouteAccess path="/catalogo">
               <CatalogPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/tiendas"
+          element={
+            <RouteAccess path="/tiendas">
+              <StoreDirectoryPage />
             </RouteAccess>
           }
         />

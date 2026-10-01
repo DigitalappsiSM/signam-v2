@@ -20,6 +20,11 @@ import {
   updateScreen,
 } from '@/services/screens';
 import {
+  listStoreDirectory,
+  type StoredDirectoryEntry,
+} from '@/services/storeDirectory';
+import { normalizeStoreNumber } from '@/domain/stores';
+import {
   EMPTY_FILTERS,
   filterScreens,
   uniqueValues,
@@ -42,6 +47,11 @@ export function CatalogPage() {
   const actor: Actor = { uid: user?.uid ?? '', email: user?.email ?? '' };
 
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
+  // Ubicación por número de tienda. Se lee del directorio de tiendas (fuente
+  // única); si no carga, el catálogo sigue funcionando sin la columna.
+  const [directory, setDirectory] = useState<Map<string, StoredDirectoryEntry>>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ScreenFilters>(EMPTY_FILTERS);
@@ -55,7 +65,12 @@ export function CatalogPage() {
     setLoading(true);
     setError(null);
     try {
-      setScreens(await listScreens());
+      const [list, stores] = await Promise.all([
+        listScreens(),
+        listStoreDirectory().catch(() => []),
+      ]);
+      setScreens(list);
+      setDirectory(new Map(stores.map((s) => [s.storeNumber, s])));
     } catch {
       setError(
         'No se pudieron cargar las pantallas. Verifica que las reglas de Firestore estén desplegadas.',
@@ -334,6 +349,7 @@ export function CatalogPage() {
               <tr>
                 <th>Tienda</th>
                 <th>Nombre de tienda</th>
+                <th>Ubicación</th>
                 <th>Modelo</th>
                 <th>Resolución</th>
                 <th>Normalización Liverpool</th>
@@ -360,6 +376,15 @@ export function CatalogPage() {
                     />
                   </td>
                   <td>{screen.original['Nombre de tienda']}</td>
+                  <td>
+                    <StoreLocationCell
+                      entry={directory.get(
+                        normalizeStoreNumber(
+                          screen.original['Numero de Tienda'],
+                        ),
+                      )}
+                    />
+                  </td>
                   <td>{screen.original.Modelo}</td>
                   <td>{screen.original.RESOLUCION}</td>
                   <td>
@@ -523,5 +548,29 @@ export function CatalogPage() {
         />
       )}
     </>
+  );
+}
+
+/** CP y estado de la tienda según el directorio de tiendas. */
+function StoreLocationCell({ entry }: { entry?: StoredDirectoryEntry }) {
+  if (!entry) {
+    return (
+      <span
+        className="badge badge-muted"
+        title="Agrégala en Directorio de tiendas"
+      >
+        Sin ficha
+      </span>
+    );
+  }
+  return (
+    <div className="catalog__quividi">
+      <strong className="tabnum">
+        {entry.postalCode ? `CP ${entry.postalCode}` : 'Sin CP'}
+      </strong>
+      <span>
+        {[entry.municipality, entry.state].filter(Boolean).join(', ') || '—'}
+      </span>
+    </div>
   );
 }
