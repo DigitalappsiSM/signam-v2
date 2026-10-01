@@ -3,3 +3,5 @@ coverage
 node_modules
 functions/lib
 package-lock.json
+# Datos geográficos generados (Natural Earth simplificado); se versionan compactos.
+src/modules/dashboard/controlCenter/mexico-states.json

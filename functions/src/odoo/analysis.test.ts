@@ -16,6 +16,11 @@ describe('clasificación de incidencias Odoo', () => {
     expect(classify('Chedraui', ['Remoto'], '', '')).toBe('General');
     expect(classify('Liverpool', ['Remoto'], '', '')).toBe('Sin clasificar');
   });
+  it('reconoce las etiquetas entre corchetes que usa Liverpool', () => {
+    expect(classify('Liverpool', ['[Soporte]'], '', '')).toBe('Soporte');
+    expect(classify('Liverpool', ['[Contenido]'], '', '')).toBe('Contenido');
+    expect(classify('Liverpool', ['[CAMARAS]'], '', '')).toBe('Cámaras');
+  });
   it('normaliza variantes y no clasifica por palabras ambiguas del asunto', () => {
     expect(classify('Liverpool', ['Cámara'], '', '')).toBe('Cámaras');
     expect(classify('Liverpool', ['Contenido'], '', '')).toBe('Contenido');

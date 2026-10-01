@@ -185,7 +185,7 @@ describe('App — con sesión activa', () => {
     authState.user!.role = 'commercial';
     renderAt('/usuarios');
     expect(
-      screen.getByRole('heading', { name: /Panel SIGNAM V2/i }),
+      screen.getByRole('heading', { name: /Centro de Control Operativo/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: /Usuarios y permisos/i }),

@@ -16,3 +16,4 @@ export * as users from './users';
 export * as quividi from './quividi';
 
 export * as odoo from './odoo';
+export * as controlCenter from './controlCenter';

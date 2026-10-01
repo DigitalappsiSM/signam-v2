@@ -890,6 +890,39 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   cerrado); `delete` denegado. En la UI, importar/editar requiere
   `catalog.write`.
 
+## Centro de Control (panel inicial)
+
+- El Panel (`/`) es el **Centro de Control Operativo**: una sola vista sin
+  pestañas. Encima del semáforo, prioridades, estados de campaña y carga de
+  siempre (sus reglas no cambian) va un **mapa de México** con tres capas:
+  - **Campañas**: por tienda, campañas distintas del periodo y filtros del panel
+    separadas en **marcas/proveedor (azul)** y **Liverpool institucional
+    (rosa)**, desde `buildOccupancyDashboard` (misma clasificación que la carga).
+  - **Incidencias**: tickets **abiertos** de Liverpool en Odoo Helpdesk
+    (Soporte, Contenido, Cámaras, Sin clasificar; etiquetas `[Soporte]`,
+    `[Contenido]`, `[CAMARAS]`, con o sin corchetes) más las cámaras Quividi en
+    alerta vigente (sin OTS, sin medición, medición parcial). Severidad: ticket
+    abierto > 72 h o cámara sin OTS = crítica; > 24 h o sin medición = alta.
+    Incluye un navegador que recorre las incidencias y centra el mapa en cada
+    tienda.
+  - **Audiencias**: OTS del último día medido por tienda (suma de cámaras con
+    medición).
+- El modelo puro es `src/modules/dashboard/controlCenter/mapModel.ts`; cruza por
+  número de tienda normalizado con el **Directorio de tiendas**. Una tienda sin
+  coordenadas cuenta en su estado y en las listas, pero no se dibuja (nunca se
+  inventa ubicación). Datos de una tienda fuera del directorio se avisan.
+- Tickets y cámaras llegan por la callable **`controlCenter-overview`**
+  (`functions/src/controlCenter`): lectura **agregada y de solo consulta para
+  los cuatro roles, incluido `commercial`** (decisión de negocio). Devuelve una
+  proyección mínima (sin descripción ni solicitante), no escribe nada, cachea
+  5 min por instancia y falla por fuente: sin Odoo, el panel muestra cámaras y
+  campañas con un aviso. No amplía el acceso de `odoo-overview` ni de las
+  callables de Quividi, que conservan sus roles.
+- El mapa de estados es Natural Earth (dominio público), simplificado, en
+  `controlCenter/mexico-states.json`; sus nombres son los canónicos de
+  `MEXICAN_STATES`. Colores por tema en `controlCenter/palette.ts` (canvas) y
+  `ControlCenter.css`; el panel sigue el tema claro/oscuro de la app.
+
 ## Diagnóstico de pases Admira
 
 - La página de baja ocupación conserva un único análisis vigente del reporte de

@@ -13,8 +13,9 @@ Aplicación web para operar el flujo de programación de pantallas entre
    link, validación, programación CSM y testigos con fechas límite y alertas;
    los **testigos no aplican a campañas Institucional**), con **estados de
    campaña** (Activa/En pausa/Cancelada/Duplicada, con motivo e historial), más
-   un **Dashboard** con el resumen y las
-   alertas críticas (periodo predeterminado: **Mes actual**).
+   un **Centro de Control** (panel inicial) con mapa nacional de campañas,
+   incidencias y audiencias, el resumen y las alertas críticas (periodo
+   predeterminado: **Mes actual**).
 8. Generar una **PPT de evidencias** (`.pptx`) por campaña para las fotos.
 9. **Alertas de baja ocupación**: importar el reporte de pases de Admira para
    detectar repetición real por player y fecha, además de conservar el cálculo
@@ -399,12 +400,20 @@ sin perfil en el Catálogo digital, muestran un estado vacío explícito (con ac
 a darlos de alta solo para admin). El selector solo aparece con permiso
 `digitalOperations.read`; sin él, el Panel muestra únicamente Liverpool.
 
-Liverpool se organiza en tres pestañas que comparten filtros y datos: **Hoy**
-(KPIs, estado operativo, **Atención inmediata** y **Carga diaria**),
-**Seguimiento** (**Atención operativa** y **Estados de campaña**) y **Carga**
-(detalle de ocupación por tienda/soporte); **Acciones rápidas** queda visible en
-las tres. El cliente y la pestaña se reflejan en la URL (`retailer`, `vista`). El
-botón **Actualizar** recarga también el panel digital del retailer seleccionado.
+Liverpool se muestra como **Centro de Control Operativo** en una sola vista
+(sin pestañas) que comparte filtros y datos, de arriba abajo: el **mapa de
+México** con indicadores y rankings (capas **Campañas** —marcas en azul,
+Liverpool institucional en rosa—, **Incidencias** —tickets abiertos de Odoo
+`[Soporte]`/`[Contenido]`/`[CAMARAS]` y alertas de salud de cámaras Quividi, con
+navegador de tickets— y **Audiencias** —OTS del último día medido—), el
+**semáforo operativo** (KPIs y estado operativo), **Atención inmediata**, **Carga
+diaria**, **Atención operativa**, **Estados de campaña** y el detalle de **Carga
+por tienda y soporte**; al final, **Acciones rápidas**. El mapa ubica las tiendas
+con el **Directorio de tiendas** (sin coordenadas, una tienda cuenta solo en su
+estado). Tickets y cámaras llegan por la callable `controlCenter-overview`
+(lectura agregada para los cuatro roles, incluido `commercial`). El cliente se
+refleja en la URL (`retailer`). El botón **Actualizar** recarga también el panel
+digital del retailer seleccionado.
 
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.
