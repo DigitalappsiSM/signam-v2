@@ -34,6 +34,11 @@ los totales cuentan IDs de tickets una sola vez.
 
 ## Despliegue y límites
 
+La suite Vitest incluye la callable de Odoo y necesita las dependencias de ambos
+paquetes. En un checkout limpio ejecutar `npm ci` y `npm ci --prefix functions`
+antes de `npm run test`; el job de calidad de CI instala ambos paquetes. El job
+de compilación de Cloud Functions se ejecuta aparte y no comparte dependencias.
+
 1. Compilar frontend y functions. Desplegar `functions:odoo-overview` y Hosting.
 2. Conservar el secreto ODOO_API_KEY ya instalado. El usuario Odoo de esa clave
    debe poder leer helpdesk.team, helpdesk.ticket, helpdesk.tag y
