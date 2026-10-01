@@ -63,6 +63,7 @@ import {
 import { campaignIntersectsPeriod } from '@/modules/campaigns/dateFilter';
 import { useTheme } from '@/app/theme';
 import { ControlCenterPanel } from './controlCenter/ControlCenterPanel';
+import { storesWithActiveSupports } from './controlCenter/mapModel';
 import './DashboardPage.css';
 import './DashboardLayout.css';
 
@@ -386,6 +387,45 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     ],
   );
 
+  // Centro de Control: lo que está **al aire hoy** (campañas vigentes a la
+  // fecha de consulta), con los mismos filtros del panel pero sin el periodo.
+  const onAir = useMemo(
+    () =>
+      buildOccupancyDashboard({
+        campaigns,
+        screens,
+        tracking,
+        range: { start: today, end: today },
+        statuses,
+        filters: {
+          classification: filters.classification,
+          origin: filters.origin,
+          owner: filters.owner,
+          store: filters.store || null,
+          support: filters.support || null,
+          search: filters.search,
+        },
+      }),
+    [
+      campaigns,
+      screens,
+      tracking,
+      today,
+      statuses,
+      filters.classification,
+      filters.origin,
+      filters.owner,
+      filters.store,
+      filters.support,
+      filters.search,
+    ],
+  );
+  // Universo del mapa: tiendas con al menos una pantalla activa en catálogo.
+  const supportedStores = useMemo(
+    () => storesWithActiveSupports(screens),
+    [screens],
+  );
+
   // Cuando hay filtro de propietario/soporte/tienda activo, el resumen se
   // restringe a las campañas con colocación resuelta (las mismas que alimentan
   // la carga). Sin esos filtros, no se restringe por colocación.
@@ -673,6 +713,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   }, [rows]);
 
   const [selection, setSelection] = useState<Selection | null>(null);
+  // Callbacks estables: la ventana flotante reenfoca su botón de cerrar cuando
+  // cambia `onClose`, y eso robaría el foco al buscador en cada recálculo.
+  const closeSelection = useCallback(() => setSelection(null), []);
   const detail = useMemo(
     () => (selection ? selectionToDetail(selection) : null),
     [selection],
@@ -736,6 +779,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     },
   ];
   const [kpiSelection, setKpiSelection] = useState<KpiId | null>(null);
+  const closeKpi = useCallback(() => setKpiSelection(null), []);
   const selectedKpi = kpis.find((k) => k.id === kpiSelection) ?? null;
   const periodLabel = rangeLabel(range);
 
@@ -823,10 +867,11 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
               />
 
               <ControlCenterPanel
-                occupancyStores={occupancy.stores}
+                occupancyStores={onAir.stores}
+                supportedStores={supportedStores}
                 theme={theme}
                 role={role}
-                periodLabel={periodLabel}
+                todayLabel={formatDdMmYyyy(today)}
                 refreshKey={loadedAt?.getTime() ?? 0}
               />
 
@@ -861,9 +906,11 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
               {selectedKpi && (
                 <KpiDetailPanel
                   title={selectedKpi.label}
+                  icon={selectedKpi.icon}
+                  tone={selectedKpi.tone}
                   periodLabel={periodLabel}
                   rows={selectedKpi.rows}
-                  onClose={() => setKpiSelection(null)}
+                  onClose={closeKpi}
                 />
               )}
 
@@ -1284,7 +1331,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
           stats={detail.stats}
           campaigns={detail.campaigns}
           rowByKey={rowByKey}
-          onClose={() => setSelection(null)}
+          onClose={closeSelection}
         />
       )}
     </div>
@@ -1318,7 +1365,7 @@ function SummaryTile({
       className={`dash-tile dash-tile--${tone}${
         selected ? ' dash-tile--selected' : ''
       }`}
-      aria-pressed={selected}
+      aria-haspopup="dialog"
       aria-label={`${label}: ${value}. ${status}. Ver detalle`}
       onClick={onSelect}
     >
@@ -1350,7 +1397,7 @@ function SummaryTile({
         )}
       </div>
       <span className="dash-tile__action">
-        {selected ? 'Ocultar detalle' : 'Ver detalle'}
+        Ver detalle
         <Icon name="chevron-down" size={14} />
       </span>
     </button>

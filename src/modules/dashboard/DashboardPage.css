@@ -214,10 +214,6 @@
   font-weight: 700;
 }
 
-.dash-tile--selected .dash-tile__action svg {
-  transform: rotate(180deg);
-}
-
 .dash-tile::after {
   content: '';
   position: absolute;
@@ -1171,82 +1167,14 @@
   color: #fff;
 }
 
-/* --- Panel de detalle (drill-down) --- */
-.occ-detail__backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 27, 45, 0.4);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-  z-index: 50;
-  opacity: 1;
-  transition: opacity var(--dur-3) var(--ease-out);
-}
-
-/* Panel-cortina: entra deslizándose desde su propio borde derecho, explicando
-   de dónde viene. Se anima al montarse con la curva de cortina. */
-.occ-detail {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(460px, 100vw);
-  z-index: 51;
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border-left: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-md);
-  padding: 1.25rem;
-  overflow-y: auto;
-  transform: translateX(0);
-  transition: transform var(--dur-3) var(--ease-drawer);
-}
-
-@starting-style {
-  .occ-detail__backdrop {
-    opacity: 0;
-  }
-  .occ-detail {
-    transform: translateX(100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .occ-detail {
-    transform: none;
-    transition: none;
-  }
-}
-
-.occ-detail__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.occ-detail__title {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.occ-detail__close {
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  border-radius: var(--radius-sm);
-  padding: 0.2rem 0.5rem;
-  font-size: 1rem;
-  line-height: 1;
-}
-
+/* --- Detalle (drill-down) dentro de la ventana flotante --- */
 .occ-detail__stats {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 1rem;
   font-size: 0.82rem;
   color: var(--color-text-muted);
-  margin: 0.5rem 0 1rem;
+  margin: 0;
 }
 
 .occ-detail__list {
@@ -1307,63 +1235,16 @@
   margin: 0.5rem 0;
 }
 
-/* --- Detalle de tarjeta KPI --------------------------------------------- */
-.kpi-detail {
-  margin: 0 0 1rem;
-  padding: 1rem 1.1rem 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-.kpi-detail__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.kpi-detail__title {
-  margin: 0.12rem 0 0;
-  font-size: 1.05rem;
-  line-height: 1.25;
-}
-
-.kpi-detail__meta {
-  margin: 0.25rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-}
-
-.kpi-detail__close {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.kpi-detail__close:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
+/* --- Detalle de tarjeta KPI (dentro de la ventana flotante) ------------- */
 .kpi-detail__empty {
-  margin: 0.9rem 0 0;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
 .kpi-detail__list {
   list-style: none;
-  margin: 0.9rem 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 0.5rem;

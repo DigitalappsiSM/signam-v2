@@ -1,11 +1,12 @@
-import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   criticalAlerts,
   type TrackingRow,
 } from '@/modules/operational-tracking/trackingModel';
 import { STATUS_META } from '@/modules/operational-tracking/statusMeta';
+import type { IconName } from '@/components/Icon';
 import { CLASSIFICATION_LABEL } from '../occupancyModel';
+import { GlassDialog } from '../controlCenter/GlassDialog';
 
 /**
  * Enlace al registro exacto del flight en Seguimiento operativo. Usa la
@@ -32,66 +33,34 @@ function classificationLabel(row: TrackingRow): string {
 }
 
 /**
- * Panel de detalle de una tarjeta KPI: lista las campañas que componen la cifra,
- * su motivo/estado operativo y un enlace al seguimiento de cada una. Reactivo a
- * los filtros globales (recibe las filas ya recalculadas).
+ * Detalle de una tarjeta del semáforo en ventana flotante translúcida: lista las
+ * campañas que componen la cifra, su motivo/estado operativo y un enlace al
+ * seguimiento de cada una. No abre espacio debajo de la tarjeta. Reactivo a los
+ * filtros globales (recibe las filas ya recalculadas).
  */
 export function KpiDetailPanel({
   title,
+  icon,
+  tone,
   periodLabel,
   rows,
   onClose,
 }: {
   title: string;
+  icon: IconName;
+  tone: 'info' | 'success' | 'warning' | 'danger';
   periodLabel: string;
   rows: TrackingRow[];
   onClose: () => void;
 }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  // Enfoca el botón de cerrar UNA sola vez, al abrir el panel. No debe depender
-  // de `onClose` (una función nueva en cada render): si se re-ejecutara al
-  // recalcular por un cambio de filtro, robaría el foco a la búsqueda mientras
-  // el detalle está abierto (impidiendo escribir varias letras seguidas).
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
-
-  // El listener de Escape sí sigue a `onClose` para cerrar con el callback vigente.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <section
-      className="kpi-detail"
-      role="region"
-      aria-label={`Detalle de la tarjeta ${title}`}
+    <GlassDialog
+      title={title}
+      subtitle={`${rows.length} ${rows.length === 1 ? 'campaña' : 'campañas'} · Periodo ${periodLabel}`}
+      icon={icon}
+      tone={tone}
+      onClose={onClose}
     >
-      <div className="kpi-detail__head">
-        <div>
-          <span className="dashboard-eyebrow">Detalle de tarjeta</span>
-          <h3 className="kpi-detail__title">{title}</h3>
-          <p className="kpi-detail__meta">
-            {rows.length} {rows.length === 1 ? 'campaña' : 'campañas'} · Periodo{' '}
-            {periodLabel}
-          </p>
-        </div>
-        <button
-          ref={closeRef}
-          type="button"
-          className="kpi-detail__close"
-          onClick={onClose}
-          aria-label="Cerrar detalle de la tarjeta"
-        >
-          ✕
-        </button>
-      </div>
-
       {rows.length === 0 ? (
         <p className="kpi-detail__empty">
           Ninguna campaña coincide con esta tarjeta y los filtros actuales.
@@ -111,6 +80,6 @@ export function KpiDetailPanel({
           ))}
         </ul>
       )}
-    </section>
+    </GlassDialog>
   );
 }

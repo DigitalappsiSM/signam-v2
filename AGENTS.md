@@ -895,9 +895,14 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
 - El Panel (`/`) es el **Centro de Control Operativo**: una sola vista sin
   pestañas. Encima del semáforo, prioridades, estados de campaña y carga de
   siempre (sus reglas no cambian) va un **mapa de México** con tres capas:
-  - **Campañas**: por tienda, campañas distintas del periodo y filtros del panel
-    separadas en **marcas/proveedor (azul)** y **Liverpool institucional
-    (rosa)**, desde `buildOccupancyDashboard` (misma clasificación que la carga).
+  - **Campañas**: lo que está **al aire hoy** (vigentes a la fecha de consulta,
+    con los filtros del panel pero sin su periodo), separado en
+    **marcas/proveedor (azul)** y **Liverpool institucional (rosa)**, desde
+    `buildOccupancyDashboard` con rango de un día (misma clasificación que la
+    carga). **Una campaña es una campaña**: el KPI «Campañas al aire» y los
+    totales por estado cuentan campañas **distintas** por `campaign.id`, nunca
+    campaña × tienda ni campaña × soporte. Por tienda se muestran sus campañas
+    distintas.
   - **Incidencias**: tickets **abiertos** de Liverpool en Odoo Helpdesk
     (Soporte, Contenido, Cámaras, Sin clasificar; etiquetas `[Soporte]`,
     `[Contenido]`, `[CAMARAS]`, con o sin corchetes) más las cámaras Quividi en
@@ -908,7 +913,12 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   - **Audiencias**: OTS del último día medido por tienda (suma de cámaras con
     medición).
 - El modelo puro es `src/modules/dashboard/controlCenter/mapModel.ts`; cruza por
-  número de tienda normalizado con el **Directorio de tiendas**. Una tienda sin
+  número de tienda normalizado con el **Directorio de tiendas**, pero el universo
+  del mapa son solo las tiendas **con soportes**: al menos una pantalla **activa**
+  en el catálogo Admira (`storesWithActiveSupports`; un catálogo futuro suma su
+  propio conjunto). Una tienda del directorio sin soportes no se evalúa ni se
+  cuenta. Tickets y cámaras solo existen en tiendas con soportes; si llegara uno
+  de otra tienda, se avisa como dato fuera del mapa, nunca se pierde. Una tienda sin
   coordenadas cuenta en su estado y en las listas, pero no se dibuja (nunca se
   inventa ubicación). Datos de una tienda fuera del directorio se avisan.
 - Tickets y cámaras llegan por la callable **`controlCenter-overview`**
@@ -918,6 +928,10 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   5 min por instancia y falla por fuente: sin Odoo, el panel muestra cámaras y
   campañas con un aviso. No amplía el acceso de `odoo-overview` ni de las
   callables de Quividi, que conservan sus roles.
+- Todo detalle del Panel (indicadores del mapa, tiendas, estados, tarjetas del
+  semáforo operativo y barras/celdas de la carga) se abre en la **ventana
+  flotante translúcida** `controlCenter/GlassDialog.tsx` (montada en `body`, con
+  desenfoque): no abre espacio debajo de la tarjeta.
 - El mapa de estados es Natural Earth (dominio público), simplificado, en
   `controlCenter/mexico-states.json`; sus nombres son los canónicos de
   `MEXICAN_STATES`. Colores por tema en `controlCenter/palette.ts` (canvas) y
