@@ -31,6 +31,16 @@ import { execFileSync } from 'node:child_process';
  */
 const RULES = [
   {
+    name: 'Análisis de incidencias Odoo',
+    code: [
+      /^functions\/src\/odoo\//,
+      /^src\/domain\/odooIncidents\.ts$/,
+      /^src\/modules\/odoo-incidents\//,
+    ],
+    docs: ['AGENTS.md', 'docs/ODOO_INCIDENTS.md'],
+    why: 'Clasificación, SLA y denominadores del dashboard deben conservar su metodología documentada.',
+  },
+  {
     name: 'Reglas de dominio',
     code: [/^src\/domain\/[^/]+\.ts$/],
     docs: ['AGENTS.md', 'CLAUDE.md'],
@@ -100,7 +110,8 @@ function changedFiles(base, head) {
  * Se exporta para poder probarla sin git ni CI.
  */
 export function evaluate(files, { skipMarker = '' } = {}) {
-  if (skipMarker.includes('[skip-docs]')) return { skipped: true, failures: [] };
+  if (skipMarker.includes('[skip-docs]'))
+    return { skipped: true, failures: [] };
 
   const relevant = files.filter(
     (file) => !IGNORED.some((pattern) => pattern.test(file)),
@@ -150,7 +161,9 @@ function main() {
   }
 
   if (failures.length === 0) {
-    console.log(`Documentación al día para ${reviewed} archivo(s) cambiado(s).`);
+    console.log(
+      `Documentación al día para ${reviewed} archivo(s) cambiado(s).`,
+    );
     return;
   }
 
@@ -164,7 +177,9 @@ function main() {
     console.error(`  ${rule.name}`);
     console.error(`    ${rule.why}`);
     console.error(`    Cambiaste: ${hits.join(', ')}`);
-    console.error(`    Revisa y actualiza alguno de: ${rule.docs.join(', ')}\n`);
+    console.error(
+      `    Revisa y actualiza alguno de: ${rule.docs.join(', ')}\n`,
+    );
   }
   console.error(
     'Si el cambio de verdad no altera nada documentado, escribe [skip-docs] en el\n' +

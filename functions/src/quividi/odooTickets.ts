@@ -109,7 +109,7 @@ export function buildCameraPointBindings(
   return bindings;
 }
 
-async function odooCall<T>(
+export async function odooCall<T>(
   key: string,
   model: string,
   method: string,

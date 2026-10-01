@@ -50,6 +50,9 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Instalar dependencias de functions para Vitest
+        run: npm ci --prefix functions
+
       - name: Formato (Prettier)
         run: npm run format:check
 

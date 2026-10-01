@@ -30,6 +30,15 @@ export const NAV_GROUP_ORDER: NavGroup[] = [
 
 export const NAV_ROUTES: RouteMeta[] = [
   {
+    path: '/analisis-incidencias-odoo',
+    label: 'Incidencias Odoo',
+    icon: 'activity',
+    description:
+      'Análisis de incidencias Odoo · Digital Signage: retailers, tiendas, atención y SLA.',
+    group: 'Operación',
+    permission: 'odooIncidents.read',
+  },
+  {
     path: '/',
     label: 'Panel',
     icon: 'dashboard',

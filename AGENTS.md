@@ -894,3 +894,44 @@ cd functions && npm install && npm run build
 Las reglas de Firestore/Storage son la fuente de verdad del control de acceso.
 `src/app/permissions.ts` es solo para la UI. Si cambias permisos en el cliente,
 actualiza también `firestore.rules` / `storage.rules`.
+
+## Análisis de incidencias Odoo · Digital Signage
+
+- Ruta `/analisis-incidencias-odoo`, módulo independiente de solo lectura en
+  Operación. `odooIncidents.read`: admin/operator/viewer; comercial excluido.
+  La callable `odoo-overview` valida el rol en servidor, usa `ODOO_API_KEY` y no
+  expone el secreto. No añade colecciones ni permisos Firestore/Storage.
+- Alcance: equipos Liverpool, Chedraui, La Comer y Farmacias San Pablo. Periodo
+  por fecha de creación, mes inicial de Ciudad de México; no es un inventario
+  de todo el backlog ni cuenta reaperturas como nuevos tickets.
+- Categoría y modalidad son independientes. Cámaras por etiquetas explícitas
+  `[camaras]`, Cámara(s), Quividi o Camara sin conexion; soporte/contenido por
+  etiquetas explícitas, prefijos estructurados o `Tipo de ticket:`. Conflictos
+  quedan Sin clasificar. Sin evidencia: Liverpool Sin clasificar; otros General.
+  Remoto/In-Situ/En sitio se normalizan; ambas modalidades = Mixta; ausencia =
+  Sin dato. No inferir visitas realizadas desde solicitudes en comentarios.
+- SLA viene de todas las políticas de Odoo: cualquier failed = Incumplido;
+  todas reached = Cumplido; reached/ongoing = En curso. Sin políticas o sin
+  acceso = Sin dato. Cancelados = No aplica. Denominador: únicamente tickets
+  Cumplido/Incumplido no cancelados. Mostrar también resultado por política.
+  No recalcular horarios, pausas ni SLA contractuales con fechas simples.
+- Primera respuesta/resolución usan los campos reportados por Odoo, si existen;
+  faltantes no son cero. Respuesta cero sin fecha de primera respuesta se omite
+  por no poder distinguir un valor por defecto. Resolución solo en resueltos.
+  El resultado SLA y el estado actual permanecen separados en reaperturas.
+- Tienda solo desde `Tienda:` explícito o partner con determinante numérico.
+  Solicitante desde `Solicitante:`; no usar responsable como solicitante.
+  Ranking técnico solo Soporte/Cámaras con tienda, no contenido, general ni
+  cancelados; no es una tasa de fallas por pantalla. Un ticket cuenta una vez.
+- Lectura paginada, máximo 5,000 registros por modelo/mes; si se excede se
+  rechaza toda la consulta, nunca se publica un total truncado. Errores de SLA
+  se advierten y se omiten sus porcentajes. Ver `docs/ODOO_INCIDENTS.md`.
+- El análisis Odoo incorpora gráficas interactivas de creación diaria, SLA por
+  categoría, modalidad y horas medias por retailer; el detalle textual de cada
+  gráfica es accesible. Mediana y P90 usan solo observaciones disponibles;
+  percentiles interpolados, sin metas inventadas. Antigüedad abierta = horas
+  naturales desde alta a consulta (no SLA; reapertura no reinicia edad).
+  Desglose por responsable refleja asignación actual, no intervención histórica.
+  Excel con resumen, tickets, políticas, agrupaciones, evolución, calidad y
+  metodología: todas las hojas respetan los mismos filtros. Descarga autorizada
+  para los mismos roles de lectura; sin almacenamiento ni envío automático.

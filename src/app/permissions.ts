@@ -20,6 +20,7 @@ export type Permission =
   | 'export.occupancyCsv'
   | 'tracking.read'
   | 'tracking.write'
+  | 'odooIncidents.read'
   | 'reporting.read'
   | 'quividi.report'
   | 'quividi.history'
@@ -57,6 +58,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tracking.read',
     'tracking.write',
     'reporting.read',
+    'odooIncidents.read',
     'quividi.report',
     'quividi.history',
     'digitalOperations.read',
@@ -80,6 +82,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tracking.read',
     'tracking.write',
     'reporting.read',
+    'odooIncidents.read',
     'quividi.report',
     'digitalOperations.read',
     'digitalOperations.import',
@@ -94,6 +97,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'export.occupancyCsv',
     'tracking.read',
     'reporting.read',
+    'odooIncidents.read',
     'quividi.report',
     'digitalOperations.read',
   ],

@@ -1,0 +1,166 @@
+.odoo-analysis {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.odoo-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.odoo-filters label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.odoo-filters select,
+.odoo-filters input {
+  width: 100%;
+  min-width: 0;
+}
+.odoo-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+.odoo-kpis article,
+.odoo-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.odoo-kpis article {
+  display: grid;
+  gap: 0.5rem;
+}
+.odoo-kpis strong {
+  font-size: 1.8rem;
+}
+.odoo-kpis small,
+.odoo-panel small {
+  color: var(--color-text-muted);
+}
+.odoo-split {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.odoo-panel h2 {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+.odoo-breakdown {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2rem 8rem;
+  gap: 0.6rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+.odoo-table {
+  overflow-x: auto;
+}
+.odoo-table table {
+  width: 100%;
+  min-width: 1050px;
+}
+.odoo-table td {
+  vertical-align: top;
+}
+.odoo-table small {
+  display: block;
+  margin-top: 0.4rem;
+}
+.odoo-table details {
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+.odoo-table summary {
+  cursor: pointer;
+}
+.odoo-failed {
+  color: var(--color-danger-fg);
+  font-weight: 700;
+}
+.odoo-pagination {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+@media (max-width: 850px) {
+  .odoo-split {
+    grid-template-columns: 1fr;
+  }
+}
+.odoo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.odoo-executive {
+  margin: 1.5rem 0;
+  padding: 1.8rem;
+  background: var(--grad-primary);
+  color: white;
+  border-radius: 16px;
+}
+.odoo-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  opacity: 0.9;
+}
+.odoo-executive h2 {
+  color: white;
+  font-size: 1.7rem;
+  margin: 0.5rem 0 1rem;
+}
+.odoo-executive-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+.odoo-executive-facts p {
+  margin: 0;
+}
+.odoo-executive-facts strong {
+  display: block;
+  font-size: 1.4rem;
+  margin-bottom: 0.4rem;
+}
+.odoo-secondary-kpis {
+  margin-top: 1.5rem;
+}
+.odoo-secondary-kpis strong {
+  font-size: 1.4rem;
+}
+.odoo-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.odoo-chart-grid .odoo-table table {
+  min-width: 680px;
+}
+.odoo-progress-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 1fr 2rem;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 0;
+  font-size: 0.85rem;
+}
+.odoo-progress-row progress {
+  width: 100%;
+  height: 0.6rem;
+  accent-color: var(--color-primary);
+}
+@media (max-width: 850px) {
+  .odoo-chart-grid,
+  .odoo-executive-facts {
+    grid-template-columns: 1fr;
+  }
+}
