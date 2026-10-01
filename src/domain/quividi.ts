@@ -135,7 +135,9 @@ export interface QuividiMeasurementIncident {
 }
 
 export interface QuividiCampaignReport {
-  schemaVersion: 3 | 4;
+  // v5 agrega publishedOts/publishedEffectiveOts/publishedWatchers a
+  // QuividiSupportDay/QuividiSupportHour (duplicación por cámara única).
+  schemaVersion: 3 | 4 | 5;
   campaignId: string;
   campaignName: string;
   startDate: string;

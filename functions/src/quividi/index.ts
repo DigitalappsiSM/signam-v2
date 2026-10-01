@@ -103,10 +103,15 @@ const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
 export const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
 export const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
-const SNAPSHOT_SCHEMA_VERSION = 4;
+// v5: agrega publishedOts/publishedEffectiveOts/publishedWatchers a
+// SupportDay/SupportHour (duplicación por cámara única). Un snapshot v4
+// cacheado no tiene esos campos; el frontend los lee directo y los trata
+// como 0 ante su ausencia, así que debe invalidarse y regenerarse, no
+// servirse tal cual.
+const SNAPSHOT_SCHEMA_VERSION = 5;
 
 interface CampaignReport {
-  schemaVersion: 4;
+  schemaVersion: 5;
   campaignId: string;
   campaignName: string;
   startDate: string;
