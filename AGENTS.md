@@ -681,6 +681,20 @@ tres de ellos describían mal el separador de artículos.
   la campaña. No se mezcla con `missingOts`/`uncoveredOts`: duplicar no es
   rellenar un hueco de medición, es una suposición de negocio sobre un dato
   100% medido.
+
+  **Cambiar la forma de `SupportDay`/`SupportHour` exige subir
+  `SNAPSHOT_SCHEMA_VERSION`** (`functions/src/quividi/index.ts`) y el tipo
+  `QuividiCampaignReport.schemaVersion` (`src/domain/quividi.ts`). El reporte
+  se cachea comprimido en Firestore (`campaignAudienceSnapshots`) hasta 24h
+  para una campaña vigente; la caché solo se invalida si `schemaVersion` no
+  coincide. Agregar `publishedOts`/`publishedEffectiveOts`/`publishedWatchers`
+  sin subir la versión (v4→v5) dejó snapshots viejos sirviéndose tal cual sin
+  esos campos — el frontend los lee directo (sin fallback) y los trata como
+  `0` ante su ausencia, así que el informe entero salía en ceros excepto
+  género/edad (`demographics`, un arreglo aparte que no depende de
+  `supportDays`/`supportHours`). Nunca asumas que un reporte cacheado tiene
+  los campos de la versión actual del código; la versión es la única señal
+  de invalidación.
 - **Tiendas TOP (`brandStoreAttribution`)**: página con título exacto «Tiendas
   TOP», maquetada como **leaderboard de una sola columna** (no tabla de dos
   columnas: rompería el orden visual del ranking) — rango, nombre de tienda,
