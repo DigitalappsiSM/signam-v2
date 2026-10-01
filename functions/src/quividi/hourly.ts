@@ -1,3 +1,5 @@
+import { combineCameraValues, isZoneSplitPair } from './cameraCombination';
+
 type MeasurementStatus = 'complete' | 'partial' | 'missing';
 
 interface CameraRef {
@@ -142,9 +144,13 @@ function pairPeriods(
 /**
  * Construye la capa horaria usada por el reporte comercial.
  *
- * La regla de múltiples cámaras replica la metodología diaria: por cada hora se
- * promedian únicamente las cámaras que realmente entregaron OTS. Si sólo una de
- * varias cámaras reporta, se conserva la medición y el estado queda parcial.
+ * La regla de múltiples cámaras replica la metodología diaria
+ * (`combineCameraValues`, compartida con `measurement.ts`): por cada hora se
+ * combinan únicamente las cámaras que realmente entregaron OTS — sumadas si
+ * el par es de zona partida (Insurgentes, Banner Digital), la más alta si la
+ * brecha entre cámaras supera el umbral, promediadas en cualquier otro caso.
+ * Si sólo una de varias cámaras reporta, se conserva la medición y el estado
+ * queda parcial.
  */
 export function buildSupportHours(
   pairs: readonly HourlyPair[],
@@ -157,6 +163,7 @@ export function buildSupportHours(
 
   for (const pair of pairs) {
     if (pair.cameras.length === 0) continue;
+    const zoneSplit = isZoneSplitPair(pair);
     for (const period of pairPeriods(pair, ots)) {
       const measured = pair.cameras
         .map((camera) => {
@@ -194,9 +201,13 @@ export function buildSupportHours(
         measuredCameras: measured.length,
         status:
           measured.length === pair.cameras.length ? 'complete' : 'partial',
-        ots: average(measured.map((item) => item.ots.ots)),
-        effectiveOts: average(
+        ots: combineCameraValues(
+          measured.map((item) => item.ots.ots),
+          zoneSplit,
+        ),
+        effectiveOts: combineCameraValues(
           measured.map((item) => item.ots.effectiveOts),
+          zoneSplit,
         ),
         watchers: average(
           measured.map((item) => item.viewers?.watchers ?? 0),

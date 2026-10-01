@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { combineCameraValues, isZoneSplitPair } from './cameraCombination';
 import type {
   CampaignDoc,
   EffectiveScopeOrigin,
@@ -452,6 +453,7 @@ export function buildMeasurementRows(
   const demographics: DemographicRow[] = [];
   for (const pair of pairs) {
     if (pair.cameras.length === 0) continue;
+    const zoneSplit = isZoneSplitPair(pair);
     for (const date of dates) {
       const all = pair.cameras
         .map((camera) => cameraDayIndex.get(`${camera.id}|${date}`))
@@ -477,8 +479,14 @@ export function buildMeasurementRows(
         configuredCameras: all.length,
         measuredCameras: selected.length,
         status,
-        ots: average(selected.map((row) => row.ots)),
-        effectiveOts: average(selected.map((row) => row.effectiveOts)),
+        ots: combineCameraValues(
+          selected.map((row) => row.ots),
+          zoneSplit,
+        ),
+        effectiveOts: combineCameraValues(
+          selected.map((row) => row.effectiveOts),
+          zoneSplit,
+        ),
         watchers: average(selected.map((row) => row.watchers)),
         attentionSeconds:
           watchersTotal > 0

@@ -58,8 +58,10 @@ const HOUR = '2026-03-01T10:00:00';
 
 describe('buildSupportHours · regla multi-cámara', () => {
   it('promedia las cámaras válidas en lugar de sumarlas', () => {
+    // Soporte distinto de BANNER DIGITAL: este caso cubre el promedio
+    // genérico, no la excepción de zona partida (ver el describe de abajo).
     const rows = buildSupportHours(
-      [pair()],
+      [pair({ support: 'MUPI DIGITAL' })],
       [
         ots(1, HOUR),
         ots(2, HOUR, { ots_count: 300, effective_ots_count: 100 }),
@@ -79,7 +81,7 @@ describe('buildSupportHours · regla multi-cámara', () => {
       date: '2026-03-01',
       hour: 10,
       storeNumber: '7',
-      support: 'BANNER DIGITAL',
+      support: 'MUPI DIGITAL',
       configuredCameras: 2,
       measuredCameras: 2,
       status: 'complete',
@@ -191,6 +193,43 @@ describe('buildSupportHours · regla multi-cámara', () => {
     );
 
     expect(rows).toEqual([]);
+  });
+});
+
+describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
+  it('BANNER DIGITAL siempre suma, aunque la brecha sea pequeña', () => {
+    // `pair()` ya trae support: 'BANNER DIGITAL' por default.
+    const rows = buildSupportHours(
+      [pair()],
+      [ots(1, HOUR), ots(2, HOUR, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({ status: 'complete', ots: 250 });
+  });
+
+  it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
+    const rows = buildSupportHours(
+      [pair({ storeName: 'LIVERPOOL INSURGENTES', support: 'MUPI DIGITAL' })],
+      [ots(1, HOUR), ots(2, HOUR, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({ status: 'complete', ots: 250 });
+  });
+
+  it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta', () => {
+    // Caso real: Coapa, 28,068 vs 7,929 OTS.
+    const rows = buildSupportHours(
+      [pair({ support: 'MUPI DIGITAL' })],
+      [
+        ots(1, HOUR, { ots_count: 28_068 }),
+        ots(2, HOUR, { ots_count: 7_929 }),
+      ],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({ status: 'complete', ots: 28_068 });
   });
 });
 

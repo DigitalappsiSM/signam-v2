@@ -43,6 +43,21 @@ export interface QuividiCameraHealthRow {
   canCreateTicket: boolean;
 }
 
+/**
+ * Par tienda+soporte con 2+ cámaras cuya brecha de OTS supera el umbral de
+ * negocio — señal para revisar la instalación física (ángulo, obstrucción,
+ * ubicación), no una incidencia de cámara caída (esa ya la cubre
+ * `currentStatus` de cada cámara individual). Excluye Insurgentes y Banner
+ * Digital: ahí la brecha entre cámaras es el comportamiento esperado.
+ */
+export interface QuividiCameraPairGap {
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  gap: number;
+  cameras: Array<{ locationId: number; locationName: string; ots: number }>;
+}
+
 export interface QuividiCameraRecovery {
   alertId: string;
   locationId: number;
@@ -89,6 +104,7 @@ export interface QuividiCameraHealthOverview {
     outOfScope: number;
   };
   cameras: QuividiCameraHealthRow[];
+  cameraPairGaps: QuividiCameraPairGap[];
   refresh: QuividiCameraHealthRefresh;
   recentRecoveries: QuividiCameraRecovery[];
 }

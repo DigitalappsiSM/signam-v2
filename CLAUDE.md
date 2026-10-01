@@ -166,8 +166,11 @@ logic. The load-bearing ones:
   `measuredPeriodDays`), never the contracted end date: a future day that hasn't happened yet is not a measurement
   gap and must not be projected forward — the published figure is real-to-date plus extrapolation for actual gaps
   only. The Excel's **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure
-  functions*, so sheet and report cannot disagree. See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any
-  of it.
+  functions*, so sheet and report cannot disagree. **Multi-camera pairs** are combined at the data source
+  (`functions/src/quividi/cameraCombination.ts`, shared by the daily and hourly Cloud Functions so Excel and PDF
+  can't diverge): zone-split pairs (Insurgentes, any `BANNER DIGITAL` support) always sum; a gap over 1,000 OTS
+  between two cameras of the same screen uses the higher reading instead of averaging; otherwise it averages as
+  before. See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
 - **Campaign status** (`Activa`/`En pausa`/`Cancelada`/`Duplicada`, plus derived `Retirada del calendario`)
   lives in the tracking doc with mandatory reason + append-only history; its effects on alerts, Dashboard,
   load, consolidation/CSV, low occupancy and Quividi come **only** from `STATUS_EFFECTS` in
