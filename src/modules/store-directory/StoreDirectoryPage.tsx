@@ -52,8 +52,8 @@ const LOCATION_LABEL: Record<DirectoryFilters['location'], string> = {
 
 /**
  * Directorio de tiendas: ubicación (dirección, CP, estado, zona y GPS) de cada
- * tienda Liverpool. Alimenta el mapa del panel y la columna de ubicación del
- * catálogo Admira; no interviene en consolidación ni CSV.
+ * tienda Liverpool. Alimenta la columna de ubicación del catálogo Admira y
+ * será la base del mapa del panel; no interviene en consolidación ni CSV.
  */
 export function StoreDirectoryPage() {
   const { user } = useAuth();
@@ -212,7 +212,7 @@ export function StoreDirectoryPage() {
     <>
       <PageHeader
         title="Directorio de tiendas"
-        description="Dirección, código postal, estado, zona y coordenadas de cada tienda. Es la fuente de ubicación del panel y del catálogo Admira; no cambia el maestro ni el CSV."
+        description="Dirección, código postal, estado, zona y coordenadas de cada tienda. Es la fuente de ubicación del catálogo Admira y del futuro mapa del panel; no cambia el maestro ni el CSV."
         actions={
           editable ? (
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

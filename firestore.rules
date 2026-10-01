@@ -131,6 +131,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if canWriteWorkspace()
         && request.resource.data.storeNumber == storeNumber
+        // Id canónico: sin ceros a la izquierda (`0078` y `78` son la misma).
+        && !storeNumber.matches('^0[0-9]+$')
         && request.resource.data.status in ['active', 'inactive']
         && (request.resource.data.postalCode == null
             || (request.resource.data.postalCode is string

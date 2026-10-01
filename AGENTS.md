@@ -848,7 +848,8 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   (importado vía `@/domain/stores`, fuera del barril principal); la pantalla es
   **Directorio de tiendas** (`/tiendas`, módulo `store-directory`).
 - El id del documento es el número de tienda normalizado sin ceros a la
-  izquierda (`0078` y `78` son la misma tienda), igual que en consolidación.
+  izquierda (`0078` y `78` son la misma tienda), igual que en consolidación;
+  las reglas de Firestore rechazan ids numéricos con cero inicial.
 - **No interviene en el flujo Liverpool↔Admira**: no forma parte del maestro,
   del CSV ni de la consolidación, y guardar el directorio nunca escribe en
   `screens`, `campaigns` ni en ninguna otra colección. El catálogo Admira solo
@@ -859,6 +860,9 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   `Determinante` y otro campo conocido. La hoja con dirección/CP aporta los
   datos postales; la que trae `Latitud`/`Longitud` (hoja «Centros» del archivo
   Ekon) aporta coordenadas con origen `ekon`. Las demás hojas se ignoran.
+  `Alta en Ekon` no se interpreta como estatus. Si el archivo no trae columna
+  de estatus, se conserva el guardado (una actualización parcial nunca reactiva
+  una tienda inactiva); una tienda nueva sin estatus entra como activa.
 - Reglas de validación (`directory.ts`, `geography.ts`):
   - El CP se normaliza a 5 dígitos (Excel pierde el `0` de la CDMX). Un CP cuyo
     prefijo SEPOMEX pertenece a otro estado se **reporta y se guarda tal cual**;
@@ -879,8 +883,9 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
 - Cobertura: la pantalla cruza el directorio contra las pantallas **activas**
   del catálogo y lista tiendas del catálogo sin ficha y tiendas activas sin
   pantallas.
-- Acceso: lectura para cualquier usuario autenticado (el panel de todos los
-  roles la usa para el mapa); escritura con `canWriteWorkspace()` y validación
+- Acceso: lectura para cualquier usuario autenticado (el mapa del panel, que
+  ven todos los roles, la leerá en la fase 2 del Centro de Control; hoy solo la
+  leen esta pantalla y el catálogo); escritura con `canWriteWorkspace()` y validación
   estructural (CP de 5 dígitos o nulo, lat/lng numéricos o nulos, estatus
   cerrado); `delete` denegado. En la UI, importar/editar requiere
   `catalog.write`.

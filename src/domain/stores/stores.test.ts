@@ -342,6 +342,21 @@ describe('comparación contra lo guardado', () => {
     expect(merged).toEqual(BASE);
   });
 
+  it('un archivo sin estatus no reactiva una tienda inactiva', () => {
+    const closed = { ...BASE, status: 'inactive' as const };
+    expect(mergeEntry(closed, { ...BASE, status: null }).status).toBe(
+      'inactive',
+    );
+    expect(mergeEntry(closed, { ...BASE, status: 'active' }).status).toBe(
+      'active',
+    );
+  });
+
+  it('una tienda nueva sin estatus entra como activa', () => {
+    const diff = diffDirectory([], [{ ...BASE, status: null }]);
+    expect(diff.created[0]?.status).toBe('active');
+  });
+
   it('las coordenadas capturadas a mano no las pisa un archivo', () => {
     const manual = {
       ...BASE,

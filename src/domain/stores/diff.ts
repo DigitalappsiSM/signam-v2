@@ -1,6 +1,7 @@
 import {
   compareStoreNumbers,
   normalizeStoreNumber,
+  type ImportedDirectoryEntry,
   type StoreDirectoryEntry,
 } from './directory';
 
@@ -39,11 +40,12 @@ export interface DirectoryDiff {
 /**
  * Fusiona lo importado sobre lo guardado sin perder información:
  * - un dato vacío en el archivo no borra uno guardado;
+ * - un archivo sin estatus conserva el guardado (no reactiva inactivas);
  * - unas coordenadas capturadas a mano (`manual`) no las pisa un archivo.
  */
 export function mergeEntry(
   stored: StoreDirectoryEntry,
-  incoming: StoreDirectoryEntry,
+  incoming: ImportedDirectoryEntry,
 ): StoreDirectoryEntry {
   const keepManualCoords =
     stored.coordinateSource === 'manual' && stored.lat !== null;
@@ -51,7 +53,7 @@ export function mergeEntry(
   return {
     storeNumber: stored.storeNumber,
     name: text(stored.name, incoming.name),
-    status: incoming.status,
+    status: incoming.status ?? stored.status,
     street: text(stored.street, incoming.street),
     neighborhood: text(stored.neighborhood, incoming.neighborhood),
     municipality: text(stored.municipality, incoming.municipality),
@@ -82,7 +84,7 @@ export function changedFields(
 /** Compara el directorio guardado contra el importado (ya fusionado). */
 export function diffDirectory(
   stored: readonly StoreDirectoryEntry[],
-  incoming: readonly StoreDirectoryEntry[],
+  incoming: readonly ImportedDirectoryEntry[],
 ): DirectoryDiff {
   const byNumber = new Map(stored.map((e) => [e.storeNumber, e]));
   const seen = new Set<string>();
@@ -96,7 +98,8 @@ export function diffDirectory(
     seen.add(entry.storeNumber);
     const before = byNumber.get(entry.storeNumber);
     if (!before) {
-      diff.created.push(entry);
+      // Una tienda nueva sin estatus en el archivo entra como activa.
+      diff.created.push({ ...entry, status: entry.status ?? 'active' });
       continue;
     }
     const after = mergeEntry(before, entry);

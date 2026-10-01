@@ -38,6 +38,15 @@ export interface StoreDirectoryEntry {
   coordinateSource: CoordinateSource | null;
 }
 
+/**
+ * Ficha tal como sale de un archivo. `status` es `null` cuando el archivo no
+ * trae estatus: así una actualización parcial (solo CP o solo coordenadas) no
+ * reactiva una tienda que estaba inactiva.
+ */
+export type ImportedDirectoryEntry = Omit<StoreDirectoryEntry, 'status'> & {
+  status: StoreStatus | null;
+};
+
 export type DirectoryIssueCode =
   | 'missing-header'
   | 'missing-store-number'
@@ -106,7 +115,8 @@ const HEADER_ALIASES: Record<ColumnKey, string[]> = {
     'no tienda',
   ],
   name: ['tienda: nombre sucursal', 'nombre de tienda', 'tienda', 'nombre'],
-  status: ['estatus de tienda', 'estatus', 'alta en ekon'],
+  // «Alta en Ekon» no es estatus: indica alta en el ERP, no tienda abierta.
+  status: ['estatus de tienda', 'estatus'],
   street: ['calle y no', 'direccion', 'calle'],
   neighborhood: ['colonia'],
   municipality: ['municipio / delegacion', 'municipio', 'alcaldia'],
@@ -240,7 +250,7 @@ function pick(...values: (string | undefined)[]): string {
  *   tal cual (el usuario decide), pero nunca se inventa uno.
  */
 export function buildDirectory(rows: readonly DirectoryRow[]): {
-  entries: StoreDirectoryEntry[];
+  entries: ImportedDirectoryEntry[];
   issues: DirectoryIssue[];
 } {
   const issues: DirectoryIssue[] = [];
@@ -266,7 +276,7 @@ export function buildDirectory(rows: readonly DirectoryRow[]): {
     byStore.set(row.storeNumber, list);
   }
 
-  const entries: StoreDirectoryEntry[] = [];
+  const entries: ImportedDirectoryEntry[] = [];
   for (const [storeNumber, list] of byStore) {
     const postal = list.find(
       (r) => r.values.postalCode !== undefined || r.values.state !== undefined,
@@ -342,10 +352,8 @@ export function buildDirectory(rows: readonly DirectoryRow[]): {
     }
 
     const status =
-      parseStatus(postal?.values.status) ??
-      parseStatus(geo?.values.status) ??
-      'active';
-    if (lat === null && status === 'active' && !badCoordinates) {
+      parseStatus(postal?.values.status) ?? parseStatus(geo?.values.status);
+    if (lat === null && status !== 'inactive' && !badCoordinates) {
       at(
         'missing-coordinates',
         `La tienda ${storeNumber} no tiene coordenadas; el mapa la ubicará por municipio.`,
