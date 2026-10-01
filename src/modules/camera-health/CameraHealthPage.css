@@ -188,6 +188,28 @@
   opacity: 0.82;
 }
 
+.camera-health__pair-gaps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid
+    color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+
+.camera-health__pair-gaps h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.camera-health__pair-gaps p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
 .camera-health__table-wrap {
   overflow-x: auto;
   border: 1px solid var(--color-border);

@@ -401,6 +401,62 @@ export function CameraHealthPage() {
             />
           </section>
 
+          {overview.cameraPairGaps.length > 0 && (
+            <section
+              className="camera-health__pair-gaps"
+              aria-label="Brecha entre cámaras del mismo soporte"
+            >
+              <h2>Brecha entre cámaras</h2>
+              <p>
+                Mismo soporte, 2 cámaras, OTS muy distinto entre ellas — no es
+                una cámara caída (eso ya aparece abajo como incidencia), es una
+                señal para revisar la instalación física (ángulo, obstrucción,
+                ubicación). Insurgentes y Banner Digital no aparecen aquí: ahí
+                la brecha es esperada, son zonas distintas.
+              </p>
+              <div className="camera-health__table-wrap">
+                <table className="camera-health__table">
+                  <thead>
+                    <tr>
+                      <th>Tienda</th>
+                      <th>Soporte</th>
+                      <th>Cámaras</th>
+                      <th>Brecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.cameraPairGaps.map((pairGap) => (
+                      <tr
+                        key={
+                          pairGap.storeNumber +
+                          '|' +
+                          pairGap.support +
+                          '|' +
+                          pairGap.cameras.map((c) => c.locationId).join(',')
+                        }
+                      >
+                        <td>{pairGap.storeName}</td>
+                        <td>{pairGap.support}</td>
+                        <td>
+                          {pairGap.cameras
+                            .map(
+                              (c) =>
+                                c.locationName +
+                                ' (' +
+                                formatNumber(c.ots) +
+                                ')',
+                            )
+                            .join(' vs. ')}
+                        </td>
+                        <td>{formatNumber(pairGap.gap)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           <FilterBar
             label="Filtros de salud de cámaras"
             chips={filterChips}

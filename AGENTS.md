@@ -597,13 +597,45 @@ tres de ellos describían mal el separador de artículos.
   operación descrita arriba): la hoja «Detalle de extrapolación» hora a hora
   que pide el encargo de negocio, con una fila por tienda/formato/fecha/hora
   estimada.
-- **Multi-cámara**: se mantiene la agregación vigente de tienda+soporte para
-  todo el circuito, en el PDF y en el Excel. **Única excepción: Insurgentes**.
-  Sus dos cámaras están en pisos distintos y miden zonas diferentes; para la
-  vista comercial (portada, evolución, Tiendas TOP) sus OTS válidos se suman
-  como zonas independientes y no se promedian (`brandSupportDays`). Esta
-  excepción no cambia la agregación técnica general ni las hojas técnicas del
-  Excel, que conservan el promedio de cámaras válidas.
+- **Multi-cámara**: cuando un par tienda+soporte tiene 2+ cámaras, la
+  combinación se decide en el **origen del dato**
+  (`functions/src/quividi/cameraCombination.ts`, `combineCameraValues` /
+  `isZoneSplitPair`), compartida por la agregación diaria
+  (`measurement.ts` → `buildMeasurementRows`, alimenta el Excel) y la horaria
+  (`hourly.ts` → `buildSupportHours`, alimenta el PDF vía
+  `brandOperationalReport`) — por diseño, así el PDF y el Excel nunca pueden
+  divergir en esto. El frontend (`quividiBrandReport.ts` → `brandSupportDays`)
+  es un passthrough puro de `report.supportDays`; ya no corrige nada ahí.
+  Tres casos, en este orden:
+  1. **Zona partida → suma siempre**, sin importar la brecha: Insurgentes
+     (dos cámaras en pisos distintos) y cualquier soporte `BANNER DIGITAL`
+     (Mitikah, Toreo, Satélite, Delta y cualquier otro: sus 2 caras dan a
+     lados distintos del hueco central del centro comercial, así que la
+     oportunidad de ver es genuinamente el doble, no una redundancia de la
+     misma pantalla).
+  2. **Brecha > 1,000 OTS (absoluta, `CAMERA_PAIR_GAP_THRESHOLD`) entre la
+     lectura más alta y la más baja → se usa la más alta**, no se promedia.
+     El campo `quividiLocationId2` nació para un caso muy distinto —un mismo
+     PC con 2 flujos de video de la MISMA pantalla (ver el comentario en
+     `src/domain/models.ts`)— así que una brecha así de grande entre 2
+     cámaras del mismo circuito (p. ej. Coapa: 28,068 vs 7,929 OTS) apunta a
+     que la cámara baja está mal ubicada u obstruida, no a que haya menos
+     público; promediar penalizaría el dato real que sí se captó. La causa
+     exacta (ubicación, ángulo, obstrucción) es una validación operativa, no
+     algo que el código pueda inferir.
+  3. **En cualquier otro caso: promedio** (comportamiento histórico, para
+     ruido normal entre 2 cámaras sanas que ven casi lo mismo).
+
+  Antes de esta regla, Insurgentes se corregía sólo en el frontend, a partir
+  de `cameraDays` — pero `brandOperationalReport` (la vista que acota el PDF
+  a la franja horaria) vaciaba `cameraDays` antes de que esa corrección
+  pudiera leerlo, así que **nunca llegaba al PDF real** que ve la marca, sólo
+  al Excel (que leía el reporte crudo). Era una divergencia de facto entre
+  PDF y Excel no documentada como tal. Mover la regla al origen del dato la
+  corrige de paso: ahora `report.supportDays`/`report.supportHours` ya llegan
+  combinados correctamente a ambos, y `brandOperationalReport` ya no necesita
+  tocar `cameraDays` en absoluto (`cameraDays` sigue existiendo en el reporte
+  sin cambios, para el detalle técnico por cámara del Excel).
 - **Tiendas TOP (`brandStoreAttribution`)**: página con título exacto «Tiendas
   TOP», maquetada como **leaderboard de una sola columna** (no tabla de dos
   columnas: rompería el orden visual del ranking) — rango, nombre de tienda,
@@ -656,12 +688,10 @@ tres de ellos describían mal el separador de artículos.
   reconstruye filas «por día» sumando sólo las horas de `supportHours` dentro
   de la franja (una fila por fecha/tienda/soporte con al menos una hora ahí,
   medida o no; sin hora en la franja, sin fila — nunca fabrica un «sin dato»);
-  `brandOperationalReport` sustituye `supportDays` por esa reconstrucción y
-  **vacía `cameraDays`**, porque la excepción de Insurgentes (sumar sus dos
-  cámaras en vez de promediarlas) se calcula desde `cameraDays`, que es diario
-  y no tiene desglose por hora — aplicarla sobre datos que mezclan horas
-  dentro y fuera de la franja sería peor que desactivarla para esta vista. Si
-  el reporte no trae `supportHours`, degrada a `report` sin tocar (mostrar
+  `brandOperationalReport` sustituye `supportDays` por esa reconstrucción;
+  `cameraDays` ya no necesita tocarse aquí (la combinación multi-cámara se
+  resuelve en el backend, ver «Multi-cámara» arriba). Si el reporte no trae
+  `supportHours`, degrada a `report` sin tocar (mostrar
   cero por falta de detalle horario es peor que mostrar el total sin acotar).
   `buildQuividiCampaignPdfBlob` llama `brandOperationalReport(report)` **una
   sola vez** y pasa ese resultado a las seis páginas — nunca `report` a

@@ -103,7 +103,7 @@ function report(
 }
 
 describe('informe comercial agregado de audiencia', () => {
-  it('mantiene la ponderación actual salvo en Insurgentes', () => {
+  it('es un passthrough puro de supportDays: la combinación de cámaras ya viene resuelta del backend', () => {
     const date = '2026-09-01';
     const input = report({
       supportDays: [
@@ -113,7 +113,7 @@ describe('informe comercial agregado de audiencia', () => {
           storeName: 'INSURGENTES',
           configuredCameras: 2,
           measuredCameras: 2,
-          ots: 150,
+          ots: 300,
         }),
         supportDay({
           date,
@@ -124,34 +124,18 @@ describe('informe comercial agregado de audiencia', () => {
           ots: 500,
         }),
       ],
+      // cameraDays ya no influye: la regla de combinación (suma en zona
+      // partida, la más alta si la brecha supera 1,000 OTS, promedio en
+      // cualquier otro caso) se resuelve en el backend
+      // (`functions/src/quividi/cameraCombination.ts`) antes de que el
+      // reporte llegue aquí.
       cameraDays: [
         cameraDay({
           date,
           storeNumber: '10',
           storeName: 'INSURGENTES',
           locationId: 1,
-          ots: 100,
-        }),
-        cameraDay({
-          date,
-          storeNumber: '10',
-          storeName: 'INSURGENTES',
-          locationId: 2,
-          ots: 200,
-        }),
-        cameraDay({
-          date,
-          storeNumber: '11',
-          storeName: 'SANTA FE',
-          locationId: 3,
-          ots: 400,
-        }),
-        cameraDay({
-          date,
-          storeNumber: '11',
-          storeName: 'SANTA FE',
-          locationId: 4,
-          ots: 600,
+          ots: 999_999,
         }),
       ],
     });
@@ -891,7 +875,7 @@ describe('aportación de tiendas a la cifra publicada', () => {
     expect(parcial?.adjustedOts).toBe(4000);
   });
 
-  it('suma las dos cámaras de Insurgentes como una sola aportación de tienda', () => {
+  it('reporta la aportación de Insurgentes tal como llega combinada (suma de sus 2 cámaras) del backend', () => {
     const date = '2026-09-01';
     const input = report({
       supportDays: [
@@ -901,23 +885,9 @@ describe('aportación de tiendas a la cifra publicada', () => {
           storeName: 'INSURGENTES',
           configuredCameras: 2,
           measuredCameras: 2,
+          // Ya viene sumado (100 + 200) desde buildMeasurementRows: Insurgentes
+          // es zona partida, nunca se promedia.
           ots: 300,
-        }),
-      ],
-      cameraDays: [
-        cameraDay({
-          date,
-          storeNumber: '10',
-          storeName: 'INSURGENTES',
-          locationId: 1,
-          ots: 100,
-        }),
-        cameraDay({
-          date,
-          storeNumber: '10',
-          storeName: 'INSURGENTES',
-          locationId: 2,
-          ots: 200,
         }),
       ],
     });
@@ -1302,20 +1272,5 @@ describe('reconstrucción de días desde supportHours (franja operativa)', () =>
       supportHours: [],
     });
     expect(brandOperationalReport(input)).toBe(input);
-  });
-
-  it('vacía cameraDays: la excepción de Insurgentes no aplica a la vista operativa', () => {
-    const input = report({
-      cameraDays: [
-        cameraDay({
-          date: '2026-09-01',
-          storeNumber: '1',
-          storeName: 'LIVERPOOL INSURGENTES',
-          locationId: 1,
-        }),
-      ],
-      supportHours: [supportHour({ storeName: 'LIVERPOOL INSURGENTES' })],
-    });
-    expect(brandOperationalReport(input).cameraDays).toEqual([]);
   });
 });

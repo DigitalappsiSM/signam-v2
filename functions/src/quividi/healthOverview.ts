@@ -9,6 +9,9 @@ import {
   type CameraHealthAlertDoc,
   type CameraHealthAlertStateDoc,
 } from './cameraAlerts';
+import { detectCameraPairGaps, type CameraPairGap } from './cameraCombination';
+
+export type { CameraPairGap } from './cameraCombination';
 
 export interface CameraHealthOverviewRow {
   locationId: number;
@@ -74,6 +77,13 @@ export interface CameraHealthOverviewResponse {
     outOfScope: number;
   };
   cameras: CameraHealthOverviewRow[];
+  /**
+   * Pares tienda+soporte con 2+ cámaras cuya brecha de OTS (`coreOts` de la
+   * última fecha evaluada de cada una) supera `CAMERA_PAIR_GAP_THRESHOLD` —
+   * señal para revisar la instalación física, no una incidencia de cámara
+   * caída. Excluye Insurgentes y Banner Digital: ahí la brecha es esperada.
+   */
+  cameraPairGaps: CameraPairGap[];
   refresh: CameraHealthRefreshOverview;
   recentRecoveries: Array<{
     alertId: string;
@@ -251,6 +261,18 @@ export async function buildCameraHealthOverview(
   const latestDate =
     latestDates.length > 0 ? latestDates[latestDates.length - 1]! : null;
 
+  const cameraPairGaps = detectCameraPairGaps(
+    cameras.map((camera) => ({
+      locationId: camera.locationId,
+      locationName: camera.locationName,
+      storeNumber: camera.storeNumber,
+      storeName: camera.storeName,
+      support: camera.support,
+      ots: camera.coreOts,
+      monitored: camera.monitored,
+    })),
+  );
+
   return {
     generatedAt: Date.now(),
     latestDate,
@@ -265,6 +287,7 @@ export async function buildCameraHealthOverview(
       outOfScope: cameras.filter((camera) => !camera.monitored).length,
     },
     cameras,
+    cameraPairGaps,
     refresh: {
       status: 'idle',
       stage: null,

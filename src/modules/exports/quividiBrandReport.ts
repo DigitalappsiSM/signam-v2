@@ -2,7 +2,6 @@ import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
   type QuividiCampaignReport,
-  type QuividiCameraDay,
   type QuividiMeasurementStatus,
   type QuividiSupportDay,
 } from '@/domain';
@@ -205,28 +204,8 @@ function numeric(value: number): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase();
-}
-
-function isInsurgentes(storeName: string): boolean {
-  return normalize(storeName).includes('INSURGENTES');
-}
-
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + numeric(value), 0);
-}
-
-function selectedCameraRows(
-  rows: readonly QuividiCameraDay[],
-): QuividiCameraDay[] {
-  const complete = rows.filter((row) => row.status === 'complete');
-  if (complete.length > 0) return complete;
-  return rows.filter((row) => row.status === 'partial');
 }
 
 function pairKey(
@@ -293,40 +272,22 @@ export function measuredPeriodDays(report: QuividiCampaignReport): number {
 }
 
 /**
- * Mantiene la agregación vigente de tienda + soporte para todo el circuito.
- * Únicamente Insurgentes se corrige para el informe comercial: sus cámaras se
- * encuentran en pisos distintos, por lo que sus OTS se suman como zonas
- * independientes en lugar de promediarse.
+ * Punto único de acceso a `report.supportDays`.
+ *
+ * Insurgentes (dos cámaras en pisos distintos, OTS sumados como zonas
+ * independientes) se corregía aquí mismo, pero dependía de `cameraDays`, que
+ * `brandOperationalReport` vaciaba para la vista horaria — por eso nunca
+ * llegaba al PDF real, sólo al Excel. La regla de combinación de cámaras
+ * (zona partida: Insurgentes y Banner Digital → suma; brecha > 1,000 OTS →
+ * la más alta; si no, promedio) ahora vive en el origen del dato
+ * (`functions/src/quividi/cameraCombination.ts`, compartida por
+ * `buildMeasurementRows` y `buildSupportHours`), así que `report.supportDays`
+ * ya llega combinado correctamente y este módulo no necesita corregir nada.
  */
 export function brandSupportDays(
   report: QuividiCampaignReport,
 ): QuividiSupportDay[] {
-  if (report.cameraDays.length === 0) {
-    return report.supportDays.map((row) => ({ ...row }));
-  }
-
-  const camerasByKey = new Map<string, QuividiCameraDay[]>();
-  for (const camera of report.cameraDays) {
-    if (!isInsurgentes(camera.storeName)) continue;
-    const key = `${camera.date}|${camera.storeNumber}|${camera.support}`;
-    const current = camerasByKey.get(key) ?? [];
-    current.push(camera);
-    camerasByKey.set(key, current);
-  }
-
-  return report.supportDays.map((row) => {
-    if (!isInsurgentes(row.storeName)) return { ...row };
-    const selected = selectedCameraRows(
-      camerasByKey.get(supportDayKey(row)) ?? [],
-    );
-    if (selected.length === 0) return { ...row };
-    return {
-      ...row,
-      measuredCameras: selected.length,
-      ots: sum(selected.map((camera) => camera.ots)),
-      effectiveOts: sum(selected.map((camera) => camera.effectiveOts)),
-    };
-  });
+  return report.supportDays.map((row) => ({ ...row }));
 }
 
 /**
@@ -974,12 +935,7 @@ export function brandOperationalSupportDays(
  * Vista del reporte que consume el PDF comercial: mismos `supportHours` y
  * `demographics` (no tienen hora, no se pueden acotar — ver el cruce
  * hora × demografía bloqueado más abajo), pero `supportDays` reconstruido con
- * `brandOperationalSupportDays` dentro de la franja operativa. `cameraDays`
- * se vacía a propósito: la excepción de Insurgentes (sumar en vez de
- * promediar sus dos cámaras) se calcula hoy a partir de `cameraDays`, que es
- * diario y no tiene desglose por hora — no se puede acotar a la franja
- * operativa sin esa fuente, así que se desactiva para esta vista en vez de
- * aplicarla sobre datos que mezclan horas dentro y fuera de ella.
+ * `brandOperationalSupportDays` dentro de la franja operativa.
  *
  * Si el reporte no trae `supportHours` (schema anterior, o el export horario
  * falló), degrada a `report` sin tocarlo: mostrar cero por falta de detalle
@@ -992,7 +948,6 @@ export function brandOperationalReport(
   return {
     ...report,
     supportDays: brandOperationalSupportDays(report),
-    cameraDays: [],
   };
 }
 

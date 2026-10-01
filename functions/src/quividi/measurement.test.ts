@@ -348,7 +348,10 @@ describe('buildMeasurementRows · umbral de medición parcial', () => {
 
 describe('buildMeasurementRows · ponderación multi-cámara', () => {
   const dates = ['2026-03-01'];
+  // Soporte distinto de BANNER DIGITAL: estos casos cubren el promedio/selección
+  // genéricos, no la excepción de zona partida (ver el describe de abajo).
   const dos = pair({
+    support: 'MUPI DIGITAL',
     cameraNames: ['CAM-A', 'CAM-B'],
     cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
   });
@@ -435,6 +438,66 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
 
     expect(rows.cameraDays).toEqual([]);
     expect(rows.supportDays).toEqual([]);
+  });
+});
+
+describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
+  const dates = ['2026-03-01'];
+  const dos = pair({
+    cameraNames: ['CAM-A', 'CAM-B'],
+    cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+  });
+
+  it('BANNER DIGITAL siempre suma, aunque la brecha sea pequeña', () => {
+    // `pair()` ya trae support: 'BANNER DIGITAL' por default.
+    const rows = buildMeasurementRows(
+      [dos],
+      dates,
+      [ots(1, dates[0]!), ots(2, dates[0]!, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({ status: 'complete', ots: 250 });
+  });
+
+  it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
+    const insurgentes = pair({
+      storeName: 'LIVERPOOL INSURGENTES',
+      support: 'MUPI DIGITAL',
+      cameraNames: ['CAM-A', 'CAM-B'],
+      cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+    });
+    const rows = buildMeasurementRows(
+      [insurgentes],
+      dates,
+      [ots(1, dates[0]!), ots(2, dates[0]!, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({ status: 'complete', ots: 250 });
+  });
+
+  it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta, no promedia', () => {
+    const mupi = pair({
+      support: 'MUPI DIGITAL',
+      cameraNames: ['CAM-A', 'CAM-B'],
+      cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+    });
+    // Caso real: Coapa, 28,068 vs 7,929 OTS.
+    const rows = buildMeasurementRows(
+      [mupi],
+      dates,
+      [
+        ots(1, dates[0]!, { ots_count: 28_068 }),
+        ots(2, dates[0]!, { ots_count: 7_929 }),
+      ],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      status: 'complete',
+      ots: 28_068,
+    });
   });
 });
 
