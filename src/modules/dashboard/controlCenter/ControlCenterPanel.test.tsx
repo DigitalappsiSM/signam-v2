@@ -7,6 +7,7 @@ import { listStoreDirectory } from '@/services/storeDirectory';
 import { getControlCenterSnapshot } from '@/services/controlCenter';
 import type { StoreOccupancy } from '../occupancyModel';
 import { ControlCenterPanel } from './ControlCenterPanel';
+import type { UserRole } from '@/domain';
 
 vi.mock('@/services/storeDirectory', () => ({ listStoreDirectory: vi.fn() }));
 vi.mock('@/services/controlCenter', () => ({
@@ -68,6 +69,7 @@ beforeEach(() => {
     ],
     cameras: [
       {
+        locationId: 1,
         storeNumber: '901',
         storeName: 'Prueba',
         support: 'VIDEO WALL',
@@ -84,12 +86,13 @@ beforeEach(() => {
   });
 });
 
-function renderPanel() {
+function renderPanel(role: UserRole = 'admin') {
   return render(
     <MemoryRouter>
       <ControlCenterPanel
         occupancyStores={OCC}
         theme="light"
+        role={role}
         periodLabel="01/10/2026"
         refreshKey={0}
       />
@@ -152,6 +155,44 @@ describe('Centro de Control', () => {
     expect(within(dialog).getByText('L JALISCO · 902')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('el rol comercial no ve accesos a módulos que no puede abrir', async () => {
+    vi.mocked(getControlCenterSnapshot).mockResolvedValue({
+      generatedAt: '',
+      tickets: [],
+      cameras: [
+        {
+          locationId: 5,
+          storeNumber: '901',
+          storeName: 'Prueba',
+          support: 'MUPI',
+          status: 'no_ots',
+          severity: 'critical',
+          latestDate: '2026-09-30',
+          consecutiveDays: 2,
+          coreOts: 0,
+          ticketId: 77,
+        },
+      ],
+      camerasLatestDate: '2026-09-30',
+      warnings: [],
+    });
+    renderPanel('commercial');
+    await screen.findByText(/Incidencias abiertas/i);
+    await userEvent.click(screen.getByRole('button', { name: 'Incidencias' }));
+    const nav = await screen.findByLabelText('Navegador de tickets');
+    expect(nav).toHaveTextContent('Con ticket');
+    expect(
+      within(nav).queryByRole('link', { name: 'Salud de cámaras' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      within(nav).getByRole('button', { name: /L PRUEBA NORTE/ }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).queryByRole('link', { name: 'Ver en Directorio' }),
+    ).not.toBeInTheDocument();
   });
 
   it('ranking de estados cambia con la capa', async () => {

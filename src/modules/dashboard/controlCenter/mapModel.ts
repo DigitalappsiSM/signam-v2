@@ -243,7 +243,7 @@ export function buildControlCenterModel(
     if (c.status === 'normal') continue;
     s.cameras.alerting += 1;
     const incident: MapIncident = {
-      id: `cam-${s.storeNumber}-${c.support}`,
+      id: `cam-${c.locationId}`,
       kind: 'camera',
       source: 'quividi',
       storeNumber: s.storeNumber,

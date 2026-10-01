@@ -12,7 +12,16 @@ vi.mock('../quividi', () => ({
   CAMERA_HEALTH_ALERT_COLLECTION: 'alerts',
   CAMERA_HEALTH_ALERT_STATE_COLLECTION: 'state',
 }));
-vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => ({}) }));
+const collections = vi.hoisted(
+  () => new Map<string, { id: string; data: () => unknown }[]>(),
+);
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => ({
+    collection: (name: string) => ({
+      get: async () => ({ docs: collections.get(name) ?? [] }),
+    }),
+  }),
+}));
 vi.mock('firebase-functions/params', () => ({
   defineSecret: () => ({ value: () => 'test-secret' }),
 }));
@@ -68,6 +77,27 @@ function odooFixture() {
 }
 
 beforeEach(() => {
+  collections.clear();
+  collections.set('screens', [
+    {
+      id: 's1',
+      data: () => ({
+        original: { 'Numero de Tienda': '78', 'Nombre de tienda': 'Gdl' },
+        metadata: {
+          active: true,
+          calendarSupport: 'VIDEO WALL CRIUS',
+          quividiLocationId: 5001,
+          measurementPointId: 'LIV-78-CRIUS-P1',
+        },
+      }),
+    },
+  ]);
+  collections.set('quividiCameraTicketState', [
+    {
+      id: 'LIV-78-CRIUS-P1',
+      data: () => ({ ticketId: 18777, ticketStatus: 'created' }),
+    },
+  ]);
   call.mockReset();
   health.mockReset();
   resetControlCenterCache();
@@ -76,6 +106,7 @@ beforeEach(() => {
     cameras: [
       {
         monitored: true,
+        locationId: 5001,
         storeNumber: '078',
         storeName: 'Guadalajara',
         support: 'VIDEO WALL CRIUS',
@@ -114,7 +145,12 @@ describe('Centro de Control (callable)', () => {
     });
     expect(JSON.stringify(result)).not.toContain('Persona X');
     expect(result.cameras).toEqual([
-      expect.objectContaining({ storeNumber: '78', status: 'no_ots' }),
+      expect.objectContaining({
+        locationId: 5001,
+        storeNumber: '78',
+        status: 'no_ots',
+        ticketId: 18777,
+      }),
     ]);
     expect(
       call.mock.calls.every(([, , method]) => method === 'search_read'),

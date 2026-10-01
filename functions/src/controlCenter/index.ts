@@ -2,7 +2,13 @@ import { defineSecret } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import { getFirestore } from 'firebase-admin/firestore';
-import { odooCall } from '../quividi/odooTickets';
+import {
+  CAMERA_TICKET_STATE_COLLECTION,
+  buildCameraPointBindings,
+  odooCall,
+  type CameraTicketStateDoc,
+} from '../quividi/odooTickets';
+import type { ScreenDoc } from '../quividi/effectiveScope';
 import { buildCameraHealthOverview } from '../quividi/healthOverview';
 import { roleFromClaims } from '../quividi/access';
 import {
@@ -113,16 +119,43 @@ async function cameraStates(): Promise<{
   cameras: ControlCenterCamera[];
   latestDate: string | null;
 }> {
-  const overview = await buildCameraHealthOverview(
-    getFirestore(),
-    CAMERA_HEALTH_ALERT_STATE_COLLECTION,
-    CAMERA_HEALTH_ALERT_COLLECTION,
+  const db = getFirestore();
+  // Mismo enriquecimiento que `quividi-cameraHealthOverview`: el ticket de
+  // cámara se guarda por punto de medición, que se resuelve desde `screens`.
+  const [overview, screensSnap, ticketSnap] = await Promise.all([
+    buildCameraHealthOverview(
+      db,
+      CAMERA_HEALTH_ALERT_STATE_COLLECTION,
+      CAMERA_HEALTH_ALERT_COLLECTION,
+    ),
+    db.collection('screens').get(),
+    db.collection(CAMERA_TICKET_STATE_COLLECTION).get(),
+  ]);
+  const bindings = buildCameraPointBindings(
+    screensSnap.docs.map((d) => ({ id: d.id, ...(d.data() as ScreenDoc) })),
   );
+  const tickets = new Map(
+    ticketSnap.docs.map((d) => [
+      d.id,
+      d.data() as Partial<CameraTicketStateDoc>,
+    ]),
+  );
+  const ticketFor = (locationId: number): number | null => {
+    const binding = bindings.get(locationId);
+    const ticket = binding
+      ? tickets.get(binding.measurementPointId)
+      : undefined;
+    return typeof ticket?.ticketId === 'number' &&
+      (ticket.ticketStatus === 'created' || ticket.ticketStatus === 'creating')
+      ? ticket.ticketId
+      : null;
+  };
   return {
     latestDate: overview.latestDate,
     cameras: overview.cameras
       .filter((c) => c.monitored)
       .map((c) => ({
+        locationId: c.locationId,
         storeNumber: c.storeNumber.trim().replace(/^0+(?=\d)/, ''),
         storeName: c.storeName,
         support: c.support,
@@ -131,7 +164,7 @@ async function cameraStates(): Promise<{
         latestDate: c.latestDate,
         consecutiveDays: c.consecutiveDays,
         coreOts: c.coreOts,
-        ticketId: c.ticketId,
+        ticketId: ticketFor(c.locationId),
       })),
   };
 }

@@ -60,6 +60,7 @@ const ticket = (over: Partial<ControlCenterTicket>): ControlCenterTicket => ({
 });
 
 const camera = (over: Partial<ControlCenterCamera>): ControlCenterCamera => ({
+  locationId: 1,
   storeNumber: '901',
   storeName: 'Prueba',
   support: 'VIDEO WALL',
@@ -99,8 +100,14 @@ describe('modelo del Centro de Control', () => {
     ],
     cameras: [
       camera({}),
-      camera({ support: 'MUPI', status: 'no_ots', consecutiveDays: 3 }),
       camera({
+        locationId: 2,
+        support: 'MUPI',
+        status: 'no_ots',
+        consecutiveDays: 3,
+      }),
+      camera({
+        locationId: 3,
         storeNumber: '902',
         status: 'partial_measurement',
         coreOts: 300,
@@ -123,7 +130,7 @@ describe('modelo del Centro de Control', () => {
   it('une tickets de Odoo y alertas de cámara, ordenados por severidad', () => {
     expect(s901.incidents.map((i) => i.id)).toEqual([
       'odoo-2',
-      'cam-901-MUPI',
+      'cam-2',
       'odoo-1',
     ]);
     expect(s901.incidents.map((i) => i.severity)).toEqual([
@@ -132,6 +139,20 @@ describe('modelo del Centro de Control', () => {
       'medium',
     ]);
     expect(s901.cameras).toEqual({ total: 2, alerting: 1 });
+  });
+
+  it('dos cámaras del mismo soporte son incidencias distintas', () => {
+    const m = buildControlCenterModel({
+      now: NOW,
+      directory: [dir({})],
+      occupancy: [],
+      tickets: null,
+      cameras: [
+        camera({ locationId: 11, status: 'no_ots' }),
+        camera({ locationId: 12, status: 'no_ots' }),
+      ],
+    });
+    expect(m.incidents.map((i) => i.id).sort()).toEqual(['cam-11', 'cam-12']);
   });
 
   it('el OTS solo suma cámaras con medición', () => {

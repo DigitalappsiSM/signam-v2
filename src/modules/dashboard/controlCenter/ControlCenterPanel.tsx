@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from '@/components/Icon';
 import type { Theme } from '@/app/theme';
+import type { UserRole } from '@/domain';
+import { canAccessRoute, routeByPath } from '@/app/routes';
 import type { StoreDirectoryEntry } from '@/domain/stores';
 import { listStoreDirectory } from '@/services/storeDirectory';
 import {
@@ -210,14 +212,21 @@ function StoreTable({
 export function ControlCenterPanel({
   occupancyStores,
   theme,
+  role,
   periodLabel,
   refreshKey,
 }: {
   occupancyStores: readonly StoreOccupancy[];
   theme: Theme;
+  /** Rol del usuario: oculta accesos a módulos que su rol no puede abrir. */
+  role: UserRole;
   periodLabel: string;
   refreshKey: number;
 }) {
+  const canOpen = (path: string) => {
+    const route = routeByPath(path);
+    return route !== undefined && canAccessRoute(role, route);
+  };
   const [directory, setDirectory] = useState<StoreDirectoryEntry[]>([]);
   const [snapshot, setSnapshot] = useState<ControlCenterSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -738,11 +747,15 @@ export function ControlCenterPanel({
                           Abrir en Odoo
                         </a>
                       )}
-                      {navCurrent.source === 'quividi' && (
-                        <Link className="btn btn-secondary" to="/salud-camaras">
-                          Salud de cámaras
-                        </Link>
-                      )}
+                      {navCurrent.source === 'quividi' &&
+                        canOpen('/salud-camaras') && (
+                          <Link
+                            className="btn btn-secondary"
+                            to="/salud-camaras"
+                          >
+                            Salud de cámaras
+                          </Link>
+                        )}
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -933,7 +946,10 @@ export function ControlCenterPanel({
               {!loading && directory.length === 0 && (
                 <p>
                   El directorio de tiendas está vacío: el mapa no puede ubicar
-                  tiendas. <Link to="/tiendas">Ir a Directorio de tiendas</Link>
+                  tiendas.{' '}
+                  {canOpen('/tiendas') && (
+                    <Link to="/tiendas">Ir a Directorio de tiendas</Link>
+                  )}
                 </p>
               )}
               {[...errors, ...(snapshot?.warnings ?? [])].map((w) => (
@@ -1013,13 +1029,15 @@ export function ControlCenterPanel({
                 >
                   Filtrar el panel por esta tienda
                 </Link>
-                <Link
-                  className="btn btn-primary"
-                  to="/tiendas"
-                  onClick={closeDialog}
-                >
-                  Ver en Directorio
-                </Link>
+                {canOpen('/tiendas') && (
+                  <Link
+                    className="btn btn-primary"
+                    to="/tiendas"
+                    onClick={closeDialog}
+                  >
+                    Ver en Directorio
+                  </Link>
+                )}
               </div>
             </>
           )}

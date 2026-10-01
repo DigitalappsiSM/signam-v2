@@ -26,6 +26,7 @@ export type CameraStatus =
   'normal' | 'no_measurement' | 'partial_measurement' | 'no_ots';
 
 export interface ControlCenterCamera {
+  locationId: number;
   storeNumber: string;
   storeName: string;
   support: string;

@@ -825,6 +825,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
               <ControlCenterPanel
                 occupancyStores={occupancy.stores}
                 theme={theme}
+                role={role}
                 periodLabel={periodLabel}
                 refreshKey={loadedAt?.getTime() ?? 0}
               />

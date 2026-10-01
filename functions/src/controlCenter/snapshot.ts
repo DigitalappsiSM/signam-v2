@@ -27,6 +27,8 @@ export interface ControlCenterTicket {
 }
 
 export interface ControlCenterCamera {
+  /** Location ID de Quividi: distingue dos cámaras de la misma pantalla. */
+  locationId: number;
   storeNumber: string;
   storeName: string;
   support: string;
