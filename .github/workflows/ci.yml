@@ -68,6 +68,23 @@ jobs:
       - name: Build (Vite)
         run: npm run build
 
+  tracking-rules:
+    name: Reglas de seguimiento (Firestore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Probar escrituras e historial contra las reglas reales
+        run: npm run test:tracking-rules
+
   functions:
     name: Build de Cloud Functions
     runs-on: ubuntu-latest

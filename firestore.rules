@@ -267,8 +267,9 @@ service cloud.firestore {
       return !('statusHistory' in before)
         || ('statusHistory' in after
             && after.statusHistory.size() >= before.statusHistory.size()
-            && after.statusHistory[0:before.statusHistory.size()]
-                == before.statusHistory);
+            && (before.statusHistory.size() == 0
+                || after.statusHistory[0:before.statusHistory.size()]
+                    == before.statusHistory));
     }
     function validCampaignReference(data) {
       return !('campaignId' in data) || data.campaignId is string;

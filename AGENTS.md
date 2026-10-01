@@ -240,8 +240,10 @@ tres de ellos describían mal el separador de artículos.
   manual editable desde **Campañas** y **Seguimiento operativo** por
   admin/operator (`tracking.write`), siempre con **motivo** (catálogo por estado
   + «Otro» con texto libre obligatorio; reactivar también exige motivo) e
-  **historial completo** (`statusHistory`, solo se agrega). Se guarda en el
-  documento de seguimiento `campaignOperationalTracking/{campaignId}`
+  **historial completo** (`statusHistory`, solo se agrega). Un historial vacío
+  permite editar checks; Firestore lo valida sin recortar la lista vacía. Con
+  eventos, el historial anterior debe permanecer como prefijo intacto. Se guarda
+  en el documento de seguimiento `campaignOperationalTracking/{campaignId}`
   (`lifecycleStatus`, `statusReason {code,label,detail}`,
   `duplicateOfCampaignId/Name`, `lifecycleUpdatedAt/By*`; `cancellationReason`
   queda como resumen de texto por compatibilidad), por lo que la importación del
