@@ -1273,5 +1273,4 @@ describe('reconstrucción de días desde supportHours (franja operativa)', () =>
     });
     expect(brandOperationalReport(input)).toBe(input);
   });
-
 });
