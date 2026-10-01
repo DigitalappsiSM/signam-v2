@@ -2,7 +2,11 @@ import type { EChartsOption } from 'echarts';
 import { EChart } from '@/components/charts/EChart';
 import { useTheme } from '@/app/theme';
 import { incidentAnalytics } from '@/domain/odooAnalytics';
-import { summarizeIncidents, type OdooIncident } from '@/domain/odooIncidents';
+import {
+  incidentSla,
+  summarizeIncidents,
+  type OdooIncident,
+} from '@/domain/odooIncidents';
 const COLORS = ['#3b82f6', '#06b6d4', '#ef4444', '#f59e0b', '#8b5cf6'];
 const metric = (value: number | null) =>
   value === null ? 'Sin dato' : `${value.toFixed(1)} h`;
@@ -46,7 +50,9 @@ export function OdooAnalyticsPanels({
       },
     ],
   };
-  const sla: EChartsOption = {
+  const slaChart = (
+    kind: 'resolution' | 'response' | 'global',
+  ): EChartsOption => ({
     ...base,
     legend: {
       textStyle: { color: textColor },
@@ -70,13 +76,19 @@ export function OdooAnalyticsPanels({
               (ticket) =>
                 ticket.category === row.name &&
                 (state === 'Sin dato / no aplica'
-                  ? ['Sin dato', 'No aplica'].includes(ticket.sla)
-                  : ticket.sla === state),
+                  ? ['Sin dato', 'No aplica'].includes(
+                      kind === 'global'
+                        ? ticket.sla
+                        : incidentSla(ticket, kind),
+                    )
+                  : (kind === 'global'
+                      ? ticket.sla
+                      : incidentSla(ticket, kind)) === state),
             ).length,
         ),
       }),
     ),
-  };
+  });
   const modalities: EChartsOption = {
     ...base,
     tooltip: { trigger: 'item', confine: true, renderMode: 'richText' },
@@ -132,16 +144,44 @@ export function OdooAnalyticsPanels({
       label: 'Tickets creados por día',
       rows: model.daily.map((row) => [row.date, String(row.count)]),
     },
-    {
-      title: 'SLA por categoría',
-      note: 'Resultados actuales de las políticas de cada ticket.',
-      option: sla,
-      label: 'Distribución de resultados SLA por categoría',
-      rows: model.categories.map((row) => [
-        row.name,
-        `${row.total} tickets · ${row.failed} incumplidos`,
-      ]),
-    },
+    ...(['resolution', 'response', 'global'] as const).map((kind) => ({
+      title:
+        kind === 'resolution'
+          ? 'SLA de resolución por categoría'
+          : kind === 'response'
+            ? 'SLA de primera respuesta por categoría'
+            : 'SLA global por categoría',
+      note:
+        kind === 'global'
+          ? 'Resultado combinado de todas las políticas del ticket.'
+          : 'Políticas de Odoo evaluadas por separado; sin dato cuando no se identifica el tipo.',
+      option: slaChart(kind),
+      label: `Resultados SLA de ${kind === 'resolution' ? 'resolución' : kind === 'response' ? 'primera respuesta' : 'global'} por categoría`,
+      rows: model.categories.map((row) => {
+        const stats =
+          kind === 'resolution'
+            ? row.resolutionSla
+            : kind === 'response'
+              ? row.responseSla
+              : {
+                  passed: row.evaluated - row.failed,
+                  failed: row.failed,
+                  ongoing: tickets.filter(
+                    (ticket) =>
+                      ticket.category === row.name && ticket.sla === 'En curso',
+                  ).length,
+                  missing: tickets.filter(
+                    (ticket) =>
+                      ticket.category === row.name &&
+                      ['Sin dato', 'No aplica'].includes(ticket.sla),
+                  ).length,
+                };
+        return [
+          row.name,
+          `${stats.passed} cumplidos · ${stats.failed} incumplidos · ${stats.ongoing} en curso · ${stats.missing} sin dato`,
+        ] as [string, string];
+      }),
+    })),
     {
       title: 'Modalidad de atención',
       note: 'Se conserva Sin dato cuando no hay etiqueta. Mixta significa ambas etiquetas.',
@@ -172,8 +212,9 @@ export function OdooAnalyticsPanels({
               la selección.
             </p>
             <p>
-              <strong>{summary.failed}</strong> tienen al menos una política SLA
-              incumplida.
+              <strong>{summary.resolutionSla.failed}</strong> tienen SLA de
+              resolución incumplido. Primera respuesta:{' '}
+              {summary.responseSla.failed} incumplidos.
             </p>
             <p>
               <strong>{model.retailers[0]?.name ?? 'Sin datos'}</strong>{' '}
@@ -296,7 +337,9 @@ export function OdooAnalyticsPanels({
                           'Nombre',
                           'Tickets',
                           'Abiertos',
-                          'SLA cumplido',
+                          'SLA resolución',
+                          'SLA primera respuesta',
+                          'SLA global',
                           'Respuesta media',
                           'Resolución media',
                         ].map((label) => (
@@ -312,6 +355,16 @@ export function OdooAnalyticsPanels({
                           <th scope="row">{row.name}</th>
                           <td>{row.total}</td>
                           <td>{row.open}</td>
+                          {[row.resolutionSla, row.responseSla].map(
+                            (stats, index) => (
+                              <td key={index}>
+                                {stats.compliance === null
+                                  ? 'Sin dato'
+                                  : `${stats.compliance.toFixed(1)}%`}
+                                <small>{stats.evaluated} con resultado</small>
+                              </td>
+                            ),
+                          )}
                           <td>
                             {row.compliance === null
                               ? 'Sin dato'

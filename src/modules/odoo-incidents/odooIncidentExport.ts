@@ -1,5 +1,10 @@
 import { incidentAnalytics } from '@/domain/odooAnalytics';
-import { summarizeIncidents, type OdooIncident } from '@/domain/odooIncidents';
+import {
+  incidentSla,
+  policyKind,
+  summarizeIncidents,
+  type OdooIncident,
+} from '@/domain/odooIncidents';
 export async function buildOdooWorkbook(
   tickets: OdooIncident[],
   month: string,
@@ -50,9 +55,22 @@ export async function buildOdooWorkbook(
       ['Tickets', summary.total],
       ['Abiertos', summary.open],
       ['Resueltos', summary.closed],
-      ['SLA incumplidos', summary.failed],
-      ['SLA cumplimiento (%)', summary.compliance],
-      ['Tickets con resultado SLA', summary.evaluated],
+      ...(
+        [
+          ['resolución', summary.resolutionSla],
+          ['primera respuesta', summary.responseSla],
+        ] as const
+      ).flatMap(([kind, stats]) => [
+        [`SLA ${kind} cumplimiento (%)`, stats.compliance],
+        [`SLA ${kind} cumplidos`, stats.passed],
+        [`SLA ${kind} evaluados`, stats.evaluated],
+        [`SLA ${kind} incumplidos`, stats.failed],
+        [`SLA ${kind} en curso`, stats.ongoing],
+        [`SLA ${kind} sin dato`, stats.missing],
+      ]),
+      ['SLA global incumplidos', summary.failed],
+      ['SLA global cumplimiento (%)', summary.compliance],
+      ['Tickets con resultado SLA global', summary.evaluated],
       ['Primera respuesta media (h)', summary.firstResponse.value],
       ['Muestra primera respuesta', summary.firstResponse.count],
       ['Resolución media (h)', summary.resolution.value],
@@ -78,13 +96,15 @@ export async function buildOdooWorkbook(
       'Solicitante',
       'Responsable',
       'Estado',
-      'SLA',
+      'SLA global',
       'Creación UTC',
       'Cierre UTC',
       'Primera respuesta (h Odoo)',
       'Resolución (h Odoo)',
       'Etiquetas',
       'Enlace Odoo',
+      'SLA de resolución',
+      'SLA de primera respuesta',
     ],
     tickets.map((ticket) => [
       ticket.id,
@@ -103,18 +123,33 @@ export async function buildOdooWorkbook(
       ticket.resolutionHours,
       ticket.tags.join(' · '),
       ticket.url,
+      incidentSla(ticket, 'resolution'),
+      incidentSla(ticket, 'response'),
     ]),
   );
   detail.getColumn(2).width = 55;
   sheet(
     'Políticas SLA',
-    ['Ticket', 'Política', 'Resultado Odoo', 'Límite UTC'],
+    [
+      'Ticket',
+      'Política',
+      'Resultado Odoo',
+      'Límite UTC',
+      'Tipo de SLA',
+      'Etapa objetivo',
+    ],
     tickets.flatMap((ticket) =>
       ticket.policies.map((policy) => [
         ticket.id,
         policy.name,
         policy.status,
         policy.deadline,
+        policyKind(policy) === 'resolution'
+          ? 'Resolución'
+          : policyKind(policy) === 'response'
+            ? 'Primera respuesta'
+            : 'Sin identificar',
+        policy.targetStage ?? '',
       ]),
     ),
   );
@@ -132,13 +167,19 @@ export async function buildOdooWorkbook(
         'Tickets',
         'Abiertos',
         'Resueltos',
-        'SLA incumplidos',
-        'SLA cumplimiento (%)',
-        'Tickets con resultado SLA',
+        'SLA global incumplidos',
+        'SLA global cumplimiento (%)',
+        'Tickets con resultado SLA global',
         'Respuesta media (h)',
         'Muestra respuesta',
         'Resolución media (h)',
         'Muestra resolución',
+        'SLA resolución (%)',
+        'Resolución evaluados',
+        'Resolución incumplidos',
+        'SLA primera respuesta (%)',
+        'Respuesta evaluados',
+        'Respuesta incumplidos',
       ],
       groups.map((row) => [
         row.name,
@@ -152,12 +193,23 @@ export async function buildOdooWorkbook(
         row.firstResponse.count,
         row.resolution.value,
         row.resolution.count,
+        row.resolutionSla.compliance,
+        row.resolutionSla.evaluated,
+        row.resolutionSla.failed,
+        row.responseSla.compliance,
+        row.responseSla.evaluated,
+        row.responseSla.failed,
       ]),
     );
   }
   sheet(
     'Tiendas técnicas',
-    ['Retailer', 'Tienda', 'Incidencias Soporte-Cámaras', 'SLA incumplidos'],
+    [
+      'Retailer',
+      'Tienda',
+      'Incidencias Soporte-Cámaras',
+      'SLA global incumplidos',
+    ],
     summary.stores.map((row) => [
       row.retailer,
       row.store,
@@ -187,8 +239,12 @@ export async function buildOdooWorkbook(
         'Fecha de creación en Ciudad de México; no incluye backlog previo. Los cierres son de esa cohorte de tickets.',
       ],
       [
-        'SLA',
+        'SLA global',
         'Resultados actuales de Odoo, no una foto al cierre del mes. Incumplido si alguna política falla; cumplido si todas están alcanzadas.',
+      ],
+      [
+        'Resolución y respuesta',
+        'Se calculan por separado con políticas identificadas por nombre explícito o etapa objetivo reconocida. Las ambiguas no se asignan; se conserva Sin dato. Respuesta tardía no penaliza resolución.',
       ],
       [
         'Porcentaje SLA',

@@ -111,3 +111,22 @@ integración; no marca como error un mes sin tickets ni la ausencia opcional de
 SLA. Solo muestra número de tickets y avisos, nunca sus datos o el secreto.
 Esta comprobación verifica Odoo y su credencial, pero no sustituye la validación
 del login y de la callable desplegada desde SIGNAM.
+
+## SLA de resolución y primera respuesta
+
+Resolución es el indicador principal. Primera respuesta se conserva para seguimiento
+al proveedor y SLA global mantiene el resultado combinado anterior. Una respuesta
+incumplida y resolución cumplida se muestran como dos resultados distintos.
+Los gráficos por categoría, tablas por responsable/solicitante, detalle y Excel
+separan ambos tipos; el filtro de resultado permite elegir Resolución (inicial),
+Primera respuesta o Global. Cada porcentaje incluye su propio denominador.
+
+Las políticas se identifican por nombre explícito o etapa objetivo reconocida;
+los nombres ambiguos y etapas desconocidas quedan sin identificar y se conservan
+visibles en el detalle/Excel. Si no hay política reconocida se muestra Sin dato.
+Se lee opcionalmente helpdesk.sla.stage_id; ante falta de acceso se advierte y
+se conserva la clasificación por nombres. No se amplían permisos. No se deduce SLA
+por horas ni se recalculan horarios, pausas por permisos o metas contractuales.
+Se usan los estados actuales de Odoo, incluso en tickets reabiertos: un vencido
+abierto entra como incumplido si Odoo así lo registra. Cancelados, en curso y sin
+dato se excluyen del porcentaje de su tipo.

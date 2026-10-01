@@ -25,6 +25,7 @@ const run = overview as unknown as (request: {
     sla: string;
     firstResponseHours: number | null;
     store: string | null;
+    policies: { name: string; status: string; targetStage: string }[];
   }[];
   warnings: string[];
 }>;
@@ -102,6 +103,74 @@ describe('lectura segura Odoo', () => {
         ['search_read', 'fields_get'].includes(method),
       ),
     ).toBe(true);
+  });
+  it('lee etapas objetivo de políticas sin mezclar ni perder resultados ante falta de permisos', async () => {
+    let denied = false;
+    call.mockImplementation(async (_key, model, method) => {
+      if (model === 'helpdesk.team') return [{ id: 6, name: 'Liverpool' }];
+      if (method === 'fields_get') {
+        if (model === 'helpdesk.sla' && denied) throw new Error('denied');
+        return Object.fromEntries(
+          [
+            'id',
+            'name',
+            'team_id',
+            'partner_id',
+            'user_id',
+            'stage_id',
+            'tag_ids',
+            'description',
+            'create_date',
+            'ticket_id',
+            'status',
+            'sla_id',
+          ].map((field) => [field, {}]),
+        );
+      }
+      if (model === 'helpdesk.ticket')
+        return [
+          { id: 1, team_id: [6, 'Liverpool'], stage_id: [2, 'Resuelto'] },
+        ];
+      if (model === 'helpdesk.sla.status')
+        return [
+          {
+            id: 1,
+            ticket_id: [1, 'Ticket'],
+            sla_id: [10, 'Primera respuesta'],
+            status: 'failed',
+          },
+          {
+            id: 2,
+            ticket_id: [1, 'Ticket'],
+            sla_id: [11, '48 horas'],
+            status: 'reached',
+          },
+        ];
+      if (model === 'helpdesk.sla')
+        return [
+          { id: 10, stage_id: [3, 'En progreso'] },
+          { id: 11, stage_id: [2, 'Resuelto'] },
+        ];
+      return [];
+    });
+    const request = {
+      auth: { token: { role: 'viewer' } },
+      data: { month: '2026-09' },
+    };
+    const result = await run(request);
+    expect(result.tickets[0]?.policies[1]).toMatchObject({
+      targetStage: 'Resuelto',
+      status: 'reached',
+    });
+    expect(result.tickets[0]?.sla).toBe('Incumplido');
+    denied = true;
+    const fallback = await run(request);
+    expect(fallback.warnings).toHaveLength(1);
+    expect(fallback.tickets[0]?.policies[0]).toMatchObject({
+      name: 'Primera respuesta',
+      status: 'failed',
+    });
+    expect(fallback.tickets[0]?.policies[1]?.targetStage).toBe('');
   });
   it('identifica errores de Odoo sin propagar cuerpos de respuesta', async () => {
     call.mockRejectedValue(

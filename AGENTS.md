@@ -1057,7 +1057,7 @@ actualiza también `firestore.rules` / `storage.rules`.
   quedan Sin clasificar. Sin evidencia: Liverpool Sin clasificar; otros General.
   Remoto/In-Situ/En sitio se normalizan; ambas modalidades = Mixta; ausencia =
   Sin dato. No inferir visitas realizadas desde solicitudes en comentarios.
-- SLA viene de todas las políticas de Odoo: cualquier failed = Incumplido;
+- SLA global viene de todas las políticas de Odoo: cualquier failed = Incumplido;
   todas reached = Cumplido; reached/ongoing = En curso. Sin políticas o sin
   acceso = Sin dato. Cancelados = No aplica. Denominador: únicamente tickets
   Cumplido/Incumplido no cancelados. Mostrar también resultado por política.
@@ -1096,3 +1096,16 @@ actualiza también `firestore.rules` / `storage.rules`.
   fallo bloquea el despliegue completo; cero tickets y SLA opcional ausente no
   son fallo. Log solo de conteos/motivo controlado. No sustituye prueba del
   login y de la callable desplegada.
+
+- Incidencias Odoo destaca el SLA de resolución y mantiene primera respuesta y
+  global como indicadores independientes. Cada tipo usa sus políticas: nombre
+  explícito (primera respuesta / first response / first reply; resolución / cierre)
+  o etapa objetivo reconocida (Resuelto/Cerrado/Solucionado, En progreso; equivalentes
+  ingleses). Nombres ambiguos y etapas desconocidas no se asignan. Sin política
+  identificada = Sin dato, nunca inferir cumplimiento desde horas o SLA global.
+  Cumplidos / (Cumplidos + Incumplidos) por tipo, excluyendo cancelados, en curso y
+  sin dato; una primera respuesta tardía no penaliza resolución. La lectura opcional
+  de helpdesk.sla aporta stage_id sin cambiar permisos; si falla conserva nombres
+  y avisa. Mantiene resultados actuales de Odoo, incluidos vencidos abiertos y
+  reaperturas, y respeta sus calendarios/pausas. KPI, gráficas, detalle, filtros y
+  Excel muestran ambos tipos y denominadores; global conserva la regla anterior.

@@ -54,3 +54,95 @@ describe('indicadores Odoo', () => {
     expect(mexicoMonth(new Date('2026-10-01T03:00:00Z'))).toBe('2026-09');
   });
 });
+
+describe('SLA independientes', () => {
+  const policies = [
+    { name: 'Primera respuesta', status: 'failed', deadline: null },
+    { name: 'Política de cierre', status: 'reached', deadline: null },
+  ];
+  it('una respuesta tardía no penaliza resolución, incluso al reabrir', () => {
+    const value = summarizeIncidents([
+      { ...ticket, sla: 'Incumplido', policies },
+    ]);
+    expect(value.resolutionSla).toMatchObject({
+      compliance: 100,
+      passed: 1,
+      failed: 0,
+      evaluated: 1,
+    });
+    expect(value.responseSla).toMatchObject({ compliance: 0, failed: 1 });
+    expect(value.compliance).toBe(0);
+  });
+  it('cada tipo tiene su denominador y cuenta un ticket con varias políticas una vez', () => {
+    const value = summarizeIncidents([
+      { ...ticket, policies: [...policies, policies[1]!] },
+      {
+        ...ticket,
+        policies: [{ name: 'Cierre', status: 'failed', deadline: null }],
+      },
+      {
+        ...ticket,
+        policies: [{ name: 'Cierre', status: 'ongoing', deadline: null }],
+      },
+      {
+        ...ticket,
+        policies: [{ name: 'Cierre', status: 'unexpected', deadline: null }],
+      },
+      { ...ticket, cancelled: true, policies },
+      ticket,
+    ]);
+    expect(value.resolutionSla).toMatchObject({
+      compliance: 50,
+      evaluated: 2,
+      ongoing: 1,
+      missing: 2,
+    });
+    expect(value.responseSla.evaluated).toBe(1);
+  });
+  it('usa etapas objetivo reconocidas sin inventar políticas para nombres ambiguos', () => {
+    const value = summarizeIncidents([
+      {
+        ...ticket,
+        policies: [
+          {
+            name: '48 horas',
+            targetStage: 'Resuelto',
+            status: 'reached',
+            deadline: null,
+          },
+          {
+            name: '6 horas',
+            targetStage: 'En progreso',
+            status: 'failed',
+            deadline: null,
+          },
+          {
+            name: 'Primera respuesta y cierre',
+            targetStage: 'Resuelto',
+            status: 'failed',
+            deadline: null,
+          },
+        ],
+      },
+    ]);
+    expect(value.resolutionSla.compliance).toBe(100);
+    expect(value.responseSla.compliance).toBe(0);
+    const unknown = summarizeIncidents([
+      {
+        ...ticket,
+        sla: 'Cumplido',
+        resolutionHours: 1,
+        policies: [
+          {
+            name: 'Servicio',
+            targetStage: 'Revisión',
+            status: 'reached',
+            deadline: null,
+          },
+        ],
+      },
+    ]);
+    expect(unknown.resolutionSla.compliance).toBeNull();
+    expect(unknown.responseSla.compliance).toBeNull();
+  });
+});
