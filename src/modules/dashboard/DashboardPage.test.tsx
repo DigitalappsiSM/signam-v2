@@ -11,9 +11,17 @@ import type { AdmiraScreen } from '@/domain';
 import { listCampaigns } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
 import { listOperationalTracking } from '@/services/campaignOperationalTracking';
+import { listStoreDirectory } from '@/services/storeDirectory';
+import { getControlCenterSnapshot } from '@/services/controlCenter';
 
 vi.mock('@/services/campaigns', () => ({ listCampaigns: vi.fn() }));
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
+vi.mock('@/services/storeDirectory', () => ({
+  listStoreDirectory: vi.fn(),
+}));
+vi.mock('@/services/controlCenter', () => ({
+  getControlCenterSnapshot: vi.fn(),
+}));
 vi.mock('@/services/campaignOperationalTracking', async () => {
   const actual = await vi.importActual<
     typeof import('@/services/campaignOperationalTracking')
@@ -46,6 +54,14 @@ beforeEach(() => {
   vi.mocked(listCampaigns).mockResolvedValue([VIEJA]);
   vi.mocked(listScreens).mockResolvedValue([]);
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
+  vi.mocked(listStoreDirectory).mockResolvedValue([]);
+  vi.mocked(getControlCenterSnapshot).mockResolvedValue({
+    generatedAt: '2026-10-01T00:00:00Z',
+    tickets: [],
+    cameras: [],
+    camerasLatestDate: null,
+    warnings: [],
+  });
 });
 
 // --- Utilidades para la sección de carga (fechas relativas a hoy) ------------
@@ -129,11 +145,12 @@ function renderDash(route = '/') {
   );
 }
 
-// El Panel reorganiza a Liverpool en pestañas (Hoy/Seguimiento/Carga); esto
-// cambia a la pestaña indicada antes de buscar su contenido.
+// El Centro de Control reúne todo en una sola vista (sin pestañas): esto
+// espera a que la sección indicada esté presente antes de buscar su contenido.
 async function goTo(view: 'Seguimiento' | 'Carga') {
-  const tab = await screen.findByRole('tab', { name: view });
-  await userEvent.click(tab);
+  await screen.findByRole('heading', {
+    name: view === 'Seguimiento' ? /Atención operativa/i : /Carga por tienda/i,
+  });
 }
 
 // Periodo que intersecta la vigencia de VIEJA (campaña de 2020). El periodo por
@@ -165,42 +182,25 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveAttribute('href', '/importar');
   });
 
-  it('separa Hoy, Seguimiento y Carga en pestañas independientes', async () => {
+  it('reúne mapa, semáforo, prioridades, estados y carga en una sola vista', async () => {
     renderDash(VIEJA_ROUTE);
-
-    // Hoy (por defecto): salud + atención inmediata + carga diaria. Se busca
-    // la sección (no el heading): la etiqueta de salud operativa también puede
-    // decir "Atención inmediata".
     await screen.findByRole('region', { name: 'Atención inmediata' });
     expect(
-      screen.getByRole('heading', { name: /Carga diaria/i }),
+      screen.getByRole('region', { name: 'Centro de Control' }),
     ).toBeInTheDocument();
+    for (const name of [
+      /Semáforo operativo/i,
+      /Carga diaria/i,
+      /Atención operativa/i,
+      /Estados de campaña/i,
+      /Carga por tienda/i,
+    ]) {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    }
+    // El selector de retailer se conserva; las pestañas Hoy/Seguimiento/Carga no.
+    expect(screen.getByRole('tab', { name: 'Liverpool' })).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: /Atención operativa/i }),
-    ).not.toBeInTheDocument();
-
-    // Seguimiento: atención operativa + estados de campaña.
-    await goTo('Seguimiento');
-    expect(
-      await screen.findByRole('heading', { name: /Atención operativa/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: /Estados de campaña/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: /Carga diaria/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryAllByRole('heading', { name: /Atención inmediata/i }),
-    ).toHaveLength(0);
-
-    // Carga: detalle de ocupación (sin datos de colocación para VIEJA).
-    await goTo('Carga');
-    expect(
-      await screen.findByRole('heading', { name: /Carga por tienda/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: /Atención operativa/i }),
+      screen.queryByRole('tab', { name: 'Seguimiento' }),
     ).not.toBeInTheDocument();
   });
 
@@ -251,14 +251,19 @@ describe('DashboardPage — resumen operativo', () => {
     );
   });
 
-  it('siempre muestra las tarjetas de módulos', async () => {
-    render(
-      <MemoryRouter>
-        <DashboardPage />
-      </MemoryRouter>,
-    );
+  it('el Centro de Control sigue en pie si Odoo y el directorio fallan', async () => {
+    vi.mocked(listStoreDirectory).mockRejectedValue(new Error('x'));
+    vi.mocked(getControlCenterSnapshot).mockRejectedValue(new Error('x'));
+    renderDash(VIEJA_ROUTE);
+    const cc = await screen.findByRole('region', { name: 'Centro de Control' });
     expect(
-      await screen.findByRole('heading', { name: /Módulos/i }),
+      within(cc).getByRole('button', { name: /Campañas al aire/i }),
+    ).toBeInTheDocument();
+    expect(
+      await within(cc).findByText(/No se pudo leer el directorio de tiendas/i),
+    ).toBeInTheDocument();
+    expect(
+      within(cc).getByText(/No se pudieron leer incidencias ni audiencias/i),
     ).toBeInTheDocument();
   });
 
@@ -283,7 +288,6 @@ describe('DashboardPage — resumen operativo', () => {
       >[number],
     ]);
     renderDash(VIEJA_ROUTE);
-    await screen.findByRole('heading', { name: /Módulos/i });
     await goTo('Seguimiento');
     // Ya no hay enlaces a VIEJA en el resumen (alertas/terminadas con pendientes).
     const attention = await screen.findByRole('region', {
@@ -323,7 +327,6 @@ describe('DashboardPage — resumen operativo', () => {
       >[number],
     ]);
     renderDash(VIEJA_ROUTE);
-    await screen.findByRole('heading', { name: /Módulos/i });
     await goTo('Seguimiento');
     const attention = await screen.findByRole('region', {
       name: /Atención operativa/i,

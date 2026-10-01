@@ -101,8 +101,8 @@ const ODOO_API_KEY = defineSecret('ODOO_API_KEY');
 const QUIVIDI_BASE_URL = 'https://vidicenter.quividi.com/api/v1';
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 const CAMERA_HEALTH_COLLECTION = 'quividiCameraHealthDaily';
-const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
-const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
+export const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
+export const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
 const SNAPSHOT_SCHEMA_VERSION = 4;
 
 interface CampaignReport {

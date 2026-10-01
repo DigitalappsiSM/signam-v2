@@ -67,7 +67,7 @@ src/
 │   ├── digital-operations/ # seguimiento Digital externo + catálogo de retailer/soporte
 │   ├── digital-dashboard/  # panel de métricas Digital (aislado)
 │   ├── exports/          # CSV/ZIP + reporte PDF + PPT + informe Quividi (PDF comercial + Excel + auditoría)
-│   ├── dashboard/        # panel: resumen operativo + carga por tienda/soporte
+│   ├── dashboard/        # Centro de Control: mapa (campañas, incidencias, audiencias) + semáforo + carga
 │   └── audit/            # historial (placeholder)
 ├── services/             # firebase, auth, screens, campaigns, env, ekon*, digital*
 ├── lib/                  # utilidades puras reutilizables (p. ej. tableSort)

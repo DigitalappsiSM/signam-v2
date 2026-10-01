@@ -174,6 +174,10 @@ logic. The load-bearing ones:
   never writes `screens`. The Admira catalog only reads it by `Numero de Tienda`. CP of another state is reported and
   kept, never corrected; manual coordinates are not overwritten by imports; stores are never deleted. See `AGENTS.md`
   (**Directorio de tiendas**).
+- **Control Center** (Panel `/`): single view (no tabs) with a Mexico map — campaigns (brands blue / Liverpool
+  institutional pink), open Odoo tickets + Quividi camera alerts, audiences — above the unchanged tracking traffic
+  light, priorities, statuses and load. Tickets/cameras come from the read-only `controlCenter-overview` callable,
+  open to all four roles including `commercial`. See `AGENTS.md` (**Centro de Control**).
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete

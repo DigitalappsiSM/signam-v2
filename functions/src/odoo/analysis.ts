@@ -47,11 +47,11 @@ export function classify(
   if (camera) return 'Cámaras';
   const explicit = normalized(labeled(description, 'Tipo de ticket'));
   const support =
-    keys.some((tag) => /^(tipo:\s*soporte|soporte)$/.test(tag)) ||
+    keys.some((tag) => /^(tipo:\s*soporte|\[?soporte\]?)$/.test(tag)) ||
     explicit === 'soporte' ||
     /\[SOPORTE\]/i.test(title);
   const content =
-    keys.some((tag) => /^(tipo:\s*contenido|contenido)$/.test(tag)) ||
+    keys.some((tag) => /^(tipo:\s*contenido|\[?contenido\]?)$/.test(tag)) ||
     explicit === 'contenido' ||
     /\[CONTENIDO\]/i.test(title);
   if (support && content) return 'Sin clasificar';
