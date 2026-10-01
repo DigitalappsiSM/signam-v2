@@ -713,6 +713,9 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   }, [rows]);
 
   const [selection, setSelection] = useState<Selection | null>(null);
+  // Callbacks estables: la ventana flotante reenfoca su botón de cerrar cuando
+  // cambia `onClose`, y eso robaría el foco al buscador en cada recálculo.
+  const closeSelection = useCallback(() => setSelection(null), []);
   const detail = useMemo(
     () => (selection ? selectionToDetail(selection) : null),
     [selection],
@@ -776,6 +779,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     },
   ];
   const [kpiSelection, setKpiSelection] = useState<KpiId | null>(null);
+  const closeKpi = useCallback(() => setKpiSelection(null), []);
   const selectedKpi = kpis.find((k) => k.id === kpiSelection) ?? null;
   const periodLabel = rangeLabel(range);
 
@@ -906,7 +910,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
                   tone={selectedKpi.tone}
                   periodLabel={periodLabel}
                   rows={selectedKpi.rows}
-                  onClose={() => setKpiSelection(null)}
+                  onClose={closeKpi}
                 />
               )}
 
@@ -1327,7 +1331,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
           stats={detail.stats}
           campaigns={detail.campaigns}
           rowByKey={rowByKey}
-          onClose={() => setSelection(null)}
+          onClose={closeSelection}
         />
       )}
     </div>
