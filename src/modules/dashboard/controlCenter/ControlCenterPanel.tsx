@@ -943,7 +943,8 @@ export function ControlCenterPanel({
             errors.length > 0 ||
             (snapshot?.warnings.length ?? 0) > 0 ||
             directory.length === 0 ||
-            model.unlocated.length > 0) && (
+            model.unlocated.length > 0 ||
+            model.unsupported.length > 0) && (
             <section
               className="cc-panel cc-glass cc-notes"
               aria-label="Avisos del mapa"
@@ -968,6 +969,14 @@ export function ControlCenterPanel({
                   {model.unlocated.length} tiendas con datos no están en el
                   directorio: {model.unlocated.slice(0, 8).join(', ')}
                   {model.unlocated.length > 8 ? '…' : ''}
+                </p>
+              )}
+              {model.unsupported.length > 0 && (
+                <p>
+                  {model.unsupported.length} tiendas con datos no tienen
+                  soportes activos en el catálogo y quedan fuera del mapa:{' '}
+                  {model.unsupported.slice(0, 8).join(', ')}
+                  {model.unsupported.length > 8 ? '…' : ''}
                 </p>
               )}
             </section>

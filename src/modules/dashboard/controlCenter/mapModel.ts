@@ -26,7 +26,9 @@ import type { StoreOccupancy } from '../occupancyModel';
  *
  * Una tienda sin coordenadas cuenta en su estado y en los listados, pero no se
  * dibuja como punto (nunca se inventa una ubicación). Una tienda con datos que
- * no está en ese universo se reporta en `unlocated` (nunca se pierde en silencio).
+ * no está en ese universo se reporta (nunca se pierde en silencio): en
+ * `unlocated` si no está en el directorio y en `unsupported` si está en el
+ * directorio pero sin soportes activos en catálogo.
  */
 
 export type IncidentKind = 'support' | 'content' | 'camera' | 'other';
@@ -114,11 +116,13 @@ export interface ControlCenterModel {
   campaignTotals: CampaignTotals;
   states: StateAggregate[];
   incidents: MapIncident[];
-  /**
-   * Números de tienda con datos que no están en el universo del mapa (fuera
-   * del directorio o sin soportes en el catálogo).
-   */
+  /** Números de tienda con datos que no están en el directorio. */
   unlocated: string[];
+  /**
+   * Números de tienda con datos que están en el directorio pero no tienen
+   * soportes activos en catálogo (fuera del mapa por eso, no por el directorio).
+   */
+  unsupported: string[];
   /** Tiendas activas con soportes que no tienen coordenadas. */
   withoutCoordinates: number;
 }
@@ -235,10 +239,13 @@ export function buildControlCenterModel(
 ): ControlCenterModel {
   const byNumber = new Map<string, MapStore>();
   const unlocated = new Set<string>();
+  const unsupported = new Set<string>();
+  const inDirectory = new Set<string>();
 
   for (const e of input.directory) {
-    if (!input.supportedStores.has(normalizeStoreNumber(e.storeNumber)))
-      continue;
+    const n = normalizeStoreNumber(e.storeNumber);
+    inDirectory.add(n);
+    if (!input.supportedStores.has(n)) continue;
     byNumber.set(e.storeNumber, {
       storeNumber: e.storeNumber,
       name: e.name,
@@ -259,7 +266,7 @@ export function buildControlCenterModel(
     const n = normalizeStoreNumber(raw ?? '');
     if (n === '') return null;
     const s = byNumber.get(n);
-    if (!s) unlocated.add(n);
+    if (!s) (inDirectory.has(n) ? unsupported : unlocated).add(n);
     return s ?? null;
   };
 
@@ -373,6 +380,7 @@ export function buildControlCenterModel(
     states: [...states.values()],
     incidents: incidents.sort(compareIncidents),
     unlocated: [...unlocated].sort(compareStoreNumbers),
+    unsupported: [...unsupported].sort(compareStoreNumbers),
     withoutCoordinates: stores.filter((s) => s.active && s.coord === null)
       .length,
   };

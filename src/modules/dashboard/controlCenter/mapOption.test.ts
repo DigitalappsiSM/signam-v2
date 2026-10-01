@@ -63,6 +63,7 @@ const MODEL: ControlCenterModel = {
   ],
   incidents: [],
   unlocated: [],
+  unsupported: [],
   withoutCoordinates: 1,
 };
 

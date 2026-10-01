@@ -233,8 +233,10 @@ describe('modelo del Centro de Control', () => {
     });
     expect(m.stores.map((s) => s.storeNumber)).toEqual(['901']);
     expect(m.states[0]?.stores).toBe(1);
-    // Datos de una tienda sin soportes nunca se pierden en silencio.
-    expect(m.unlocated).toEqual(['904']);
+    // Datos de una tienda sin soportes nunca se pierden en silencio, y no se
+    // confunden con una tienda fuera del directorio.
+    expect(m.unsupported).toEqual(['904']);
+    expect(m.unlocated).toEqual([]);
   });
 
   it('sin Odoo ni cámaras sigue armando campañas', () => {
