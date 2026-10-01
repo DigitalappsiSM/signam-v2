@@ -25,7 +25,16 @@ const ticket: OdooIncident = {
 describe('Excel Odoo', () => {
   it('conserva faltantes, filtros y texto literal sin fórmulas', async () => {
     const workbook = await buildOdooWorkbook(
-      [ticket],
+      [
+        {
+          ...ticket,
+          sla: 'Incumplido',
+          policies: [
+            { name: 'Primera respuesta', status: 'failed', deadline: null },
+            { name: 'Cierre', status: 'reached', deadline: null },
+          ],
+        },
+      ],
       '2026-09',
       '2026-09-30T22:00:00Z',
       { Retailer: 'Liverpool' },
@@ -38,6 +47,22 @@ describe('Excel Odoo', () => {
     expect(workbook.getWorksheet('Tiendas técnicas')?.rowCount).toBe(1);
     expect(workbook.getWorksheet('Resumen')?.getColumn(2).values).toContain(
       'Liverpool',
+    );
+    expect(workbook.getWorksheet('Tickets')?.getCell('Q2').value).toBe(
+      'Cumplido',
+    );
+    expect(workbook.getWorksheet('Tickets')?.getCell('R2').value).toBe(
+      'Incumplido',
+    );
+    const rows = workbook.getWorksheet('Resumen')!;
+    const resolution = rows
+      .getRows(2, rows.rowCount - 1)!
+      .find(
+        (row) => row.getCell(1).value === 'SLA resolución cumplimiento (%)',
+      );
+    expect(resolution?.getCell(2).value).toBe(100);
+    expect(workbook.getWorksheet('Retailers')?.getRow(1).values).toContain(
+      'SLA resolución (%)',
     );
     const buffer = await workbook.xlsx.writeBuffer();
     expect(buffer.byteLength).toBeGreaterThan(1000);

@@ -3,6 +3,7 @@ import { downloadOdooWorkbook } from './odooIncidentExport';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import {
+  incidentSla,
   mexicoMonth,
   summarizeIncidents,
   type OdooOverview,
@@ -30,17 +31,19 @@ function Filter({
   value,
   options,
   onChange,
+  includeAll = true,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  includeAll?: boolean;
 }) {
   return (
     <label>
       {label}
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Todos</option>
+        {includeAll && <option value="">Todos</option>}
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}
@@ -63,6 +66,7 @@ export function OdooIncidentsPage() {
   const [requester, setRequester] = useState('');
   const [assignee, setAssignee] = useState('');
   const [sla, setSla] = useState('');
+  const [slaKind, setSlaKind] = useState('Resolución');
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState<'overview' | 'performance' | 'tickets'>(
     'overview',
@@ -92,7 +96,17 @@ export function OdooIncidentsPage() {
   }, [month, refresh]);
   useEffect(() => {
     setPage(1);
-  }, [month, retailer, store, category, modality, requester, assignee, sla]);
+  }, [
+    month,
+    retailer,
+    store,
+    category,
+    modality,
+    requester,
+    assignee,
+    sla,
+    slaKind,
+  ]);
   const tickets = useMemo(() => data?.tickets ?? [], [data]);
   const visible = useMemo(
     () =>
@@ -104,9 +118,25 @@ export function OdooIncidentsPage() {
           (!modality || ticket.modality === modality) &&
           (!requester || ticket.requester === requester) &&
           (!assignee || ticket.assignee === assignee) &&
-          (!sla || ticket.sla === sla),
+          (!sla ||
+            (slaKind === 'Global'
+              ? ticket.sla
+              : incidentSla(
+                  ticket,
+                  slaKind === 'Resolución' ? 'resolution' : 'response',
+                )) === sla),
       ),
-    [tickets, retailer, store, category, modality, requester, assignee, sla],
+    [
+      tickets,
+      retailer,
+      store,
+      category,
+      modality,
+      requester,
+      assignee,
+      sla,
+      slaKind,
+    ],
   );
   const summary = summarizeIncidents(visible);
   const options = (field: 'store' | 'requester' | 'assignee') =>
@@ -164,7 +194,8 @@ export function OdooIncidentsPage() {
                   Atención: modality,
                   Solicitante: requester,
                   Responsable: assignee,
-                  SLA: sla,
+                  'Tipo de SLA': slaKind,
+                  'Resultado SLA': sla,
                 });
               } catch {
                 setExportError(
@@ -205,6 +236,7 @@ export function OdooIncidentsPage() {
               setRequester('');
               setAssignee('');
               setSla('');
+              setSlaKind('Resolución');
             }}
           >
             Limpiar filtros
@@ -269,7 +301,14 @@ export function OdooIncidentsPage() {
             onChange={setAssignee}
           />
           <Filter
-            label="SLA"
+            includeAll={false}
+            label="Tipo de SLA"
+            value={slaKind}
+            options={['Resolución', 'Primera respuesta', 'Global']}
+            onChange={setSlaKind}
+          />
+          <Filter
+            label="Resultado SLA"
             value={sla}
             options={[
               'Cumplido',
@@ -314,16 +353,23 @@ export function OdooIncidentsPage() {
       )}
       {!data && (
         <section
-          className="odoo-kpis odoo-kpis-pending"
+          className="odoo-kpis odoo-sla-kpis odoo-kpis-pending"
           aria-label="Indicadores pendientes"
         >
           {[
             'Tickets del periodo',
-            'Cumplimiento SLA',
+            'SLA de resolución',
+            'SLA de primera respuesta',
+            'SLA global',
             'Primera respuesta',
             'Tiempo de resolución',
           ].map((label) => (
-            <article key={label}>
+            <article
+              key={label}
+              className={
+                label === 'SLA de resolución' ? 'odoo-primary-sla' : undefined
+              }
+            >
               <span>{label}</span>
               <strong>—</strong>
               <small>
@@ -355,7 +401,7 @@ export function OdooIncidentsPage() {
             </p>
           )}
           <section
-            className="odoo-kpis"
+            className="odoo-kpis odoo-sla-kpis"
             aria-label="Indicadores de incidencias"
           >
             {[
@@ -364,8 +410,20 @@ export function OdooIncidentsPage() {
                 String(summary.total),
                 `${summary.open} abiertos · ${summary.closed} resueltos`,
               ],
+              ...(
+                [
+                  ['SLA de resolución', summary.resolutionSla],
+                  ['SLA de primera respuesta', summary.responseSla],
+                ] as const
+              ).map(([label, stats]) => [
+                label,
+                stats.compliance === null
+                  ? 'Sin dato'
+                  : `${stats.compliance.toFixed(1)}%`,
+                `${stats.passed} cumplidos / ${stats.evaluated} evaluados · ${stats.failed} incumplidos · ${stats.ongoing} en curso · ${stats.missing} sin dato`,
+              ]),
               [
-                'Cumplimiento SLA',
+                'SLA global',
                 summary.compliance === null
                   ? 'Sin dato'
                   : `${summary.compliance.toFixed(1)}%`,
@@ -382,13 +440,18 @@ export function OdooIncidentsPage() {
                 `${summary.resolution.count} resueltos con dato`,
               ],
             ].map(([label, value, detail]) => (
-              <article key={label}>
+              <article
+                key={label}
+                className={
+                  label === 'SLA de resolución' ? 'odoo-primary-sla' : undefined
+                }
+              >
                 <div className="odoo-kpi-icon">
                   <Icon
                     name={
                       label === 'Tickets'
                         ? 'activity'
-                        : label === 'Cumplimiento SLA'
+                        : label?.startsWith('SLA')
                           ? 'shield'
                           : 'clock'
                     }
@@ -403,10 +466,13 @@ export function OdooIncidentsPage() {
           <details className="odoo-method">
             <summary>Cómo se calculan estos indicadores</summary>
             <p>
-              SLA según las políticas y resultados registrados en Odoo; las
-              horas son las reportadas por Odoo. Cancelados, SLA en curso y
-              valores sin dato no entran al porcentaje. No se recalculan
-              calendarios ni pausas.
+              Resolución y primera respuesta se evalúan por separado según sus
+              políticas de Odoo. Una respuesta tardía no penaliza la resolución.
+              SLA global conserva todas las políticas. El porcentaje es
+              cumplidos / (cumplidos + incumplidos) de cada tipo; las horas son
+              las reportadas por Odoo. Cancelados, SLA en curso y valores sin
+              dato no entran al porcentaje. No se recalculan calendarios ni
+              pausas.
             </p>
           </details>
           <nav className="odoo-tabs" aria-label="Vistas del análisis">
@@ -449,7 +515,7 @@ export function OdooIncidentsPage() {
                         <div className="odoo-breakdown" key={value}>
                           <span>{value}</span>
                           <strong>{group.length}</strong>
-                          <span>{stats.failed} SLA incumplidos</span>
+                          <span>{stats.failed} SLA global incumplidos</span>
                         </div>
                       );
                     })}
@@ -470,7 +536,7 @@ export function OdooIncidentsPage() {
                             {value.retailer} · {value.store}
                           </span>
                           <strong>{value.tickets}</strong>
-                          <span>{value.failed} SLA incumplidos</span>
+                          <span>{value.failed} SLA global incumplidos</span>
                         </div>
                       ))
                     ) : (
@@ -500,7 +566,9 @@ export function OdooIncidentsPage() {
                         'Categoría / atención',
                         'Solicitante / responsable',
                         'Estado',
-                        'SLA',
+                        'SLA de resolución',
+                        'SLA de primera respuesta',
+                        'SLA global',
                         'Respuesta',
                         'Resolución',
                       ].map((label) => (
@@ -548,6 +616,18 @@ export function OdooIncidentsPage() {
                             <small>{ticket.assignee}</small>
                           </td>
                           <td>{ticket.stage}</td>
+                          {(['resolution', 'response'] as const).map((kind) => {
+                            const state = incidentSla(ticket, kind);
+                            return (
+                              <td key={kind}>
+                                <span
+                                  className={`odoo-sla-badge ${state === 'Incumplido' ? 'is-failed' : state === 'Cumplido' ? 'is-passed' : ''}`}
+                                >
+                                  {state}
+                                </span>
+                              </td>
+                            );
+                          })}
                           <td>
                             <span
                               className={`odoo-sla-badge ${ticket.sla === 'Incumplido' ? 'is-failed' : ticket.sla === 'Cumplido' ? 'is-passed' : ''}`}

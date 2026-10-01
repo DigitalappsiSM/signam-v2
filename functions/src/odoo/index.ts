@@ -173,6 +173,39 @@ export const overview = onCall(
           );
         }
       }
+      // Optional policy metadata: target stage helps distinguish response from closure.
+      const policyStages = new Map<number, string>();
+      const policyIds = [
+        ...new Set(
+          statuses.flatMap((status) =>
+            Array.isArray(status.sla_id) ? [Number(status.sla_id[0])] : [],
+          ),
+        ),
+      ];
+      if (policyIds.length) {
+        try {
+          const fields = await schema(key, 'helpdesk.sla');
+          if (fields.stage_id) {
+            const policies = await rows(
+              key,
+              'helpdesk.sla',
+              [['id', 'in', policyIds]],
+              ['id', 'stage_id'],
+            );
+            for (const policy of policies)
+              policyStages.set(Number(policy.id), relation(policy.stage_id));
+          }
+        } catch (error) {
+          if (
+            error instanceof HttpsError &&
+            error.code === 'resource-exhausted'
+          )
+            throw error;
+          warnings.push(
+            'No fue posible leer las etapas objetivo de SLA. Las políticas sin nombre explícito se muestran como Sin dato en respuesta y resolución.',
+          );
+        }
+      }
       const byTicket = new Map<number, Row[]>();
       for (const status of statuses) {
         if (!Array.isArray(status.ticket_id)) continue;
@@ -230,6 +263,9 @@ export const overview = onCall(
             sla: cancelled ? 'No aplica' : slaState(result),
             policies: result.map((status) => ({
               name: relation(status.sla_id),
+              targetStage: Array.isArray(status.sla_id)
+                ? (policyStages.get(Number(status.sla_id[0])) ?? '')
+                : '',
               status: text(status.status),
               deadline: text(status.deadline) || null,
             })),

@@ -211,3 +211,13 @@ If a decision that could change the data model or CSV output is missing, **ask b
 - `README.md` — feature overview, scripts, env vars, Firebase/roles, emulator ports.
 - `docs/SETUP.md` — Firebase project setup, env, emulators, roles.
 - `src/modules/low-occupancy/README.md` — low-occupancy (Ratio 1 / Ratio 3) details.
+
+## Odoo incident SLA
+
+Resolution is the primary SLA metric. First response and the existing global
+result remain separate. Each type uses explicitly named policies or recognized
+Odoo target stages; ambiguous policies are not assigned. Missing data stays
+missing. Percentages use passed / (passed + failed) per type, excluding cancelled,
+ongoing and missing results. Late first response does not penalize resolution.
+Native Odoo results preserve calendars, access-permission pauses and reopened
+state history. See AGENTS.md and docs/ODOO_INCIDENTS.md.

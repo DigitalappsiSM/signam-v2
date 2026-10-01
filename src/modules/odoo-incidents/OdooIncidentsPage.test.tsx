@@ -33,7 +33,10 @@ vi.mock('@/services/odooIncidents', async (importOriginal) => ({
         sla: 'Incumplido',
         firstResponseHours: 2,
         resolutionHours: null,
-        policies: [],
+        policies: [
+          { name: 'Primera respuesta', status: 'failed', deadline: null },
+          { name: 'Política de cierre', status: 'reached', deadline: null },
+        ],
         url: 'https://in-storemedia.odoo.com/',
       },
       {
@@ -96,6 +99,38 @@ describe('dashboard incidencias', () => {
       await screen.findByRole('button', { name: /Resumen ejecutivo/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+  it('muestra resolución cumplida y respuesta incumplida con filtros independientes', async () => {
+    render(<OdooIncidentsPage />);
+    const region = await screen.findByRole('region', {
+      name: 'Indicadores de incidencias',
+    });
+    expect(region).toHaveTextContent('SLA de resolución100.0%');
+    expect(region).toHaveTextContent('SLA de primera respuesta0.0%');
+    expect(
+      screen.getByRole('heading', { name: 'SLA global por categoría' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'SLA de resolución por categoría' }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: /Detalle de tickets/ }),
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText('Resultado SLA'),
+      'Cumplido',
+    );
+    expect(screen.getByText('#1 · Incidencia A')).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText('Tipo de SLA'),
+      'Primera respuesta',
+    );
+    expect(screen.queryByText('#1 · Incidencia A')).not.toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText('Resultado SLA'),
+      'Incumplido',
+    );
+    expect(screen.getByText('#1 · Incidencia A')).toBeInTheDocument();
   });
   it('no da acceso al perfil comercial', () => {
     expect(can('commercial', 'odooIncidents.read')).toBe(false);
