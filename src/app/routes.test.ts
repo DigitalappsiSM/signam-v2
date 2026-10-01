@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_ROUTES, canAccessRoute, routeByPath } from './routes';
+import {
+  NAV_ROUTES,
+  canAccessRoute,
+  routeByPath,
+  groupedNavRoutes,
+} from './routes';
 
 describe('rutas del perfil Comercial', () => {
+  it('sitúa Odoo al final de Operación para todos los roles autorizados', () => {
+    for (const role of ['admin', 'operator', 'viewer'] as const) {
+      const operation = groupedNavRoutes((route) =>
+        canAccessRoute(role, route),
+      ).find((group) => group.group === 'Operación');
+      expect(operation?.routes[operation.routes.length - 1]?.path).toBe(
+        '/analisis-incidencias-odoo',
+      );
+    }
+  });
   it('limita la navegación a Panel, Campañas y Seguimiento operativo', () => {
     const visible = NAV_ROUTES.filter((route) =>
       canAccessRoute('commercial', route),

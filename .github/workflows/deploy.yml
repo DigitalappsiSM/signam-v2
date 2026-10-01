@@ -37,6 +37,11 @@ jobs:
           npm --prefix functions ci
           npm --prefix functions run build
 
+      - name: Validar lectura real de Odoo antes de publicar
+        run: node scripts/check-odoo-connection.mjs
+        env:
+          ODOO_API_KEY: ${{ secrets.ODOO_API_KEY }}
+
       - name: Build
         run: npm run build
         env:

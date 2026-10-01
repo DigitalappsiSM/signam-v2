@@ -164,3 +164,442 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Identidad del módulo, con controles completos incluso sin datos. */
+.odoo-analysis {
+  width: 100%;
+  padding-bottom: 2rem;
+}
+.odoo-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 2rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  background: linear-gradient(
+    115deg,
+    var(--color-surface) 35%,
+    var(--color-surface-2)
+  );
+  box-shadow: 0 8px 32px rgb(12 35 77 / 4%);
+  position: relative;
+  overflow: hidden;
+}
+.odoo-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--grad-brand);
+}
+.odoo-hero .odoo-eyebrow {
+  color: var(--color-primary);
+  font-weight: 750;
+}
+.odoo-hero h1 {
+  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+  line-height: 1.2;
+  letter-spacing: -0.045em;
+  margin: 0.6rem 0;
+}
+.odoo-hero h1 span {
+  color: var(--color-primary);
+}
+.odoo-hero p {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+.odoo-hero-meta {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin-top: 1.25rem;
+}
+.odoo-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-weight: 650;
+}
+.odoo-connection svg,
+.odoo-section-heading svg,
+.odoo-tabs svg {
+  width: 17px;
+  height: 17px;
+}
+.odoo-connection.is-error {
+  color: var(--color-danger-fg);
+}
+.odoo-connection.is-connected {
+  color: var(--color-primary);
+}
+.odoo-actions .btn {
+  min-height: 42px;
+}
+.odoo-filter-panel {
+  padding: 1.4rem 1.6rem 1.6rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+.odoo-section-heading,
+.odoo-section-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.odoo-section-heading {
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+.odoo-section-heading svg {
+  color: var(--color-primary);
+}
+.odoo-section-heading h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.odoo-reset {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.45rem;
+}
+.odoo-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+  margin: 0;
+}
+.odoo-filters label {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  gap: 0.5rem;
+}
+.odoo-filters select,
+.odoo-filters input {
+  min-height: 44px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background-color: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color-scheme: inherit;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.odoo-filters select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2364758b' stroke-width='1.6' d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 16px;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+.odoo-filters :is(select, input):focus {
+  outline: 0;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+.odoo-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 1.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-surface);
+  margin: 1.25rem 0;
+}
+.odoo-state > div:nth-child(2) {
+  flex: 1;
+  min-width: min(100%, 260px);
+}
+.odoo-state h2 {
+  font-size: 1.15rem;
+  margin: 0.4rem 0;
+}
+.odoo-state p {
+  color: var(--color-text-muted);
+  margin: 0.35rem 0 0.7rem;
+  max-width: 75ch;
+  line-height: 1.6;
+}
+.odoo-state small {
+  color: var(--color-text-muted);
+}
+.odoo-error {
+  border-color: color-mix(
+    in srgb,
+    var(--color-danger-fg) 25%,
+    var(--color-border)
+  );
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--color-danger-fg) 4%, var(--color-surface)),
+    var(--color-surface)
+  );
+}
+.odoo-state-icon {
+  color: var(--color-danger-fg);
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-danger-fg) 9%, transparent);
+}
+.odoo-state-icon svg {
+  width: 26px;
+  height: 26px;
+}
+.odoo-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: odoo-spin 1s linear infinite;
+}
+@keyframes odoo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.odoo-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.odoo-kpis article {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgb(12 35 77 / 3%);
+}
+.odoo-kpis article > span {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 650;
+}
+.odoo-kpis strong {
+  font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+  letter-spacing: -0.05em;
+  line-height: 1.2;
+  margin-top: 0.5rem;
+}
+.odoo-kpis small {
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.odoo-kpi-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  color: var(--color-primary);
+  margin-bottom: 0.4rem;
+}
+.odoo-kpi-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.odoo-kpis-pending article {
+  border-style: dashed;
+  box-shadow: none;
+}
+.odoo-kpis-pending strong {
+  color: var(--color-text-muted);
+}
+.odoo-updated {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  margin: 0.75rem 0;
+}
+.odoo-method {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 1rem 0 1.75rem;
+  line-height: 1.6;
+}
+.odoo-analysis summary {
+  cursor: pointer;
+}
+.odoo-tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  border-radius: 12px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+.odoo-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.odoo-tabs button[aria-current='page'] {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: 0 2px 8px rgb(12 35 77 / 8%);
+}
+.odoo-tabs button > span {
+  border-radius: 5px;
+  background: var(--color-surface-2);
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+}
+.odoo-executive {
+  background: linear-gradient(120deg, #0d2446, #153a70 70%, #1d4ed8);
+  border-radius: 20px;
+  padding: 2rem;
+}
+.odoo-executive h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.035em;
+}
+.odoo-executive-facts {
+  gap: 2rem;
+}
+.odoo-executive-facts p {
+  font-size: 0.8rem;
+  color: #c3d5ee;
+  line-height: 1.6;
+  border-left: 2px solid #4d75ab;
+  padding-left: 1rem;
+}
+.odoo-executive-facts strong {
+  font-size: 1.7rem;
+  color: white;
+}
+.odoo-panel {
+  border-radius: 18px;
+  padding: 1.6rem;
+  min-width: 0;
+}
+.odoo-panel h2 {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+.odoo-panel > p,
+.odoo-panel > details {
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+.odoo-chart-grid {
+  gap: 1.25rem;
+}
+.odoo-panel table {
+  border-collapse: collapse;
+}
+.odoo-panel :is(th, td) {
+  padding: 0.85rem 0.7rem;
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+.odoo-panel thead th {
+  color: var(--color-text-muted);
+  font-weight: 650;
+  background: var(--color-surface-2);
+  white-space: nowrap;
+}
+.odoo-panel tbody tr:hover {
+  background: var(--color-surface-2);
+}
+.odoo-sla-badge {
+  display: inline-block;
+  padding: 0.3rem 0.55rem;
+  border-radius: 7px;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.odoo-sla-badge.is-failed {
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger-fg) 9%, transparent);
+}
+.odoo-sla-badge.is-passed {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+}
+@media (max-width: 1100px) {
+  .odoo-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .odoo-hero {
+    padding: 1.4rem;
+  }
+  .odoo-filter-panel,
+  .odoo-panel {
+    padding: 1.1rem;
+  }
+  .odoo-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+  .odoo-kpis article {
+    padding: 1.1rem;
+  }
+  .odoo-progress-row {
+    grid-template-columns: minmax(100px, 1fr) 1fr 2rem;
+  }
+  .odoo-executive {
+    padding: 1.4rem;
+  }
+}
+@media (max-width: 420px) {
+  .odoo-filters,
+  .odoo-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .odoo-spinner {
+    animation: none;
+  }
+}

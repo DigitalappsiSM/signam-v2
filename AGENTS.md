@@ -985,3 +985,17 @@ actualiza también `firestore.rules` / `storage.rules`.
   Excel con resumen, tickets, políticas, agrupaciones, evolución, calidad y
   metodología: todas las hojas respetan los mismos filtros. Descarga autorizada
   para los mismos roles de lectura; sin almacenamiento ni envío automático.
+- Incidencias Odoo es la última ruta de Operación. Vistas Resumen ejecutivo,
+  Tiempos y equipos y Detalle comparten los filtros y Excel. Filtros con estilo
+  propio y responsive; carga/error conservan estructura y métricas pendientes
+  como guion, sin ceros ficticios. Reintento explícito y diagnóstico controlado.
+- Las lecturas Odoo heredan el idioma de la cuenta de API, sin forzar `es_MX`
+  (la instalación puede tener solo `es_ES`). Periodo México independiente del
+  idioma. Clasificar errores HTTP sin exponer ni registrar cuerpos o claves;
+  solo modelo/método/estado/motivo. La sesión SIGNAM y la credencial de Odoo son
+  diagnósticos separados. Validar en producción después del despliegue.
+- El despliegue comprueba la lectura real Odoo antes de publicar, con el secreto
+  existente y el mes México actual (`scripts/check-odoo-connection.mjs`). Un
+  fallo bloquea el despliegue completo; cero tickets y SLA opcional ausente no
+  son fallo. Log solo de conteos/motivo controlado. No sustituye prueba del
+  login y de la callable desplegada.

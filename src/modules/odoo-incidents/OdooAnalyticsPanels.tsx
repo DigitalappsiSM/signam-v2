@@ -10,10 +10,12 @@ export function OdooAnalyticsPanels({
   tickets,
   month,
   reference,
+  view = 'overview',
 }: {
   tickets: OdooIncident[];
   month: string;
   reference: string;
+  view?: 'overview' | 'performance';
 }) {
   const { theme } = useTheme();
   const model = incidentAnalytics(tickets, month, reference);
@@ -160,170 +162,184 @@ export function OdooAnalyticsPanels({
   ];
   return (
     <>
-      <section className="odoo-executive">
-        <span className="odoo-eyebrow">LECTURA EJECUTIVA</span>
-        <h2>De la incidencia al resultado</h2>
-        <div className="odoo-executive-facts">
-          <p>
-            <strong>{summary.open}</strong> tickets siguen abiertos dentro de la
-            selección.
-          </p>
-          <p>
-            <strong>{summary.failed}</strong> tienen al menos una política SLA
-            incumplida.
-          </p>
-          <p>
-            <strong>{model.retailers[0]?.name ?? 'Sin datos'}</strong> concentra
-            el mayor volumen de tickets de la selección.
-          </p>
-        </div>
-      </section>
-      <section
-        className="odoo-kpis odoo-secondary-kpis"
-        aria-label="Distribución de tiempos"
-      >
-        {[
-          ['Mediana de respuesta', model.responseMedian],
-          ['P90 de respuesta', model.responseP90],
-          ['Mediana de resolución', model.closureMedian],
-          ['P90 de resolución', model.closureP90],
-        ].map(([name, value]) => (
-          <article key={String(name)}>
-            <span>{name}</span>
-            <strong>{metric(typeof value === 'number' ? value : null)}</strong>
-          </article>
-        ))}
-      </section>
-      <p className="text-muted">
-        Mediana: tiempo central. P90: el 90% de los tiempos registrados está por
-        debajo de ese valor. Los datos faltantes se excluyen.
-      </p>
-      <section className="odoo-chart-grid">
-        {panels.map((panel) => (
-          <article className="odoo-panel" key={panel.title}>
-            <h2>{panel.title}</h2>
-            <p className="text-muted">{panel.note}</p>
-            {tickets.length ? (
-              <EChart
-                option={panel.option}
-                height={300}
-                ariaLabel={panel.label}
-              />
-            ) : (
-              <p>No hay datos para graficar.</p>
-            )}
-            <details>
-              <summary>Ver datos de la gráfica</summary>
-              <table>
-                <tbody>
-                  {panel.rows.map(([name, value]) => (
-                    <tr key={name}>
-                      <th scope="row">{name}</th>
-                      <td>{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          </article>
-        ))}
-      </section>
-      <section className="odoo-chart-grid">
-        <article className="odoo-panel">
-          <h2>Antigüedad de tickets abiertos</h2>
-          <p className="text-muted">
-            Horas naturales desde su creación, al momento de la consulta. No
-            equivale al reloj de SLA ni resta pausas; una reapertura conserva la
-            fecha de alta.
-          </p>
-          {model.ages.map((row) => (
-            <div className="odoo-progress-row" key={row.name}>
-              <span>{row.name}</span>
-              <progress
-                max={Math.max(1, summary.open)}
-                value={row.count}
-                aria-label={row.name}
-              />
-              <strong>{row.count}</strong>
-            </div>
-          ))}
-        </article>
-        <article className="odoo-panel">
-          <h2>Calidad de la información</h2>
-          <p className="text-muted">
-            Campos que limitan el análisis. Un ticket puede aparecer en varios
-            indicadores.
-          </p>
-          {model.quality.map((row) => (
-            <div className="odoo-progress-row" key={row.name}>
-              <span>{row.name}</span>
-              <progress
-                max={Math.max(1, tickets.length)}
-                value={row.count}
-                aria-label={row.name}
-              />
-              <strong>{row.count}</strong>
-            </div>
-          ))}
-        </article>
-      </section>
-      <section className="odoo-chart-grid">
-        {[
-          { title: 'Atención por responsable', rows: model.assignees },
-          { title: 'Solicitantes con más tickets', rows: model.requesters },
-        ].map((group) => (
-          <article className="odoo-panel" key={group.title}>
-            <h2>{group.title}</h2>
-            <div className="odoo-table">
-              <table>
-                <thead>
-                  <tr>
-                    {[
-                      'Nombre',
-                      'Tickets',
-                      'Abiertos',
-                      'SLA cumplido',
-                      'Respuesta media',
-                      'Resolución media',
-                    ].map((label) => (
-                      <th scope="col" key={label}>
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.rows.slice(0, 10).map((row) => (
-                    <tr key={row.name}>
-                      <th scope="row">{row.name}</th>
-                      <td>{row.total}</td>
-                      <td>{row.open}</td>
-                      <td>
-                        {row.compliance === null
-                          ? 'Sin dato'
-                          : `${row.compliance.toFixed(1)}%`}
-                        <small>{row.evaluated} con resultado</small>
-                      </td>
-                      <td>
-                        {metric(row.firstResponse.value)}
-                        <small>{row.firstResponse.count} con dato</small>
-                      </td>
-                      <td>
-                        {metric(row.resolution.value)}
-                        <small>{row.resolution.count} con dato</small>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-muted">
-              Primeros 10 por volumen. El Excel incluye todos. Asignación
-              actual; no atribuye cada intervención histórica.
+      {view === 'overview' && (
+        <section className="odoo-executive">
+          <span className="odoo-eyebrow">LECTURA EJECUTIVA</span>
+          <h2>De la incidencia al resultado</h2>
+          <div className="odoo-executive-facts">
+            <p>
+              <strong>{summary.open}</strong> tickets siguen abiertos dentro de
+              la selección.
             </p>
-          </article>
-        ))}
-      </section>
+            <p>
+              <strong>{summary.failed}</strong> tienen al menos una política SLA
+              incumplida.
+            </p>
+            <p>
+              <strong>{model.retailers[0]?.name ?? 'Sin datos'}</strong>{' '}
+              concentra el mayor volumen de tickets de la selección.
+            </p>
+          </div>
+        </section>
+      )}
+      {view === 'performance' && (
+        <>
+          <section
+            className="odoo-kpis odoo-secondary-kpis"
+            aria-label="Distribución de tiempos"
+          >
+            {[
+              ['Mediana de respuesta', model.responseMedian],
+              ['P90 de respuesta', model.responseP90],
+              ['Mediana de resolución', model.closureMedian],
+              ['P90 de resolución', model.closureP90],
+            ].map(([name, value]) => (
+              <article key={String(name)}>
+                <span>{name}</span>
+                <strong>
+                  {metric(typeof value === 'number' ? value : null)}
+                </strong>
+              </article>
+            ))}
+          </section>
+          <p className="text-muted">
+            Mediana: tiempo central. P90: el 90% de los tiempos registrados está
+            por debajo de ese valor. Los datos faltantes se excluyen.
+          </p>
+        </>
+      )}
+      {view === 'overview' && (
+        <section className="odoo-chart-grid">
+          {panels.map((panel) => (
+            <article className="odoo-panel" key={panel.title}>
+              <h2>{panel.title}</h2>
+              <p className="text-muted">{panel.note}</p>
+              {tickets.length ? (
+                <EChart
+                  option={panel.option}
+                  height={300}
+                  ariaLabel={panel.label}
+                />
+              ) : (
+                <p>No hay datos para graficar.</p>
+              )}
+              <details>
+                <summary>Ver datos de la gráfica</summary>
+                <table>
+                  <tbody>
+                    {panel.rows.map(([name, value]) => (
+                      <tr key={name}>
+                        <th scope="row">{name}</th>
+                        <td>{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            </article>
+          ))}
+        </section>
+      )}
+      {view === 'performance' && (
+        <>
+          <section className="odoo-chart-grid">
+            <article className="odoo-panel">
+              <h2>Antigüedad de tickets abiertos</h2>
+              <p className="text-muted">
+                Horas naturales desde su creación, al momento de la consulta. No
+                equivale al reloj de SLA ni resta pausas; una reapertura
+                conserva la fecha de alta.
+              </p>
+              {model.ages.map((row) => (
+                <div className="odoo-progress-row" key={row.name}>
+                  <span>{row.name}</span>
+                  <progress
+                    max={Math.max(1, summary.open)}
+                    value={row.count}
+                    aria-label={row.name}
+                  />
+                  <strong>{row.count}</strong>
+                </div>
+              ))}
+            </article>
+            <article className="odoo-panel">
+              <h2>Calidad de la información</h2>
+              <p className="text-muted">
+                Campos que limitan el análisis. Un ticket puede aparecer en
+                varios indicadores.
+              </p>
+              {model.quality.map((row) => (
+                <div className="odoo-progress-row" key={row.name}>
+                  <span>{row.name}</span>
+                  <progress
+                    max={Math.max(1, tickets.length)}
+                    value={row.count}
+                    aria-label={row.name}
+                  />
+                  <strong>{row.count}</strong>
+                </div>
+              ))}
+            </article>
+          </section>
+          <section className="odoo-chart-grid">
+            {[
+              { title: 'Atención por responsable', rows: model.assignees },
+              { title: 'Solicitantes con más tickets', rows: model.requesters },
+            ].map((group) => (
+              <article className="odoo-panel" key={group.title}>
+                <h2>{group.title}</h2>
+                <div className="odoo-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        {[
+                          'Nombre',
+                          'Tickets',
+                          'Abiertos',
+                          'SLA cumplido',
+                          'Respuesta media',
+                          'Resolución media',
+                        ].map((label) => (
+                          <th scope="col" key={label}>
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.rows.slice(0, 10).map((row) => (
+                        <tr key={row.name}>
+                          <th scope="row">{row.name}</th>
+                          <td>{row.total}</td>
+                          <td>{row.open}</td>
+                          <td>
+                            {row.compliance === null
+                              ? 'Sin dato'
+                              : `${row.compliance.toFixed(1)}%`}
+                            <small>{row.evaluated} con resultado</small>
+                          </td>
+                          <td>
+                            {metric(row.firstResponse.value)}
+                            <small>{row.firstResponse.count} con dato</small>
+                          </td>
+                          <td>
+                            {metric(row.resolution.value)}
+                            <small>{row.resolution.count} con dato</small>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-muted">
+                  Primeros 10 por volumen. El Excel incluye todos. Asignación
+                  actual; no atribuye cada intervención histórica.
+                </p>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
     </>
   );
 }
