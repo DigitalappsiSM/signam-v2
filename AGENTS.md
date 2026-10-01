@@ -636,6 +636,51 @@ tres de ellos describían mal el separador de artículos.
   combinados correctamente a ambos, y `brandOperationalReport` ya no necesita
   tocar `cameraDays` en absoluto (`cameraDays` sigue existiendo en el reporte
   sin cambios, para el detalle técnico por cámara del Excel).
+- **Duplicación por cámara única — directriz de negocio, no extrapolación.**
+  La mayoría de los circuitos con **exactamente 1 cámara configurada**
+  (`configuredCameras === 1`, cuántas tiene asignadas el catálogo, no cuántas
+  reportaron ese día/hora) en realidad tienen 2 pantallas en el mismo sitio:
+  la cámara mide una, pero la oportunidad de ver es la de las dos. Se calcula
+  en el mismo origen del dato que la regla de Multi-cámara
+  (`cameraCombination.ts` → `publishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR
+  = 2`), aplicado **después** de `combineCameraValues`: un par de 1 cámara
+  nunca pasa por zona partida / brecha / promedio (esas reglas necesitan 2+
+  lecturas), así que ambas reglas son mutuamente excluyentes por construcción.
+  Se duplican OTS, OTS efectivos y watchers; **no** se duplican dwell time ni
+  attention time (son promedios por persona, no conteos — duplicar el tiempo
+  que alguien mira la pantalla no tiene sentido), pero sí pesan el doble al
+  ponderar esos promedios entre tiendas (`weightedAverage` usa
+  `publishedWatchers`, no `watchers`): si la tienda cuenta el doble de
+  audiencia, su dwell time debe pesar el doble al combinarse con otras.
+
+  Esto crea DOS valores paralelos en `SupportDay`/`SupportHour` /
+  `QuividiSupportDay`/`QuividiSupportHour`: `ots`/`effectiveOts`/`watchers`
+  (lo medido, sin tocar) y `publishedOts`/`publishedEffectiveOts`/
+  `publishedWatchers` (después del ajuste; igual a los primeros si el par
+  no es de 1 sola cámara). **El informe comercial (`quividiBrandReport.ts`)
+  lee los campos `published*`** en toda la cadena que alimenta la cifra
+  publicada (`brandSupportFormats`, `brandExtrapolationBasis`,
+  `brandCampaignSummary`, `brandDaily`, `brandHourlyDistribution`,
+  `brandStoreAttribution`, `weightedAverage`) — por eso el PDF publica la
+  cifra ya duplicada donde aplica, y la extrapolación de huecos hereda el
+  ajuste (un día sin dato en un formato de 1 sola cámara se rellena con el
+  promedio *ya duplicado* de ese formato, consistente con el racional de
+  negocio). **El Excel técnico (`quividiCampaignExcel.ts`,
+  `quividiMarketingSheets.ts`) sigue leyendo los campos crudos** — su
+  definición de «lo medido tal cual» no cambia.
+
+  La única excepción es `brandStoreAudit` (hoja de auditoría, sección
+  «Qué se midió realmente»): su `measuredOts` por tienda se queda crudo a
+  propósito, y gana un `publishedOts` nuevo al lado para que la brecha entre
+  ambos sea visible fila por fila. La hoja «Auditoría de cifras» además
+  agrega la sección **10 · Duplicación por cámara única**
+  (`brandSingleCameraDuplication`): pares de 1 sola cámara dentro del
+  circuito medible, su OTS medido sin duplicar, lo añadido por la
+  duplicación y el total publicado — `summary.measuredOts -
+  duplication.addedOts` es lo medido sin ningún ajuste de negocio, en toda
+  la campaña. No se mezcla con `missingOts`/`uncoveredOts`: duplicar no es
+  rellenar un hueco de medición, es una suposición de negocio sobre un dato
+  100% medido.
 - **Tiendas TOP (`brandStoreAttribution`)**: página con título exacto «Tiendas
   TOP», maquetada como **leaderboard de una sola columna** (no tabla de dos
   columnas: rompería el orden visual del ranking) — rango, nombre de tienda,

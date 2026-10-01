@@ -197,7 +197,35 @@ export interface BrandStoreAudit {
   totalPairDays: number;
   measuredPairDays: number;
   completenessPercent: number;
+  /** Lo medido, sin ningún ajuste de negocio. */
   measuredOts: number;
+  /**
+   * `measuredOts` después de duplicar los pares de una sola cámara
+   * configurada (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Igual a `measuredOts`
+   * si la tienda no tiene ningún par de una sola cámara.
+   */
+  publishedOts: number;
+}
+
+/**
+ * Reconciliación de la duplicación por cámara única dentro del circuito
+ * medible: cuánto se midió realmente en pares de 1 sola cámara configurada,
+ * cuánto se publica después de duplicarlo, y la diferencia. Es la base de la
+ * sección «Duplicación por cámara única» de la hoja de auditoría — hace
+ * explícito un ajuste que, a diferencia de la extrapolación por huecos, no
+ * rellena un vacío de medición: duplica un dato 100% medido por una
+ * directriz de negocio (la mayoría de los circuitos de 1 cámara en realidad
+ * tienen 2 pantallas en el mismo sitio).
+ */
+export interface BrandSingleCameraDuplication {
+  /** Pares tienda+soporte distintos con exactamente 1 cámara configurada. */
+  pairs: number;
+  /** Suma de lo medido en esos pares, sin duplicar. */
+  measuredOts: number;
+  /** `measuredOts` duplicado. */
+  publishedOts: number;
+  /** `publishedOts - measuredOts`: lo que la duplicación añadió a la cifra. */
+  addedOts: number;
 }
 
 function numeric(value: number): number {
@@ -372,7 +400,9 @@ export function brandExtrapolationBasis(
     (row) => row.status === 'missing',
   ).length;
   const measuredOts = sum(
-    inScope.filter((row) => row.status !== 'missing').map((row) => row.ots),
+    inScope
+      .filter((row) => row.status !== 'missing')
+      .map((row) => row.publishedOts),
   );
 
   return {
@@ -589,7 +619,7 @@ export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
     for (const format of scope.measurable) {
       const formatRows = byFormat.get(format.support) ?? [];
       const measuredRows = formatRows.filter((row) => row.status !== 'missing');
-      const dayMeasuredOts = sum(measuredRows.map((row) => row.ots));
+      const dayMeasuredOts = sum(measuredRows.map((row) => row.publishedOts));
       const rate = rateByFormat.get(format.support) ?? 0;
       const gap = Math.max(0, format.pairs - measuredRows.length);
       measuredOts += dayMeasuredOts;
@@ -716,18 +746,57 @@ export function brandStoreAudit(
       completenessPercent:
         totalPairDays > 0 ? (measured.length / totalPairDays) * 100 : 0,
       measuredOts: sum(measured.map((row) => row.ots)),
+      publishedOts: sum(measured.map((row) => row.publishedOts)),
     };
   }).sort((a, b) => a.completenessPercent - b.completenessPercent);
 }
 
-/** Promedio ponderado por watchers, igual que el Excel técnico. */
+/**
+ * Ver `BrandSingleCameraDuplication`. Se acota al circuito medible (mismos
+ * formatos que `brandCampaignSummary`) para que `addedOts` reconcilie
+ * exactamente: `summary.measuredOts - duplication.addedOts` es lo medido sin
+ * ningún ajuste de negocio.
+ */
+export function brandSingleCameraDuplication(
+  report: QuividiCampaignReport,
+): BrandSingleCameraDuplication {
+  const scope = brandMeasurableScope(report);
+  const measurableSupports = new Set(
+    scope.measurable.map((format) => format.support),
+  );
+  const rows = brandSupportDays(report).filter(
+    (row) =>
+      measurableSupports.has(row.support) &&
+      row.status !== 'missing' &&
+      row.configuredCameras === 1,
+  );
+
+  const measuredOts = sum(rows.map((row) => row.ots));
+  const publishedOts = sum(rows.map((row) => row.publishedOts));
+
+  return {
+    pairs: new Set(rows.map(pairKey)).size,
+    measuredOts,
+    publishedOts,
+    addedOts: publishedOts - measuredOts,
+  };
+}
+
+/**
+ * Promedio ponderado por watchers publicados (no los crudos): si una tienda
+ * de 1 sola cámara cuenta el doble de audiencia, su dwell/attention time debe
+ * pesar el doble al combinarse con otras tiendas — el tiempo por persona no
+ * cambia, pero cuánto pesa esa tienda en el promedio del circuito sí.
+ */
 function weightedAverage(
   rows: readonly QuividiSupportDay[],
   field: 'attentionSeconds' | 'dwellSeconds',
 ): number {
-  const totalWatchers = sum(rows.map((row) => row.watchers));
+  const totalWatchers = sum(rows.map((row) => row.publishedWatchers));
   if (totalWatchers <= 0) return 0;
-  return sum(rows.map((row) => row[field] * row.watchers)) / totalWatchers;
+  return (
+    sum(rows.map((row) => row[field] * row.publishedWatchers)) / totalWatchers
+  );
 }
 
 /**
@@ -810,7 +879,9 @@ export function brandStoreAttribution(
         // `rate * formatRows.length` para todas las tiendas —sin restar su
         // propio dato— las igualaba a todas al mismo valor, perdiendo
         // exactamente lo que «Tiendas TOP» necesita mostrar: quién rinde más.
-        const formatMeasuredOts = sum(measured.map((row) => row.ots));
+        const formatMeasuredOts = sum(
+          measured.map((row) => row.publishedOts),
+        );
         const gap = Math.max(0, formatRows.length - measured.length);
         adjustedOts += formatMeasuredOts + gap * rate;
         measuredOts += formatMeasuredOts;
@@ -917,6 +988,11 @@ export function brandOperationalSupportDays(
       ots: sum(measured.map((hour) => hour.ots)),
       effectiveOts: sum(measured.map((hour) => hour.effectiveOts)),
       watchers: watchersTotal,
+      publishedOts: sum(measured.map((hour) => hour.publishedOts)),
+      publishedEffectiveOts: sum(
+        measured.map((hour) => hour.publishedEffectiveOts),
+      ),
+      publishedWatchers: sum(measured.map((hour) => hour.publishedWatchers)),
       attentionSeconds:
         watchersTotal > 0
           ? sum(measured.map((hour) => hour.attentionSeconds * hour.watchers)) /
@@ -977,7 +1053,10 @@ export function brandHourlyDistribution(
 
   const totals = new Map<number, number>();
   for (const row of measured) {
-    totals.set(row.hour, (totals.get(row.hour) ?? 0) + numeric(row.ots));
+    totals.set(
+      row.hour,
+      (totals.get(row.hour) ?? 0) + numeric(row.publishedOts),
+    );
   }
   const total = sum(Array.from(totals.values()));
   if (total <= 0) return [];
@@ -1086,7 +1165,7 @@ export function brandSupportFormats(
     if (row.status === 'missing') continue;
     const current = measured.get(row.support) ?? { pairDays: 0, ots: 0 };
     current.pairDays += 1;
-    current.ots += numeric(row.ots);
+    current.ots += numeric(row.publishedOts);
     measured.set(row.support, current);
   }
 

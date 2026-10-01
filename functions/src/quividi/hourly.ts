@@ -1,4 +1,8 @@
-import { combineCameraValues, isZoneSplitPair } from './cameraCombination';
+import {
+  combineCameraValues,
+  isZoneSplitPair,
+  publishedValue,
+} from './cameraCombination';
 
 type MeasurementStatus = 'complete' | 'partial' | 'missing';
 
@@ -41,6 +45,10 @@ export interface SupportHour {
   ots: number;
   effectiveOts: number;
   watchers: number;
+  /** Ver `SupportDay.publishedOts` en `measurement.ts`. */
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
 }
@@ -191,6 +199,17 @@ export function buildSupportHours(
         0,
       );
       const [date, hourText] = period.split('|');
+      const hourOts = combineCameraValues(
+        measured.map((item) => item.ots.ots),
+        zoneSplit,
+      );
+      const hourEffectiveOts = combineCameraValues(
+        measured.map((item) => item.ots.effectiveOts),
+        zoneSplit,
+      );
+      const hourWatchers = average(
+        measured.map((item) => item.viewers?.watchers ?? 0),
+      );
       result.push({
         date: date ?? '',
         hour: Number(hourText),
@@ -201,17 +220,15 @@ export function buildSupportHours(
         measuredCameras: measured.length,
         status:
           measured.length === pair.cameras.length ? 'complete' : 'partial',
-        ots: combineCameraValues(
-          measured.map((item) => item.ots.ots),
-          zoneSplit,
+        ots: hourOts,
+        effectiveOts: hourEffectiveOts,
+        watchers: hourWatchers,
+        publishedOts: publishedValue(hourOts, pair.cameras.length),
+        publishedEffectiveOts: publishedValue(
+          hourEffectiveOts,
+          pair.cameras.length,
         ),
-        effectiveOts: combineCameraValues(
-          measured.map((item) => item.ots.effectiveOts),
-          zoneSplit,
-        ),
-        watchers: average(
-          measured.map((item) => item.viewers?.watchers ?? 0),
-        ),
+        publishedWatchers: publishedValue(hourWatchers, pair.cameras.length),
         attentionSeconds:
           watchersTotal > 0
             ? measured.reduce(

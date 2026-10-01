@@ -205,7 +205,11 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
       [],
     );
 
-    expect(rows[0]).toMatchObject({ status: 'complete', ots: 250 });
+    expect(rows[0]).toMatchObject({
+      status: 'complete',
+      ots: 250,
+      publishedOts: 250, // 2+ cámaras: no se duplica, ya está resuelto.
+    });
   });
 
   it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
@@ -215,7 +219,11 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
       [],
     );
 
-    expect(rows[0]).toMatchObject({ status: 'complete', ots: 250 });
+    expect(rows[0]).toMatchObject({
+      status: 'complete',
+      ots: 250,
+      publishedOts: 250,
+    });
   });
 
   it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta', () => {
@@ -229,7 +237,45 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
       [],
     );
 
-    expect(rows[0]).toMatchObject({ status: 'complete', ots: 28_068 });
+    expect(rows[0]).toMatchObject({
+      status: 'complete',
+      ots: 28_068,
+      publishedOts: 28_068,
+    });
+  });
+});
+
+describe('buildSupportHours · duplicación por cámara única', () => {
+  it('duplica OTS/efectivos/watchers cuando el par tiene exactamente 1 cámara', () => {
+    const rows = buildSupportHours(
+      [pair({ support: 'MUPI DIGITAL', cameras: [{ id: 1 }] })],
+      [ots(1, HOUR, { ots_count: 1000, effective_ots_count: 600 })],
+      [viewer(1, HOUR, { watcher_count: 40 })],
+    );
+
+    expect(rows[0]).toMatchObject({
+      configuredCameras: 1,
+      ots: 1000,
+      effectiveOts: 600,
+      watchers: 40,
+      publishedOts: 2000,
+      publishedEffectiveOts: 1200,
+      publishedWatchers: 80,
+    });
+  });
+
+  it('no duplica un par de 2+ cámaras', () => {
+    const rows = buildSupportHours(
+      [pair({ support: 'MUPI DIGITAL' })],
+      [ots(1, HOUR, { ots_count: 500 }), ots(2, HOUR, { ots_count: 500 })],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({
+      configuredCameras: 2,
+      ots: 500,
+      publishedOts: 500,
+    });
   });
 });
 

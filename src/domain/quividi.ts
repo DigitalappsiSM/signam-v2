@@ -56,6 +56,19 @@ export interface QuividiSupportDay {
   ots: number;
   effectiveOts: number;
   watchers: number;
+  /**
+   * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
+   * el circuito tenga una sola cámara configurada (`configuredCameras === 1`),
+   * caso en el que se duplica — la mayoría de esos circuitos en realidad
+   * tienen 2 pantallas en el mismo sitio. Insurgentes queda fuera porque
+   * tiene 2 cámaras configuradas. Calculado en el backend
+   * (`functions/src/quividi/cameraCombination.ts`); el informe comercial lo
+   * usa, el Excel técnico sigue usando `ots`/`effectiveOts`/`watchers`
+   * (lo medido, sin duplicar).
+   */
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
 }
@@ -72,6 +85,10 @@ export interface QuividiSupportHour {
   ots: number;
   effectiveOts: number;
   watchers: number;
+  /** Ver `QuividiSupportDay.publishedOts`. */
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
 }

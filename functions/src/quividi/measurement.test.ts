@@ -457,7 +457,11 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
       [],
     );
 
-    expect(rows.supportDays[0]).toMatchObject({ status: 'complete', ots: 250 });
+    expect(rows.supportDays[0]).toMatchObject({
+      status: 'complete',
+      ots: 250,
+      publishedOts: 250, // 2+ cámaras: no se duplica, ya está resuelto.
+    });
   });
 
   it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
@@ -474,7 +478,11 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
       [],
     );
 
-    expect(rows.supportDays[0]).toMatchObject({ status: 'complete', ots: 250 });
+    expect(rows.supportDays[0]).toMatchObject({
+      status: 'complete',
+      ots: 250,
+      publishedOts: 250,
+    });
   });
 
   it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta, no promedia', () => {
@@ -497,7 +505,76 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
     expect(rows.supportDays[0]).toMatchObject({
       status: 'complete',
       ots: 28_068,
+      publishedOts: 28_068,
     });
+  });
+});
+
+describe('buildMeasurementRows · duplicación por cámara única', () => {
+  const dates = ['2026-03-01'];
+
+  it('duplica OTS/efectivos cuando el circuito tiene exactamente 1 cámara configurada', () => {
+    // `pair()` por default trae 1 sola cámara (CAM-7).
+    const rows = buildMeasurementRows(
+      [pair()],
+      dates,
+      [ots(1, dates[0]!, { ots_count: 1000, effective_ots_count: 600 })],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      configuredCameras: 1,
+      ots: 1000,
+      effectiveOts: 600,
+      publishedOts: 2000,
+      publishedEffectiveOts: 1200,
+    });
+  });
+
+  it('no duplica un circuito de 2+ cámaras', () => {
+    const dos = pair({
+      support: 'MUPI DIGITAL',
+      cameraNames: ['CAM-A', 'CAM-B'],
+      cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+    });
+    const rows = buildMeasurementRows(
+      [dos],
+      dates,
+      [
+        ots(1, dates[0]!, { ots_count: 500 }),
+        ots(2, dates[0]!, { ots_count: 500 }),
+      ],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      configuredCameras: 2,
+      ots: 500,
+      publishedOts: 500,
+    });
+  });
+
+  it('duplica también los watchers, pero no se extiende a attention/dwell (son promedios por persona)', () => {
+    const rows = buildMeasurementRows(
+      [pair()],
+      dates,
+      [ots(1, dates[0]!)],
+      [viewer(1, dates[0]!, { watcher_count: 40 })],
+    );
+
+    expect(rows.supportDays[0]?.watchers).toBe(40);
+    expect(rows.supportDays[0]?.publishedWatchers).toBe(80);
+  });
+
+  it('un circuito sin ninguna cámara no se duplica (sigue en 0)', () => {
+    const rows = buildMeasurementRows(
+      [pair({ cameraNames: [], cameras: [] })],
+      dates,
+      [],
+      [],
+    );
+
+    expect(rows.supportDays).toEqual([]);
   });
 });
 
