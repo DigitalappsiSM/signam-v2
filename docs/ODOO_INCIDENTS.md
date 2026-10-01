@@ -79,3 +79,35 @@ Evolución diaria, Calidad y antigüedad y Metodología. Todas las hojas derivan
 los mismos tickets filtrados; los rankings de pantalla muestran 10 filas y el
 Excel guarda todas. La descarga ocurre en el navegador, sin envío ni guardado
 nuevo en Firestore. No se presenta como informe PDF ni como sincronización continua.
+
+## Presentación y diagnóstico de conexión
+
+Incidencias Odoo aparece al final de Operación. Los filtros usan controles
+completos, con adaptación a móvil y tema oscuro. Las vistas Resumen ejecutivo,
+Tiempos y equipos y Detalle de tickets comparten los filtros y la exportación.
+La carga y los errores tienen panel propio; los indicadores pendientes muestran
+un guion, nunca ceros ni datos de demostración. Un error permite reintentar.
+
+Las lecturas heredan el idioma activo del usuario de API: no fuerzan `es_MX`,
+que no está activo en la instalación revisada (solo Spanish / Español). La zona
+horaria del periodo sigue siendo Ciudad de México y es independiente del idioma.
+Los errores HTTP de Odoo se clasifican en credencial, permisos, idioma, consulta
+rechazada o servicio no disponible. Solo se registran modelo, método, estado HTTP
+y motivo controlado; nunca cuerpos, trazas, tickets ni claves. SIGNAM diferencia
+una sesión expirada de una clave de integración rechazada. No se modifican los
+permisos, claves ni preferencias de Odoo desde el dashboard.
+
+Validación de producción: la función desplegada responde y exige sesión, y el
+workflow de despliegue del PR 155 terminó correctamente. La lectura autenticada
+fallaba antes de retirar el idioma forzado. Es obligatorio volver a probar la
+consulta tras desplegar esta corrección; las pruebas con mocks no certifican
+los permisos ni la vigencia de la API key real.
+
+El workflow de producción ejecuta `scripts/check-odoo-connection.mjs` con el
+secreto existente, después de compilar functions y antes de publicar. Utiliza
+la misma lectura que el dashboard y el mes México actual. Una consulta fallida
+bloquea ese despliegue (incluidos cambios ajenos a Odoo) hasta corregir la
+integración; no marca como error un mes sin tickets ni la ausencia opcional de
+SLA. Solo muestra número de tickets y avisos, nunca sus datos o el secreto.
+Esta comprobación verifica Odoo y su credencial, pero no sustituye la validación
+del login y de la callable desplegada desde SIGNAM.

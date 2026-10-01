@@ -109,28 +109,55 @@ export function buildCameraPointBindings(
   return bindings;
 }
 
+export class OdooApiError extends Error {
+  constructor(
+    readonly model: string,
+    readonly method: string,
+    readonly status: number,
+    readonly reason:
+      | 'odoo-auth'
+      | 'odoo-access'
+      | 'odoo-language'
+      | 'odoo-request'
+      | 'odoo-unavailable',
+  ) {
+    super('Odoo ' + model + '.' + method + ': HTTP ' + status);
+    this.name = 'OdooApiError';
+  }
+}
+
 export async function odooCall<T>(
   key: string,
   model: string,
   method: string,
   args: Record<string, unknown>,
 ): Promise<T> {
-  const response = await fetch(
-    ODOO_BASE + '/json/2/' + model + '/' + method,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: 'bearer ' + key,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(args),
-      signal: AbortSignal.timeout(30_000),
+  const response = await fetch(ODOO_BASE + '/json/2/' + model + '/' + method, {
+    method: 'POST',
+    headers: {
+      Authorization: 'bearer ' + key,
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify(args),
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!response.ok) {
-    throw new Error(
-      'Odoo ' + model + '.' + method + ': HTTP ' + response.status,
-    );
+    // Clasifica el cuerpo dentro del servidor; nunca lo propaga ni lo registra.
+    const body = ((await response.json().catch(() => ({}))) ?? {}) as {
+      name?: string;
+      message?: string;
+    };
+    const reason =
+      response.status === 401
+        ? 'odoo-auth'
+        : response.status === 403 || body.name === 'odoo.exceptions.AccessError'
+          ? 'odoo-access'
+          : /invalid language code/i.test(body.message ?? '')
+            ? 'odoo-language'
+            : response.status >= 500 || response.status === 429
+              ? 'odoo-unavailable'
+              : 'odoo-request';
+    throw new OdooApiError(model, method, response.status, reason);
   }
   return (await response.json()) as T;
 }

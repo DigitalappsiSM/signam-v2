@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const call = vi.hoisted(() => vi.fn());
-vi.mock('../quividi/odooTickets', () => ({ odooCall: call }));
+vi.mock('../quividi/odooTickets', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../quividi/odooTickets')>()),
+  odooCall: call,
+}));
 vi.mock('firebase-functions/params', () => ({
   defineSecret: () => ({ value: () => 'test-secret' }),
 }));
@@ -13,6 +16,7 @@ vi.mock('firebase-functions/v2/https', async (importOriginal) => {
   };
 });
 import { overview } from './index';
+import { OdooApiError } from '../quividi/odooTickets';
 const run = overview as unknown as (request: {
   auth?: { token: { role: string } };
   data: { month: string };
@@ -42,6 +46,10 @@ describe('lectura segura Odoo', () => {
   });
   it('acota equipo y mes México y advierte si SLA no es accesible', async () => {
     call.mockImplementation(async (_key, model, method, args) => {
+      if (method === 'search_read') {
+        expect(args.context).toEqual({ active_test: false });
+        expect(args.context).not.toHaveProperty('lang');
+      }
       if (model === 'helpdesk.team') return [{ id: 6, name: 'Liverpool' }];
       if (model === 'helpdesk.ticket' && method === 'fields_get')
         return Object.fromEntries(
@@ -94,5 +102,20 @@ describe('lectura segura Odoo', () => {
         ['search_read', 'fields_get'].includes(method),
       ),
     ).toBe(true);
+  });
+  it('identifica errores de Odoo sin propagar cuerpos de respuesta', async () => {
+    call.mockRejectedValue(
+      new OdooApiError('helpdesk.team', 'search_read', 400, 'odoo-language'),
+    );
+    await expect(
+      run({ auth: { token: { role: 'admin' } }, data: { month: '2026-09' } }),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: {
+        reason: 'odoo-language',
+        model: 'helpdesk.team',
+        httpStatus: 400,
+      },
+    });
   });
 });

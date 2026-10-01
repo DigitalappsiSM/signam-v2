@@ -1,6 +1,7 @@
 import { defineSecret } from 'firebase-functions/params';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { odooCall } from '../quividi/odooTickets';
+import { logger } from 'firebase-functions';
+import { odooCall, OdooApiError } from '../quividi/odooTickets';
 import {
   classify,
   hours,
@@ -37,7 +38,9 @@ async function rows(
       offset,
       limit: 250,
       order: 'id asc',
-      context: { lang: 'es_MX', active_test: false },
+      // Hereda el idioma activo del usuario de API. Forzar es_MX puede fallar
+      // cuando la base solo tiene instalado es_ES.
+      context: { active_test: false },
     });
     result.push(...page);
     if (result.length > 5000)
@@ -236,6 +239,29 @@ export const overview = onCall(
       };
     } catch (error) {
       if (error instanceof HttpsError) throw error;
+      if (error instanceof OdooApiError) {
+        const details = {
+          reason: error.reason,
+          model: error.model,
+          method: error.method,
+          httpStatus: error.status,
+        };
+        logger.warn('Falló la consulta de incidencias Odoo', details);
+        throw new HttpsError(
+          error.reason === 'odoo-access'
+            ? 'permission-denied'
+            : ['odoo-auth', 'odoo-language', 'odoo-request'].includes(
+                  error.reason,
+                )
+              ? 'failed-precondition'
+              : 'unavailable',
+          'La consulta de incidencias Odoo no se pudo completar.',
+          details,
+        );
+      }
+      logger.warn('Falló la consulta de incidencias Odoo', {
+        reason: 'odoo-connection',
+      });
       throw new HttpsError(
         'unavailable',
         'No se pudo consultar Odoo. Revisa permisos de lectura y la conexión.',
