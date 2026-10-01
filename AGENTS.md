@@ -523,6 +523,24 @@ tres de ellos describían mal el separador de artículos.
   medibles deja el reparto conservador, que es el sentido seguro para un dato
   que va a marca.
 
+  **Campaña todavía vigente al generar el reporte**: la rejilla sobre la que
+  se extrapola (`measuredPeriodDays`, consumida por `brandSupportFormats`,
+  `brandMeasurableScope`, `brandCoverage` y la hoja de auditoría por tienda)
+  se recorta a `effectiveEndDate` — la fecha de generación del reporte
+  (`report.generatedAt`) si la campaña aún no llega a su fin de vigencia
+  contratado, o ese fin de vigencia si ya pasó. Un día de vigencia **futuro**
+  (posterior a la generación) no es un hueco de medición: no ha ocurrido, así
+  que no entra ni a la rejilla ni al promedio que rellena huecos — tratarlo
+  como «sin cámara» o «sin dato» proyectaría la cifra a futuro y la portada
+  dejaría de representar lo real-a-la-fecha. El día de generación en curso sí
+  entra a la rejilla (normalmente sin dato todavía, porque Quividi no cierra
+  el día hasta que termina) y se completa como cualquier otro hueco — es
+  intencional: «reales + proyectados a la fecha (día/hora) del reporte». La
+  vigencia contratada completa (`periodDays`) se conserva para lo puramente
+  informativo: la etiqueta de portada, el nombre de archivo y el umbral de 28
+  días que decide evolución diaria vs. semanal (`brandHeader.days`) — nunca
+  para el cálculo del OTS.
+
 - **Evolución (`brandDaily`/`brandWeeklyEvolution`) concilia con el total de
   portada.** Cada día se extrapola **formato a formato** con el mismo promedio
   por par-día medido que `brandCampaignSummary`: el hueco de un formato en un
