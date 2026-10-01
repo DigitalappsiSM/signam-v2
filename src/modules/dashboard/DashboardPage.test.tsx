@@ -421,14 +421,14 @@ describe('DashboardPage — filtros globales y detalle de KPI', () => {
     ).toBeInTheDocument();
   });
 
-  it('al pulsar una tarjeta se abre su detalle con el conteo y enlace a Seguimiento', async () => {
+  it('al pulsar una tarjeta se abre su detalle flotante con el conteo y enlace a Seguimiento', async () => {
     renderDash(VIEJA_ROUTE);
     const card = await screen.findByLabelText(
       /Vencidas con pendientes: 1\. Urgente\. Ver detalle/i,
     );
     await userEvent.click(card);
-    const detail = await screen.findByRole('region', {
-      name: /Detalle de la tarjeta Vencidas con pendientes/i,
+    const detail = await screen.findByRole('dialog', {
+      name: 'Vencidas con pendientes',
     });
     expect(
       within(detail).getByText(/1 campaña · Periodo/i),
@@ -438,6 +438,12 @@ describe('DashboardPage — filtros globales y detalle de KPI', () => {
       'href',
       `/seguimiento?campana=${encodeURIComponent(campaignIdentity(VIEJA))}`,
     );
+    // Ventana flotante: no abre espacio bajo la tarjeta y cierra con Escape.
+    expect(
+      screen.getByLabelText('Resumen de campañas activas'),
+    ).not.toContainElement(detail);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('cambiar la clasificación recalcula tarjetas y el detalle abierto', async () => {
@@ -451,8 +457,8 @@ describe('DashboardPage — filtros globales y detalle de KPI', () => {
       screen.getByLabelText('Clasificación'),
       'institutional',
     );
-    const detail = await screen.findByRole('region', {
-      name: /Detalle de la tarjeta/i,
+    const detail = await screen.findByRole('dialog', {
+      name: 'Vencidas con pendientes',
     });
     expect(
       within(detail).getByText(/Ninguna campaña coincide/i),
@@ -472,8 +478,8 @@ describe('DashboardPage — filtros globales y detalle de KPI', () => {
     await userEvent.type(input, 'VIE');
     // El foco no se robó tras la primera letra: el texto completo se conservó.
     expect(input).toHaveValue('VIE');
-    const detail = await screen.findByRole('region', {
-      name: /Detalle de la tarjeta Vencidas con pendientes/i,
+    const detail = await screen.findByRole('dialog', {
+      name: 'Vencidas con pendientes',
     });
     expect(
       within(detail).getByRole('link', { name: 'VIEJA' }),

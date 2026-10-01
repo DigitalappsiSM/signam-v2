@@ -23,6 +23,7 @@ const store = (over: Partial<MapStore>): MapStore => ({
 });
 
 const MODEL: ControlCenterModel = {
+  campaignTotals: { institutional: 2, provider: 5, unknown: 0, total: 7 },
   stores: [
     store({}),
     store({ storeNumber: '902', coord: null }),

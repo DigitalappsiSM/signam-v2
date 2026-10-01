@@ -4,10 +4,12 @@ import type {
   ControlCenterCamera,
   ControlCenterTicket,
 } from '@/services/controlCenter';
-import type { StoreOccupancy } from '../occupancyModel';
+import type { OccupancyCampaign, StoreOccupancy } from '../occupancyModel';
+import type { AdmiraScreen } from '@/domain';
 import {
   buildControlCenterModel,
   hoursSince,
+  storesWithActiveSupports,
   ticketSeverity,
   worstSeverity,
 } from './mapModel';
@@ -30,6 +32,18 @@ const dir = (over: Partial<StoreDirectoryEntry>): StoreDirectoryEntry => ({
   ...over,
 });
 
+const camp = (
+  id: string,
+  classification: OccupancyCampaign['classification'],
+): OccupancyCampaign => ({
+  campaignId: id,
+  campaignName: id,
+  campaignNameKey: id,
+  classification,
+  startDate: null,
+  endDate: null,
+});
+
 const occ = (
   storeNumber: string,
   institutional: number,
@@ -43,7 +57,13 @@ const occ = (
   classification: { institutional, provider, unknown: 0 },
   distinctSupports: 0,
   physicalScreens: 4,
-  campaigns: [],
+  // Ids estables: la misma campaña en varias tiendas comparte id.
+  campaigns: [
+    ...Array.from({ length: institutional }, (_, i) =>
+      camp(`i-${i}`, 'institutional'),
+    ),
+    ...Array.from({ length: provider }, (_, i) => camp(`p-${i}`, 'provider')),
+  ],
 });
 
 const ticket = (over: Partial<ControlCenterTicket>): ControlCenterTicket => ({
@@ -76,6 +96,7 @@ const camera = (over: Partial<ControlCenterCamera>): ControlCenterCamera => ({
 describe('modelo del Centro de Control', () => {
   const model = buildControlCenterModel({
     now: NOW,
+    supportedStores: new Set(['901', '902', '903']),
     directory: [
       dir({}),
       dir({
@@ -144,6 +165,7 @@ describe('modelo del Centro de Control', () => {
   it('dos cámaras del mismo soporte son incidencias distintas', () => {
     const m = buildControlCenterModel({
       now: NOW,
+      supportedStores: new Set(['901']),
       directory: [dir({})],
       occupancy: [],
       tickets: null,
@@ -165,11 +187,12 @@ describe('modelo del Centro de Control', () => {
     expect(s902.coord).toBeNull();
     expect(model.withoutCoordinates).toBe(1);
     const nl = model.states.find((s) => s.state === 'Nuevo León')!;
+    // i-0 está en 901 y 902: una campaña es una campaña, no se suma por tienda.
     expect(nl).toMatchObject({
       stores: 2,
-      institutional: 3,
+      institutional: 2,
       provider: 5,
-      campaigns: 8,
+      campaigns: 7,
       incidentTotal: 4,
       ots: 1500,
     });
@@ -181,14 +204,43 @@ describe('modelo del Centro de Control', () => {
     });
   });
 
+  it('el total nacional cuenta campañas distintas, no tienda × campaña', () => {
+    // 901 (2+5), 902 (i-0 repetida) y 77 (i-0..2, p-0..2): 3 + 5 distintas.
+    expect(model.campaignTotals).toEqual({
+      institutional: 3,
+      provider: 5,
+      unknown: 0,
+      total: 8,
+    });
+  });
+
   it('reporta tiendas con datos fuera del directorio y descarta tickets sin tienda', () => {
     expect(model.unlocated).toEqual(['77', '555']);
     expect(model.incidents.some((i) => i.id === 'odoo-3')).toBe(false);
   });
 
+  it('solo evalúa tiendas del directorio con soportes en catálogo', () => {
+    const m = buildControlCenterModel({
+      now: NOW,
+      supportedStores: new Set(['901']),
+      directory: [
+        dir({}),
+        dir({ storeNumber: '904', name: 'L SIN PANTALLAS' }),
+      ],
+      occupancy: [occ('904', 1, 0)],
+      tickets: null,
+      cameras: null,
+    });
+    expect(m.stores.map((s) => s.storeNumber)).toEqual(['901']);
+    expect(m.states[0]?.stores).toBe(1);
+    // Datos de una tienda sin soportes nunca se pierden en silencio.
+    expect(m.unlocated).toEqual(['904']);
+  });
+
   it('sin Odoo ni cámaras sigue armando campañas', () => {
     const m = buildControlCenterModel({
       now: NOW,
+      supportedStores: new Set(['901']),
       directory: [dir({})],
       occupancy: [occ('901', 1, 1)],
       tickets: null,
@@ -196,6 +248,25 @@ describe('modelo del Centro de Control', () => {
     });
     expect(m.incidents).toEqual([]);
     expect(m.stores[0]?.totalCampaigns).toBe(2);
+  });
+});
+
+describe('tiendas con soportes', () => {
+  const screen = (store: string, active: boolean): AdmiraScreen =>
+    ({
+      id: `${store}-${String(active)}`,
+      original: { 'Numero de Tienda': store },
+      metadata: { active },
+    }) as unknown as AdmiraScreen;
+
+  it('cuenta solo pantallas activas y normaliza el número de tienda', () => {
+    const set = storesWithActiveSupports([
+      screen('0901', true),
+      screen('901', false),
+      screen('905', false),
+      screen('', true),
+    ]);
+    expect([...set]).toEqual(['901']);
   });
 });
 

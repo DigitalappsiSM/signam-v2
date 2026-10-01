@@ -1,10 +1,14 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon, type IconName } from '@/components/Icon';
+import './ControlCenter.css';
 
 /**
- * Ventana flotante translúcida del Centro de Control: detalle de tienda,
- * estado, tipo de incidencia o KPI. Cierra con Escape, con el botón o al pulsar
- * fuera, y devuelve el foco a quien la abrió.
+ * Ventana flotante translúcida del Panel: detalle de tienda, estado, tipo de
+ * incidencia, KPI, tarjeta del semáforo o barra de la carga. Se monta en
+ * `document.body` (el desenfoque cubre toda la página y no abre espacio en el
+ * flujo), cierra con Escape, con el botón o al pulsar fuera, y devuelve el foco
+ * a quien la abrió.
  */
 export function GlassDialog({
   title,
@@ -15,28 +19,33 @@ export function GlassDialog({
   children,
 }: {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   icon: IconName;
   tone?: 'info' | 'success' | 'warning' | 'danger' | 'violet';
   onClose: () => void;
   children: ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  // `onClose` suele ser una función nueva en cada render: se lee por ref para
+  // que un recálculo (p. ej. un filtro) no vuelva a robar el foco.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
       opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
-  return (
-    <div className="cc-dialog" onClick={onClose}>
+  return createPortal(
+    <div className="cc-dialog" onClick={() => onCloseRef.current()}>
       <div
         className="cc-dialog__card"
         role="dialog"
@@ -57,13 +66,14 @@ export function GlassDialog({
             type="button"
             className="cc-dialog__close"
             aria-label="Cerrar"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
           >
             <Icon name="close" size={18} />
           </button>
         </header>
         <div className="cc-dialog__body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

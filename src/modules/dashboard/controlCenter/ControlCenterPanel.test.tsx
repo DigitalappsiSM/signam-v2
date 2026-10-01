@@ -33,19 +33,37 @@ const dir = (over: Partial<StoredDirectoryEntry>): StoredDirectoryEntry => ({
   ...over,
 });
 
-const OCC: StoreOccupancy[] = [
-  {
-    storeNumber: '901',
-    storeName: 'Prueba',
-    peakConcurrentCampaigns: 3,
-    distinctCampaigns: 7,
-    campaignDays: 20,
-    classification: { institutional: 2, provider: 5, unknown: 0 },
-    distinctSupports: 2,
-    physicalScreens: 4,
-    campaigns: [],
-  },
+const CAMPAIGNS: StoreOccupancy['campaigns'] = [
+  ...['i-0', 'i-1'].map((id) => ({
+    campaignId: id,
+    campaignName: id,
+    campaignNameKey: id,
+    classification: 'institutional' as const,
+    startDate: null,
+    endDate: null,
+  })),
+  ...['p-0', 'p-1', 'p-2', 'p-3', 'p-4'].map((id) => ({
+    campaignId: id,
+    campaignName: id,
+    campaignNameKey: id,
+    classification: 'provider' as const,
+    startDate: null,
+    endDate: null,
+  })),
 ];
+
+// Las mismas 7 campañas se distribuyen en dos tiendas: siguen siendo 7.
+const OCC: StoreOccupancy[] = ['901', '902'].map((storeNumber) => ({
+  storeNumber,
+  storeName: 'Prueba',
+  peakConcurrentCampaigns: 3,
+  distinctCampaigns: 7,
+  campaignDays: 20,
+  classification: { institutional: 2, provider: 5, unknown: 0 },
+  distinctSupports: 2,
+  physicalScreens: 4,
+  campaigns: CAMPAIGNS,
+}));
 
 beforeEach(() => {
   vi.mocked(listStoreDirectory).mockResolvedValue([
@@ -91,9 +109,10 @@ function renderPanel(role: UserRole = 'admin') {
     <MemoryRouter>
       <ControlCenterPanel
         occupancyStores={OCC}
+        supportedStores={new Set(['901', '902'])}
         theme="light"
         role={role}
-        periodLabel="01/10/2026"
+        todayLabel="01/10/2026"
         refreshKey={0}
       />
     </MemoryRouter>,

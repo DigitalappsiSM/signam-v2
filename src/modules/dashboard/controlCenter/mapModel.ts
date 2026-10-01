@@ -10,6 +10,7 @@ import type {
   ControlCenterCamera,
   ControlCenterTicket,
 } from '@/services/controlCenter';
+import type { AdmiraScreen } from '@/domain';
 import type { StoreOccupancy } from '../occupancyModel';
 
 /**
@@ -19,9 +20,13 @@ import type { StoreOccupancy } from '../occupancyModel';
  * - los tickets abiertos de Odoo (Soporte, Contenido, Cámaras);
  * - la salud vigente de las cámaras Quividi (alertas y OTS del último día).
  *
+ * El universo del mapa son solo las tiendas del directorio **con soportes**: al
+ * menos una pantalla activa en el catálogo Admira (o en los catálogos que se
+ * sumen después). Una tienda del directorio sin soportes no se evalúa.
+ *
  * Una tienda sin coordenadas cuenta en su estado y en los listados, pero no se
  * dibuja como punto (nunca se inventa una ubicación). Una tienda con datos que
- * no está en el directorio se reporta en `unlocated`.
+ * no está en ese universo se reporta en `unlocated` (nunca se pierde en silencio).
  */
 
 export type IncidentKind = 'support' | 'content' | 'camera' | 'other';
@@ -83,9 +88,18 @@ export interface MapStore {
   ots: number | null;
 }
 
+/** Campañas distintas (una campaña cuenta una vez, sin importar tiendas). */
+export interface CampaignTotals {
+  institutional: number;
+  provider: number;
+  unknown: number;
+  total: number;
+}
+
 export interface StateAggregate {
   state: MexicanState;
   stores: number;
+  /** Campañas distintas en el estado (no suma tiendas). */
   institutional: number;
   provider: number;
   campaigns: number;
@@ -96,16 +110,26 @@ export interface StateAggregate {
 
 export interface ControlCenterModel {
   stores: MapStore[];
+  /** Campañas distintas de toda la ocupación recibida. */
+  campaignTotals: CampaignTotals;
   states: StateAggregate[];
   incidents: MapIncident[];
-  /** Números de tienda con datos que no están en el directorio. */
+  /**
+   * Números de tienda con datos que no están en el universo del mapa (fuera
+   * del directorio o sin soportes en el catálogo).
+   */
   unlocated: string[];
-  /** Tiendas activas del directorio que no tienen coordenadas. */
+  /** Tiendas activas con soportes que no tienen coordenadas. */
   withoutCoordinates: number;
 }
 
 export interface ControlCenterInput {
   directory: readonly StoreDirectoryEntry[];
+  /**
+   * Números de tienda normalizados con al menos un soporte activo en catálogo
+   * (`storesWithActiveSupports`). Solo esas tiendas del directorio se evalúan.
+   */
+  supportedStores: ReadonlySet<string>;
   occupancy: readonly StoreOccupancy[];
   tickets: readonly ControlCenterTicket[] | null;
   cameras: readonly ControlCenterCamera[] | null;
@@ -165,8 +189,45 @@ export function worstSeverity(list: readonly MapIncident[]): Severity | null {
   return worst;
 }
 
+/** Cuenta campañas distintas por `campaignNameKey` (= `campaign.id`). */
+function countDistinct(
+  lists: readonly (readonly StoreOccupancy['campaigns'][number][])[],
+): CampaignTotals {
+  const seen = new Map<string, StoreOccupancy['campaigns'][number]>();
+  for (const list of lists)
+    for (const c of list) seen.set(c.campaignNameKey, c);
+  const out: CampaignTotals = {
+    institutional: 0,
+    provider: 0,
+    unknown: 0,
+    total: 0,
+  };
+  for (const c of seen.values()) {
+    out[c.classification] += 1;
+    out.total += 1;
+  }
+  return out;
+}
+
 function emptyIncidents(): Record<IncidentKind, number> {
   return { support: 0, content: 0, camera: 0, other: 0 };
+}
+
+/**
+ * Tiendas con al menos una pantalla **activa** en el catálogo Admira, por número
+ * de tienda normalizado (`Numero de Tienda`). Un catálogo futuro se suma
+ * uniendo su propio conjunto a este.
+ */
+export function storesWithActiveSupports(
+  screens: readonly AdmiraScreen[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const s of screens) {
+    if (!s.metadata.active) continue;
+    const n = normalizeStoreNumber(s.original['Numero de Tienda']);
+    if (n !== '') out.add(n);
+  }
+  return out;
 }
 
 export function buildControlCenterModel(
@@ -176,6 +237,8 @@ export function buildControlCenterModel(
   const unlocated = new Set<string>();
 
   for (const e of input.directory) {
+    if (!input.supportedStores.has(normalizeStoreNumber(e.storeNumber)))
+      continue;
     byNumber.set(e.storeNumber, {
       storeNumber: e.storeNumber,
       name: e.name,
@@ -200,6 +263,7 @@ export function buildControlCenterModel(
     return s ?? null;
   };
 
+  const campaignsByStore = new Map<string, StoreOccupancy['campaigns']>();
   for (const o of input.occupancy) {
     const s = store(o.storeNumber);
     if (!s) continue;
@@ -208,6 +272,10 @@ export function buildControlCenterModel(
     s.campaigns.unknown += o.classification.unknown;
     s.totalCampaigns += o.distinctCampaigns;
     s.screens += o.physicalScreens;
+    campaignsByStore.set(s.storeNumber, [
+      ...(campaignsByStore.get(s.storeNumber) ?? []),
+      ...o.campaigns,
+    ]);
   }
 
   const incidents: MapIncident[] = [];
@@ -266,6 +334,7 @@ export function buildControlCenterModel(
   for (const s of stores) s.incidents.sort(compareIncidents);
 
   const states = new Map<MexicanState, StateAggregate>();
+  const stateCampaigns = new Map<MexicanState, StoreOccupancy['campaigns'][]>();
   for (const s of stores) {
     if (!s.state) continue;
     const agg = states.get(s.state) ?? {
@@ -279,9 +348,10 @@ export function buildControlCenterModel(
       ots: 0,
     };
     agg.stores += 1;
-    agg.institutional += s.campaigns.institutional;
-    agg.provider += s.campaigns.provider;
-    agg.campaigns += s.totalCampaigns;
+    stateCampaigns.set(s.state, [
+      ...(stateCampaigns.get(s.state) ?? []),
+      campaignsByStore.get(s.storeNumber) ?? [],
+    ]);
     for (const i of s.incidents) {
       agg.incidents[i.kind] += 1;
       agg.incidentTotal += 1;
@@ -290,8 +360,16 @@ export function buildControlCenterModel(
     states.set(s.state, agg);
   }
 
+  for (const [state, agg] of states) {
+    const t = countDistinct(stateCampaigns.get(state) ?? []);
+    agg.institutional = t.institutional;
+    agg.provider = t.provider;
+    agg.campaigns = t.total;
+  }
+
   return {
     stores,
+    campaignTotals: countDistinct(input.occupancy.map((o) => o.campaigns)),
     states: [...states.values()],
     incidents: incidents.sort(compareIncidents),
     unlocated: [...unlocated].sort(compareStoreNumbers),

@@ -211,16 +211,21 @@ function StoreTable({
  */
 export function ControlCenterPanel({
   occupancyStores,
+  supportedStores,
   theme,
   role,
-  periodLabel,
+  todayLabel,
   refreshKey,
 }: {
+  /** Ocupación de **hoy** (campañas vigentes a la fecha de consulta). */
   occupancyStores: readonly StoreOccupancy[];
+  /** Tiendas con soportes activos en catálogo: el universo del mapa. */
+  supportedStores: ReadonlySet<string>;
   theme: Theme;
   /** Rol del usuario: oculta accesos a módulos que su rol no puede abrir. */
   role: UserRole;
-  periodLabel: string;
+  /** Fecha de consulta `dd/mm/aaaa`. */
+  todayLabel: string;
   refreshKey: number;
 }) {
   const canOpen = (path: string) => {
@@ -260,12 +265,13 @@ export function ControlCenterPanel({
     () =>
       buildControlCenterModel({
         directory,
+        supportedStores,
         occupancy: occupancyStores,
         tickets: snapshot?.tickets ?? null,
         cameras: snapshot?.cameras ?? null,
         now: new Date(),
       }),
-    [directory, occupancyStores, snapshot],
+    [directory, supportedStores, occupancyStores, snapshot],
   );
   const palette = controlPalette(theme);
 
@@ -316,9 +322,11 @@ export function ControlCenterPanel({
   // --- Totales de los indicadores ------------------------------------------
   const active = model.stores.filter((s) => s.active);
   const totals = {
-    brand: active.reduce((a, s) => a + s.campaigns.provider, 0),
-    liverpool: active.reduce((a, s) => a + s.campaigns.institutional, 0),
-    campaigns: active.reduce((a, s) => a + s.totalCampaigns, 0),
+    // Campañas distintas al aire hoy: una campaña cuenta una vez, sin importar
+    // a cuántas tiendas o soportes se distribuye.
+    brand: model.campaignTotals.provider,
+    liverpool: model.campaignTotals.institutional,
+    campaigns: model.campaignTotals.total,
     incidents: model.incidents.length,
     critical: model.incidents.filter((i) => i.severity === 'critical').length,
     withTickets: model.incidents.filter((i) => i.source === 'odoo').length,
@@ -492,8 +500,8 @@ export function ControlCenterPanel({
           <div className="cc-map__head">
             <div>
               <span className="dashboard-eyebrow">
-                Capa · {LAYERS.find((l) => l.id === layer)?.label} ·{' '}
-                {periodLabel}
+                Capa · {LAYERS.find((l) => l.id === layer)?.label} · Hoy{' '}
+                {todayLabel}
               </span>
               <h2 className="cc-map__title">
                 {layer === 'campaigns'
@@ -807,7 +815,7 @@ export function ControlCenterPanel({
                     </span>
                   </>
                 ) : (
-                  <p className="cc-muted">Sin datos en el periodo.</p>
+                  <p className="cc-muted">Sin datos al día de hoy.</p>
                 )}
                 <span className="cc-side__row">
                   <span>Tiendas en el mapa</span>
@@ -1159,7 +1167,7 @@ export function ControlCenterPanel({
                 ? 'Audiencia por tienda'
                 : 'Cámaras por tienda'
           }
-          subtitle={periodLabel}
+          subtitle={`Hoy ${todayLabel}`}
           onClose={closeDialog}
         >
           <StoreTable
