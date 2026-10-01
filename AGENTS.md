@@ -840,6 +840,51 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   preferida** (conserva historial); no se deben eliminar pantallas ya
   referenciadas por exportaciones. Antes de liberar se restringirá a admin.
 
+## Directorio de tiendas
+
+- `storeDirectory/{storeNumber}` es la **fuente única de ubicación** de cada
+  tienda Liverpool: nombre, estatus, calle, colonia, municipio, estado, zona,
+  código postal y coordenadas. El dominio puro vive en `src/domain/stores/`
+  (importado vía `@/domain/stores`, fuera del barril principal); la pantalla es
+  **Directorio de tiendas** (`/tiendas`, módulo `store-directory`).
+- El id del documento es el número de tienda normalizado sin ceros a la
+  izquierda (`0078` y `78` son la misma tienda), igual que en consolidación.
+- **No interviene en el flujo Liverpool↔Admira**: no forma parte del maestro,
+  del CSV ni de la consolidación, y guardar el directorio nunca escribe en
+  `screens`, `campaigns` ni en ninguna otra colección. El catálogo Admira solo
+  lo **lee** para mostrar CP y estado por `Numero de Tienda`; las pantallas no
+  guardan una copia del CP (dos copias acabarían contradiciéndose).
+- Importación desde Excel (uno o varios archivos a la vez): se reconoce
+  cualquier hoja cuyo encabezado tenga número de sucursal/tienda o
+  `Determinante` y otro campo conocido. La hoja con dirección/CP aporta los
+  datos postales; la que trae `Latitud`/`Longitud` (hoja «Centros» del archivo
+  Ekon) aporta coordenadas con origen `ekon`. Las demás hojas se ignoran.
+- Reglas de validación (`directory.ts`, `geography.ts`):
+  - El CP se normaliza a 5 dígitos (Excel pierde el `0` de la CDMX). Un CP cuyo
+    prefijo SEPOMEX pertenece a otro estado se **reporta y se guarda tal cual**;
+    nunca se corrige ni se inventa.
+  - Estados con alias (`CDMX`, `Estado de México`, `Baja California Norte`) se
+    canonizan a los nombres del GeoJSON del mapa. Estado o zona desconocidos se
+    reportan. Sin estado, se deduce del CP.
+  - Coordenadas fuera de México (p. ej. lat/lng invertidas) se descartan con
+    aviso; nunca se pintan en el mar.
+  - Un número de tienda repetido en la misma hoja es error y conserva la primera
+    fila.
+- Fusión con lo guardado (`diff.ts`): un dato vacío del archivo no borra uno
+  guardado; coordenadas capturadas a mano (`coordinateSource = 'manual'`) no las
+  pisa una importación; las tiendas guardadas que el archivo no trae **se
+  conservan** (no hay borrado: una tienda cerrada se marca `inactive`). El
+  usuario ve nuevas/cambiadas/sin cambios/ausentes antes de confirmar y solo se
+  escriben nuevas y cambiadas.
+- Cobertura: la pantalla cruza el directorio contra las pantallas **activas**
+  del catálogo y lista tiendas del catálogo sin ficha y tiendas activas sin
+  pantallas.
+- Acceso: lectura para cualquier usuario autenticado (el panel de todos los
+  roles la usa para el mapa); escritura con `canWriteWorkspace()` y validación
+  estructural (CP de 5 dígitos o nulo, lat/lng numéricos o nulos, estatus
+  cerrado); `delete` denegado. En la UI, importar/editar requiere
+  `catalog.write`.
+
 ## Diagnóstico de pases Admira
 
 - La página de baja ocupación conserva un único análisis vigente del reporte de

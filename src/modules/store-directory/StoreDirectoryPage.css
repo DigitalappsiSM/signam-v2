@@ -1,0 +1,95 @@
+/* Directorio de tiendas. Reutiliza tabla, modal e incidencias del catálogo
+   (CatalogPage.css); aquí solo van el resumen y el cruce con el catálogo. Todo
+   sale de los tokens del tema, así que funciona en claro y en oscuro. */
+
+.store-dir__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.store-dir__tile {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-top: 3px solid var(--color-border-strong);
+}
+
+.store-dir__tile--success {
+  border-top-color: var(--color-success);
+}
+
+.store-dir__tile--warning {
+  border-top-color: var(--color-warning);
+}
+
+.store-dir__tile--danger {
+  border-top-color: var(--color-danger);
+}
+
+.store-dir__tile-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.store-dir__tile strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.store-dir__tile small {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.store-dir__coverage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.store-dir__coverage h2 {
+  font-size: 0.9rem;
+  margin: 0 0 0.4rem;
+}
+
+.store-dir__coverage ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.store-dir__import {
+  max-width: 720px;
+}
+
+.store-dir__changes {
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.store-dir__changes h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.35rem;
+}
+
+.store-dir__changes ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.store-dir__hint {
+  font-size: 0.78rem;
+  margin: 0.75rem 0 0;
+}
+
+.catalog__table .tabnum,
+.store-dir__coverage .tabnum {
+  font-variant-numeric: tabular-nums;
+}

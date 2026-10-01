@@ -94,6 +94,14 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Datos',
   },
   {
+    path: '/tiendas',
+    label: 'Directorio de tiendas',
+    icon: 'map-pin',
+    description: 'Dirección, código postal y coordenadas de cada tienda.',
+    group: 'Datos',
+    permission: 'catalog.read',
+  },
+  {
     path: '/importar-ekon',
     label: 'Importación Ekon',
     icon: 'calendar',

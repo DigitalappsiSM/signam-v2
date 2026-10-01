@@ -74,7 +74,7 @@ Layered so that domain rules stay framework-free and independently testable:
   `consolidation/consolidate.ts`, `liverpool-import/campaignParse.ts`, `operational-tracking/businessDays.ts`)
   so it is unit-testable without rendering. Modules: `dashboard`, `liverpool-import`, `admira-catalog`,
   `ekon-import`, `campaigns`, `consolidation`, `reconciliation`, `low-occupancy`, `operational-tracking`,
-  `exports`, `audit`, `auth`, `users`, plus the Digital multiretailer trio `digital-import`
+  `exports`, `audit`, `auth`, `users`, `store-directory`, plus the Digital multiretailer trio `digital-import`
   (catorcena EKON import), `digital-operations` (external tracking + retailer/support catalog) and
   `digital-dashboard` (its isolated metrics panel).
 - **`src/domain/ekon/`** — Pure Ekon integration domain (parser, normalization, periods, stable identity,
@@ -89,7 +89,7 @@ Layered so that domain rules stay framework-free and independently testable:
   if `VITE_FIREBASE_*` env vars are present; without config the app boots in **degraded mode** (UI works, panel
   reports missing config — never invent credentials). One service file per Firestore collection
   (`campaigns.ts`, `screens.ts`, `campaignEkonLinks.ts`, `campaignOperationalTracking.ts`,
-  `dateResolutions.ts`, `ekonImports.ts`, `ekonAssignments.ts`, `ekonRevisions.ts`, and the isolated
+  `dateResolutions.ts`, `storeDirectory.ts`, `ekonImports.ts`, `ekonAssignments.ts`, `ekonRevisions.ts`, and the isolated
   `digital*.ts` set — `digitalCatalog.ts`, `digitalImportBatches.ts`, `digitalImportResolutions.ts`,
   `digitalPlacementRows.ts`, `digitalRevisions.ts`, `digitalOperationalItems.ts`,
   `digitalOperationalTracking.ts`, `digitalReportExports.ts`; the last uses Cloud Storage under
@@ -169,6 +169,11 @@ logic. The load-bearing ones:
   load, consolidation/CSV, low occupancy and Quividi come **only** from `STATUS_EFFECTS` in
   `campaigns/campaignStatus.ts` (paused stays in CSV/Quividi; cancelled/duplicate leave everything). See
   `AGENTS.md` (**Estados de campaña**).
+- **Store directory** (`storeDirectory/{storeNumber}`, domain `src/domain/stores/` via `@/domain/stores`): the single
+  source of store location (address, CP, state, zone, GPS). It is outside the master, CSV and consolidation; saving it
+  never writes `screens`. The Admira catalog only reads it by `Numero de Tienda`. CP of another state is reported and
+  kept, never corrected; manual coordinates are not overwritten by imports; stores are never deleted. See `AGENTS.md`
+  (**Directorio de tiendas**).
 - **Guadalajara Galerías exception**: only store 78 + `VIDEO WALL CRIUS` (`GUADALAJARA_GALERIAS_EXCEPTION`).
 - **Calendar ↔ catalog mapping**: cross on `Numero de Tienda` + `NORMALIZACION LIVERPOOL` (`calendarSupport`).
 - Prefer **deactivating** screens over physical deletion (deletion exists but loses history; don't delete
