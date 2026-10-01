@@ -18,6 +18,36 @@ import { normalizeStore, normalizeSupport } from './effectiveScope';
 export const CAMERA_PAIR_GAP_THRESHOLD = 1000;
 
 /**
+ * Factor de duplicación para circuitos de una sola cámara configurada.
+ *
+ * Directriz de negocio: la mayoría de las tiendas con 1 sola cámara en
+ * realidad tienen 2 pantallas en el mismo sitio (la cámara mide una, pero la
+ * oportunidad de ver es la de las dos) — excepto Insurgentes, que ya queda
+ * fuera de esta regla porque tiene 2 cámaras configuradas. Se basa en
+ * cuántas cámaras tiene **asignadas** el circuito en el catálogo
+ * (`configuredCameras`), no en cuántas reportaron ese día/hora: un circuito
+ * de 2 cámaras donde una falló momentáneamente no es "de una sola cámara",
+ * es una medición parcial de una instalación de 2 — ese caso ya lo resuelve
+ * `combineCameraValues`.
+ */
+export const SINGLE_CAMERA_DUPLICATION_FACTOR = 2;
+
+/**
+ * Cifra de cara a marca a partir del dato medido: lo duplica
+ * (`SINGLE_CAMERA_DUPLICATION_FACTOR`) cuando el circuito tiene una sola
+ * cámara configurada; lo deja igual en cualquier otro caso (0 cámaras, o 2+
+ * ya resueltas por `combineCameraValues`).
+ */
+export function publishedValue(
+  measuredValue: number,
+  configuredCameras: number,
+): number {
+  return configuredCameras === 1
+    ? measuredValue * SINGLE_CAMERA_DUPLICATION_FACTOR
+    : measuredValue;
+}
+
+/**
  * Pares cuyas 2 cámaras miden zonas físicas distintas del mismo circuito, así
  * que su oportunidad de ver es genuinamente el doble — no una redundancia
  * técnica de la misma pantalla (ver el comentario de `quividiLocationId2` en

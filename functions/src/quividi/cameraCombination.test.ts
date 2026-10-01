@@ -4,6 +4,7 @@ import {
   combineCameraValues,
   detectCameraPairGaps,
   isZoneSplitPair,
+  publishedValue,
   type CameraPairGapInput,
 } from './cameraCombination';
 
@@ -169,5 +170,20 @@ describe('detectCameraPairGaps', () => {
     ]);
 
     expect(gaps.map((g) => g.storeNumber)).toEqual(['2', '1']);
+  });
+});
+
+describe('publishedValue', () => {
+  it('duplica cuando el circuito tiene exactamente 1 cámara configurada', () => {
+    expect(publishedValue(1000, 1)).toBe(2000);
+  });
+
+  it('no duplica un circuito sin cámara', () => {
+    expect(publishedValue(0, 0)).toBe(0);
+  });
+
+  it('no duplica un circuito de 2+ cámaras (ya resuelto por combineCameraValues)', () => {
+    expect(publishedValue(1000, 2)).toBe(1000);
+    expect(publishedValue(1000, 3)).toBe(1000);
   });
 });

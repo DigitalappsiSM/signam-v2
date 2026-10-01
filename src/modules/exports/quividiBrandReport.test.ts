@@ -19,7 +19,9 @@ import {
   brandGenderByDay,
   brandHourlyDistribution,
   brandMeasurableScope,
+  brandSingleCameraDuplication,
   brandStoreAttribution,
+  brandStoreAudit,
   brandSupportDays,
   brandWeeklyEvolution,
   effectiveEndDate,
@@ -35,17 +37,28 @@ function supportDay(
     storeName: string;
   },
 ): QuividiSupportDay {
-  return {
+  const base = {
     support: 'MUPI DIGITAL',
-    configuredCameras: 1,
+    // 2 cámaras por default: no es "de una sola cámara" (eso se prueba
+    // explícitamente donde haga falta), así que no se duplica.
+    configuredCameras: 2,
     measuredCameras: 1,
-    status: 'complete',
+    status: 'complete' as const,
     ots: 1000,
     effectiveOts: 800,
     watchers: 100,
     attentionSeconds: 3,
     dwellSeconds: 20,
     ...overrides,
+  };
+  const singleCamera = base.configuredCameras === 1;
+  return {
+    publishedOts: singleCamera ? base.ots * 2 : base.ots,
+    publishedEffectiveOts: singleCamera
+      ? base.effectiveOts * 2
+      : base.effectiveOts,
+    publishedWatchers: singleCamera ? base.watchers * 2 : base.watchers,
+    ...base,
   };
 }
 
@@ -504,6 +517,147 @@ describe('informe comercial agregado de audiencia', () => {
   });
 });
 
+describe('duplicación por cámara única', () => {
+  it('duplica la cifra publicada de un circuito con 1 sola cámara', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: { totalPairs: 1, mappedPairs: 1, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '12',
+          storeName: 'COAPA',
+          configuredCameras: 1,
+          ots: 1000,
+        }),
+      ],
+    });
+
+    const summary = brandCampaignSummary(input);
+    expect(summary.measuredOts).toBe(2000);
+    expect(summary.estimatedOts).toBe(2000);
+  });
+
+  it('no duplica un circuito de 2+ cámaras', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: { totalPairs: 1, mappedPairs: 1, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 1, mappedStores: 1, percent: 100 },
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '12',
+          storeName: 'COAPA',
+          configuredCameras: 2,
+          ots: 1000,
+        }),
+      ],
+    });
+
+    expect(brandCampaignSummary(input).estimatedOts).toBe(1000);
+  });
+
+  it('brandSingleCameraDuplication reconcilia: medido + añadido = publicado', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: {
+        totalPairs: 2,
+        mappedPairs: 2,
+        percent: 100,
+        bySupport: [],
+      },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNA CÁMARA',
+          configuredCameras: 1,
+          ots: 1000,
+        }),
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '2',
+          storeName: 'DOS CÁMARAS',
+          configuredCameras: 2,
+          ots: 500,
+        }),
+      ],
+    });
+
+    const duplication = brandSingleCameraDuplication(input);
+    expect(duplication.pairs).toBe(1);
+    expect(duplication.measuredOts).toBe(1000);
+    expect(duplication.publishedOts).toBe(2000);
+    expect(duplication.addedOts).toBe(1000);
+
+    // La tienda de 2 cámaras no entra: su OTS no se duplicó.
+    const summary = brandCampaignSummary(input);
+    expect(summary.measuredOts).toBe(2500); // 2000 (duplicado) + 500
+    // Lo real, sin duplicar.
+    expect(summary.measuredOts - duplication.addedOts).toBe(1500);
+  });
+
+  it('brandStoreAudit reporta measuredOts (real) y publishedOts (duplicado) por separado', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      supportDays: [
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '12',
+          storeName: 'COAPA',
+          configuredCameras: 1,
+          ots: 1000,
+        }),
+      ],
+    });
+
+    const audit = brandStoreAudit(input);
+    expect(audit[0]).toMatchObject({ measuredOts: 1000, publishedOts: 2000 });
+  });
+
+  it('duplica también watchers (pesa el doble al ponderar dwell time), no el tiempo por persona', () => {
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-01',
+      coverage: {
+        totalPairs: 2,
+        mappedPairs: 2,
+        percent: 100,
+        bySupport: [],
+      },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: [
+        // 1 cámara: 10 watchers reales -> 20 publicados, pesa el doble.
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '1',
+          storeName: 'UNA CÁMARA',
+          configuredCameras: 1,
+          watchers: 10,
+          dwellSeconds: 30,
+        }),
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '2',
+          storeName: 'DOS CÁMARAS',
+          configuredCameras: 2,
+          watchers: 10,
+          dwellSeconds: 10,
+        }),
+      ],
+    });
+
+    // Ponderado por watchers publicados (20 y 10): (30*20 + 10*10) / 30 = 23.33
+    expect(brandDwellTime(input)).toBeCloseTo(23.33, 1);
+  });
+});
+
 describe('desglose de OTS extrapolados por motivo del hueco', () => {
   it('separa días sin dato (con cámara) de soportes sin cámara, por formato', () => {
     const dates = Array.from(
@@ -621,12 +775,18 @@ describe('distribución horaria de OTS con medición directa', () => {
       storeNumber: '1',
       storeName: 'UNO',
       support: 'MUPI DIGITAL',
-      configuredCameras: 1,
+      // 2 cámaras: no se duplica. Duplicar uniformemente todas las horas no
+      // cambiaría los porcentajes que prueba este describe de todos modos,
+      // pero así no depende de esa coincidencia.
+      configuredCameras: 2,
       measuredCameras: status === 'missing' ? 0 : 1,
       status,
       ots,
       effectiveOts: ots,
       watchers: 0,
+      publishedOts: ots,
+      publishedEffectiveOts: ots,
+      publishedWatchers: 0,
       attentionSeconds: 0,
       dwellSeconds: 0,
     };
@@ -1149,19 +1309,22 @@ describe('reconstrucción de días desde supportHours (franja operativa)', () =>
       storeNumber: string;
       storeName: string;
       support: string;
+      configuredCameras: number;
       status: 'complete' | 'partial' | 'missing';
       ots: number;
       watchers: number;
       dwellSeconds: number;
     }> = {},
   ) {
-    return {
+    const base = {
       date: '2026-09-01',
       hour: 12,
       storeNumber: '1',
       storeName: 'UNO',
       support: 'MUPI DIGITAL',
-      configuredCameras: 1,
+      // 2 cámaras por default: no es "de una sola cámara" (eso se prueba
+      // explícitamente donde haga falta), así que no se duplica.
+      configuredCameras: 2,
       measuredCameras: 1,
       status: 'complete' as const,
       ots: 100,
@@ -1170,6 +1333,15 @@ describe('reconstrucción de días desde supportHours (franja operativa)', () =>
       attentionSeconds: 2,
       dwellSeconds: 20,
       ...overrides,
+    };
+    const singleCamera = base.configuredCameras === 1;
+    return {
+      publishedOts: singleCamera ? base.ots * 2 : base.ots,
+      publishedEffectiveOts: singleCamera
+        ? base.effectiveOts * 2
+        : base.effectiveOts,
+      publishedWatchers: singleCamera ? base.watchers * 2 : base.watchers,
+      ...base,
     };
   }
 

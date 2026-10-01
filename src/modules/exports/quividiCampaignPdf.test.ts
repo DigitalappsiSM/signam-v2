@@ -36,12 +36,15 @@ function report(): QuividiCampaignReport {
         date,
         ...store,
         support: 'MUPI DIGITAL',
-        configuredCameras: 1,
+        configuredCameras: 2,
         measuredCameras: 1,
         status: 'complete' as const,
         ots: 1200,
         effectiveOts: 900,
         watchers: 190,
+        publishedOts: 1200,
+        publishedEffectiveOts: 900,
+        publishedWatchers: 190,
         attentionSeconds: 2.8,
         dwellSeconds: 22.4,
       })),
@@ -119,21 +122,27 @@ describe('renderizado del informe', () => {
       for (const support of supports) {
         dates.forEach((date, day) => {
           const down = (store * 7 + day) % 11 < 4;
+          const ots = down ? 0 : 30_000 + ((store * 13 + day * 7) % 22_000);
+          const effectiveOts = down ? 0 : 20_000;
+          const watchers = down ? 0 : 5_000;
           supportDays.push({
             date,
             storeNumber: String(store + 1),
             storeName: `TIENDA ${store + 1}`,
             support,
-            configuredCameras: 1,
+            configuredCameras: 2,
             measuredCameras: down ? 0 : 1,
             status: down
               ? ('missing' as const)
               : day % 9 === 0
                 ? ('partial' as const)
                 : ('complete' as const),
-            ots: down ? 0 : 30_000 + ((store * 13 + day * 7) % 22_000),
-            effectiveOts: down ? 0 : 20_000,
-            watchers: down ? 0 : 5_000,
+            ots,
+            effectiveOts,
+            watchers,
+            publishedOts: ots,
+            publishedEffectiveOts: effectiveOts,
+            publishedWatchers: watchers,
             attentionSeconds: 2.8,
             dwellSeconds: 22.4,
           });
@@ -146,7 +155,7 @@ describe('renderizado del informe', () => {
       storeNumber: '1',
       storeName: 'TIENDA 1',
       support: 'MUPI DIGITAL',
-      configuredCameras: 1,
+      configuredCameras: 2,
       measuredCameras: 1,
       status: 'complete' as const,
       ots:
@@ -159,6 +168,16 @@ describe('renderizado del informe', () => {
               : 60,
       effectiveOts: 0,
       watchers: 0,
+      publishedOts:
+        hour >= 12 && hour < 18
+          ? 4_500
+          : hour >= 18
+            ? 2_800
+            : hour >= 6
+              ? 2_700
+              : 60,
+      publishedEffectiveOts: 0,
+      publishedWatchers: 0,
       attentionSeconds: 0,
       dwellSeconds: 0,
     }));
@@ -286,12 +305,15 @@ describe('renderizado del informe', () => {
           storeNumber: '3',
           storeName: 'POLANCO',
           support: 'MUPI DIGITAL',
-          configuredCameras: 1,
+          configuredCameras: 2,
           measuredCameras: 1,
           status: 'complete',
           ots: 9_999, // incluye la madrugada; nunca debe verse en portada
           effectiveOts: 8_000,
           watchers: 900,
+          publishedOts: 9_999,
+          publishedEffectiveOts: 8_000,
+          publishedWatchers: 900,
           attentionSeconds: 2.8,
           dwellSeconds: 22.4,
         },
@@ -303,12 +325,15 @@ describe('renderizado del informe', () => {
         storeNumber: '3',
         storeName: 'POLANCO',
         support: 'MUPI DIGITAL',
-        configuredCameras: 1,
+        configuredCameras: 2,
         measuredCameras: 1,
         status: 'complete' as const,
         ots: hour === 3 ? 9_500 : 499,
         effectiveOts: hour === 3 ? 7_600 : 400,
         watchers: hour === 3 ? 850 : 50,
+        publishedOts: hour === 3 ? 9_500 : 499,
+        publishedEffectiveOts: hour === 3 ? 7_600 : 400,
+        publishedWatchers: hour === 3 ? 850 : 50,
         attentionSeconds: 2.6,
         dwellSeconds: 20,
       })),
@@ -434,12 +459,15 @@ describe('renderizado del informe', () => {
           date,
           ...store,
           support: 'MUPI DIGITAL',
-          configuredCameras: 1,
+          configuredCameras: 2,
           measuredCameras: 1,
           status: 'complete' as const,
           ots: 1000,
           effectiveOts: 800,
           watchers: 100,
+          publishedOts: 1000,
+          publishedEffectiveOts: 800,
+          publishedWatchers: 100,
           attentionSeconds: 2.5,
           dwellSeconds: 18,
         })),
@@ -516,12 +544,15 @@ describe('renderizado del informe', () => {
         storeNumber: '3',
         storeName: 'POLANCO',
         support: 'MUPI DIGITAL',
-        configuredCameras: 1,
+        configuredCameras: 2,
         measuredCameras: 1,
         status: 'complete' as const,
         ots: 1000,
         effectiveOts: 800,
         watchers: 90,
+        publishedOts: 1000,
+        publishedEffectiveOts: 800,
+        publishedWatchers: 90,
         attentionSeconds: 2.6,
         dwellSeconds: 20,
       })),

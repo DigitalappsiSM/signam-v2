@@ -4,6 +4,7 @@ import { buildQuividiCampaignWorkbook } from './quividiCampaignExcel';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandSingleCameraDuplication,
   brandStoreAttribution,
 } from './quividiBrandReport';
 
@@ -19,17 +20,28 @@ function supportDay(
     storeName: string;
   },
 ): QuividiSupportDay {
-  return {
+  const base = {
     support: 'MUPI DIGITAL',
-    configuredCameras: 1,
+    // 2 cámaras por default: no es "de una sola cámara" (eso se prueba en
+    // quividiBrandReport.test.ts), así que no se duplica.
+    configuredCameras: 2,
     measuredCameras: 1,
-    status: 'complete',
+    status: 'complete' as const,
     ots: 1000,
     effectiveOts: 800,
     watchers: 100,
     attentionSeconds: 3,
     dwellSeconds: 20,
     ...overrides,
+  };
+  const singleCamera = base.configuredCameras === 1;
+  return {
+    publishedOts: singleCamera ? base.ots * 2 : base.ots,
+    publishedEffectiveOts: singleCamera
+      ? base.effectiveOts * 2
+      : base.effectiveOts,
+    publishedWatchers: singleCamera ? base.watchers * 2 : base.watchers,
+    ...base,
   };
 }
 
@@ -278,5 +290,57 @@ describe('hoja de auditoría del informe comercial', () => {
     );
     expect(headers).toContain('Extrapolados: sin dato');
     expect(headers).toContain('Extrapolados: sin cámara');
+  });
+
+  it('publica la sección de duplicación por cámara única, reconciliada con el total', async () => {
+    const withSingleCamera: QuividiCampaignReport = {
+      ...report(),
+      supportDays: [
+        ...report().supportDays,
+        supportDay({
+          date: DATES[0]!,
+          storeNumber: '3',
+          storeName: 'COAPA',
+          configuredCameras: 1,
+          ots: 2000,
+        }),
+      ],
+      coverage: { totalPairs: 4, mappedPairs: 3, percent: 75, bySupport: [] },
+      storeCoverage: { totalStores: 4, mappedStores: 3, percent: 75 },
+    };
+    const values = await auditValues(withSingleCamera);
+    const duplication = brandSingleCameraDuplication(withSingleCamera);
+    const summary = brandCampaignSummary(withSingleCamera);
+
+    expect(duplication.pairs).toBe(1);
+    expect(duplication.measuredOts).toBe(2000);
+    expect(duplication.publishedOts).toBe(4000);
+    expect(duplication.addedOts).toBe(2000);
+
+    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(
+      duplication.pairs,
+    );
+    expect(values.get('OTS medidos en esos pares, sin duplicar')).toBe(
+      duplication.measuredOts,
+    );
+    expect(values.get('+ OTS añadidos por duplicación')).toBe(
+      duplication.addedOts,
+    );
+    expect(
+      values.get('= OTS publicados de esos pares (ya incluidos arriba)'),
+    ).toBe(duplication.publishedOts);
+
+    // El total de portada (sección 3) ya incluye la duplicación: no se suma
+    // de nuevo, sólo se hace explícito cuánto de ese total es el ajuste.
+    expect(values.get('OTS medidos')).toBe(summary.measuredOts);
+    // 10 días de POLANCO (1000 c/u) + 3 días de SANTA FE (1000 c/u) + 2000
+    // reales de COAPA, todo sin duplicar.
+    expect(summary.measuredOts - duplication.addedOts).toBe(15_000);
+  });
+
+  it('no publica nada en la sección de duplicación si no hay pares de 1 sola cámara', async () => {
+    const values = await auditValues(report());
+    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(0);
+    expect(values.get('+ OTS añadidos por duplicación')).toBe(0);
   });
 });

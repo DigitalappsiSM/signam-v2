@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import { combineCameraValues, isZoneSplitPair } from './cameraCombination';
+import {
+  combineCameraValues,
+  isZoneSplitPair,
+  publishedValue,
+} from './cameraCombination';
 import type {
   CampaignDoc,
   EffectiveScopeOrigin,
@@ -98,6 +102,15 @@ export interface SupportDay {
   watchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /**
+   * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
+   * el circuito tenga una sola cámara configurada (`configuredCameras === 1`,
+   * sin importar cuántas reportaron ese día), caso en el que se duplica
+   * (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Ver `cameraCombination.ts`.
+   */
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
 }
 
 export interface DemographicRow {
@@ -471,6 +484,15 @@ export function buildMeasurementRows(
         (sum, row) => sum + row.watchers,
         0,
       );
+      const dayOts = combineCameraValues(
+        selected.map((row) => row.ots),
+        zoneSplit,
+      );
+      const dayEffectiveOts = combineCameraValues(
+        selected.map((row) => row.effectiveOts),
+        zoneSplit,
+      );
+      const dayWatchers = average(selected.map((row) => row.watchers));
       supportDays.push({
         date,
         storeNumber: pair.storeNumber,
@@ -479,15 +501,12 @@ export function buildMeasurementRows(
         configuredCameras: all.length,
         measuredCameras: selected.length,
         status,
-        ots: combineCameraValues(
-          selected.map((row) => row.ots),
-          zoneSplit,
-        ),
-        effectiveOts: combineCameraValues(
-          selected.map((row) => row.effectiveOts),
-          zoneSplit,
-        ),
-        watchers: average(selected.map((row) => row.watchers)),
+        ots: dayOts,
+        effectiveOts: dayEffectiveOts,
+        watchers: dayWatchers,
+        publishedOts: publishedValue(dayOts, all.length),
+        publishedEffectiveOts: publishedValue(dayEffectiveOts, all.length),
+        publishedWatchers: publishedValue(dayWatchers, all.length),
         attentionSeconds:
           watchersTotal > 0
             ? selected.reduce((sum, row) => sum + row.attentionTenths, 0) /

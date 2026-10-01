@@ -3,6 +3,7 @@ import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandSingleCameraDuplication,
   brandStoreAttribution,
   brandStoreAudit,
   formatCivilDate,
@@ -470,6 +471,7 @@ export function addQuividiAuditSheet(
     'Completitud',
     'Par-día medidos / contratados',
     'OTS medidos',
+    'OTS publicados',
     'Soportes con cámara',
     'OTS ajustados',
   ];
@@ -509,28 +511,40 @@ export function addQuividiAuditSheet(
     otsCell.numFmt = INT;
     otsCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-    const pairsCell = sheet.getCell(row, 5);
+    // Detalle de la duplicación por cámara única: igual a «OTS medidos» salvo
+    // que el soporte tenga una sola cámara configurada, caso en el que viene
+    // duplicado (ver sección 10).
+    const publishedCell = sheet.getCell(row, 5);
+    publishedCell.value = store.publishedOts;
+    publishedCell.numFmt = INT;
+    publishedCell.alignment = { vertical: 'middle', horizontal: 'right' };
+    if (store.publishedOts !== store.measuredOts) {
+      fill(publishedCell, COLORS.amberPale);
+      publishedCell.font = { color: { argb: COLORS.amber } };
+    }
+
+    const pairsCell = sheet.getCell(row, 6);
     pairsCell.value = store.pairs;
     pairsCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
     // Sólo las tiendas con al menos un par-día en un formato medible tienen
     // OTS ajustados: una tienda cuyo único soporte es un formato sin ninguna
     // medición (fuera de la cifra) no participa del ajuste.
-    const adjustedCell = sheet.getCell(row, 6);
+    const adjustedCell = sheet.getCell(row, 7);
     const adjusted = adjustedByStore.get(store.storeNumber);
     adjustedCell.value = adjusted ?? '—';
     if (typeof adjusted === 'number') adjustedCell.numFmt = INT;
     adjustedCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
     if (row % 2 === 0) {
-      for (let col = 1; col <= 6; col += 1)
+      for (let col = 1; col <= 7; col += 1)
         fill(sheet.getCell(row, col), COLORS.pale);
     }
     row += 1;
   }
 
   if (coverage.estimatedStores > 0) {
-    sheet.mergeCells(row, 1, row, 6);
+    sheet.mergeCells(row, 1, row, 7);
     const cell = sheet.getCell(row, 1);
     cell.value = `Además, ${coverage.estimatedStores} tienda(s) del universo contratado no tienen cámara instalada y no aparecen en esta tabla: su aportación es enteramente extrapolada.`;
     cell.font = { italic: true, color: { argb: COLORS.muted }, size: 9 };
@@ -568,7 +582,7 @@ export function addQuividiAuditSheet(
   sheet.mergeCells(row, 1, row + 2, 5);
   const rule = sheet.getCell(row, 1);
   rule.value =
-    'La cifra publicada cubre únicamente los formatos con medición. Dentro de cada uno, todo hueco de su rejilla par-día se rellena con el promedio de OTS observado en los par-día de ESE MISMO formato que sí midieron, sea el hueco un soporte sin cámara o un día que la cámara instalada no reportó.\n\nLos formatos sin ninguna medición quedan fuera del OTS y se reportan como alcance adicional: aplicarles el promedio de otro formato supondría que un pasillo y un atrio ven pasar a la misma gente.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla de aportación existe únicamente para auditar la construcción de la cifra agregada.';
+    'La cifra publicada cubre únicamente los formatos con medición. Dentro de cada uno, todo hueco de su rejilla par-día se rellena con el promedio de OTS observado en los par-día de ESE MISMO formato que sí midieron, sea el hueco un soporte sin cámara o un día que la cámara instalada no reportó.\n\nLos formatos sin ninguna medición quedan fuera del OTS y se reportan como alcance adicional: aplicarles el promedio de otro formato supondría que un pasillo y un atrio ven pasar a la misma gente.\n\nLos pares de una sola cámara configurada se duplican (ver sección 10): la mayoría son en realidad 2 pantallas en el mismo sitio. Los pares de 2+ cámaras no se duplican: ahí la combinación ya resuelve zona partida, brecha entre cámaras o promedio.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla de aportación existe únicamente para auditar la construcción de la cifra agregada.';
   rule.font = { color: { argb: COLORS.text }, size: 9.5 };
   rule.alignment = { vertical: 'top', wrapText: true, indent: 1 };
   for (let offset = 0; offset <= 2; offset += 1) {
@@ -577,4 +591,51 @@ export function addQuividiAuditSheet(
       fill(sheet.getCell(row + offset, col), COLORS.sky);
     }
   }
+  row += 3;
+
+  const duplication = brandSingleCameraDuplication(report);
+  row += 1;
+  row = bandTitle(sheet, row, '10 · DUPLICACIÓN POR CÁMARA ÚNICA');
+  sheet.mergeCells(row, 1, row, 5);
+  const duplicationNote = sheet.getCell(row, 1);
+  duplicationNote.value =
+    'Directriz de negocio (no una regla de extrapolación): la mayoría de los circuitos con 1 sola cámara configurada en realidad tienen 2 pantallas en el mismo sitio — la cámara mide una, pero la oportunidad de ver es la de las dos. Se excluyen los circuitos de 2+ cámaras (Insurgentes, Banner Digital, cualquier otro ya resuelto por combinación de cámaras) y los formatos sin ninguna medición.';
+  duplicationNote.font = {
+    italic: true,
+    color: { argb: COLORS.amber },
+    size: 8.5,
+  };
+  duplicationNote.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+  sheet.getRow(row).height = 34;
+  row += 1;
+
+  row = factRow(
+    sheet,
+    row,
+    'Pares de 1 sola cámara (circuito medible)',
+    duplication.pairs,
+    'Tienda+soporte con exactamente 1 cámara configurada en el catálogo, dentro de los formatos con medición.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    'OTS medidos en esos pares, sin duplicar',
+    duplication.measuredOts,
+    'Lo que realmente reportó la cámara, antes de cualquier ajuste de negocio.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    '+ OTS añadidos por duplicación',
+    duplication.addedOts,
+    'Igual a «OTS medidos en esos pares, sin duplicar»: duplicar es sumarlo una vez más.',
+  );
+  row = factRow(
+    sheet,
+    row,
+    '= OTS publicados de esos pares (ya incluidos arriba)',
+    duplication.publishedOts,
+    'Esta cifra ya forma parte de «OTS medidos» y «OTS estimados de campaña» de la sección 3 — no se suma de nuevo.',
+    { strong: true },
+  );
 }
