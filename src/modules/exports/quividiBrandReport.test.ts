@@ -22,6 +22,8 @@ import {
   brandStoreAttribution,
   brandSupportDays,
   brandWeeklyEvolution,
+  effectiveEndDate,
+  measuredPeriodDays,
   periodDays,
   weekStartOf,
 } from './quividiBrandReport';
@@ -76,13 +78,17 @@ function cameraDay(
 function report(
   overrides: Partial<QuividiCampaignReport> = {},
 ): QuividiCampaignReport {
+  const endDate = overrides.endDate ?? '2026-09-14';
   return {
     schemaVersion: 4,
     campaignId: 'c1',
     campaignName: 'MARCA EJEMPLO',
     startDate: '2026-09-01',
-    endDate: '2026-09-14',
-    generatedAt: 0,
+    endDate,
+    // Por defecto el reporte se "genera" un día después del fin de vigencia,
+    // para que las pruebas describan una campaña ya concluida salvo que
+    // prueben explícitamente el caso de campaña en curso.
+    generatedAt: Date.parse(`${endDate}T12:00:00Z`) + 86_400_000,
     scopeOrigins: [],
     coverage: { totalPairs: 0, mappedPairs: 0, percent: 0, bySupport: [] },
     storeCoverage: { totalStores: 0, mappedStores: 0, percent: 0 },
@@ -265,6 +271,49 @@ describe('informe comercial agregado de audiencia', () => {
     // 20 par-día del universo × 1000: los 8 huecos se rellenan al promedio real.
     expect(summary.estimatedOts).toBe(20_000);
     expect(summary.extrapolatedOts).toBe(8_000);
+  });
+
+  it('no proyecta a futuro una campaña que todavía no termina', () => {
+    // Vigencia contratada de 10 días (01–10 de sep), pero el reporte se
+    // genera a mitad de camino, el día 06: Quividi todavía no tiene (ni puede
+    // tener) datos del 07 al 10, así que esas fechas no aparecen en
+    // `supportDays`. Antes del fix, `periodDays` usaba `endDate` (los 10 días
+    // contratados) y esos 4 días futuros se trataban como un hueco de
+    // medición más, proyectando OTS para días que no habían ocurrido.
+    const dates = Array.from(
+      { length: 6 },
+      (_, index) => `2026-09-0${index + 1}`,
+    );
+    const rows = dates.flatMap((date) => [
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+      supportDay({ date, storeNumber: '2', storeName: 'DOS', ots: 1000 }),
+    ]);
+    const input = report({
+      startDate: '2026-09-01',
+      endDate: '2026-09-10',
+      generatedAt: Date.parse('2026-09-06T12:00:00Z'),
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    expect(effectiveEndDate(input)).toBe('2026-09-06');
+    // La vigencia contratada (informativa, portada) sigue siendo de 10 días.
+    expect(periodDays(input)).toBe(10);
+    // La rejilla de extrapolación se recorta a los 6 días transcurridos.
+    expect(measuredPeriodDays(input)).toBe(6);
+
+    const basis = brandExtrapolationBasis(input);
+    expect(basis.totalPairDays).toBe(12);
+    expect(basis.measuredPairDays).toBe(12);
+    expect(basis.missingPairDays).toBe(0);
+
+    const summary = brandCampaignSummary(input);
+    // Medición completa dentro de la ventana transcurrida: la cifra es
+    // exactamente lo real, sin proyectar los 4 días que todavía no ocurren.
+    expect(summary.measuredOts).toBe(12_000);
+    expect(summary.estimatedOts).toBe(12_000);
+    expect(summary.extrapolatedOts).toBe(0);
   });
 
   it('escala cada día por los pares medidos de ese día', () => {

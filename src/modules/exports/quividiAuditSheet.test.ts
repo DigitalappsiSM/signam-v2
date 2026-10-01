@@ -56,7 +56,8 @@ function report(): QuividiCampaignReport {
     campaignName: 'VENTA PERFUMERÍA',
     startDate: DATES[0] ?? '',
     endDate: DATES[DATES.length - 1] ?? '',
-    generatedAt: 0,
+    generatedAt:
+      Date.parse(`${DATES[DATES.length - 1]}T12:00:00Z`) + 86_400_000,
     scopeOrigins: [],
     coverage: { totalPairs: 3, mappedPairs: 2, percent: 66.7, bySupport: [] },
     storeCoverage: { totalStores: 3, mappedStores: 2, percent: 66.7 },

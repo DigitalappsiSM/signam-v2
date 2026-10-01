@@ -257,12 +257,39 @@ export function formatCivilDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
-/** Días naturales cubiertos por la vigencia, ambos extremos incluidos. */
-export function periodDays(report: QuividiCampaignReport): number {
-  const start = Date.parse(`${report.startDate}T12:00:00Z`);
-  const end = Date.parse(`${report.endDate}T12:00:00Z`);
+function daysBetween(startDate: string, endDate: string): number {
+  const start = Date.parse(`${startDate}T12:00:00Z`);
+  const end = Date.parse(`${endDate}T12:00:00Z`);
   if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
   return Math.round((end - start) / 86_400_000) + 1;
+}
+
+/** Días naturales cubiertos por la vigencia contratada, ambos extremos
+ * incluidos. Es informativa (portada, encabezados, nombre de archivo) y el
+ * umbral de evolución diaria/semanal; no se usa para extrapolar. */
+export function periodDays(report: QuividiCampaignReport): number {
+  return daysBetween(report.startDate, report.endDate);
+}
+
+/**
+ * Fecha de fin efectiva para la extrapolación: el fin de vigencia contratado,
+ * o la fecha de generación del reporte si la campaña todavía no ha terminado.
+ */
+export function effectiveEndDate(report: QuividiCampaignReport): string {
+  const generated = new Date(report.generatedAt).toISOString().slice(0, 10);
+  return generated < report.endDate ? generated : report.endDate;
+}
+
+/**
+ * Días sobre los que se extrapola. Si la campaña sigue vigente a la fecha de
+ * generación del reporte, el tope es esa fecha, no el fin de vigencia
+ * contratado: un día de vigencia que todavía no ha ocurrido no es un hueco de
+ * medición (sin cámara / sin dato) y no debe completarse con el promedio del
+ * formato como si lo fuera — eso proyectaría la cifra a futuro en vez de
+ * mostrar lo real más lo extrapolado a la fecha del reporte.
+ */
+export function measuredPeriodDays(report: QuividiCampaignReport): number {
+  return daysBetween(report.startDate, effectiveEndDate(report));
 }
 
 /**
@@ -332,7 +359,7 @@ export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
   const measuredPercent =
     totalStores > 0 ? (measuredStores / totalStores) * 100 : 0;
 
-  const days = periodDays(report);
+  const days = measuredPeriodDays(report);
   const totalStoreDays = totalStores * days;
   const measuredStoreDays = Math.min(
     totalStoreDays,
@@ -706,7 +733,7 @@ export function brandStoreAudit(
   report: QuividiCampaignReport,
 ): BrandStoreAudit[] {
   const rows = brandSupportDays(report);
-  const days = periodDays(report);
+  const days = measuredPeriodDays(report);
   const groups = new Map<string, QuividiSupportDay[]>();
 
   for (const row of rows) {
@@ -1093,7 +1120,7 @@ export function brandSupportFormats(
   report: QuividiCampaignReport,
 ): BrandSupportFormat[] {
   const rows = brandSupportDays(report);
-  const days = periodDays(report);
+  const days = measuredPeriodDays(report);
 
   const measured = new Map<string, { pairDays: number; ots: number }>();
   const mapped = new Map<string, Set<string>>();
@@ -1162,7 +1189,7 @@ export function brandMeasurableScope(
   );
 
   return {
-    days: periodDays(report),
+    days: measuredPeriodDays(report),
     formats,
     measurable,
     excluded,
