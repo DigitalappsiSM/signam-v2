@@ -128,7 +128,11 @@ import {
   buildQuividiCampaignPdfBlob,
   quividiCampaignPdfFileName,
 } from '@/modules/exports/quividiCampaignPdf';
-import { effectiveEndDate } from '@/modules/exports/quividiBrandReport';
+import {
+  brandPartialDay,
+  effectiveEndDate,
+  partialDayLabel,
+} from '@/modules/exports/quividiBrandReport';
 import { useAnchoredMenu } from './useAnchoredMenu';
 import { CampaignStatusDialog } from './CampaignStatusDialog';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
@@ -810,8 +814,12 @@ export function CampaignsPage() {
     setQuividiBusyId(c.id);
     try {
       const { report } = await getQuividiCampaignReport(c.id, true);
+      const partial = brandPartialDay(report);
+      const cutoff = partial
+        ? `${formatCivilString(partial.date)} (${partialDayLabel(partial.until).toLowerCase()})`
+        : formatCivilString(effectiveEndDate(report));
       setQuividiNotice(
-        `${c.name}: datos de Quividi actualizados al ${formatCivilString(effectiveEndDate(report))}.`,
+        `${c.name}: datos de Quividi actualizados al ${cutoff}.`,
       );
     } catch (refreshError) {
       const message =
@@ -2124,7 +2132,7 @@ function QuividiReportMenu({
                 <span aria-hidden="true">↻</span>
                 <span>
                   Actualizar datos de Quividi
-                  <small>Vuelve a consultar Quividi hasta ayer.</small>
+                  <small>Vuelve a consultar Quividi con lo más reciente.</small>
                 </span>
               </button>
             )}

@@ -168,7 +168,6 @@ export function dayList(start: string, end: string): string[] {
   return days;
 }
 
-
 export function lastCompleteUtcDate(now: number): string {
   const date = new Date(now);
   date.setUTCHours(0, 0, 0, 0);
@@ -176,24 +175,81 @@ export function lastCompleteUtcDate(now: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Último día civil completo en la Ciudad de México (ayer, hora local).
- *
- * Es el corte del informe de campaña: el día de la operación es el de las
- * tiendas, no el UTC. Con UTC, entre las 18:00 y la medianoche locales el
- * "último día completo" ya sería el de hoy, que todavía no ha terminado, y el
- * informe publicaría un día parcial como si estuviera completo.
- */
-export function lastCompleteMexicoDate(now: number): string {
-  const today = new Intl.DateTimeFormat('en-CA', {
+/** Franja operativa de tiendas (hora de la Ciudad de México). */
+export const OPERATIONAL_START_HOUR = 10;
+export const OPERATIONAL_END_HOUR = 22;
+/** Vida de un snapshot que trae el día en curso (día incompleto). */
+export const PARTIAL_DAY_CACHE_MS = 60 * 60 * 1000;
+
+function mexicoClock(now: number): {
+  date: string;
+  hour: number;
+  minute: number;
+} {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Mexico_City',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(now);
-  const date = new Date(`${today}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? '';
+  return {
+    date: `${part('year')}-${part('month')}-${part('day')}`,
+    hour: Number(part('hour')),
+    minute: Number(part('minute')),
+  };
+}
+
+function previousDate(date: string): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * Corte de medición del informe de campaña, en hora de la Ciudad de México
+ * (el día de la operación es el de las tiendas, no el UTC):
+ *
+ * - antes de las 10:00 → hasta ayer (hoy todavía no tiene datos útiles);
+ * - de 10:00 a 22:00 → incluye hoy como **día incompleto**, medido hasta la
+ *   hora de la consulta (`partialUntil`, `HH:MM`);
+ * - desde las 22:00 → incluye hoy como día completo (cerró la operación).
+ */
+export interface MeasurementCutoff {
+  /** Último día que se pide a Quividi; `null` si la campaña aún no empieza. */
+  measuredEndDate: string | null;
+  /** Día en curso incluido con datos parciales, o `null`. */
+  partialDate: string | null;
+  /** Hora local (`HH:MM`) hasta la que se midió el día incompleto. */
+  partialUntil: string | null;
+}
+
+export function measurementCutoff(
+  startDate: string,
+  scheduledEndDate: string,
+  now: number,
+): MeasurementCutoff {
+  const clock = mexicoClock(now);
+  const operating =
+    clock.hour >= OPERATIONAL_START_HOUR && clock.hour < OPERATIONAL_END_HOUR;
+  const cutoff =
+    clock.hour < OPERATIONAL_START_HOUR ? previousDate(clock.date) : clock.date;
+  const endDate = scheduledEndDate < cutoff ? scheduledEndDate : cutoff;
+  if (endDate < startDate) {
+    return { measuredEndDate: null, partialDate: null, partialUntil: null };
+  }
+  const partial = operating && endDate === clock.date;
+  return {
+    measuredEndDate: endDate,
+    partialDate: partial ? clock.date : null,
+    partialUntil: partial
+      ? `${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
+      : null,
+  };
 }
 
 export function measurableEndDate(
@@ -201,9 +257,7 @@ export function measurableEndDate(
   scheduledEndDate: string,
   now: number,
 ): string | null {
-  const cutoff = lastCompleteMexicoDate(now);
-  const endDate = scheduledEndDate < cutoff ? scheduledEndDate : cutoff;
-  return endDate >= startDate ? endDate : null;
+  return measurementCutoff(startDate, scheduledEndDate, now).measuredEndDate;
 }
 
 export function recordDate(periodStart: unknown): string | null {
@@ -295,7 +349,10 @@ export function resolvePairs(
 }
 
 export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
-  const supports = new Map<string, { totalPairs: number; mappedPairs: number }>();
+  const supports = new Map<
+    string,
+    { totalPairs: number; mappedPairs: number }
+  >();
   let mappedPairs = 0;
   for (const pair of pairs) {
     const mapped = pair.cameras.length > 0;
@@ -352,36 +409,44 @@ export function inputSignature(
 /**
  * Indica si el snapshot guardado todavía sirve.
  *
- * Mientras la campaña sigue vigente, el snapshot solo vale si se generó con el
- * mismo corte de medición que tocaría hoy: en cuanto cierra un día nuevo hay
- * que volver a pedirlo, aunque el snapshot tenga menos de 24 h. Sin esa
- * condición, un informe generado el día 1 se seguía sirviendo el día 2 sin el
- * día 1, que ya estaba medido.
+ * Sólo se reutiliza si se generó con el mismo corte de medición que tocaría
+ * ahora (`measurementCutoff`): en cuanto cierra un día, empieza la franja
+ * operativa o termina, se vuelve a pedir. Con día incompleto vive como máximo
+ * una hora (`PARTIAL_DAY_CACHE_MS`); si no, hasta 24 h. Antes, un informe
+ * generado el día 1 se seguía sirviendo el día 2 sin el día 1.
  *
- * Terminada la campaña, es definitivo si se generó con el corte ya en el fin
- * de vigencia (es decir, al día siguiente del cierre o después).
+ * Es definitivo cuando su corte ya cubrió el fin de vigencia completo.
  */
 export function snapshotIsFresh(
   generatedAt: number,
+  startDate: string,
   endDate: string,
   now: number,
 ): boolean {
-  const savedCutoff = lastCompleteMexicoDate(generatedAt);
-  if (savedCutoff >= endDate) return true;
-  return (
-    now - generatedAt < ACTIVE_CACHE_MS &&
-    savedCutoff === lastCompleteMexicoDate(now)
-  );
+  const saved = measurementCutoff(startDate, endDate, generatedAt);
+  if (saved.measuredEndDate === endDate && saved.partialDate === null) {
+    return true;
+  }
+  const current = measurementCutoff(startDate, endDate, now);
+  if (
+    saved.measuredEndDate !== current.measuredEndDate ||
+    saved.partialDate !== current.partialDate
+  ) {
+    return false;
+  }
+  const ttl = saved.partialDate ? PARTIAL_DAY_CACHE_MS : ACTIVE_CACHE_MS;
+  return now - generatedAt < ttl;
 }
 
-export function viewerByLocationDay(
-  rows: ViewerExportRow[],
-): Map<string, {
-  watchers: number;
-  attentionTenths: number;
-  dwellTenths: number;
-  demographics: Map<string, number>;
-}> {
+export function viewerByLocationDay(rows: ViewerExportRow[]): Map<
+  string,
+  {
+    watchers: number;
+    attentionTenths: number;
+    dwellTenths: number;
+    demographics: Map<string, number>;
+  }
+> {
   const result = new Map<
     string,
     {
@@ -418,7 +483,9 @@ export function viewerByLocationDay(
   return result;
 }
 
-export function otsByLocationDay(rows: OtsExportRow[]): Map<string, OtsExportRow> {
+export function otsByLocationDay(
+  rows: OtsExportRow[],
+): Map<string, OtsExportRow> {
   const result = new Map<string, OtsExportRow>();
   for (const row of rows) {
     const locationId = numeric(row.location_id);
@@ -474,7 +541,11 @@ export function buildMeasurementRows(
         }
         const row: CameraDay = {
           locationId: camera.id,
-          locationName: (camera.name ?? camera.label ?? String(camera.id)).trim(),
+          locationName: (
+            camera.name ??
+            camera.label ??
+            String(camera.id)
+          ).trim(),
           boxId: camera.box_id ?? null,
           siteId: camera.site_id ?? null,
           active: camera.active !== false,

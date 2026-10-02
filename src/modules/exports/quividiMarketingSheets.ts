@@ -18,6 +18,7 @@ import {
   timeBandSummaries,
   weekdaySummaries,
 } from './quividiMarketingAnalytics';
+import { partialDayNote } from './quividiBrandReport';
 
 const COLORS = {
   navy: 'FF092A4A',
@@ -349,8 +350,14 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     sheet.getCell(row, 7).alignment = { horizontal: 'center' };
     fill(sheet.getCell(row, 7), COLORS.blue);
     sheet.mergeCells(row, 8, row, 9);
+    const note = partialDayNote(report, item.date);
     sheet.getCell(row, 8).value =
-      item.weekday + ' ' + item.date + ' · ' + hourRange(item.hour);
+      item.weekday +
+      ' ' +
+      item.date +
+      ' · ' +
+      hourRange(item.hour) +
+      (note ? ` · ${note}` : '');
     sheet.getCell(row, 8).font = { bold: true, color: { argb: COLORS.text } };
     sheet.mergeCells(row + 1, 8, row + 1, 9);
     sheet.getCell(row + 1, 8).value =
@@ -593,7 +600,7 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
 function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Evolución Diaria');
   baseSheet(sheet, 4);
-  setColumns(sheet, [14, 16, 16, 16, 36]);
+  setColumns(sheet, [14, 16, 16, 16, 36, 34]);
   sheet.properties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:E2');
   sheet.getCell('A1').value = 'EVOLUCIÓN DIARIA DE AUDIENCIA';
@@ -607,7 +614,14 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
   sheet.getCell('A3').value =
     'OTS y Watchers son contactos/detecciones medidos; no representan personas únicas.';
   sheet.getCell('A3').font = { italic: true, color: { argb: COLORS.muted } };
-  sheet.addRow(['Fecha', 'OTS', 'Watchers', 'Tasa atención', 'Intensidad OTS']);
+  sheet.addRow([
+    'Fecha',
+    'OTS',
+    'Watchers',
+    'Tasa atención',
+    'Intensidad OTS',
+    'Observación',
+  ]);
   styleHeader(sheet.getRow(4));
   const daily = dailySummaries(report);
   const max = Math.max(0, ...daily.map((item) => item.ots));
@@ -618,6 +632,7 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
       item.watchers,
       item.attentionRate / 100,
       barText(item.ots, max, 24),
+      partialDayNote(report, item.date),
     ]);
     row.getCell(2).numFmt = '#,##0';
     row.getCell(3).numFmt = '#,##0';
@@ -629,7 +644,7 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
 function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Detalle Horario');
   baseSheet(sheet, 1);
-  setColumns(sheet, [13, 9, 10, 25, 26, 15, 15, 15, 15, 16, 16, 16]);
+  setColumns(sheet, [13, 9, 10, 25, 26, 15, 15, 15, 15, 16, 16, 16, 34]);
   sheet.addRow([
     'Fecha',
     'Hora',
@@ -643,6 +658,7 @@ function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Effective OTS',
     'Watchers',
     'Tasa atención',
+    'Observación',
   ]);
   styleHeader(sheet.getRow(1));
   report.supportHours.forEach((item) => {
@@ -659,6 +675,7 @@ function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
       item.effectiveOts,
       item.watchers,
       item.ots > 0 ? item.watchers / item.ots : 0,
+      partialDayNote(report, item.date),
     ]);
     row.getCell(9).numFmt = '#,##0';
     row.getCell(10).numFmt = '#,##0';

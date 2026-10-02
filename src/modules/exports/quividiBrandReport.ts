@@ -73,6 +73,11 @@ export interface BrandCampaignSummary {
   coverage: BrandCoverage;
   basis: BrandExtrapolationBasis;
   scope: BrandMeasurableScope;
+  /**
+   * OTS medidos del día incompleto (ya incluidos en `measuredOts` y
+   * `estimatedOts`, nunca extrapolados); 0 si no hay día incompleto.
+   */
+  partialOts: number;
 }
 
 export interface BrandDailyPoint {
@@ -84,6 +89,8 @@ export interface BrandDailyPoint {
   measuredPairs: number;
   /** Factor de extrapolación aplicado a ese día concreto. */
   factor: number;
+  /** Hora `HH:MM` hasta la que se midió, sólo en el día incompleto. */
+  partialUntil?: string;
 }
 
 export interface BrandShare {
@@ -101,6 +108,10 @@ export interface BrandSupportFormat {
   pairDays: number;
   measuredPairDays: number;
   measuredOts: number;
+  /** Pares medidos del formato en el día incompleto (fuera de la rejilla). */
+  partialPairs: number;
+  /** OTS medidos del formato en el día incompleto; nunca se extrapolan. */
+  partialOts: number;
   /** Hubo al menos una jornada medida en este formato durante la vigencia. */
   measurable: boolean;
 }
@@ -140,6 +151,8 @@ export interface BrandGenderDayPoint {
   unknown: number;
   /** Watchers del día; sostiene el reagrupado semanal en vigencias largas. */
   totalWatchers: number;
+  /** Hora `HH:MM` del corte, sólo en el día incompleto. */
+  partialUntil?: string;
 }
 
 /** Evolución semanal (lunes a domingo) para vigencias de más de 28 días. */
@@ -150,6 +163,8 @@ export interface BrandWeeklyPoint {
   weekEnd: string;
   /** Suma (no promedio) de los OTS ajustados de los días del periodo. */
   estimatedOts: number;
+  /** Hora `HH:MM` del corte si el periodo incluye el día incompleto. */
+  partialUntil?: string;
 }
 
 /** Aportación de una tienda a la cifra publicada: la que sostiene «Tiendas TOP». */
@@ -280,8 +295,8 @@ export function periodDays(report: QuividiCampaignReport): number {
 
 /**
  * Último día completo a la fecha de generación: el día anterior, en hora de
- * la Ciudad de México. Es el mismo corte con el que el servidor pide los datos
- * a Quividi (`lastCompleteMexicoDate` en `functions/src/quividi/measurement.ts`).
+ * la Ciudad de México. Sólo para reportes anteriores a schema v6, que no traen
+ * el corte del servidor (`measuredEndDate`).
  */
 export function lastCompleteDateAt(generatedAt: number): string {
   const today = new Intl.DateTimeFormat('en-CA', {
@@ -290,21 +305,61 @@ export function lastCompleteDateAt(generatedAt: number): string {
     month: '2-digit',
     day: '2-digit',
   }).format(generatedAt);
-  const date = new Date(`${today}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
+  return previousCivilDate(today);
+}
+
+function previousCivilDate(date: string): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value.toISOString().slice(0, 10);
+}
+
+/** Día en curso incluido con datos parciales (10:00–22:00 CDMX), o `null`. */
+export function brandPartialDay(
+  report: QuividiCampaignReport,
+): { date: string; until: string } | null {
+  if (!report.partialDate) return null;
+  return { date: report.partialDate, until: report.partialUntil ?? '' };
+}
+
+/** Leyenda para cada lugar donde aparece la fecha del día incompleto. */
+export function partialDayLabel(until: string): string {
+  return until ? `Día incompleto, medido hasta ${until}` : 'Día incompleto';
+}
+
+/** Leyenda del día incompleto si `date` lo es; `''` en cualquier otra fecha. */
+export function partialDayNote(
+  report: QuividiCampaignReport,
+  date: string,
+): string {
+  const partial = brandPartialDay(report);
+  return partial && partial.date === date ? partialDayLabel(partial.until) : '';
 }
 
 /**
- * Fecha de fin efectiva para la extrapolación: el fin de vigencia contratado,
- * o el último día completo a la fecha de generación si la campaña todavía no
- * ha terminado. El día de la generación queda fuera: todavía no termina, el
- * servidor no lo pide a Quividi y tratarlo como hueco de medición lo
- * rellenaría con el promedio del formato.
+ * Último día de la rejilla de extrapolación: el último día **completo**
+ * consultado a Quividi, nunca posterior al fin de vigencia.
+ *
+ * El servidor fija el corte (`measuredEndDate`, `functions/src/quividi/
+ * measurement.ts`): antes de las 10:00 CDMX llega hasta ayer; de 10:00 a 22:00
+ * incluye hoy como día incompleto (`partialDate`), que queda **fuera** de la
+ * rejilla — sólo suma lo medido, sin extrapolar, porque un día a medias
+ * deflactaría el promedio que rellena los demás —; desde las 22:00 hoy cuenta
+ * como completo. Si la campaña aún no tiene días completos, devuelve una fecha
+ * anterior al inicio (rejilla vacía).
  */
 export function effectiveEndDate(report: QuividiCampaignReport): string {
-  const lastComplete = lastCompleteDateAt(report.generatedAt);
-  return lastComplete < report.endDate ? lastComplete : report.endDate;
+  let gridEnd: string;
+  if (report.measuredEndDate === undefined) {
+    gridEnd = lastCompleteDateAt(report.generatedAt);
+  } else if (report.measuredEndDate === null) {
+    gridEnd = previousCivilDate(report.startDate);
+  } else if (report.partialDate) {
+    gridEnd = previousCivilDate(report.partialDate);
+  } else {
+    gridEnd = report.measuredEndDate;
+  }
+  return gridEnd < report.endDate ? gridEnd : report.endDate;
 }
 
 /**
@@ -335,7 +390,23 @@ export function measuredPeriodDays(report: QuividiCampaignReport): number {
 export function brandSupportDays(
   report: QuividiCampaignReport,
 ): QuividiSupportDay[] {
-  return report.supportDays.map((row) => ({ ...row }));
+  // El día incompleto queda fuera de la rejilla; se lee aparte con
+  // `brandPartialSupportDays` y sólo suma lo medido.
+  const partial = report.partialDate ?? null;
+  return report.supportDays
+    .filter((row) => row.date !== partial)
+    .map((row) => ({ ...row }));
+}
+
+/** Filas del día incompleto, o `[]` si el reporte no trae uno. */
+export function brandPartialSupportDays(
+  report: QuividiCampaignReport,
+): QuividiSupportDay[] {
+  const partial = report.partialDate;
+  if (!partial) return [];
+  return report.supportDays
+    .filter((row) => row.date === partial)
+    .map((row) => ({ ...row }));
 }
 
 /**
@@ -348,7 +419,7 @@ export function brandSupportDays(
  * sin que el despliegue cambie.
  */
 export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
-  const rows = report.supportDays;
+  const rows = brandSupportDays(report);
   const measuredFromRows = new Set(
     rows
       .filter((row) => row.status !== 'missing')
@@ -553,15 +624,21 @@ export function brandCampaignSummary(
   const scope = brandMeasurableScope(report);
   const basis = brandExtrapolationBasis(report);
 
-  const measuredOts = sum(scope.measurable.map((format) => format.measuredOts));
-  const estimatedOts = sum(
+  const gridMeasuredOts = sum(
+    scope.measurable.map((format) => format.measuredOts),
+  );
+  const gridEstimatedOts = sum(
     scope.measurable.map((format) =>
       format.measuredPairDays > 0
         ? (format.measuredOts / format.measuredPairDays) * format.pairDays
         : 0,
     ),
   );
-  const extrapolatedOts = Math.max(0, estimatedOts - measuredOts);
+  const extrapolatedOts = Math.max(0, gridEstimatedOts - gridMeasuredOts);
+  // El día incompleto suma sólo lo medido: no entra al promedio ni se rellena.
+  const partialOts = sum(scope.measurable.map((format) => format.partialOts));
+  const measuredOts = gridMeasuredOts + partialOts;
+  const estimatedOts = gridEstimatedOts + partialOts;
   const days = scope.days;
   // El divisor por tienda sigue siendo el universo de campaña. Una tienda que
   // sólo tenga formatos no medibles no aporta OTS a la cifra, así que el
@@ -570,19 +647,26 @@ export function brandCampaignSummary(
   // el reporte no desglosa.
   const stores = coverage.totalStores;
 
+  // Los promedios diarios usan sólo días completos: el día incompleto los
+  // deflactaría. Sin ningún día completo, el único dato es el del día en curso.
+  const averageOts = days > 0 ? gridEstimatedOts : partialOts;
+  const averageDays = days > 0 ? days : partialOts > 0 ? 1 : 0;
+
   return {
     measuredOts,
     extrapolatedOts,
     estimatedOts,
-    dailyAverage: days > 0 ? estimatedOts / days : 0,
-    dailyPerStore: days > 0 && stores > 0 ? estimatedOts / days / stores : 0,
+    dailyAverage: averageDays > 0 ? averageOts / averageDays : 0,
+    dailyPerStore:
+      averageDays > 0 && stores > 0 ? averageOts / averageDays / stores : 0,
     dailyPerSupport:
-      days > 0 && scope.measurablePairs > 0
-        ? estimatedOts / days / scope.measurablePairs
+      averageDays > 0 && scope.measurablePairs > 0
+        ? averageOts / averageDays / scope.measurablePairs
         : 0,
     coverage,
     basis,
     scope,
+    partialOts,
   };
 }
 
@@ -625,7 +709,7 @@ export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
   // Toda fecha de la vigencia aparece, incluso si nadie midió ese día.
   const dates = Array.from(byDate.keys()).sort();
 
-  return dates.map((date) => {
+  const points: BrandDailyPoint[] = dates.map((date) => {
     const byFormat = new Map<string, QuividiSupportDay[]>();
     for (const row of byDate.get(date) ?? []) {
       const list = byFormat.get(row.support) ?? [];
@@ -656,6 +740,25 @@ export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
       factor: measuredOts > 0 ? estimatedOts / measuredOts : 0,
     };
   });
+
+  // El día incompleto cierra la serie con lo medido, sin extrapolar.
+  const partial = brandPartialDay(report);
+  if (partial) {
+    const partialRows = brandPartialSupportDays(report).filter(
+      (row) => measurableSupports.has(row.support) && row.status !== 'missing',
+    );
+    const measuredOts = sum(partialRows.map((row) => row.publishedOts));
+    points.push({
+      date: partial.date,
+      label: partial.date.slice(8, 10),
+      measuredOts,
+      estimatedOts: measuredOts,
+      measuredPairs: partialRows.length,
+      factor: measuredOts > 0 ? 1 : 0,
+      partialUntil: partial.until,
+    });
+  }
+  return points;
 }
 
 /** Lunes de la semana ISO a la que pertenece `date` (`YYYY-MM-DD`). */
@@ -693,10 +796,12 @@ export function brandWeeklyEvolution(
   return Array.from(weeks.values())
     .map((points) => {
       const dates = points.map((point) => point.date).sort();
+      const partial = points.find((point) => point.partialUntil !== undefined);
       return {
         weekStart: dates[0] ?? '',
         weekEnd: dates[dates.length - 1] ?? '',
         estimatedOts: sum(points.map((point) => point.estimatedOts)),
+        ...(partial ? { partialUntil: partial.partialUntil } : {}),
       };
     })
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -1110,6 +1215,7 @@ export function brandGenderByDay(
     byDate.set(row.date, current);
   }
 
+  const partial = brandPartialDay(report);
   return Array.from(byDate, ([date, counts]) => {
     const total = counts.female + counts.male + counts.unknown;
     return {
@@ -1118,6 +1224,7 @@ export function brandGenderByDay(
       male: total > 0 ? (counts.male / total) * 100 : 0,
       unknown: total > 0 ? (counts.unknown / total) * 100 : 0,
       totalWatchers: total,
+      ...(partial?.date === date ? { partialUntil: partial.until } : {}),
     };
   })
     .filter((point) => point.totalWatchers > 0)
@@ -1174,6 +1281,15 @@ export function brandSupportFormats(
   const rows = brandSupportDays(report);
   const days = measuredPeriodDays(report);
 
+  const partial = new Map<string, { pairs: number; ots: number }>();
+  for (const row of brandPartialSupportDays(report)) {
+    if (row.status === 'missing') continue;
+    const current = partial.get(row.support) ?? { pairs: 0, ots: 0 };
+    current.pairs += 1;
+    current.ots += numeric(row.publishedOts);
+    partial.set(row.support, current);
+  }
+
   const measured = new Map<string, { pairDays: number; ots: number }>();
   const mapped = new Map<string, Set<string>>();
   for (const row of rows) {
@@ -1193,6 +1309,11 @@ export function brandSupportFormats(
       pairs: entry.totalPairs,
       mappedPairs: entry.mappedPairs,
     });
+  }
+  for (const row of brandPartialSupportDays(report)) {
+    const seen = mapped.get(row.support) ?? new Set<string>();
+    seen.add(row.storeNumber);
+    mapped.set(row.support, seen);
   }
   for (const [support, stores] of mapped) {
     if (universe.has(support)) continue;
@@ -1214,6 +1335,7 @@ export function brandSupportFormats(
 
   return Array.from(universe, ([support, counts]) => {
     const stats = measured.get(support);
+    const today = partial.get(support);
     return {
       support,
       pairs: counts.pairs,
@@ -1221,7 +1343,9 @@ export function brandSupportFormats(
       pairDays: counts.pairs * days,
       measuredPairDays: stats?.pairDays ?? 0,
       measuredOts: stats?.ots ?? 0,
-      measurable: (stats?.pairDays ?? 0) > 0,
+      partialPairs: today?.pairs ?? 0,
+      partialOts: today?.ots ?? 0,
+      measurable: (stats?.pairDays ?? 0) > 0 || (today?.pairs ?? 0) > 0,
     };
   }).sort(
     (a, b) => b.pairs - a.pairs || a.support.localeCompare(b.support, 'es'),

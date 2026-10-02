@@ -360,13 +360,20 @@ El snapshot del reporte usa schema v3 porque además del agregado diario conserv
 `supportHours`, la capa horaria que alimenta el dashboard comercial.
 
 La colección `campaignAudienceSnapshots/{campaignId}` es exclusivamente de
-backend. Los datos se piden hasta el último día completo en hora de la Ciudad
-de México (ayer). Para campañas activas se reutiliza el snapshot hasta 24 horas
-y sólo mientras ese corte no cambie: al cerrar un día nuevo se regenera. Para
-una campaña finalizada, un snapshot cuyo corte ya alcanzó el fin de vigencia se
+backend. El corte de medición se calcula en hora de la Ciudad de México: antes
+de las 10:00 llega hasta ayer; de 10:00 a 22:00 incluye hoy como **día
+incompleto** (medido hasta la hora de la consulta); desde las 22:00 hoy cuenta
+como completo. El snapshot se reutiliza sólo mientras ese corte no cambie, como
+máximo 1 hora con día incompleto y 24 horas sin él. Para una campaña
+finalizada, un snapshot cuyo corte ya cubrió completo el fin de vigencia se
 considera final mientras no cambie la configuración de campaña/mapeos. `admin`
 y `operator` pueden forzar la consulta con «Actualizar datos de Quividi» en
 Campañas.
+
+El día incompleto suma al PDF sólo lo medido (sin extrapolar ni entrar al
+promedio) y se marca «Día incompleto, medido hasta HH:MM» únicamente donde
+aparece su fecha: evolución y género del PDF, columna «Observación» de las
+hojas por fecha del Excel y la hoja de auditoría. La portada no lo menciona.
 
 Si el reporte comprimido excede el tamaño seguro del documento Firestore, se
 devuelve el Excel normalmente pero no se persiste el snapshot.

@@ -27,6 +27,7 @@ import {
   effectiveEndDate,
   lastCompleteDateAt,
   measuredPeriodDays,
+  partialDayNote,
   periodDays,
   weekStartOf,
 } from './quividiBrandReport';
@@ -313,6 +314,115 @@ describe('informe comercial agregado de audiencia', () => {
     expect(summary.measuredOts).toBe(12_000);
     expect(summary.estimatedOts).toBe(12_000);
     expect(summary.extrapolatedOts).toBe(0);
+  });
+
+  describe('día incompleto (horario operativo)', () => {
+    // Caso Toki: vigencia desde el 29/09, informe del 2/10 a las 15:07 CDMX.
+    // Días 29/09–01/10 completos; el 2/10 sólo midió la tienda 1 (400 OTS) y
+    // la tienda 2 aún no reporta.
+    const dates = ['2026-09-29', '2026-09-30', '2026-10-01'];
+    const rows = [
+      ...dates.flatMap((date) => [
+        supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+        supportDay({ date, storeNumber: '2', storeName: 'DOS', ots: 1000 }),
+      ]),
+      supportDay({
+        date: '2026-10-02',
+        storeNumber: '1',
+        storeName: 'UNO',
+        status: 'partial',
+        ots: 400,
+      }),
+      supportDay({
+        date: '2026-10-02',
+        storeNumber: '2',
+        storeName: 'DOS',
+        status: 'missing',
+        ots: 0,
+      }),
+    ];
+    const input = report({
+      schemaVersion: 6,
+      startDate: '2026-09-29',
+      endDate: '2026-10-31',
+      generatedAt: Date.parse('2026-10-02T15:07:00-06:00'),
+      measuredEndDate: '2026-10-02',
+      partialDate: '2026-10-02',
+      partialUntil: '15:07',
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    it('deja el día incompleto fuera de la rejilla de extrapolación', () => {
+      expect(effectiveEndDate(input)).toBe('2026-10-01');
+      expect(measuredPeriodDays(input)).toBe(3);
+      expect(brandSupportDays(input).map((row) => row.date)).not.toContain(
+        '2026-10-02',
+      );
+      const basis = brandExtrapolationBasis(input);
+      expect(basis.totalPairDays).toBe(6);
+      expect(basis.missingPairDays).toBe(0);
+    });
+
+    it('suma sólo lo medido del día incompleto, sin extrapolar ni tocar el promedio', () => {
+      const summary = brandCampaignSummary(input);
+      expect(summary.partialOts).toBe(400);
+      expect(summary.measuredOts).toBe(6_400);
+      expect(summary.estimatedOts).toBe(6_400);
+      expect(summary.extrapolatedOts).toBe(0);
+      // Promedio sobre los 3 días completos: el día a medias no lo deflacta.
+      expect(summary.dailyAverage).toBe(2_000);
+    });
+
+    it('cierra la evolución diaria con el día incompleto marcado', () => {
+      const daily = brandDaily(input);
+      const last = daily[daily.length - 1]!;
+      expect(last).toMatchObject({
+        date: '2026-10-02',
+        measuredOts: 400,
+        estimatedOts: 400,
+        partialUntil: '15:07',
+      });
+      expect(
+        daily.slice(0, -1).every((p) => p.partialUntil === undefined),
+      ).toBe(true);
+      // Sigue conciliando con la portada.
+      const total = daily.reduce((acc, point) => acc + point.estimatedOts, 0);
+      expect(total).toBe(brandCampaignSummary(input).estimatedOts);
+    });
+
+    it('rotula sólo la fecha del día incompleto', () => {
+      expect(partialDayNote(input, '2026-10-02')).toBe(
+        'Día incompleto, medido hasta 15:07',
+      );
+      expect(partialDayNote(input, '2026-10-01')).toBe('');
+    });
+
+    it('una campaña que empieza hoy publica sólo lo medido del día en curso', () => {
+      const today = report({
+        schemaVersion: 6,
+        startDate: '2026-10-02',
+        endDate: '2026-10-31',
+        generatedAt: Date.parse('2026-10-02T15:07:00-06:00'),
+        measuredEndDate: '2026-10-02',
+        partialDate: '2026-10-02',
+        partialUntil: '15:07',
+        coverage: {
+          totalPairs: 2,
+          mappedPairs: 2,
+          percent: 100,
+          bySupport: [],
+        },
+        storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+        supportDays: rows.filter((row) => row.date === '2026-10-02'),
+      });
+      expect(measuredPeriodDays(today)).toBe(0);
+      const summary = brandCampaignSummary(today);
+      expect(summary.estimatedOts).toBe(400);
+      expect(summary.extrapolatedOts).toBe(0);
+      expect(summary.dailyAverage).toBe(400);
+    });
   });
 
   it('corta en el último día completo, no en el día de generación', () => {

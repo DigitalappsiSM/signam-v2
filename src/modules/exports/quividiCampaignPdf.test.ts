@@ -253,6 +253,29 @@ describe('renderizado del informe', () => {
     ).toBeGreaterThanOrEqual(6);
   });
 
+  it('marca el día incompleto junto a su fecha, nunca en portada', async () => {
+    serveRepoAssets();
+    const input: QuividiCampaignReport = {
+      ...report(),
+      schemaVersion: 6,
+      endDate: '2026-08-31',
+      measuredEndDate: '2026-08-16',
+      partialDate: '2026-08-16',
+      partialUntil: '15:07',
+    };
+    const raw = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(input))
+    ).toString('latin1');
+    expect(raw).toContain('medido hasta 15:07');
+    expect(raw).not.toContain('NaN');
+    expect(raw).not.toContain('undefined');
+    // Sin día incompleto no aparece la leyenda.
+    const plain = (
+      await bytesOf(await buildQuividiCampaignPdfBlob(report()))
+    ).toString('latin1');
+    expect(plain).not.toContain('medido hasta');
+  });
+
   it('publica en portada una sola cifra, sin Retailer ni porcentajes protagonistas', async () => {
     serveRepoAssets();
     const input = longCampaign();

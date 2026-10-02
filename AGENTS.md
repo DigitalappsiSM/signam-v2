@@ -528,19 +528,30 @@ tres de ellos describían mal el separador de artículos.
   **Campaña todavía vigente al generar el reporte**: la rejilla sobre la que
   se extrapola (`measuredPeriodDays`, consumida por `brandSupportFormats`,
   `brandMeasurableScope`, `brandCoverage` y la hoja de auditoría por tienda)
-  se recorta a `effectiveEndDate` — el **último día completo** a la fecha de
-  generación (`lastCompleteDateAt(report.generatedAt)`: el día anterior en
-  hora de la Ciudad de México, el mismo corte con el que el servidor pide los
-  datos, `lastCompleteMexicoDate` en `functions/src/quividi/measurement.ts`)
-  si la campaña aún no llega a su fin de vigencia contratado, o ese fin de
-  vigencia si ya pasó. Un día de vigencia **futuro** no es un hueco de
-  medición: no ha ocurrido, así que no entra ni a la rejilla ni al promedio
-  que rellena huecos — tratarlo como «sin cámara» o «sin dato» proyectaría la
-  cifra a futuro y la portada dejaría de representar lo real-a-la-fecha. **El
-  día de generación en curso tampoco entra** (decisión de negocio, octubre
-  2026): el servidor no lo pide a Quividi porque no ha terminado, y antes se
-  completaba con el promedio del formato como si fuera un hueco. La cifra es
-  «reales + extrapolación de huecos reales, hasta ayer». La
+  se recorta a `effectiveEndDate` — el último día **completo** consultado,
+  nunca posterior al fin de vigencia. El corte lo fija el servidor
+  (`measurementCutoff` en `functions/src/quividi/measurement.ts`, hora de la
+  Ciudad de México) y viaja en el reporte (`measuredEndDate`, `partialDate`,
+  `partialUntil`, schema v6):
+
+  - antes de las **10:00** → hasta ayer;
+  - de **10:00 a 22:00** (horario operativo) → incluye hoy como **día
+    incompleto**, medido hasta la hora de la consulta;
+  - desde las **22:00** → hoy cuenta como día completo.
+
+  Un día de vigencia **futuro** no es un hueco de medición: no ha ocurrido,
+  así que no entra ni a la rejilla ni al promedio que rellena huecos. El **día
+  incompleto** queda también **fuera de la rejilla** (decisión de negocio,
+  octubre 2026): suma **sólo lo medido** a la cifra (`partialOts` en
+  `brandCampaignSummary`, último punto de `brandDaily`), no entra al promedio
+  por par-día ni a los promedios diarios (un día a medias los deflactaría) y
+  sus huecos no se extrapolan. Se marca «Día incompleto, medido hasta HH:MM»
+  (`partialDayLabel`/`partialDayNote`) **sólo donde aparece su fecha**: barra
+  de evolución y gráfica de género del PDF, columna «Observación» de las hojas
+  por fecha del Excel y la hoja de auditoría — nunca en portada. Reportes
+  anteriores a v6 (sin `measuredEndDate`) cortan en ayer
+  (`lastCompleteDateAt`). La cifra es «reales + extrapolación de huecos de
+  días completos + lo medido hoy». La
   vigencia contratada completa (`periodDays`) se conserva para lo puramente
   informativo: la etiqueta de portada, el nombre de archivo y el umbral de 28
   días que decide evolución diaria vs. semanal (`brandHeader.days`) — nunca
@@ -688,12 +699,13 @@ tres de ellos describían mal el separador de artículos.
   **Cambiar la forma de `SupportDay`/`SupportHour` exige subir
   `SNAPSHOT_SCHEMA_VERSION`** (`functions/src/quividi/index.ts`) y el tipo
   `QuividiCampaignReport.schemaVersion` (`src/domain/quividi.ts`). El reporte
-  se cachea comprimido en Firestore (`campaignAudienceSnapshots`) para una
-  campaña vigente hasta 24h **y sólo mientras el corte de medición siga siendo
-  el mismo** (`snapshotIsFresh`): en cuanto cierra un día nuevo (hora CDMX) el
-  snapshot se regenera — antes, un informe generado el día 1 se seguía
-  sirviendo el día 2 sin el día 1. Además se invalida si `schemaVersion` no
-  coincide. `admin` y `operator` pueden saltarse la caché con «Actualizar datos
+  se cachea comprimido en Firestore (`campaignAudienceSnapshots`) **sólo
+  mientras el corte de medición siga siendo el mismo** (`snapshotIsFresh`,
+  `measurementCutoff`): al cerrar un día, entrar o salir del horario operativo
+  se regenera — antes, un informe generado el día 1 se seguía sirviendo el día
+  2 sin el día 1. Con día incompleto vive como máximo **1 hora**
+  (`PARTIAL_DAY_CACHE_MS`); si no, hasta 24h. Además se invalida si
+  `schemaVersion` no coincide. `admin` y `operator` pueden saltarse la caché con «Actualizar datos
   de Quividi» en Campañas (`forceRefresh`, `QUIVIDI_REPORT_REFRESH_ROLES` ↔
   `quividi.refresh`). Agregar `publishedOts`/`publishedEffectiveOts`/`publishedWatchers`
   sin subir la versión (v4→v5) dejó snapshots viejos sirviéndose tal cual sin

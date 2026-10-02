@@ -4,8 +4,8 @@ import {
   buildMeasurementRows,
   dayList,
   inputSignature,
-  lastCompleteMexicoDate,
   measurableEndDate,
+  measurementCutoff,
   parseCivilDate,
   resolvePairs,
   snapshotIsFresh,
@@ -99,96 +99,194 @@ describe('dayList', () => {
   });
 });
 
-describe('lastCompleteMexicoDate', () => {
-  it('es ayer en hora de la Ciudad de México', () => {
-    expect(lastCompleteMexicoDate(Date.parse('2026-10-02T15:00:00Z'))).toBe(
-      '2026-10-01',
-    );
+// CDMX = UTC-6 (sin horario de verano desde 2022).
+const cdmx = (date: string, time: string) =>
+  Date.parse(`${date}T${time}:00-06:00`);
+
+describe('measurementCutoff', () => {
+  it('antes de las 10:00 corta en ayer', () => {
+    expect(
+      measurementCutoff(
+        '2026-09-29',
+        '2026-10-31',
+        cdmx('2026-10-02', '07:00'),
+      ),
+    ).toEqual({
+      measuredEndDate: '2026-10-01',
+      partialDate: null,
+      partialUntil: null,
+    });
   });
 
-  it('no da por cerrado el día local aunque en UTC ya sea el siguiente', () => {
-    // 1 de octubre a las 20:00 en CDMX = 2 de octubre 02:00 UTC.
-    expect(lastCompleteMexicoDate(Date.parse('2026-10-02T02:00:00Z'))).toBe(
-      '2026-09-30',
-    );
+  it('en horario operativo incluye hoy como día incompleto', () => {
+    expect(
+      measurementCutoff(
+        '2026-09-29',
+        '2026-10-31',
+        cdmx('2026-10-02', '15:07'),
+      ),
+    ).toEqual({
+      measuredEndDate: '2026-10-02',
+      partialDate: '2026-10-02',
+      partialUntil: '15:07',
+    });
+  });
+
+  it('desde las 22:00 da el día por completo', () => {
+    expect(
+      measurementCutoff(
+        '2026-09-29',
+        '2026-10-31',
+        cdmx('2026-10-02', '22:30'),
+      ),
+    ).toEqual({
+      measuredEndDate: '2026-10-02',
+      partialDate: null,
+      partialUntil: null,
+    });
+  });
+
+  it('usa el día de la Ciudad de México, no el UTC', () => {
+    // 1 de octubre 20:00 en CDMX = 2 de octubre 02:00 UTC.
+    expect(
+      measurementCutoff('2026-09-29', '2026-10-31', cdmx('2026-10-01', '20:00'))
+        .partialDate,
+    ).toBe('2026-10-01');
+  });
+
+  it('respeta el fin de vigencia y no marca incompleto un día fuera de ella', () => {
+    expect(
+      measurementCutoff(
+        '2026-09-01',
+        '2026-09-30',
+        cdmx('2026-10-02', '15:00'),
+      ),
+    ).toEqual({
+      measuredEndDate: '2026-09-30',
+      partialDate: null,
+      partialUntil: null,
+    });
+  });
+
+  it('una campaña que empieza hoy sólo tiene el día incompleto', () => {
+    expect(
+      measurementCutoff('2026-10-02', '2026-10-31', cdmx('2026-10-02', '12:00'))
+        .partialDate,
+    ).toBe('2026-10-02');
+    expect(
+      measurementCutoff('2026-10-02', '2026-10-31', cdmx('2026-10-02', '08:00'))
+        .measuredEndDate,
+    ).toBeNull();
   });
 });
 
 describe('measurableEndDate', () => {
-  const now = Date.parse('2026-03-10T08:00:00Z');
-
-  it('recorta al último día completo cuando la campaña sigue vigente', () => {
-    expect(measurableEndDate('2026-03-01', '2026-03-31', now)).toBe(
-      '2026-03-09',
-    );
-  });
-
-  it('respeta el fin de la campaña cuando ya terminó', () => {
-    expect(measurableEndDate('2026-03-01', '2026-03-05', now)).toBe(
-      '2026-03-05',
-    );
-  });
-
-  it('devuelve null si aún no hay ningún día completo medible', () => {
-    expect(measurableEndDate('2026-03-10', '2026-03-31', now)).toBeNull();
+  it('devuelve el último día consultado del corte', () => {
+    expect(
+      measurableEndDate(
+        '2026-03-01',
+        '2026-03-31',
+        cdmx('2026-03-10', '08:00'),
+      ),
+    ).toBe('2026-03-09');
+    expect(
+      measurableEndDate(
+        '2026-03-01',
+        '2026-03-31',
+        cdmx('2026-03-10', '12:00'),
+      ),
+    ).toBe('2026-03-10');
+    expect(
+      measurableEndDate(
+        '2026-03-10',
+        '2026-03-31',
+        cdmx('2026-03-10', '08:00'),
+      ),
+    ).toBeNull();
   });
 });
 
 describe('snapshotIsFresh', () => {
-  const endDate = '2026-03-31';
-  const duranteLaCampana = Date.parse('2026-03-10T08:00:00Z');
-  const trasElCierre = Date.parse('2026-04-02T08:00:00Z');
+  const start = '2026-09-29';
+  const end = '2026-10-31';
 
-  it('reutiliza el snapshot de una campaña vigente por 24 horas', () => {
-    expect(
-      snapshotIsFresh(duranteLaCampana - 60_000, endDate, duranteLaCampana),
-    ).toBe(true);
+  it('se invalida en cuanto cierra un día nuevo (caso Toki)', () => {
+    // Generado el 1/10 a las 16:00 (día 1 incompleto), consultado el 2/10.
     expect(
       snapshotIsFresh(
-        duranteLaCampana - 25 * 60 * 60 * 1000,
-        endDate,
-        duranteLaCampana,
+        cdmx('2026-10-01', '16:00'),
+        start,
+        end,
+        cdmx('2026-10-02', '08:00'),
       ),
     ).toBe(false);
   });
 
-  it('se invalida en cuanto cierra un día nuevo aunque no hayan pasado 24 h', () => {
-    // Caso Toki: generado el 1 de octubre por la tarde (corte 30/09) y
-    // consultado el 2 por la mañana (corte 01/10).
-    const generado = Date.parse('2026-10-01T22:00:00Z');
-    const consultado = Date.parse('2026-10-02T15:00:00Z');
-    expect(snapshotIsFresh(generado, '2026-10-31', consultado)).toBe(false);
+  it('fuera de la franja reutiliza el snapshot mientras no cambie el corte', () => {
     expect(
       snapshotIsFresh(
-        Date.parse('2026-10-02T13:00:00Z'),
-        '2026-10-31',
-        consultado,
+        cdmx('2026-10-02', '07:00'),
+        start,
+        end,
+        cdmx('2026-10-02', '09:30'),
       ),
     ).toBe(true);
   });
 
-  it('da por definitivo el snapshot generado después del cierre', () => {
+  it('con día incompleto vive como máximo una hora', () => {
     expect(
       snapshotIsFresh(
-        Date.parse('2026-04-01T08:00:00Z'),
-        endDate,
-        trasElCierre,
+        cdmx('2026-10-02', '15:00'),
+        start,
+        end,
+        cdmx('2026-10-02', '15:50'),
       ),
     ).toBe(true);
-    // 31/03 a las 18:00 en CDMX: el último día de vigencia aún no terminaba,
-    // así que ese snapshot no es definitivo.
     expect(
       snapshotIsFresh(
-        Date.parse('2026-04-01T00:00:00Z'),
-        endDate,
-        trasElCierre,
+        cdmx('2026-10-02', '15:00'),
+        start,
+        end,
+        cdmx('2026-10-02', '16:01'),
+      ),
+    ).toBe(false);
+  });
+
+  it('se regenera al entrar o salir de la franja operativa', () => {
+    expect(
+      snapshotIsFresh(
+        cdmx('2026-10-02', '09:55'),
+        start,
+        end,
+        cdmx('2026-10-02', '10:05'),
       ),
     ).toBe(false);
     expect(
       snapshotIsFresh(
-        Date.parse('2026-03-20T00:00:00Z'),
-        endDate,
-        trasElCierre,
+        cdmx('2026-10-02', '21:55'),
+        start,
+        end,
+        cdmx('2026-10-02', '22:05'),
+      ),
+    ).toBe(false);
+  });
+
+  it('da por definitivo el snapshot que ya cubrió el fin de vigencia completo', () => {
+    expect(
+      snapshotIsFresh(
+        cdmx('2026-10-31', '22:30'),
+        start,
+        end,
+        cdmx('2026-11-05', '12:00'),
+      ),
+    ).toBe(true);
+    // 31/10 a las 18:00: el último día aún era incompleto.
+    expect(
+      snapshotIsFresh(
+        cdmx('2026-10-31', '18:00'),
+        start,
+        end,
+        cdmx('2026-11-05', '12:00'),
       ),
     ).toBe(false);
   });
