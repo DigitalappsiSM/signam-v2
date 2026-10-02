@@ -638,33 +638,42 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
   };
 
   const operationalHealth = useMemo(() => {
+    // La salud mide el universo operativo real: campañas activas y terminadas
+    // que todavía arrastran pendientes. No incorpora campañas futuras solo por
+    // intersectar el periodo del dashboard; eso era lo que podía mostrar 50%
+    // aunque las tarjetas superiores indicaran 0 alertas y 0 vencidas.
     const measuredIds = new Set(view.active.map((row) => row.campaign.id));
-    const alertIds = new Set(
-      view.alerts.map(({ row }) => {
-        measuredIds.add(row.campaign.id);
-        return row.campaign.id;
-      }),
-    );
+    for (const row of view.finishedPending) measuredIds.add(row.campaign.id);
+
+    // Penalizan únicamente situaciones que requieren intervención: alertas de
+    // campañas activas, vencimientos/vence-hoy y terminadas con pendientes.
+    // "Por vencer" (due-soon) es preventivo y NO reduce la salud.
+    const issueIds = new Set(view.withAlerts.map((row) => row.campaign.id));
+    for (const row of view.immediateAttention) issueIds.add(row.campaign.id);
+
     const score = measuredIds.size
       ? Math.round(
-          ((measuredIds.size - alertIds.size) / measuredIds.size) * 100,
+          ((measuredIds.size -
+            [...issueIds].filter((id) => measuredIds.has(id)).length) /
+            measuredIds.size) *
+            100,
         )
       : 100;
 
-    if (view.overduePending.length > 0 || view.finishedPending.length > 0) {
+    if (view.immediateAttention.length > 0) {
       return {
         score,
         tone: 'danger' as const,
         label: 'Atención inmediata',
-        detail: `${view.overduePending.length + view.finishedPending.length} campañas vencidas o terminadas con pendientes`,
+        detail: `${view.immediateAttention.length} campañas requieren acción inmediata`,
       };
     }
-    if (view.alerts.length > 0 || view.upcomingDue.length > 0) {
+    if (view.withAlerts.length > 0) {
       return {
         score,
         tone: 'warning' as const,
         label: 'Revisión necesaria',
-        detail: `${view.alerts.length} con alertas y ${view.upcomingDue.length} próximas a vencer`,
+        detail: `${view.withAlerts.length} con alertas activas · ${view.upcomingDue.length} próximas a vencer`,
       };
     }
     return {
@@ -673,7 +682,7 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
       label: 'Operación al día',
       detail:
         view.active.length > 0
-          ? 'Sin alertas críticas ni vencimientos operativos'
+          ? `Sin atrasos ni alertas activas · ${view.upcomingDue.length} próximas a vencer`
           : 'Sin campañas activas con obligaciones pendientes',
     };
   }, [view]);
