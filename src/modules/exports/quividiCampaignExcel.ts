@@ -386,9 +386,30 @@ const DETAIL_NOTE =
   'Esta hoja trabaja por día completo (00:00–23:59); la portada del PDF cuenta sólo de 10:00 a 22:00, así que su total puede ser un poco menor. ' +
   'Los formatos sin ninguna cámara quedan fuera de la cifra.';
 
+/** Letra de columna de Excel (1 → A, 27 → AA). */
+function columnLetter(index: number): string {
+  let letter = '';
+  let n = index;
+  while (n > 0) {
+    const rest = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rest) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
 function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Detalle Soportes');
   const rows = publishedSupportDetail(report);
+  // Un bloque por cada cámara configurada: con 3+ cámaras la más alta puede
+  // ser la tercera, y el libro debe poder reconstruir su propia cifra.
+  const cameraCount = Math.max(2, ...rows.map((row) => row.cameras.length));
+  const cameraColumns = Array.from({ length: cameraCount }, (_, index) => [
+    `Cám. ${index + 1}`,
+    `Cám. ${index + 1} OTS`,
+    `Cám. ${index + 1} Effective OTS`,
+    `Cám. ${index + 1} Watchers`,
+  ]).flat();
   const columns = [
     'Fecha',
     'Tienda',
@@ -396,14 +417,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Soporte',
     'Estado',
     'Cámaras config.',
-    'Cám. 1',
-    'Cám. 1 OTS',
-    'Cám. 1 Effective OTS',
-    'Cám. 1 Watchers',
-    'Cám. 2',
-    'Cám. 2 OTS',
-    'Cám. 2 Effective OTS',
-    'Cám. 2 Watchers',
+    ...cameraColumns,
     'OTS publicado',
     'Effective OTS publicado',
     'Watchers publicados',
@@ -411,19 +425,47 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Dwell Time',
     'Racional',
   ];
+  const firstCamera = 7;
+  const firstPublished = firstCamera + cameraColumns.length;
+  const rationaleColumn = firstPublished + 5;
   blockHeader(
     sheet,
     DETAIL_NOTE,
     [
       { label: 'SOPORTE', from: 1, to: 6, color: 'FF4B6F8C' },
-      { label: 'QUIVIDI · SIN MODIFICAR', from: 7, to: 14, color: 'FF2E7D5B' },
-      { label: 'PUBLICADO (INFORME)', from: 15, to: 19, color: 'FF1F3A93' },
-      { label: 'RACIONAL', from: 20, to: 20, color: 'FFB4527A' },
+      {
+        label: 'QUIVIDI · SIN MODIFICAR',
+        from: firstCamera,
+        to: firstPublished - 1,
+        color: 'FF2E7D5B',
+      },
+      {
+        label: 'PUBLICADO (INFORME)',
+        from: firstPublished,
+        to: rationaleColumn - 1,
+        color: 'FF1F3A93',
+      },
+      {
+        label: 'RACIONAL',
+        from: rationaleColumn,
+        to: rationaleColumn,
+        color: 'FFB4527A',
+      },
     ],
     columns,
   );
   for (const row of rows) {
-    const [first, second] = row.cameras;
+    const cameraValues = Array.from({ length: cameraCount }, (_, index) => {
+      const camera = row.cameras[index];
+      return camera
+        ? [
+            camera.locationName,
+            camera.ots,
+            camera.effectiveOts,
+            camera.watchers,
+          ]
+        : ['', '', '', ''];
+    }).flat();
     sheet.addRow([
       row.date,
       row.storeNumber,
@@ -431,14 +473,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
       row.support,
       STATUS_LABELS[row.status] ?? row.status,
       row.configuredCameras || '',
-      first?.locationName ?? '',
-      first?.ots ?? '',
-      first?.effectiveOts ?? '',
-      first?.watchers ?? '',
-      second?.locationName ?? '',
-      second?.ots ?? '',
-      second?.effectiveOts ?? '',
-      second?.watchers ?? '',
+      ...cameraValues,
       row.publishedOts,
       row.publishedEffectiveOts,
       row.publishedWatchers,
@@ -447,16 +482,37 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
       row.rationale,
     ]);
   }
-  for (const column of ['H', 'I', 'J', 'L', 'M', 'N', 'O', 'P', 'Q']) {
-    numberFormat(sheet, column, '#,##0');
+  for (let index = 0; index < cameraCount; index += 1) {
+    for (let offset = 1; offset <= 3; offset += 1) {
+      numberFormat(
+        sheet,
+        columnLetter(firstCamera + index * 4 + offset),
+        '#,##0',
+      );
+    }
   }
-  numberFormat(sheet, 'R', '0.0 "s"');
-  numberFormat(sheet, 'S', '0.0 "s"');
+  for (let offset = 0; offset < 3; offset += 1) {
+    numberFormat(sheet, columnLetter(firstPublished + offset), '#,##0');
+  }
+  numberFormat(sheet, columnLetter(firstPublished + 3), '0.0 "s"');
+  numberFormat(sheet, columnLetter(firstPublished + 4), '0.0 "s"');
+  const widths = [
+    12,
+    9,
+    24,
+    22,
+    13,
+    10,
+    ...Array.from({ length: cameraCount }, () => [26, 12, 14, 12]).flat(),
+    14,
+    16,
+    14,
+    12,
+    12,
+    48,
+  ];
   sheet.columns.forEach((column, index) => {
-    column.width = [
-      12, 9, 24, 22, 13, 10, 26, 12, 14, 12, 26, 12, 14, 12, 14, 16, 14, 12, 12,
-      48,
-    ][index];
+    column.width = widths[index];
   });
 }
 
@@ -544,6 +600,11 @@ const DEMOGRAPHIC_NOTE =
 
 function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Demografía');
+  const rows = publishedDemographicDetail(report);
+  const cameraCount = Math.max(
+    2,
+    ...rows.map((row) => row.cameraWatchers.length),
+  );
   const columns = [
     'Fecha',
     'Tienda',
@@ -551,23 +612,36 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
     'Soporte',
     'Género estimado',
     'Edad estimada',
-    'Cám. 1 Watchers',
-    'Cám. 2 Watchers',
+    ...Array.from(
+      { length: cameraCount },
+      (_, index) => `Cám. ${index + 1} Watchers`,
+    ),
     'Watchers publicados',
     'Origen / racional',
   ];
+  const published = 7 + cameraCount;
   blockHeader(
     sheet,
     DEMOGRAPHIC_NOTE,
     [
       { label: 'SEGMENTO', from: 1, to: 6, color: 'FF4B6F8C' },
-      { label: 'QUIVIDI · SIN MODIFICAR', from: 7, to: 8, color: 'FF2E7D5B' },
-      { label: 'PUBLICADO', from: 9, to: 9, color: 'FF1F3A93' },
-      { label: 'RACIONAL', from: 10, to: 10, color: 'FFB4527A' },
+      {
+        label: 'QUIVIDI · SIN MODIFICAR',
+        from: 7,
+        to: published - 1,
+        color: 'FF2E7D5B',
+      },
+      { label: 'PUBLICADO', from: published, to: published, color: 'FF1F3A93' },
+      {
+        label: 'RACIONAL',
+        from: published + 1,
+        to: published + 1,
+        color: 'FFB4527A',
+      },
     ],
     columns,
   );
-  for (const row of publishedDemographicDetail(report)) {
+  for (const row of rows) {
     sheet.addRow([
       row.date,
       row.storeNumber,
@@ -575,17 +649,30 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
       row.support,
       QUIVIDI_GENDER_LABELS[row.gender] ?? `Código ${row.gender}`,
       QUIVIDI_AGE_LABELS[row.age] ?? `Código ${row.age}`,
-      row.cameraWatchers[0] ?? '',
-      row.cameraWatchers[1] ?? '',
+      ...Array.from(
+        { length: cameraCount },
+        (_, index) => row.cameraWatchers[index] ?? '',
+      ),
       row.watchers,
       row.rationale,
     ]);
   }
-  numberFormat(sheet, 'G', '#,##0.0');
-  numberFormat(sheet, 'H', '#,##0.0');
-  numberFormat(sheet, 'I', '#,##0.0');
+  for (let column = 7; column <= published; column += 1) {
+    numberFormat(sheet, columnLetter(column), '#,##0.0');
+  }
+  const widths = [
+    12,
+    9,
+    24,
+    22,
+    16,
+    22,
+    ...Array.from({ length: cameraCount }, () => 15),
+    18,
+    56,
+  ];
   sheet.columns.forEach((column, index) => {
-    column.width = [12, 9, 24, 22, 16, 22, 15, 15, 18, 56][index];
+    column.width = widths[index];
   });
 }
 

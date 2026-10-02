@@ -750,6 +750,53 @@ describe('buildMeasurementRows · demografía e incidencias', () => {
     ]);
   });
 
+  it('conserva la demografía de una cámara parcial en la lectura por cámara', () => {
+    const dos = pair({
+      support: 'MUPI DIGITAL',
+      cameraNames: ['CAM-A', 'CAM-B'],
+      cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+    });
+    const days = ['2026-03-01', '2026-03-02', '2026-03-03'];
+    const rows = buildMeasurementRows(
+      [dos],
+      days,
+      [
+        ...days.map((day) => ots(1, day)),
+        ots(2, days[0]!),
+        ots(2, days[1]!),
+        // La cámara 2 el día 3 es parcial: no entra a la cifra combinada.
+        ots(2, days[2]!, { duration: 1_000, ots_count: 5 }),
+      ],
+      [
+        viewer(1, days[2]!, { gender: 2, age: 3, watcher_count: 40 }),
+        viewer(2, days[2]!, { gender: 1, age: 3, watcher_count: 12 }),
+      ],
+    );
+
+    const dayThree = rows.demographics.filter((row) => row.date === days[2]);
+    expect(dayThree).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gender: 2,
+          watchers: 40,
+          cameraWatchers: [
+            { locationId: 1, watchers: 40 },
+            { locationId: 2, watchers: 0 },
+          ],
+        }),
+        expect.objectContaining({
+          gender: 1,
+          // Sólo la cámara completa entra a la cifra combinada.
+          watchers: 0,
+          cameraWatchers: [
+            { locationId: 1, watchers: 0 },
+            { locationId: 2, watchers: 12 },
+          ],
+        }),
+      ]),
+    );
+  });
+
   it('fuera de zona partida toma el perfil de la cámara con más watchers y lo duplica', () => {
     const dos = pair({
       support: 'MUPI DIGITAL',

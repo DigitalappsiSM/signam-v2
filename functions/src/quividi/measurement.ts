@@ -649,8 +649,12 @@ export function buildMeasurementRows(
       });
 
       if (selected.length === 0) continue;
+      // El bloque «sin modificar» conserva la lectura de toda cámara que
+      // reportó (también las parciales); la cifra combinada sólo usa
+      // `selected`, igual que el OTS.
+      const reporting = all.filter((row) => row.status !== 'missing');
       const demoKeys = new Set<string>();
-      for (const row of selected) {
+      for (const row of reporting) {
         const viewer = viewers.get(`${row.locationId}|${date}`);
         for (const key of viewer?.demographics.keys() ?? []) demoKeys.add(key);
       }
@@ -684,7 +688,7 @@ export function buildMeasurementRows(
             pair.cameras.length,
             zoneSplit,
           ),
-          cameraWatchers: selected.map((row) => ({
+          cameraWatchers: reporting.map((row) => ({
             locationId: row.locationId,
             watchers: countOf(row),
           })),

@@ -5,6 +5,7 @@ import type {
   QuividiDemographicRow,
   QuividiSupportDay,
 } from '@/domain';
+import { buildQuividiCampaignWorkbook } from './quividiCampaignExcel';
 import {
   brandCampaignSummary,
   brandDemographics,
@@ -282,5 +283,33 @@ describe('demografía publicada', () => {
       watchers: 300,
       rationale: '2 cámaras: la más alta (Cám. 1) × 2',
     });
+  });
+});
+
+describe('hojas del Excel', () => {
+  it('con 3 cámaras exporta las tres lecturas, no sólo dos', async () => {
+    const base = scenario();
+    const report: QuividiCampaignReport = {
+      ...base,
+      cameraDays: [
+        ...base.cameraDays,
+        camera({ date: DATES[0]!, storeNumber: '2', locationId: 4, ots: 9000 }),
+      ],
+    };
+    const wb = await buildQuividiCampaignWorkbook(report);
+    const sheet = wb.getWorksheet('Detalle Soportes');
+    if (!sheet) throw new Error('falta Detalle Soportes');
+    const header = sheet.getRow(3).values as unknown[];
+    expect(header).toContain('Cám. 3 OTS');
+    let found = false;
+    sheet.eachRow((row, index) => {
+      if (index <= 3) return;
+      if (row.getCell(1).value === DATES[0] && row.getCell(2).value === '2') {
+        const values = row.values as unknown[];
+        expect(values).toContain(9000);
+        found = true;
+      }
+    });
+    expect(found).toBe(true);
   });
 });
