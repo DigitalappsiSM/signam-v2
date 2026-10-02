@@ -310,7 +310,10 @@ async function generateReport(
     campaignName: campaign.name ?? '',
     startDate,
     endDate,
-    generatedAt: Date.now(),
+    // El mismo instante con el que se calculó el corte de la consulta: si los
+    // exports terminan después de medianoche, `Date.now()` daría un corte
+    // distinto en el PDF y en la caché que el que realmente se pidió.
+    generatedAt: now,
     scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
     storeCoverage: buildStoreCoverage(resolved.pairs),
