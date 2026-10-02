@@ -211,6 +211,45 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveClass('dashboard-health--danger');
   });
 
+  it('no degrada la salud por campañas futuras ni por próximos vencimientos preventivos', async () => {
+    const ACTIVA = campaign({
+      id: 'activa',
+      name: 'ACTIVA',
+      nameKey: 'activa',
+      tipo: 'INSTITUCIONAL',
+      fechaInicio: dayOffset(-1),
+      fechaFin: dayOffset(1),
+      link: 'https://example.com',
+    });
+    const FUTURA = campaign({
+      id: 'futura',
+      name: 'FUTURA',
+      nameKey: 'futura',
+      tipo: 'PROVEEDOR',
+      fechaInicio: dayOffset(3),
+      fechaFin: dayOffset(10),
+    });
+
+    vi.mocked(listCampaigns).mockResolvedValue([ACTIVA, FUTURA]);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      {
+        campaignId: ACTIVA.id,
+        campaignNameKey: campaignIdentity(ACTIVA),
+        classification: 'institutional',
+        liverpoolValidated: true,
+        csmProgrammed: true,
+      } as unknown as Awaited<
+        ReturnType<typeof listOperationalTracking>
+      >[number],
+    ]);
+
+    renderDash();
+
+    const health = await screen.findByLabelText(/Estado operativo: Operación al día/i);
+    expect(health).toHaveClass('dashboard-health--success');
+    expect(within(health).getByText('100%')).toBeInTheDocument();
+  });
+
   it('incluye terminadas con pendientes (sin testigo vencido) en el widget de Atención inmediata', async () => {
     // Institucional terminada: los testigos NO aplican (no hay "vencido" ni
     // "vence hoy"), pero queda con un check aplicable pendiente → alerta
