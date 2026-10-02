@@ -25,6 +25,7 @@ import {
   brandSupportDays,
   brandWeeklyEvolution,
   effectiveEndDate,
+  lastCompleteDateAt,
   measuredPeriodDays,
   periodDays,
   weekStartOf,
@@ -272,8 +273,9 @@ describe('informe comercial agregado de audiencia', () => {
 
   it('no proyecta a futuro una campaña que todavía no termina', () => {
     // Vigencia contratada de 10 días (01–10 de sep), pero el reporte se
-    // genera a mitad de camino, el día 06: Quividi todavía no tiene (ni puede
-    // tener) datos del 07 al 10, así que esas fechas no aparecen en
+    // genera a mitad de camino, el día 07 (último día completo: 06): Quividi
+    // todavía no tiene (ni puede tener) datos del 07 al 10, así que esas
+    // fechas no aparecen en
     // `supportDays`. Antes del fix, `periodDays` usaba `endDate` (los 10 días
     // contratados) y esos 4 días futuros se trataban como un hueco de
     // medición más, proyectando OTS para días que no habían ocurrido.
@@ -288,7 +290,7 @@ describe('informe comercial agregado de audiencia', () => {
     const input = report({
       startDate: '2026-09-01',
       endDate: '2026-09-10',
-      generatedAt: Date.parse('2026-09-06T12:00:00Z'),
+      generatedAt: Date.parse('2026-09-07T18:00:00Z'),
       coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
       storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
       supportDays: rows,
@@ -311,6 +313,42 @@ describe('informe comercial agregado de audiencia', () => {
     expect(summary.measuredOts).toBe(12_000);
     expect(summary.estimatedOts).toBe(12_000);
     expect(summary.extrapolatedOts).toBe(0);
+  });
+
+  it('corta en el último día completo, no en el día de generación', () => {
+    // Caso Toki: vigencia desde el 29/09, informe descargado el 2 de octubre
+    // por la mañana (hora CDMX). Hay medición del 29/09 al 01/10; el 02/10
+    // todavía no termina y no debe extrapolarse como hueco.
+    const dates = ['2026-09-29', '2026-09-30', '2026-10-01'];
+    const rows = dates.flatMap((date) => [
+      supportDay({ date, storeNumber: '1', storeName: 'UNO', ots: 1000 }),
+      supportDay({ date, storeNumber: '2', storeName: 'DOS', ots: 1000 }),
+    ]);
+    const input = report({
+      startDate: '2026-09-29',
+      endDate: '2026-10-31',
+      generatedAt: Date.parse('2026-10-02T15:00:00Z'),
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: rows,
+    });
+
+    expect(effectiveEndDate(input)).toBe('2026-10-01');
+    expect(measuredPeriodDays(input)).toBe(3);
+    const summary = brandCampaignSummary(input);
+    expect(summary.measuredOts).toBe(6_000);
+    expect(summary.extrapolatedOts).toBe(0);
+  });
+
+  it('usa el día de la Ciudad de México, no el UTC', () => {
+    // 1 de octubre a las 20:00 en CDMX = 2 de octubre 02:00 UTC: el 1 aún no
+    // termina, así que el último día completo es el 30 de septiembre.
+    expect(lastCompleteDateAt(Date.parse('2026-10-02T02:00:00Z'))).toBe(
+      '2026-09-30',
+    );
+    expect(lastCompleteDateAt(Date.parse('2026-10-02T15:00:00Z'))).toBe(
+      '2026-10-01',
+    );
   });
 
   it('escala cada día por los pares medidos de ese día', () => {

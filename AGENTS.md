@@ -528,16 +528,19 @@ tres de ellos describían mal el separador de artículos.
   **Campaña todavía vigente al generar el reporte**: la rejilla sobre la que
   se extrapola (`measuredPeriodDays`, consumida por `brandSupportFormats`,
   `brandMeasurableScope`, `brandCoverage` y la hoja de auditoría por tienda)
-  se recorta a `effectiveEndDate` — la fecha de generación del reporte
-  (`report.generatedAt`) si la campaña aún no llega a su fin de vigencia
-  contratado, o ese fin de vigencia si ya pasó. Un día de vigencia **futuro**
-  (posterior a la generación) no es un hueco de medición: no ha ocurrido, así
-  que no entra ni a la rejilla ni al promedio que rellena huecos — tratarlo
-  como «sin cámara» o «sin dato» proyectaría la cifra a futuro y la portada
-  dejaría de representar lo real-a-la-fecha. El día de generación en curso sí
-  entra a la rejilla (normalmente sin dato todavía, porque Quividi no cierra
-  el día hasta que termina) y se completa como cualquier otro hueco — es
-  intencional: «reales + proyectados a la fecha (día/hora) del reporte». La
+  se recorta a `effectiveEndDate` — el **último día completo** a la fecha de
+  generación (`lastCompleteDateAt(report.generatedAt)`: el día anterior en
+  hora de la Ciudad de México, el mismo corte con el que el servidor pide los
+  datos, `lastCompleteMexicoDate` en `functions/src/quividi/measurement.ts`)
+  si la campaña aún no llega a su fin de vigencia contratado, o ese fin de
+  vigencia si ya pasó. Un día de vigencia **futuro** no es un hueco de
+  medición: no ha ocurrido, así que no entra ni a la rejilla ni al promedio
+  que rellena huecos — tratarlo como «sin cámara» o «sin dato» proyectaría la
+  cifra a futuro y la portada dejaría de representar lo real-a-la-fecha. **El
+  día de generación en curso tampoco entra** (decisión de negocio, octubre
+  2026): el servidor no lo pide a Quividi porque no ha terminado, y antes se
+  completaba con el promedio del formato como si fuera un hueco. La cifra es
+  «reales + extrapolación de huecos reales, hasta ayer». La
   vigencia contratada completa (`periodDays`) se conserva para lo puramente
   informativo: la etiqueta de portada, el nombre de archivo y el umbral de 28
   días que decide evolución diaria vs. semanal (`brandHeader.days`) — nunca

@@ -162,8 +162,8 @@ logic. The load-bearing ones:
   each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
   a mupi's performance. Averages divide by **measured** pair-days, never the full grid: missing days entering the
   numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. While the
-  campaign is still running, that grid is capped at the report's generation date (`effectiveEndDate`/
-  `measuredPeriodDays`), never the contracted end date: a future day that hasn't happened yet is not a measurement
+  campaign is still running, that grid is capped at the last complete day before generation, in Mexico City time
+  (`effectiveEndDate`/`measuredPeriodDays`), never the contracted end date: a future day that hasn't happened yet is not a measurement
   gap and must not be projected forward — the published figure is real-to-date plus extrapolation for actual gaps
   only. The Excel's **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure
   functions*, so sheet and report cannot disagree. **Multi-camera pairs** are combined at the data source

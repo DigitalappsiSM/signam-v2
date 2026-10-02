@@ -279,12 +279,32 @@ export function periodDays(report: QuividiCampaignReport): number {
 }
 
 /**
+ * Último día completo a la fecha de generación: el día anterior, en hora de
+ * la Ciudad de México. Es el mismo corte con el que el servidor pide los datos
+ * a Quividi (`lastCompleteMexicoDate` en `functions/src/quividi/measurement.ts`).
+ */
+export function lastCompleteDateAt(generatedAt: number): string {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(generatedAt);
+  const date = new Date(`${today}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
  * Fecha de fin efectiva para la extrapolación: el fin de vigencia contratado,
- * o la fecha de generación del reporte si la campaña todavía no ha terminado.
+ * o el último día completo a la fecha de generación si la campaña todavía no
+ * ha terminado. El día de la generación queda fuera: todavía no termina, el
+ * servidor no lo pide a Quividi y tratarlo como hueco de medición lo
+ * rellenaría con el promedio del formato.
  */
 export function effectiveEndDate(report: QuividiCampaignReport): string {
-  const generated = new Date(report.generatedAt).toISOString().slice(0, 10);
-  return generated < report.endDate ? generated : report.endDate;
+  const lastComplete = lastCompleteDateAt(report.generatedAt);
+  return lastComplete < report.endDate ? lastComplete : report.endDate;
 }
 
 /**
