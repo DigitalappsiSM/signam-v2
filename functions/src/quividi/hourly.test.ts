@@ -57,9 +57,9 @@ function viewer(
 const HOUR = '2026-03-01T10:00:00';
 
 describe('buildSupportHours · regla multi-cámara', () => {
-  it('promedia las cámaras válidas en lugar de sumarlas', () => {
-    // Soporte distinto de BANNER DIGITAL: este caso cubre el promedio
-    // genérico, no la excepción de zona partida (ver el describe de abajo).
+  it('toma la cámara más alta (sin sumar ni promediar) y la duplica', () => {
+    // Soporte distinto de BANNER DIGITAL: este caso cubre la regla genérica
+    // de 2 cámaras, no la excepción de zona partida (ver el describe de abajo).
     const rows = buildSupportHours(
       [pair({ support: 'MUPI DIGITAL' })],
       [
@@ -85,9 +85,12 @@ describe('buildSupportHours · regla multi-cámara', () => {
       configuredCameras: 2,
       measuredCameras: 2,
       status: 'complete',
-      ots: 200,
-      effectiveOts: 80,
-      watchers: 25,
+      ots: 300,
+      effectiveOts: 100,
+      watchers: 30,
+      publishedOts: 600,
+      publishedEffectiveOts: 200,
+      publishedWatchers: 60,
     });
   });
 
@@ -226,21 +229,18 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
     });
   });
 
-  it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta', () => {
+  it('Coapa: 2 cámaras de la misma pantalla publica la más alta × 2', () => {
     // Caso real: Coapa, 28,068 vs 7,929 OTS.
     const rows = buildSupportHours(
       [pair({ support: 'MUPI DIGITAL' })],
-      [
-        ots(1, HOUR, { ots_count: 28_068 }),
-        ots(2, HOUR, { ots_count: 7_929 }),
-      ],
+      [ots(1, HOUR, { ots_count: 28_068 }), ots(2, HOUR, { ots_count: 7_929 })],
       [],
     );
 
     expect(rows[0]).toMatchObject({
       status: 'complete',
       ots: 28_068,
-      publishedOts: 28_068,
+      publishedOts: 56_136,
     });
   });
 });
@@ -264,17 +264,19 @@ describe('buildSupportHours · duplicación por cámara única', () => {
     });
   });
 
-  it('no duplica un par de 2+ cámaras', () => {
+  it('par de 2 cámaras con una sola lectura esa hora: duplica la que reportó', () => {
     const rows = buildSupportHours(
       [pair({ support: 'MUPI DIGITAL' })],
-      [ots(1, HOUR, { ots_count: 500 }), ots(2, HOUR, { ots_count: 500 })],
+      [ots(1, HOUR, { ots_count: 500 })],
       [],
     );
 
     expect(rows[0]).toMatchObject({
       configuredCameras: 2,
+      measuredCameras: 1,
+      status: 'partial',
       ots: 500,
-      publishedOts: 500,
+      publishedOts: 1000,
     });
   });
 });

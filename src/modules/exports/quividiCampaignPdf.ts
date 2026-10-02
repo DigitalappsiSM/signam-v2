@@ -11,6 +11,7 @@ import {
   brandHeader,
   brandHourlyDistribution,
   brandOperationalReport,
+  brandPartialDay,
   brandStoreAttribution,
   brandWeeklyEvolution,
   formatCivilDate,
@@ -1194,9 +1195,12 @@ function topStoresPage(
     let bodyTop = 148;
     if (pageIndex === 0) {
       text(doc, 'Tiendas TOP', M, 130, { size: 30, bold: true, color: NAVY });
+      const partial = brandPartialDay(report);
       text(
         doc,
-        'Tiendas con medición válida en algún momento de la campaña.',
+        partial
+          ? `Tiendas con medición válida en algún momento de la campaña. Incluye el ${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}.`
+          : 'Tiendas con medición válida en algún momento de la campaña.',
         M,
         152,
         { size: 11, color: MUTED },

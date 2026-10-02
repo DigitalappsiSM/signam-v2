@@ -132,16 +132,17 @@ describe('hoja de auditoría del informe comercial', () => {
     const wb = await buildQuividiCampaignWorkbook(input);
     const detail = wb.getWorksheet('Detalle Soportes');
     if (!detail) throw new Error('falta Detalle Soportes');
-    const notes = new Map<string, string>();
+    const rationales: string[] = [];
     detail.eachRow((row, index) => {
-      if (index === 1) return;
-      notes.set(
-        String(row.getCell(1).value),
-        String(row.getCell(14).value ?? ''),
-      );
+      if (index <= 3) return;
+      if (String(row.getCell(1).value) === lastDate) {
+        rationales.push(String(row.getCell(20).value ?? ''));
+      }
     });
-    expect(notes.get(lastDate)).toBe('Día incompleto, medido hasta 15:07');
-    expect(notes.get(DATES[0] ?? '')).toBe('');
+    expect(rationales.length).toBeGreaterThan(0);
+    for (const text of rationales) {
+      expect(text).toContain('Día incompleto, medido hasta 15:07');
+    }
   });
 
   it('publica la rejilla del circuito medible y su reparto exhaustivo', async () => {
@@ -349,7 +350,7 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(duplication.publishedOts).toBe(4000);
     expect(duplication.addedOts).toBe(2000);
 
-    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(
+    expect(values.get('Pares duplicados (circuito medible)')).toBe(
       duplication.pairs,
     );
     expect(values.get('OTS medidos en esos pares, sin duplicar')).toBe(
@@ -372,7 +373,7 @@ describe('hoja de auditoría del informe comercial', () => {
 
   it('no publica nada en la sección de duplicación si no hay pares de 1 sola cámara', async () => {
     const values = await auditValues(report());
-    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(0);
+    expect(values.get('Pares duplicados (circuito medible)')).toBe(0);
     expect(values.get('+ OTS añadidos por duplicación')).toBe(0);
   });
 });

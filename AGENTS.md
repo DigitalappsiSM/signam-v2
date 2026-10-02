@@ -627,18 +627,14 @@ tres de ellos describían mal el separador de artículos.
      lados distintos del hueco central del centro comercial, así que la
      oportunidad de ver es genuinamente el doble, no una redundancia de la
      misma pantalla).
-  2. **Brecha > 1,000 OTS (absoluta, `CAMERA_PAIR_GAP_THRESHOLD`) entre la
-     lectura más alta y la más baja → se usa la más alta**, no se promedia.
-     El campo `quividiLocationId2` nació para un caso muy distinto —un mismo
-     PC con 2 flujos de video de la MISMA pantalla (ver el comentario en
-     `src/domain/models.ts`)— así que una brecha así de grande entre 2
-     cámaras del mismo circuito (p. ej. Coapa: 28,068 vs 7,929 OTS) apunta a
-     que la cámara baja está mal ubicada u obstruida, no a que haya menos
-     público; promediar penalizaría el dato real que sí se captó. La causa
-     exacta (ubicación, ángulo, obstrucción) es una validación operativa, no
-     algo que el código pueda inferir.
-  3. **En cualquier otro caso: promedio** (comportamiento histórico, para
-     ruido normal entre 2 cámaras sanas que ven casi lo mismo).
+  2. **En cualquier otro caso → la lectura más alta** (octubre 2026, caso
+     Coapa: 28,068 vs 7,929 OTS), para OTS, OTS efectivos y watchers. Antes
+     se promediaba salvo brechas mayores a 1,000 OTS; ahora la cámara alta es
+     siempre la referencia. El campo `quividiLocationId2` nació para un mismo
+     PC con 2 flujos de video de la MISMA pantalla (ver `src/domain/models.ts`),
+     así que una lectura baja apunta a ángulo u obstrucción, no a menos
+     público. El umbral `CAMERA_PAIR_GAP_THRESHOLD` (1,000) sigue vivo sólo
+     para la alerta operativa de brecha entre cámaras (`detectCameraPairGaps`).
 
   Antes de esta regla, Insurgentes se corregía sólo en el frontend, a partir
   de `cameraDays` — pero `brandOperationalReport` (la vista que acota el PDF
@@ -650,16 +646,44 @@ tres de ellos describían mal el separador de artículos.
   combinados correctamente a ambos, y `brandOperationalReport` ya no necesita
   tocar `cameraDays` en absoluto (`cameraDays` sigue existiendo en el reporte
   sin cambios, para el detalle técnico por cámara del Excel).
-- **Duplicación por cámara única — directriz de negocio, no extrapolación.**
-  La mayoría de los circuitos con **exactamente 1 cámara configurada**
-  (`configuredCameras === 1`, cuántas tiene asignadas el catálogo, no cuántas
-  reportaron ese día/hora) en realidad tienen 2 pantallas en el mismo sitio:
-  la cámara mide una, pero la oportunidad de ver es la de las dos. Se calcula
-  en el mismo origen del dato que la regla de Multi-cámara
+- **Watchers y demografía siguen la regla de OTS.** Fuera de zona partida,
+  los watchers del par son los de la cámara más alta y el perfil de género ×
+  edad sale de la cámara con más watchers ese día; en zona partida se suman
+  (antes los watchers se promediaban siempre). `DemographicRow` trae
+  `watchers` (combinado), `publishedWatchers` (duplicado donde aplica) y
+  `cameraWatchers` (la lectura tal cual de cada cámara). En el informe
+  comercial la demografía se **extrapola** igual que el OTS
+  (`brandDemographics`): lo medido con `publishedWatchers`; los días sin dato
+  y los soportes sin cámara de los formatos medibles se completan con el
+  promedio de watchers por par-día medido del formato, repartido según su
+  perfil de género × edad medido; el día incompleto suma sólo lo medido; los
+  formatos sin ninguna medición quedan fuera. Los porcentajes del total casi
+  no cambian; los conteos cuadran con los watchers publicados.
+- **Excel: «Quividi sin modificar» → «Publicado» → «Racional».** Las hojas
+  «Detalle Soportes» y «Demografía» (`quividiPublishedDetail.ts`) ponen lado
+  a lado la lectura tal cual de cada cámara (Cám. 1 / Cám. 2), la cifra que
+  publica el informe y una frase con la regla aplicada (1 cámara × 2, la más
+  alta de 2 × 2, zona partida suma, sin dato o sin cámara = promedio del
+  formato, día incompleto = sólo lo medido, formato sin medición = fuera). Los
+  soportes del universo sin cámara aparecen como filas «Sin cámara (n
+  soportes)» por fecha y formato. Lo publicado de «Detalle Soportes» concilia
+  con `brandCampaignSummary` sobre el día completo (00:00–23:59); la portada
+  del PDF acota a 10:00–22:00 y puede quedar un poco por debajo — la nota de
+  la fila 1 de la hoja lo dice.
+- **Duplicación de la cifra (1 y 2 cámaras) — directriz de negocio, no
+  extrapolación.** La mayoría de los circuitos tienen 2 pantallas en el
+  mismo sitio y la cámara mide una. Se duplica (`duplicatesPublishedValue`,
+  según cuántas cámaras tiene **asignadas** el catálogo, no cuántas reportaron
+  ese día/hora):
+  - **1 cámara configurada**: su lectura × 2;
+  - **2 cámaras configuradas fuera de zona partida** (octubre 2026, caso
+    Coapa): la lectura más alta × 2; si ese día/hora sólo reportó una, la que
+    reportó × 2;
+  - **zona partida** (Insurgentes, `BANNER DIGITAL`) y **3+ cámaras**: no se
+    duplica (la zona partida ya suma sus 2 audiencias).
+  Se calcula en el mismo origen del dato que la regla de Multi-cámara
   (`cameraCombination.ts` → `publishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR
-  = 2`), aplicado **después** de `combineCameraValues`: un par de 1 cámara
-  nunca pasa por zona partida / brecha / promedio (esas reglas necesitan 2+
-  lecturas), así que ambas reglas son mutuamente excluyentes por construcción.
+  = 2`), aplicado **después** de `combineCameraValues`.
   Se duplican OTS, OTS efectivos y watchers; **no** se duplican dwell time ni
   attention time (son promedios por persona, no conteos — duplicar el tiempo
   que alguien mira la pantalla no tiene sentido), pero sí pesan el doble al
@@ -671,7 +695,7 @@ tres de ellos describían mal el separador de artículos.
   `QuividiSupportDay`/`QuividiSupportHour`: `ots`/`effectiveOts`/`watchers`
   (lo medido, sin tocar) y `publishedOts`/`publishedEffectiveOts`/
   `publishedWatchers` (después del ajuste; igual a los primeros si el par
-  no es de 1 sola cámara). **El informe comercial (`quividiBrandReport.ts`)
+  no se duplica). **El informe comercial (`quividiBrandReport.ts`)
   lee los campos `published*`** en toda la cadena que alimenta la cifra
   publicada (`brandSupportFormats`, `brandExtrapolationBasis`,
   `brandCampaignSummary`, `brandDaily`, `brandHourlyDistribution`,
@@ -680,15 +704,16 @@ tres de ellos describían mal el separador de artículos.
   ajuste (un día sin dato en un formato de 1 sola cámara se rellena con el
   promedio *ya duplicado* de ese formato, consistente con el racional de
   negocio). **El Excel técnico (`quividiCampaignExcel.ts`,
-  `quividiMarketingSheets.ts`) sigue leyendo los campos crudos** — su
-  definición de «lo medido tal cual» no cambia.
+  `quividiMarketingSheets.ts`) sigue leyendo los campos crudos** (lo medido
+  sin duplicar: la cámara, o la más alta de 2; la hoja «Cámaras» conserva
+  cada cámara por separado).
 
   La única excepción es `brandStoreAudit` (hoja de auditoría, sección
   «Qué se midió realmente»): su `measuredOts` por tienda se queda crudo a
   propósito, y gana un `publishedOts` nuevo al lado para que la brecha entre
   ambos sea visible fila por fila. La hoja «Auditoría de cifras» además
-  agrega la sección **10 · Duplicación por cámara única**
-  (`brandSingleCameraDuplication`): pares de 1 sola cámara dentro del
+  agrega la sección **10 · Duplicación de la cifra (1 y 2 cámaras)**
+  (`brandSingleCameraDuplication`): pares duplicados dentro del
   circuito medible, su OTS medido sin duplicar, lo añadido por la
   duplicación y el total publicado — `summary.measuredOts -
   duplication.addedOts` es lo medido sin ningún ajuste de negocio, en toda
@@ -722,8 +747,11 @@ tres de ellos describían mal el separador de artículos.
   derecha; la fila #1 lleva acento rosa, el resto gris. Lista únicamente
   tiendas con al menos una jornada de medición directa en algún momento de la
   vigencia (`everMeasured`), con su OTS ajustado (dato propio más los huecos
-  de la tienda completados al promedio de su formato) y su dwell time
-  ponderado por watchers. Se pagina automáticamente cada **8** filas
+  de la tienda completados al promedio de su formato, **más lo medido del día
+  incompleto** sin extrapolar, `partialOts`) y su dwell time ponderado por
+  watchers. Con día incompleto, el subtítulo de la página lo dice: «Incluye
+  el dd/mm/aaaa · Día incompleto, medido hasta HH:MM» — así la suma de
+  Tiendas TOP concilia con la cifra de portada. Se pagina automáticamente cada **8** filas
   (`TOP_STORES_ROWS_PER_PAGE`) si el listado no cabe en una página, con
   eyebrow de continuación `«04 · TIENDAS TOP — CONTINUACIÓN»` (em-dash, nunca
   paréntesis — ver la nota de escape de `tracking` más abajo). La página **no**

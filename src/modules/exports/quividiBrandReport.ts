@@ -175,6 +175,11 @@ export interface BrandStoreAttribution {
   measuredOts: number;
   /** OTS ajustados: el propio dato más los huecos de la tienda completados al promedio de su formato. */
   adjustedOts: number;
+  /**
+   * OTS medidos el día incompleto (ya incluidos en `measuredOts` y
+   * `adjustedOts`, sin extrapolar); 0 si no hay día incompleto.
+   */
+  partialOts: number;
   /** Dwell time ponderado por watchers, sólo con periodos observados (completos o parciales). */
   dwellSeconds: number;
   /** Tuvo al menos una jornada con medición directa en algún momento de la vigencia. */
@@ -215,16 +220,17 @@ export interface BrandStoreAudit {
   /** Lo medido, sin ningún ajuste de negocio. */
   measuredOts: number;
   /**
-   * `measuredOts` después de duplicar los pares de una sola cámara
-   * configurada (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Igual a `measuredOts`
-   * si la tienda no tiene ningún par de una sola cámara.
+   * `measuredOts` después de duplicar los pares de 1 cámara, o 2 fuera de
+   * zona partida (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Igual a `measuredOts`
+   * si la tienda no tiene ningún par duplicado.
    */
   publishedOts: number;
 }
 
 /**
  * Reconciliación de la duplicación por cámara única dentro del circuito
- * medible: cuánto se midió realmente en pares de 1 sola cámara configurada,
+ * medible: cuánto se midió realmente en pares duplicados (1 cámara, o la más
+ * alta de 2 cámaras fuera de zona partida),
  * cuánto se publica después de duplicarlo, y la diferencia. Es la base de la
  * sección «Duplicación por cámara única» de la hoja de auditoría — hace
  * explícito un ajuste que, a diferencia de la extrapolación por huecos, no
@@ -233,7 +239,10 @@ export interface BrandStoreAudit {
  * tienen 2 pantallas en el mismo sitio).
  */
 export interface BrandSingleCameraDuplication {
-  /** Pares tienda+soporte distintos con exactamente 1 cámara configurada. */
+  /**
+   * Pares tienda+soporte distintos cuya cifra se duplica: 1 cámara
+   * configurada, o 2 cámaras fuera de zona partida (la más alta × 2).
+   */
   pairs: number;
   /** Suma de lo medido en esos pares, sin duplicar. */
   measuredOts: number;
@@ -807,13 +816,199 @@ export function brandWeeklyEvolution(
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 }
 
+/** Origen de una fila de demografía publicada. */
+export type BrandDemographicOrigin =
+  'measured' | 'partial' | 'missing' | 'uncovered';
+
+/** Fila de demografía de cara a marca (watchers publicados). */
+export interface BrandDemographicRow {
+  date: string;
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  gender: number;
+  age: number;
+  /** Watchers publicados: medidos (duplicados donde aplica) o estimados. */
+  watchers: number;
+  origin: BrandDemographicOrigin;
+  /** Soportes sin cámara que representa la fila (sólo `uncovered`). */
+  uncoveredPairs?: number;
+}
+
+function civilDays(start: string, end: string): string[] {
+  const days: string[] = [];
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const last = new Date(`${end}T00:00:00Z`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime())) {
+    return days;
+  }
+  while (cursor <= last) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
+/** Fechas de la rejilla de extrapolación (días completos de la vigencia). */
+export function brandGridDates(report: QuividiCampaignReport): string[] {
+  return civilDays(report.startDate, effectiveEndDate(report));
+}
+
+/**
+ * Promedios por par-día **medido** de cada formato del circuito medible,
+ * en cifra publicada: los mismos que rellenan los huecos de OTS
+ * (`brandCampaignSummary`), más los de OTS efectivos y watchers.
+ */
+export function brandFormatRates(
+  report: QuividiCampaignReport,
+): Map<string, { ots: number; effectiveOts: number; watchers: number }> {
+  const scope = brandMeasurableScope(report);
+  const rows = brandSupportDays(report).filter(
+    (row) => row.status !== 'missing',
+  );
+  return new Map(
+    scope.measurable.map((format) => {
+      const formatRows = rows.filter((row) => row.support === format.support);
+      const days = format.measuredPairDays;
+      return [
+        format.support,
+        {
+          ots: days > 0 ? format.measuredOts / days : 0,
+          effectiveOts:
+            days > 0
+              ? sum(formatRows.map((row) => row.publishedEffectiveOts)) / days
+              : 0,
+          watchers:
+            days > 0
+              ? sum(formatRows.map((row) => row.publishedWatchers)) / days
+              : 0,
+        },
+      ];
+    }),
+  );
+}
+
+/** Soportes del universo de un formato sin fila ese día (sin cámara). */
+export function brandUncoveredPairsByDate(
+  report: QuividiCampaignReport,
+): Array<{ date: string; support: string; pairs: number }> {
+  const scope = brandMeasurableScope(report);
+  const rowsByKey = new Map<string, number>();
+  for (const row of brandSupportDays(report)) {
+    const key = `${row.date}|${row.support}`;
+    rowsByKey.set(key, (rowsByKey.get(key) ?? 0) + 1);
+  }
+  const result: Array<{ date: string; support: string; pairs: number }> = [];
+  for (const date of brandGridDates(report)) {
+    for (const format of scope.measurable) {
+      const pairs = Math.max(
+        0,
+        format.pairs - (rowsByKey.get(`${date}|${format.support}`) ?? 0),
+      );
+      if (pairs > 0) result.push({ date, support: format.support, pairs });
+    }
+  }
+  return result;
+}
+
+/**
+ * Demografía de cara a marca, con la misma lógica que el OTS publicado:
+ *
+ * - lo medido usa los watchers publicados (misma cámara de referencia que el
+ *   OTS, duplicados donde aplica — `publishedWatchers` del backend);
+ * - un día sin dato de un soporte con cámara, y los soportes del universo sin
+ *   cámara, se completan con el promedio de watchers por par-día medido del
+ *   formato, repartido según el perfil de género × edad medido del formato;
+ * - el día incompleto suma sólo lo medido;
+ * - los formatos sin ninguna medición quedan fuera, igual que en el OTS.
+ *
+ * Los porcentajes del total casi no cambian (lo estimado usa el mismo perfil
+ * del formato); los conteos sí, y cuadran con los watchers publicados.
+ */
+export function brandDemographics(
+  report: QuividiCampaignReport,
+): BrandDemographicRow[] {
+  const scope = brandMeasurableScope(report);
+  const measurable = new Set(scope.measurable.map((format) => format.support));
+  const excluded = new Set(scope.excluded.map((format) => format.support));
+  const partial = report.partialDate ?? null;
+  const published = (row: QuividiCampaignReport['demographics'][number]) =>
+    numeric(row.publishedWatchers ?? row.watchers);
+
+  const result: BrandDemographicRow[] = [];
+  const profile = new Map<string, Map<string, number>>();
+  for (const row of report.demographics) {
+    if (excluded.has(row.support)) continue;
+    const watchers = published(row);
+    const isPartial = row.date === partial;
+    result.push({
+      date: row.date,
+      storeNumber: row.storeNumber,
+      storeName: row.storeName,
+      support: row.support,
+      gender: row.gender,
+      age: row.age,
+      watchers,
+      origin: isPartial ? 'partial' : 'measured',
+    });
+    if (isPartial) continue;
+    const formatProfile = profile.get(row.support) ?? new Map<string, number>();
+    const key = `${row.gender}|${row.age}`;
+    formatProfile.set(key, (formatProfile.get(key) ?? 0) + watchers);
+    profile.set(row.support, formatProfile);
+  }
+
+  const rates = brandFormatRates(report);
+  const spread = (
+    support: string,
+    total: number,
+    base: Omit<BrandDemographicRow, 'gender' | 'age' | 'watchers'>,
+  ) => {
+    const formatProfile = profile.get(support);
+    if (!formatProfile || total <= 0) return;
+    const profileTotal = sum(Array.from(formatProfile.values()));
+    if (profileTotal <= 0) return;
+    for (const [key, count] of formatProfile) {
+      const [gender, age] = key.split('|').map(Number);
+      result.push({
+        ...base,
+        gender: gender ?? 0,
+        age: age ?? 0,
+        watchers: (total * count) / profileTotal,
+      });
+    }
+  };
+
+  for (const row of brandSupportDays(report)) {
+    if (row.status !== 'missing' || !measurable.has(row.support)) continue;
+    spread(row.support, rates.get(row.support)?.watchers ?? 0, {
+      date: row.date,
+      storeNumber: row.storeNumber,
+      storeName: row.storeName,
+      support: row.support,
+      origin: 'missing',
+    });
+  }
+  for (const gap of brandUncoveredPairsByDate(report)) {
+    spread(gap.support, (rates.get(gap.support)?.watchers ?? 0) * gap.pairs, {
+      date: gap.date,
+      storeNumber: '',
+      storeName: `Sin cámara (${gap.pairs} ${gap.pairs === 1 ? 'soporte' : 'soportes'})`,
+      support: gap.support,
+      origin: 'uncovered',
+      uncoveredPairs: gap.pairs,
+    });
+  }
+  return result;
+}
+
 function shareBy(
   report: QuividiCampaignReport,
   field: 'gender' | 'age',
   labels: Readonly<Record<number, string>>,
 ): BrandShare[] {
   const groups = new Map<number, number>();
-  for (const row of report.demographics) {
+  for (const row of brandDemographics(report)) {
     groups.set(
       row[field],
       (groups.get(row[field]) ?? 0) + numeric(row.watchers),
@@ -889,11 +1084,15 @@ export function brandSingleCameraDuplication(
   const measurableSupports = new Set(
     scope.measurable.map((format) => format.support),
   );
+  // Pares duplicados: 1 cámara configurada, o 2 cámaras fuera de zona
+  // partida (el backend ya publicó la más alta × 2). En zona partida
+  // `publishedOts === ots`, así que no entra.
   const rows = brandSupportDays(report).filter(
     (row) =>
       measurableSupports.has(row.support) &&
       row.status !== 'missing' &&
-      row.configuredCameras === 1,
+      (row.configuredCameras === 1 ||
+        (row.configuredCameras === 2 && row.publishedOts > row.ots)),
   );
 
   const measuredOts = sum(rows.map((row) => row.ots));
@@ -973,21 +1172,36 @@ export function brandStoreAttribution(
   const rows = brandSupportDays(report).filter((row) =>
     measurableSupports.has(row.support),
   );
+  // El día incompleto suma a cada tienda sólo lo medido, igual que en la
+  // portada: sin esto «Tiendas TOP» no conciliaba con la cifra publicada.
+  const partialRows = brandPartialSupportDays(report).filter(
+    (row) => measurableSupports.has(row.support) && row.status !== 'missing',
+  );
 
   const byStore = new Map<
     string,
-    { storeName: string; rowsByFormat: Map<string, QuividiSupportDay[]> }
+    {
+      storeName: string;
+      rowsByFormat: Map<string, QuividiSupportDay[]>;
+      partialRows: QuividiSupportDay[];
+    }
   >();
-  for (const row of rows) {
+  const storeOf = (row: QuividiSupportDay) => {
     const store = byStore.get(row.storeNumber) ?? {
       storeName: row.storeName,
       rowsByFormat: new Map<string, QuividiSupportDay[]>(),
+      partialRows: [],
     };
+    byStore.set(row.storeNumber, store);
+    return store;
+  };
+  for (const row of rows) {
+    const store = storeOf(row);
     const formatRows = store.rowsByFormat.get(row.support) ?? [];
     formatRows.push(row);
     store.rowsByFormat.set(row.support, formatRows);
-    byStore.set(row.storeNumber, store);
   }
+  for (const row of partialRows) storeOf(row).partialRows.push(row);
 
   const stores: BrandStoreAttribution[] = Array.from(
     byStore,
@@ -1011,11 +1225,17 @@ export function brandStoreAttribution(
         if (measured.length > 0) everMeasured = true;
         measuredRows.push(...measured);
       }
+      const partialOts = sum(data.partialRows.map((row) => row.publishedOts));
+      adjustedOts += partialOts;
+      measuredOts += partialOts;
+      if (data.partialRows.length > 0) everMeasured = true;
+      measuredRows.push(...data.partialRows);
       return {
         storeNumber,
         storeName: data.storeName,
         measuredOts,
         adjustedOts,
+        partialOts,
         dwellSeconds: weightedAverage(measuredRows, 'dwellSeconds'),
         everMeasured,
       };
@@ -1202,7 +1422,7 @@ export function brandGenderByDay(
     string,
     { female: number; male: number; unknown: number }
   >();
-  for (const row of report.demographics) {
+  for (const row of brandDemographics(report)) {
     const current = byDate.get(row.date) ?? {
       female: 0,
       male: 0,
@@ -1243,7 +1463,7 @@ export function brandGenderByDay(
 export function brandGenderAge(
   report: QuividiCampaignReport,
 ): BrandGenderAgeRow[] {
-  const known = report.demographics.filter(
+  const known = brandDemographics(report).filter(
     (row) => row.gender === 1 || row.gender === 2,
   );
   const total = sum(known.map((row) => numeric(row.watchers)));

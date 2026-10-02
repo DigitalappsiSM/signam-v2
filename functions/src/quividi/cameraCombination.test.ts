@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CAMERA_PAIR_GAP_THRESHOLD,
   combineCameraValues,
   detectCameraPairGaps,
   isZoneSplitPair,
@@ -11,7 +10,10 @@ import {
 describe('isZoneSplitPair', () => {
   it('reconoce Insurgentes sin importar prefijo, mayúsculas o acentos', () => {
     expect(
-      isZoneSplitPair({ storeName: 'LIVERPOOL INSURGENTES', support: 'MUPI DIGITAL' }),
+      isZoneSplitPair({
+        storeName: 'LIVERPOOL INSURGENTES',
+        support: 'MUPI DIGITAL',
+      }),
     ).toBe(true);
     expect(
       isZoneSplitPair({ storeName: 'insurgentes', support: 'MUPI DIGITAL' }),
@@ -52,31 +54,12 @@ describe('combineCameraValues', () => {
     expect(combineCameraValues([100, 150], true)).toBe(250);
   });
 
-  it('brecha dentro del umbral: promedia', () => {
-    expect(combineCameraValues([1000, 1900], false)).toBe(1450);
-  });
-
-  it('brecha mayor al umbral: usa la lectura más alta, no el promedio', () => {
+  it('fuera de zona partida usa siempre la lectura más alta, sin promediar', () => {
+    expect(combineCameraValues([1000, 1900], false)).toBe(1900);
     // Caso real reportado: Coapa, 2 cámaras del mismo circuito con 28,068 vs
-    // 7,929 OTS — la brecha (20,139) supera el umbral de 1,000.
+    // 7,929 OTS.
     expect(combineCameraValues([28_068, 7_929], false)).toBe(28_068);
-  });
-
-  it('brecha justo en el umbral (no mayor): sigue promediando', () => {
-    const threshold = CAMERA_PAIR_GAP_THRESHOLD;
-    expect(combineCameraValues([1000, 1000 + threshold], false)).toBe(
-      1000 + threshold / 2,
-    );
-  });
-
-  it('generaliza a 3+ cámaras por max-min, no sólo pares', () => {
-    expect(combineCameraValues([100, 200, 5000], false)).toBe(5000);
-    expect(combineCameraValues([100, 150, 200], false)).toBe(150);
-  });
-
-  it('acepta un umbral explícito distinto del default', () => {
-    expect(combineCameraValues([100, 300], false, 100)).toBe(300);
-    expect(combineCameraValues([100, 150], false, 100)).toBe(125);
+    expect(combineCameraValues([100, 150, 200], false)).toBe(200);
   });
 });
 
@@ -182,8 +165,16 @@ describe('publishedValue', () => {
     expect(publishedValue(0, 0)).toBe(0);
   });
 
-  it('no duplica un circuito de 2+ cámaras (ya resuelto por combineCameraValues)', () => {
-    expect(publishedValue(1000, 2)).toBe(1000);
+  it('duplica la lectura más alta de un circuito de 2 cámaras', () => {
+    expect(publishedValue(1000, 2)).toBe(2000);
+    expect(publishedValue(1000, 2, false)).toBe(2000);
+  });
+
+  it('no duplica la zona partida de 2 cámaras: ya suma las dos audiencias', () => {
+    expect(publishedValue(1000, 2, true)).toBe(1000);
+  });
+
+  it('no duplica un circuito de 3+ cámaras', () => {
     expect(publishedValue(1000, 3)).toBe(1000);
   });
 });
