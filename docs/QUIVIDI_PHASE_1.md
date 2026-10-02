@@ -177,7 +177,12 @@ de la sección *Informe comercial de audiencia*.
 - Attention Time y Dwell Time: promedio ponderado por Watchers.
 - Tasa de atención: se recalcula como `Watchers / OTS`; no se promedian
   porcentajes.
-- Demografía: se pondera con la misma regla multi-cámara.
+- Demografía: misma regla multi-cámara (perfil de la cámara con más watchers;
+  suma en zona partida). En el informe comercial se duplica donde aplica y se
+  extrapola como el OTS: los días sin dato y los soportes sin cámara toman el
+  promedio de watchers y el perfil de género × edad de su formato.
+- Excel: «Detalle Soportes» y «Demografía» muestran la lectura de cada cámara
+  sin modificar, la cifra publicada y la regla aplicada en cada fila.
 - Los resultados se presentan separados por soporte para evitar interpretar
   Mupi + Banner como personas únicas.
 

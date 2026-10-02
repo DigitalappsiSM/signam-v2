@@ -69,11 +69,6 @@ function numeric(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function average(values: readonly number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
 function periodKey(periodStart: unknown): string | null {
   if (typeof periodStart !== 'string') return null;
   const match = periodStart.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):/);
@@ -126,9 +121,7 @@ function buildViewerIndex(
       dwellTenths: 0,
     };
     current.watchers += numeric(row.watcher_count);
-    current.attentionTenths += numeric(
-      row.attention_time_in_tenths_of_sec,
-    );
+    current.attentionTenths += numeric(row.attention_time_in_tenths_of_sec);
     current.dwellTenths += numeric(row.dwell_time_in_tenths_of_sec);
     result.set(key, current);
   }
@@ -207,13 +200,11 @@ export function buildSupportHours(
         measured.map((item) => item.ots.effectiveOts),
         zoneSplit,
       );
-      // Misma cámara de referencia que OTS fuera de zona partida.
-      const hourWatcherValues = measured.map(
-        (item) => item.viewers?.watchers ?? 0,
+      // Misma regla que OTS: suma en zona partida, la más alta si no.
+      const hourWatchers = combineCameraValues(
+        measured.map((item) => item.viewers?.watchers ?? 0),
+        zoneSplit,
       );
-      const hourWatchers = zoneSplit
-        ? average(hourWatcherValues)
-        : Math.max(0, ...hourWatcherValues);
       result.push({
         date: date ?? '',
         hour: Number(hourText),
@@ -241,8 +232,7 @@ export function buildSupportHours(
         attentionSeconds:
           watchersTotal > 0
             ? measured.reduce(
-                (sum, item) =>
-                  sum + (item.viewers?.attentionTenths ?? 0),
+                (sum, item) => sum + (item.viewers?.attentionTenths ?? 0),
                 0,
               ) /
               watchersTotal /

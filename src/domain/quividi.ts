@@ -71,6 +71,8 @@ export interface QuividiSupportDay {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /** Zona partida (Insurgentes, BANNER DIGITAL): suma sus cámaras (v7). */
+  zoneSplit?: boolean;
 }
 
 export interface QuividiSupportHour {
@@ -100,7 +102,12 @@ export interface QuividiDemographicRow {
   support: string;
   gender: number;
   age: number;
+  /** Combinado con la misma regla que `QuividiSupportDay.watchers`. */
   watchers: number;
+  /** `watchers` duplicado donde aplica (desde schema v7). */
+  publishedWatchers?: number;
+  /** Lectura tal cual de cada cámara del par (desde schema v7). */
+  cameraWatchers?: Array<{ locationId: number; watchers: number }>;
 }
 
 export interface QuividiCoverageBySupport {

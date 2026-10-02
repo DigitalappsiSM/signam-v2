@@ -102,6 +102,8 @@ export interface SupportDay {
   watchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /** Zona partida (Insurgentes, BANNER DIGITAL): sus cámaras se suman. */
+  zoneSplit: boolean;
   /**
    * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
    * el circuito tenga 1 cámara configurada, o 2 sin ser de zona partida (sin
@@ -120,7 +122,12 @@ export interface DemographicRow {
   support: string;
   gender: number;
   age: number;
+  /** Combinado con la misma regla que `SupportDay.watchers` (sin duplicar). */
   watchers: number;
+  /** `watchers` duplicado donde aplica (`duplicatesPublishedValue`). */
+  publishedWatchers: number;
+  /** Lectura tal cual de cada cámara del par, por `locationId`. */
+  cameraWatchers: Array<{ locationId: number; watchers: number }>;
 }
 
 export interface Incident {
@@ -598,11 +605,12 @@ export function buildMeasurementRows(
         selected.map((row) => row.effectiveOts),
         zoneSplit,
       );
-      // Watchers siguen la misma cámara de referencia que OTS: la más alta
-      // fuera de zona partida (en zona partida se conserva el promedio).
-      const dayWatchers = zoneSplit
-        ? average(selected.map((row) => row.watchers))
-        : Math.max(0, ...selected.map((row) => row.watchers));
+      // Watchers siguen la misma regla que OTS: suma en zona partida (dos
+      // audiencias), la más alta en cualquier otro caso.
+      const dayWatchers = combineCameraValues(
+        selected.map((row) => row.watchers),
+        zoneSplit,
+      );
       supportDays.push({
         date,
         storeNumber: pair.storeNumber,
@@ -611,6 +619,7 @@ export function buildMeasurementRows(
         configuredCameras: all.length,
         measuredCameras: selected.length,
         status,
+        zoneSplit,
         ots: dayOts,
         effectiveOts: dayEffectiveOts,
         watchers: dayWatchers,
@@ -645,14 +654,23 @@ export function buildMeasurementRows(
         const viewer = viewers.get(`${row.locationId}|${date}`);
         for (const key of viewer?.demographics.keys() ?? []) demoKeys.add(key);
       }
+      // Misma cámara de referencia que los watchers del día: en zona partida
+      // se suman todas; si no, el perfil sale de la cámara con más watchers.
+      const reference = zoneSplit
+        ? selected
+        : selected.reduce<CameraDay[]>(
+            (best, row) =>
+              best.length === 0 || row.watchers > best[0]!.watchers
+                ? [row]
+                : best,
+            [],
+          );
       for (const demoKey of demoKeys) {
         const [genderText, ageText] = demoKey.split('|');
-        const counts = selected.map(
-          (row) =>
-            viewers
-              .get(`${row.locationId}|${date}`)
-              ?.demographics.get(demoKey) ?? 0,
-        );
+        const countOf = (row: CameraDay) =>
+          viewers.get(`${row.locationId}|${date}`)?.demographics.get(demoKey) ??
+          0;
+        const combined = reference.reduce((sum, row) => sum + countOf(row), 0);
         demographics.push({
           date,
           storeNumber: pair.storeNumber,
@@ -660,7 +678,16 @@ export function buildMeasurementRows(
           support: pair.support,
           gender: Number(genderText),
           age: Number(ageText),
-          watchers: average(counts),
+          watchers: combined,
+          publishedWatchers: publishedValue(
+            combined,
+            pair.cameras.length,
+            zoneSplit,
+          ),
+          cameraWatchers: selected.map((row) => ({
+            locationId: row.locationId,
+            watchers: countOf(row),
+          })),
         });
       }
     }

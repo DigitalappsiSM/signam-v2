@@ -155,8 +155,9 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
-- **Quividi has two separate layers.** The **technical Excel** keeps measurement as it was recorded and never
-  extrapolates. The **commercial PDF** (`quividiBrandReport.ts` → `quividiCampaignPdf.ts`) does estimate, and its
+- **Quividi has two separate layers.** The **technical Excel** keeps measurement as it was recorded (per camera, in
+  the «Quividi · sin modificar» block of «Detalle Soportes»/«Demografía», `quividiPublishedDetail.ts`) and shows the
+  published figure beside it with a one-line rationale; it never presents an estimate as measured. The **commercial PDF** (`quividiBrandReport.ts` → `quividiCampaignPdf.ts`) does estimate, and its
   figure covers **only support formats that had measurement** during the flight; formats with no camera at all stay
   out of the OTS and are reported as additional reach. Within that measurable circuit it extrapolates **per format**,
   each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
@@ -179,7 +180,9 @@ logic. The load-bearing ones:
   attention time are not (they're per-person averages, not counts), though they weight double when averaged across
   stores. This is a business assumption applied to 100%-measured data, not gap-filling, so it's deliberately
   separate from extrapolation. Raw (`ots`/`effectiveOts`/`watchers`) and published (`publishedOts`/…) values both
-  survive on every row: the commercial PDF (`quividiBrandReport.ts`) reads `published*` everywhere it feeds the
+  survive on every row; watchers and the gender × age profile follow the same camera rule, and demographics are
+  extrapolated like OTS (`brandDemographics`: format average watchers × measured profile for missing days and
+  camera-less supports). The commercial PDF (`quividiBrandReport.ts`) reads `published*` everywhere it feeds the
   published figure, while the technical Excel (`quividiCampaignExcel.ts`) keeps reading the raw fields — its
   definition of "measured as recorded" doesn't change. The audit sheet's per-store table and its dedicated
   «Duplicación de la cifra (1 y 2 cámaras)» section (`brandSingleCameraDuplication`) make the raw-vs-published gap explicit.

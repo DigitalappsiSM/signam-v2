@@ -735,8 +735,53 @@ describe('buildMeasurementRows · demografía e incidencias', () => {
       ],
     );
 
+    // `pair()` es BANNER DIGITAL: zona partida, suma sin duplicar.
     expect(rows.demographics).toEqual([
-      expect.objectContaining({ gender: 1, age: 3, watchers: 30 }),
+      expect.objectContaining({
+        gender: 1,
+        age: 3,
+        watchers: 60,
+        publishedWatchers: 60,
+        cameraWatchers: [
+          { locationId: 1, watchers: 20 },
+          { locationId: 2, watchers: 40 },
+        ],
+      }),
+    ]);
+  });
+
+  it('fuera de zona partida toma el perfil de la cámara con más watchers y lo duplica', () => {
+    const dos = pair({
+      support: 'MUPI DIGITAL',
+      cameraNames: ['CAM-A', 'CAM-B'],
+      cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
+    });
+    const rows = buildMeasurementRows(
+      [dos],
+      dates,
+      [ots(1, dates[0]!), ots(2, dates[0]!)],
+      [
+        viewer(1, dates[0]!, { gender: 2, age: 3, watcher_count: 20 }),
+        viewer(2, dates[0]!, { gender: 2, age: 3, watcher_count: 40 }),
+      ],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      zoneSplit: false,
+      watchers: 40,
+      publishedWatchers: 80,
+    });
+    expect(rows.demographics).toEqual([
+      expect.objectContaining({
+        gender: 2,
+        age: 3,
+        watchers: 40,
+        publishedWatchers: 80,
+        cameraWatchers: [
+          { locationId: 1, watchers: 20 },
+          { locationId: 2, watchers: 40 },
+        ],
+      }),
     ]);
   });
 

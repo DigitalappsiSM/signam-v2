@@ -646,6 +646,30 @@ tres de ellos describían mal el separador de artículos.
   combinados correctamente a ambos, y `brandOperationalReport` ya no necesita
   tocar `cameraDays` en absoluto (`cameraDays` sigue existiendo en el reporte
   sin cambios, para el detalle técnico por cámara del Excel).
+- **Watchers y demografía siguen la regla de OTS.** Fuera de zona partida,
+  los watchers del par son los de la cámara más alta y el perfil de género ×
+  edad sale de la cámara con más watchers ese día; en zona partida se suman
+  (antes los watchers se promediaban siempre). `DemographicRow` trae
+  `watchers` (combinado), `publishedWatchers` (duplicado donde aplica) y
+  `cameraWatchers` (la lectura tal cual de cada cámara). En el informe
+  comercial la demografía se **extrapola** igual que el OTS
+  (`brandDemographics`): lo medido con `publishedWatchers`; los días sin dato
+  y los soportes sin cámara de los formatos medibles se completan con el
+  promedio de watchers por par-día medido del formato, repartido según su
+  perfil de género × edad medido; el día incompleto suma sólo lo medido; los
+  formatos sin ninguna medición quedan fuera. Los porcentajes del total casi
+  no cambian; los conteos cuadran con los watchers publicados.
+- **Excel: «Quividi sin modificar» → «Publicado» → «Racional».** Las hojas
+  «Detalle Soportes» y «Demografía» (`quividiPublishedDetail.ts`) ponen lado
+  a lado la lectura tal cual de cada cámara (Cám. 1 / Cám. 2), la cifra que
+  publica el informe y una frase con la regla aplicada (1 cámara × 2, la más
+  alta de 2 × 2, zona partida suma, sin dato o sin cámara = promedio del
+  formato, día incompleto = sólo lo medido, formato sin medición = fuera). Los
+  soportes del universo sin cámara aparecen como filas «Sin cámara (n
+  soportes)» por fecha y formato. Lo publicado de «Detalle Soportes» concilia
+  con `brandCampaignSummary` sobre el día completo (00:00–23:59); la portada
+  del PDF acota a 10:00–22:00 y puede quedar un poco por debajo — la nota de
+  la fila 1 de la hoja lo dice.
 - **Duplicación de la cifra (1 y 2 cámaras) — directriz de negocio, no
   extrapolación.** La mayoría de los circuitos tienen 2 pantallas en el
   mismo sitio y la cámara mide una. Se duplica (`duplicatesPublishedValue`,

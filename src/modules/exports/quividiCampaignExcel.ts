@@ -3,6 +3,10 @@ import { addQuividiMarketingSheets } from './quividiMarketingSheets';
 import { addQuividiAuditSheet } from './quividiAuditSheet';
 import { partialDayNote } from './quividiBrandReport';
 import {
+  publishedDemographicDetail,
+  publishedSupportDetail,
+} from './quividiPublishedDetail';
+import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
   QUIVIDI_KPI_EXPLANATIONS,
@@ -330,70 +334,130 @@ function addScopeDetail(wb: Workbook, report: QuividiCampaignReport): void {
   applyBaseSheet(sheet);
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  complete: 'Completa',
+  partial: 'Parcial',
+  missing: 'Sin medición',
+  '': '—',
+};
+
+/**
+ * Encabezado de dos niveles: una banda con los bloques («Quividi sin
+ * modificar», «Publicado», «Racional») sobre la fila de columnas, más una
+ * nota explicativa en la fila 1. Devuelve la fila de columnas.
+ */
+function blockHeader(
+  sheet: Worksheet,
+  note: string,
+  blocks: Array<{ label: string; from: number; to: number; color: string }>,
+  columns: string[],
+): number {
+  const last = columns.length;
+  sheet.mergeCells(1, 1, 1, last);
+  const noteCell = sheet.getCell(1, 1);
+  noteCell.value = note;
+  noteCell.font = { italic: true, size: 9, color: { argb: 'FF5B6B7B' } };
+  noteCell.alignment = { vertical: 'middle', wrapText: true };
+  sheet.getRow(1).height = 42;
+  for (const block of blocks) {
+    if (block.to > block.from) sheet.mergeCells(2, block.from, 2, block.to);
+    const cell = sheet.getCell(2, block.from);
+    cell.value = block.label;
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    for (let col = block.from; col <= block.to; col += 1) {
+      sheet.getCell(2, col).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: block.color },
+      };
+    }
+  }
+  const header = sheet.getRow(3);
+  header.values = columns;
+  styleHeader(header);
+  sheet.views = [{ state: 'frozen', ySplit: 3 }];
+  sheet.properties.defaultRowHeight = 18;
+  return 3;
+}
+
+const DETAIL_NOTE =
+  'Izquierda: lo que entrega Quividi, por cámara, sin modificar. Derecha: la cifra que publica el informe y la regla aplicada. ' +
+  'Esta hoja trabaja por día completo (00:00–23:59); la portada del PDF cuenta sólo de 10:00 a 22:00, así que su total puede ser un poco menor. ' +
+  'Los formatos sin ninguna cámara quedan fuera de la cifra.';
+
 function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Detalle Soportes');
-  sheet.addRow([
+  const rows = publishedSupportDetail(report);
+  const columns = [
     'Fecha',
     'Tienda',
     'Nombre tienda',
     'Soporte',
-    'Cámaras config.',
-    'Cámaras usadas',
     'Estado',
-    'OTS ponderado',
-    'Effective OTS',
-    'Watchers',
-    'Tasa atención',
+    'Cámaras config.',
+    'Cám. 1',
+    'Cám. 1 OTS',
+    'Cám. 1 Effective OTS',
+    'Cám. 1 Watchers',
+    'Cám. 2',
+    'Cám. 2 OTS',
+    'Cám. 2 Effective OTS',
+    'Cám. 2 Watchers',
+    'OTS publicado',
+    'Effective OTS publicado',
+    'Watchers publicados',
     'Attention Time',
     'Dwell Time',
-    'Observación',
-  ]);
-  styleHeader(sheet.getRow(1));
-  for (const row of report.supportDays) {
+    'Racional',
+  ];
+  blockHeader(
+    sheet,
+    DETAIL_NOTE,
+    [
+      { label: 'SOPORTE', from: 1, to: 6, color: 'FF4B6F8C' },
+      { label: 'QUIVIDI · SIN MODIFICAR', from: 7, to: 14, color: 'FF2E7D5B' },
+      { label: 'PUBLICADO (INFORME)', from: 15, to: 19, color: 'FF1F3A93' },
+      { label: 'RACIONAL', from: 20, to: 20, color: 'FFB4527A' },
+    ],
+    columns,
+  );
+  for (const row of rows) {
+    const [first, second] = row.cameras;
     sheet.addRow([
       row.date,
       row.storeNumber,
       row.storeName,
       row.support,
-      row.configuredCameras,
-      row.measuredCameras,
-      row.status === 'complete'
-        ? 'Completa'
-        : row.status === 'partial'
-          ? 'Parcial'
-          : 'Sin medición',
-      row.ots,
-      row.effectiveOts,
-      row.watchers,
-      row.ots > 0 ? row.watchers / row.ots : 0,
-      row.attentionSeconds,
-      row.dwellSeconds,
-      partialDayNote(report, row.date),
+      STATUS_LABELS[row.status] ?? row.status,
+      row.configuredCameras || '',
+      first?.locationName ?? '',
+      first?.ots ?? '',
+      first?.effectiveOts ?? '',
+      first?.watchers ?? '',
+      second?.locationName ?? '',
+      second?.ots ?? '',
+      second?.effectiveOts ?? '',
+      second?.watchers ?? '',
+      row.publishedOts,
+      row.publishedEffectiveOts,
+      row.publishedWatchers,
+      row.attentionSeconds || '',
+      row.dwellSeconds || '',
+      row.rationale,
     ]);
   }
-  numberFormat(sheet, 'H', '#,##0');
-  numberFormat(sheet, 'I', '#,##0');
-  numberFormat(sheet, 'J', '#,##0');
-  numberFormat(sheet, 'K', '0.0%');
-  numberFormat(sheet, 'L', '0.0 "s"');
-  numberFormat(sheet, 'M', '0.0 "s"');
-  sheet.columns = [
-    { width: 12 },
-    { width: 10 },
-    { width: 25 },
-    { width: 26 },
-    { width: 14 },
-    { width: 14 },
-    { width: 15 },
-    { width: 16 },
-    { width: 16 },
-    { width: 14 },
-    { width: 14 },
-    { width: 16 },
-    { width: 14 },
-    { width: 34 },
-  ];
-  applyBaseSheet(sheet);
+  for (const column of ['H', 'I', 'J', 'L', 'M', 'N', 'O', 'P', 'Q']) {
+    numberFormat(sheet, column, '#,##0');
+  }
+  numberFormat(sheet, 'R', '0.0 "s"');
+  numberFormat(sheet, 'S', '0.0 "s"');
+  sheet.columns.forEach((column, index) => {
+    column.width = [
+      12, 9, 24, 22, 13, 10, 26, 12, 14, 12, 26, 12, 14, 12, 14, 16, 14, 12, 12,
+      48,
+    ][index];
+  });
 }
 
 function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
@@ -474,20 +538,36 @@ function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
   applyBaseSheet(sheet);
 }
 
+const DEMOGRAPHIC_NOTE =
+  'Izquierda: watchers por género y edad tal como los entrega Quividi, por cámara. Derecha: lo publicado, con la misma regla de cámaras que el OTS; ' +
+  'los días sin dato y los soportes sin cámara se estiman con el promedio de watchers y el perfil de género y edad de su formato.';
+
 function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Demografía');
-  sheet.addRow([
+  const columns = [
     'Fecha',
     'Tienda',
     'Nombre tienda',
     'Soporte',
     'Género estimado',
     'Edad estimada',
-    'Watchers ponderados',
-    'Observación',
-  ]);
-  styleHeader(sheet.getRow(1));
-  for (const row of report.demographics) {
+    'Cám. 1 Watchers',
+    'Cám. 2 Watchers',
+    'Watchers publicados',
+    'Origen / racional',
+  ];
+  blockHeader(
+    sheet,
+    DEMOGRAPHIC_NOTE,
+    [
+      { label: 'SEGMENTO', from: 1, to: 6, color: 'FF4B6F8C' },
+      { label: 'QUIVIDI · SIN MODIFICAR', from: 7, to: 8, color: 'FF2E7D5B' },
+      { label: 'PUBLICADO', from: 9, to: 9, color: 'FF1F3A93' },
+      { label: 'RACIONAL', from: 10, to: 10, color: 'FFB4527A' },
+    ],
+    columns,
+  );
+  for (const row of publishedDemographicDetail(report)) {
     sheet.addRow([
       row.date,
       row.storeNumber,
@@ -495,22 +575,18 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
       row.support,
       QUIVIDI_GENDER_LABELS[row.gender] ?? `Código ${row.gender}`,
       QUIVIDI_AGE_LABELS[row.age] ?? `Código ${row.age}`,
+      row.cameraWatchers[0] ?? '',
+      row.cameraWatchers[1] ?? '',
       row.watchers,
-      partialDayNote(report, row.date),
+      row.rationale,
     ]);
   }
   numberFormat(sheet, 'G', '#,##0.0');
-  sheet.columns = [
-    { width: 12 },
-    { width: 10 },
-    { width: 25 },
-    { width: 26 },
-    { width: 20 },
-    { width: 24 },
-    { width: 20 },
-    { width: 34 },
-  ];
-  applyBaseSheet(sheet);
+  numberFormat(sheet, 'H', '#,##0.0');
+  numberFormat(sheet, 'I', '#,##0.0');
+  sheet.columns.forEach((column, index) => {
+    column.width = [12, 9, 24, 22, 16, 22, 15, 15, 18, 56][index];
+  });
 }
 
 function addQuality(wb: Workbook, report: QuividiCampaignReport): void {
