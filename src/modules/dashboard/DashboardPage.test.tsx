@@ -245,7 +245,9 @@ describe('DashboardPage — resumen operativo', () => {
 
     renderDash();
 
-    const health = await screen.findByLabelText(/Estado operativo: Operación al día/i);
+    const health = await screen.findByLabelText(
+      /Estado operativo: Operación al día/i,
+    );
     expect(health).toHaveClass('dashboard-health--success');
     expect(within(health).getByText('100%')).toBeInTheDocument();
   });
