@@ -523,8 +523,8 @@ export function addQuividiAuditSheet(
     otsCell.numFmt = INT;
     otsCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-    // Detalle de la duplicación por cámara única: igual a «OTS medidos» salvo
-    // que el soporte tenga una sola cámara configurada, caso en el que viene
+    // Detalle de la duplicación: igual a «OTS medidos» salvo que el soporte
+    // tenga 1 cámara, o 2 fuera de zona partida, caso en el que viene
     // duplicado (ver sección 10).
     const publishedCell = sheet.getCell(row, 5);
     publishedCell.value = store.publishedOts;
@@ -607,11 +607,11 @@ export function addQuividiAuditSheet(
 
   const duplication = brandSingleCameraDuplication(report);
   row += 1;
-  row = bandTitle(sheet, row, '10 · DUPLICACIÓN POR CÁMARA ÚNICA');
+  row = bandTitle(sheet, row, '10 · DUPLICACIÓN DE LA CIFRA (1 Y 2 CÁMARAS)');
   sheet.mergeCells(row, 1, row, 5);
   const duplicationNote = sheet.getCell(row, 1);
   duplicationNote.value =
-    'Directriz de negocio (no una regla de extrapolación): la mayoría de los circuitos con 1 sola cámara configurada en realidad tienen 2 pantallas en el mismo sitio — la cámara mide una, pero la oportunidad de ver es la de las dos. Se excluyen los circuitos de 2+ cámaras (Insurgentes, Banner Digital, cualquier otro ya resuelto por combinación de cámaras) y los formatos sin ninguna medición.';
+    'Directriz de negocio (no una regla de extrapolación): la mayoría de los circuitos tienen 2 pantallas en el mismo sitio y la cámara mide una. Con 1 cámara se duplica su lectura; con 2 cámaras se toma la más alta y se duplica. Se excluyen la zona partida (Insurgentes, Banner Digital), que suma sus 2 cámaras, los circuitos de 3+ cámaras y los formatos sin ninguna medición.';
   duplicationNote.font = {
     italic: true,
     color: { argb: COLORS.amber },
@@ -624,16 +624,16 @@ export function addQuividiAuditSheet(
   row = factRow(
     sheet,
     row,
-    'Pares de 1 sola cámara (circuito medible)',
+    'Pares duplicados (circuito medible)',
     duplication.pairs,
-    'Tienda+soporte con exactamente 1 cámara configurada en el catálogo, dentro de los formatos con medición.',
+    'Tienda+soporte con 1 cámara configurada, o 2 cámaras fuera de zona partida, dentro de los formatos con medición.',
   );
   row = factRow(
     sheet,
     row,
     'OTS medidos en esos pares, sin duplicar',
     duplication.measuredOts,
-    'Lo que realmente reportó la cámara, antes de cualquier ajuste de negocio.',
+    'Lo que reportó la cámara (o la más alta de las dos), antes de cualquier ajuste de negocio.',
   );
   row = factRow(
     sheet,

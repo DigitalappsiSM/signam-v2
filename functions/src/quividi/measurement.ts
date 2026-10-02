@@ -104,9 +104,9 @@ export interface SupportDay {
   dwellSeconds: number;
   /**
    * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
-   * el circuito tenga una sola cámara configurada (`configuredCameras === 1`,
-   * sin importar cuántas reportaron ese día), caso en el que se duplica
-   * (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Ver `cameraCombination.ts`.
+   * el circuito tenga 1 cámara configurada, o 2 sin ser de zona partida (sin
+   * importar cuántas reportaron ese día), caso en el que se duplica
+   * (`duplicatesPublishedValue` en `cameraCombination.ts`).
    */
   publishedOts: number;
   publishedEffectiveOts: number;
@@ -598,7 +598,11 @@ export function buildMeasurementRows(
         selected.map((row) => row.effectiveOts),
         zoneSplit,
       );
-      const dayWatchers = average(selected.map((row) => row.watchers));
+      // Watchers siguen la misma cámara de referencia que OTS: la más alta
+      // fuera de zona partida (en zona partida se conserva el promedio).
+      const dayWatchers = zoneSplit
+        ? average(selected.map((row) => row.watchers))
+        : Math.max(0, ...selected.map((row) => row.watchers));
       supportDays.push({
         date,
         storeNumber: pair.storeNumber,
@@ -610,9 +614,17 @@ export function buildMeasurementRows(
         ots: dayOts,
         effectiveOts: dayEffectiveOts,
         watchers: dayWatchers,
-        publishedOts: publishedValue(dayOts, all.length),
-        publishedEffectiveOts: publishedValue(dayEffectiveOts, all.length),
-        publishedWatchers: publishedValue(dayWatchers, all.length),
+        publishedOts: publishedValue(dayOts, pair.cameras.length, zoneSplit),
+        publishedEffectiveOts: publishedValue(
+          dayEffectiveOts,
+          pair.cameras.length,
+          zoneSplit,
+        ),
+        publishedWatchers: publishedValue(
+          dayWatchers,
+          pair.cameras.length,
+          zoneSplit,
+        ),
         attentionSeconds:
           watchersTotal > 0
             ? selected.reduce((sum, row) => sum + row.attentionTenths, 0) /

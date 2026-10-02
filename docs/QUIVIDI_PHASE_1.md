@@ -138,16 +138,22 @@ vigente deja registrada la distinción exacta para futuras consultas.
 Una sola cámara representa el soporte completo.
 
 Cuando un mismo Tienda + Soporte tiene varias cámaras que pueden observar el
-mismo tráfico, SIGNAM **no suma** sus audiencias. La ponderación se hace cada
-día:
+mismo tráfico, SIGNAM **no suma** sus audiencias (salvo la zona partida:
+Insurgentes y `BANNER DIGITAL`, cuyas cámaras miden zonas distintas y se
+suman). Cada día se toma la lectura más alta (octubre 2026):
 
-`resultado diario = promedio de cámaras válidas del día`
+`resultado diario = cámara válida con la lectura más alta del día`
+
+De cara a marca (PDF), la cifra de un circuito de 1 cámara, o de 2 cámaras
+fuera de zona partida, se **duplica**: la mayoría de los circuitos tienen 2
+pantallas en el mismo sitio y la cámara mide una.
 
 Si una cámara cae y otra conserva medición válida, se usa la disponible y el
 día queda marcado como medición parcial. Si ninguna cámara tiene medición, ese
 Tienda + Soporte queda sin medición para ese día.
 
-La regla funciona igual con 2, 3 o más cámaras.
+La lectura más alta aplica igual con 2, 3 o más cámaras; la duplicación sólo
+con 1 o 2.
 
 ### Medición parcial
 
@@ -165,8 +171,9 @@ de la sección *Informe comercial de audiencia*.
 
 ## Agregaciones
 
-- OTS, Effective OTS y Watchers: promedio diario entre cámaras válidas del
-  mismo soporte; después se acumulan los días.
+- OTS, Effective OTS y Watchers: la lectura más alta del día entre cámaras
+  válidas del mismo soporte (suma en zona partida); después se acumulan los
+  días.
 - Attention Time y Dwell Time: promedio ponderado por Watchers.
 - Tasa de atención: se recalcula como `Watchers / OTS`; no se promedian
   porcentajes.
@@ -205,7 +212,7 @@ esta limitación aparece en el informe.
 
 Para el análisis horario se solicitan a VidiCenter exports con
 `time_resolution=1h`. La regla de varias cámaras es la misma que en el dato
-diario: se promedian únicamente las cámaras con medición válida del periodo; si
+diario: se toma la lectura más alta de las cámaras con medición válida del periodo; si
 solo una cámara de varias reporta, la hora queda como medición parcial. Las horas
 se muestran según el periodo horario entregado por VidiCenter para cada
 ubicación; SIGNAM no fuerza una única zona horaria para toda la red.

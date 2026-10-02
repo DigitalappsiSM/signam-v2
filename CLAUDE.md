@@ -171,17 +171,18 @@ logic. The load-bearing ones:
   Snapshots are reused only while the cutoff is unchanged — at most 1 h with an incomplete day. The Excel's **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure
   functions*, so sheet and report cannot disagree. **Multi-camera pairs** are combined at the data source
   (`functions/src/quividi/cameraCombination.ts`, shared by the daily and hourly Cloud Functions so Excel and PDF
-  can't diverge): zone-split pairs (Insurgentes, any `BANNER DIGITAL` support) always sum; a gap over 1,000 OTS
-  between two cameras of the same screen uses the higher reading instead of averaging; otherwise it averages as
-  before. **Single-camera pairs get duplicated** (`publishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR = 2`): most
-  1-camera circuits are actually 2 screens at the same site, so OTS/effective OTS/watchers are doubled — dwell/
+  can't diverge): zone-split pairs (Insurgentes, any `BANNER DIGITAL` support) always sum; every other multi-camera pair takes
+  the **highest** reading (no averaging; the 1,000-OTS threshold only feeds the camera-gap alert). **Published
+  figures are duplicated** (`publishedValue`/`duplicatesPublishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR = 2`)
+  for 1-camera pairs and for 2-camera pairs outside zone-split (highest reading × 2, or the one that reported × 2):
+  most circuits are actually 2 screens at the same site, so OTS/effective OTS/watchers are doubled — dwell/
   attention time are not (they're per-person averages, not counts), though they weight double when averaged across
   stores. This is a business assumption applied to 100%-measured data, not gap-filling, so it's deliberately
   separate from extrapolation. Raw (`ots`/`effectiveOts`/`watchers`) and published (`publishedOts`/…) values both
   survive on every row: the commercial PDF (`quividiBrandReport.ts`) reads `published*` everywhere it feeds the
   published figure, while the technical Excel (`quividiCampaignExcel.ts`) keeps reading the raw fields — its
   definition of "measured as recorded" doesn't change. The audit sheet's per-store table and its dedicated
-  «Duplicación por cámara única» section (`brandSingleCameraDuplication`) make the raw-vs-published gap explicit.
+  «Duplicación de la cifra (1 y 2 cámaras)» section (`brandSingleCameraDuplication`) make the raw-vs-published gap explicit.
   See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
 - **Campaign status** (`Activa`/`En pausa`/`Cancelada`/`Duplicada`, plus derived `Retirada del calendario`)
   lives in the tracking doc with mandatory reason + append-only history; its effects on alerts, Dashboard,

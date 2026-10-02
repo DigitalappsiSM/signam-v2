@@ -175,6 +175,11 @@ export interface BrandStoreAttribution {
   measuredOts: number;
   /** OTS ajustados: el propio dato más los huecos de la tienda completados al promedio de su formato. */
   adjustedOts: number;
+  /**
+   * OTS medidos el día incompleto (ya incluidos en `measuredOts` y
+   * `adjustedOts`, sin extrapolar); 0 si no hay día incompleto.
+   */
+  partialOts: number;
   /** Dwell time ponderado por watchers, sólo con periodos observados (completos o parciales). */
   dwellSeconds: number;
   /** Tuvo al menos una jornada con medición directa en algún momento de la vigencia. */
@@ -215,16 +220,17 @@ export interface BrandStoreAudit {
   /** Lo medido, sin ningún ajuste de negocio. */
   measuredOts: number;
   /**
-   * `measuredOts` después de duplicar los pares de una sola cámara
-   * configurada (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Igual a `measuredOts`
-   * si la tienda no tiene ningún par de una sola cámara.
+   * `measuredOts` después de duplicar los pares de 1 cámara, o 2 fuera de
+   * zona partida (`SINGLE_CAMERA_DUPLICATION_FACTOR`). Igual a `measuredOts`
+   * si la tienda no tiene ningún par duplicado.
    */
   publishedOts: number;
 }
 
 /**
  * Reconciliación de la duplicación por cámara única dentro del circuito
- * medible: cuánto se midió realmente en pares de 1 sola cámara configurada,
+ * medible: cuánto se midió realmente en pares duplicados (1 cámara, o la más
+ * alta de 2 cámaras fuera de zona partida),
  * cuánto se publica después de duplicarlo, y la diferencia. Es la base de la
  * sección «Duplicación por cámara única» de la hoja de auditoría — hace
  * explícito un ajuste que, a diferencia de la extrapolación por huecos, no
@@ -233,7 +239,10 @@ export interface BrandStoreAudit {
  * tienen 2 pantallas en el mismo sitio).
  */
 export interface BrandSingleCameraDuplication {
-  /** Pares tienda+soporte distintos con exactamente 1 cámara configurada. */
+  /**
+   * Pares tienda+soporte distintos cuya cifra se duplica: 1 cámara
+   * configurada, o 2 cámaras fuera de zona partida (la más alta × 2).
+   */
   pairs: number;
   /** Suma de lo medido en esos pares, sin duplicar. */
   measuredOts: number;
@@ -889,11 +898,15 @@ export function brandSingleCameraDuplication(
   const measurableSupports = new Set(
     scope.measurable.map((format) => format.support),
   );
+  // Pares duplicados: 1 cámara configurada, o 2 cámaras fuera de zona
+  // partida (el backend ya publicó la más alta × 2). En zona partida
+  // `publishedOts === ots`, así que no entra.
   const rows = brandSupportDays(report).filter(
     (row) =>
       measurableSupports.has(row.support) &&
       row.status !== 'missing' &&
-      row.configuredCameras === 1,
+      (row.configuredCameras === 1 ||
+        (row.configuredCameras === 2 && row.publishedOts > row.ots)),
   );
 
   const measuredOts = sum(rows.map((row) => row.ots));
@@ -973,21 +986,36 @@ export function brandStoreAttribution(
   const rows = brandSupportDays(report).filter((row) =>
     measurableSupports.has(row.support),
   );
+  // El día incompleto suma a cada tienda sólo lo medido, igual que en la
+  // portada: sin esto «Tiendas TOP» no conciliaba con la cifra publicada.
+  const partialRows = brandPartialSupportDays(report).filter(
+    (row) => measurableSupports.has(row.support) && row.status !== 'missing',
+  );
 
   const byStore = new Map<
     string,
-    { storeName: string; rowsByFormat: Map<string, QuividiSupportDay[]> }
+    {
+      storeName: string;
+      rowsByFormat: Map<string, QuividiSupportDay[]>;
+      partialRows: QuividiSupportDay[];
+    }
   >();
-  for (const row of rows) {
+  const storeOf = (row: QuividiSupportDay) => {
     const store = byStore.get(row.storeNumber) ?? {
       storeName: row.storeName,
       rowsByFormat: new Map<string, QuividiSupportDay[]>(),
+      partialRows: [],
     };
+    byStore.set(row.storeNumber, store);
+    return store;
+  };
+  for (const row of rows) {
+    const store = storeOf(row);
     const formatRows = store.rowsByFormat.get(row.support) ?? [];
     formatRows.push(row);
     store.rowsByFormat.set(row.support, formatRows);
-    byStore.set(row.storeNumber, store);
   }
+  for (const row of partialRows) storeOf(row).partialRows.push(row);
 
   const stores: BrandStoreAttribution[] = Array.from(
     byStore,
@@ -1011,11 +1039,17 @@ export function brandStoreAttribution(
         if (measured.length > 0) everMeasured = true;
         measuredRows.push(...measured);
       }
+      const partialOts = sum(data.partialRows.map((row) => row.publishedOts));
+      adjustedOts += partialOts;
+      measuredOts += partialOts;
+      if (data.partialRows.length > 0) everMeasured = true;
+      measuredRows.push(...data.partialRows);
       return {
         storeNumber,
         storeName: data.storeName,
         measuredOts,
         adjustedOts,
+        partialOts,
         dwellSeconds: weightedAverage(measuredRows, 'dwellSeconds'),
         everMeasured,
       };

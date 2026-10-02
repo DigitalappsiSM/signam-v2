@@ -18,31 +18,46 @@ import { normalizeStore, normalizeSupport } from './effectiveScope';
 export const CAMERA_PAIR_GAP_THRESHOLD = 1000;
 
 /**
- * Factor de duplicación para circuitos de una sola cámara configurada.
+ * Factor de duplicación de la cifra de cara a marca.
  *
- * Directriz de negocio: la mayoría de las tiendas con 1 sola cámara en
- * realidad tienen 2 pantallas en el mismo sitio (la cámara mide una, pero la
- * oportunidad de ver es la de las dos) — excepto Insurgentes, que ya queda
- * fuera de esta regla porque tiene 2 cámaras configuradas. Se basa en
- * cuántas cámaras tiene **asignadas** el circuito en el catálogo
- * (`configuredCameras`), no en cuántas reportaron ese día/hora: un circuito
- * de 2 cámaras donde una falló momentáneamente no es "de una sola cámara",
- * es una medición parcial de una instalación de 2 — ese caso ya lo resuelve
- * `combineCameraValues`.
+ * Directriz de negocio: la mayoría de los circuitos tienen 2 pantallas en el
+ * mismo sitio, y la cámara (o la más alta de las dos) mide una sola. Se
+ * duplica:
+ *
+ * - circuito de **1 cámara**: la lectura de esa cámara × 2;
+ * - circuito de **2 cámaras** que no es de zona partida: la lectura más alta
+ *   × 2 (octubre 2026, caso Coapa). Si un día/hora sólo reporta una de las
+ *   dos, se duplica la que reportó.
+ *
+ * Los pares de zona partida (Insurgentes, BANNER DIGITAL) ya suman sus 2
+ * cámaras y no se duplican. Se basa en cuántas cámaras tiene **asignadas** el
+ * circuito en el catálogo (`configuredCameras`), no en cuántas reportaron.
  */
 export const SINGLE_CAMERA_DUPLICATION_FACTOR = 2;
 
 /**
- * Cifra de cara a marca a partir del dato medido: lo duplica
- * (`SINGLE_CAMERA_DUPLICATION_FACTOR`) cuando el circuito tiene una sola
- * cámara configurada; lo deja igual en cualquier otro caso (0 cámaras, o 2+
- * ya resueltas por `combineCameraValues`).
+ * Indica si la cifra publicada de un circuito se duplica
+ * (`SINGLE_CAMERA_DUPLICATION_FACTOR`).
+ */
+export function duplicatesPublishedValue(
+  configuredCameras: number,
+  isZoneSplit: boolean,
+): boolean {
+  if (configuredCameras === 1) return true;
+  return configuredCameras === 2 && !isZoneSplit;
+}
+
+/**
+ * Cifra de cara a marca a partir del dato medido (ya combinado por
+ * `combineCameraValues`): lo duplica según `duplicatesPublishedValue`; lo deja
+ * igual en cualquier otro caso (0 cámaras, zona partida o 3+ cámaras).
  */
 export function publishedValue(
   measuredValue: number,
   configuredCameras: number,
+  isZoneSplit = false,
 ): number {
-  return configuredCameras === 1
+  return duplicatesPublishedValue(configuredCameras, isZoneSplit)
     ? measuredValue * SINGLE_CAMERA_DUPLICATION_FACTOR
     : measuredValue;
 }
@@ -78,29 +93,21 @@ export function isZoneSplitPair(pair: {
  * un mismo par tienda+soporte para un día/hora dado.
  *
  * - Zona partida (`isZoneSplit`): suma siempre.
- * - Si no, y la brecha entre la lectura más alta y la más baja supera
- *   `threshold`: se usa la más alta. Una brecha así de grande entre 2
- *   cámaras de la MISMA pantalla apunta a que la cámara baja está mal
- *   ubicada u obstruida, no a que haya menos público; promediar penalizaría
- *   el dato real que sí se captó.
- * - En cualquier otro caso: promedio (comportamiento histórico, para ruido
- *   normal entre 2 cámaras sanas).
+ * - Si no: la lectura **más alta** (octubre 2026). Antes se promediaba salvo
+ *   brechas mayores a `CAMERA_PAIR_GAP_THRESHOLD`; ahora la cámara alta es
+ *   siempre la referencia, porque una lectura baja entre 2 cámaras de la MISMA
+ *   pantalla apunta a ángulo u obstrucción, no a menos público. El umbral
+ *   sigue alimentando la alerta operativa (`detectCameraPairGaps`).
  */
 export function combineCameraValues(
   values: readonly number[],
   isZoneSplit: boolean,
-  threshold: number = CAMERA_PAIR_GAP_THRESHOLD,
 ): number {
   if (values.length === 0) return 0;
   if (isZoneSplit) {
     return values.reduce((sum, value) => sum + value, 0);
   }
-  if (values.length > 1) {
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    if (max - min > threshold) return max;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Math.max(...values);
 }
 
 /** Entrada de salud de una cámara, lo mínimo que hace falta para agruparla

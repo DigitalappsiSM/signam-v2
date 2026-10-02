@@ -392,6 +392,19 @@ describe('informe comercial agregado de audiencia', () => {
       expect(total).toBe(brandCampaignSummary(input).estimatedOts);
     });
 
+    it('Tiendas TOP concilia con la portada incluyendo lo medido del día incompleto', () => {
+      const attribution = brandStoreAttribution(input);
+      const total = attribution.stores.reduce(
+        (acc, store) => acc + store.adjustedOts,
+        0,
+      );
+      expect(total).toBe(brandCampaignSummary(input).estimatedOts);
+      const uno = attribution.stores.find((store) => store.storeNumber === '1');
+      expect(uno).toMatchObject({ partialOts: 400, adjustedOts: 3_400 });
+      const dos = attribution.stores.find((store) => store.storeNumber === '2');
+      expect(dos).toMatchObject({ partialOts: 0, adjustedOts: 3_000 });
+    });
+
     it('rotula sólo la fecha del día incompleto', () => {
       expect(partialDayNote(input, '2026-10-02')).toBe(
         'Día incompleto, medido hasta 15:07',
@@ -706,6 +719,38 @@ describe('duplicación por cámara única', () => {
     });
 
     expect(brandCampaignSummary(input).estimatedOts).toBe(1000);
+  });
+
+  it('brandSingleCameraDuplication cuenta los pares de 2 cámaras duplicados, no la zona partida', () => {
+    const input = report({
+      coverage: { totalPairs: 2, mappedPairs: 2, percent: 100, bySupport: [] },
+      storeCoverage: { totalStores: 2, mappedStores: 2, percent: 100 },
+      supportDays: [
+        // Coapa: 2 cámaras, el backend publica la más alta × 2.
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '12',
+          storeName: 'COAPA',
+          configuredCameras: 2,
+          ots: 28_068,
+          publishedOts: 56_136,
+        }),
+        // Zona partida: suma, publicado = medido.
+        supportDay({
+          date: '2026-09-01',
+          storeNumber: '9',
+          storeName: 'INSURGENTES',
+          configuredCameras: 2,
+          ots: 5_000,
+        }),
+      ],
+    });
+    expect(brandSingleCameraDuplication(input)).toEqual({
+      pairs: 1,
+      measuredOts: 28_068,
+      publishedOts: 56_136,
+      addedOts: 28_068,
+    });
   });
 
   it('brandSingleCameraDuplication reconcilia: medido + añadido = publicado', () => {

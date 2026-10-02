@@ -494,7 +494,7 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
     cameras: [location(1, 'CAM-A'), location(2, 'CAM-B')],
   });
 
-  it('promedia las cámaras completas en lugar de sumarlas', () => {
+  it('toma la cámara completa más alta (sin sumar ni promediar) y la duplica', () => {
     const rows = buildMeasurementRows(
       [dos],
       dates,
@@ -513,8 +513,10 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
       status: 'complete',
       configuredCameras: 2,
       measuredCameras: 2,
-      ots: 200,
-      watchers: 25,
+      ots: 300,
+      watchers: 30,
+      publishedOts: 600,
+      publishedWatchers: 60,
     });
     // (200 + 600) décimas / 50 watchers / 10 = 1.6 s
     expect(rows.supportDays[0]?.attentionSeconds).toBeCloseTo(1.6, 10);
@@ -562,7 +564,8 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
     expect(rows.supportDays[2]).toMatchObject({
       status: 'partial',
       measuredCameras: 2,
-      ots: 10,
+      ots: 15,
+      publishedOts: 30,
     });
   });
 
@@ -598,7 +601,7 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
     expect(rows.supportDays[0]).toMatchObject({
       status: 'complete',
       ots: 250,
-      publishedOts: 250, // 2+ cámaras: no se duplica, ya está resuelto.
+      publishedOts: 250, // Zona partida: suma, no se duplica.
     });
   });
 
@@ -623,7 +626,7 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
     });
   });
 
-  it('brecha > 1,000 OTS entre 2 cámaras de la misma pantalla: usa la más alta, no promedia', () => {
+  it('Coapa: 2 cámaras de la misma pantalla publica la más alta × 2', () => {
     const mupi = pair({
       support: 'MUPI DIGITAL',
       cameraNames: ['CAM-A', 'CAM-B'],
@@ -643,7 +646,7 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
     expect(rows.supportDays[0]).toMatchObject({
       status: 'complete',
       ots: 28_068,
-      publishedOts: 28_068,
+      publishedOts: 56_136,
     });
   });
 });
@@ -669,7 +672,7 @@ describe('buildMeasurementRows · duplicación por cámara única', () => {
     });
   });
 
-  it('no duplica un circuito de 2+ cámaras', () => {
+  it('circuito de 2 cámaras con una sola lectura ese día: duplica la que reportó', () => {
     const dos = pair({
       support: 'MUPI DIGITAL',
       cameraNames: ['CAM-A', 'CAM-B'],
@@ -678,17 +681,15 @@ describe('buildMeasurementRows · duplicación por cámara única', () => {
     const rows = buildMeasurementRows(
       [dos],
       dates,
-      [
-        ots(1, dates[0]!, { ots_count: 500 }),
-        ots(2, dates[0]!, { ots_count: 500 }),
-      ],
+      [ots(1, dates[0]!, { ots_count: 500 })],
       [],
     );
 
     expect(rows.supportDays[0]).toMatchObject({
       configuredCameras: 2,
+      measuredCameras: 1,
       ots: 500,
-      publishedOts: 500,
+      publishedOts: 1000,
     });
   });
 

@@ -207,9 +207,13 @@ export function buildSupportHours(
         measured.map((item) => item.ots.effectiveOts),
         zoneSplit,
       );
-      const hourWatchers = average(
-        measured.map((item) => item.viewers?.watchers ?? 0),
+      // Misma cámara de referencia que OTS fuera de zona partida.
+      const hourWatcherValues = measured.map(
+        (item) => item.viewers?.watchers ?? 0,
       );
+      const hourWatchers = zoneSplit
+        ? average(hourWatcherValues)
+        : Math.max(0, ...hourWatcherValues);
       result.push({
         date: date ?? '',
         hour: Number(hourText),
@@ -223,12 +227,17 @@ export function buildSupportHours(
         ots: hourOts,
         effectiveOts: hourEffectiveOts,
         watchers: hourWatchers,
-        publishedOts: publishedValue(hourOts, pair.cameras.length),
+        publishedOts: publishedValue(hourOts, pair.cameras.length, zoneSplit),
         publishedEffectiveOts: publishedValue(
           hourEffectiveOts,
           pair.cameras.length,
+          zoneSplit,
         ),
-        publishedWatchers: publishedValue(hourWatchers, pair.cameras.length),
+        publishedWatchers: publishedValue(
+          hourWatchers,
+          pair.cameras.length,
+          zoneSplit,
+        ),
         attentionSeconds:
           watchersTotal > 0
             ? measured.reduce(

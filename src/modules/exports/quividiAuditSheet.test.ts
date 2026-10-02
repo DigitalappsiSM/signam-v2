@@ -349,7 +349,7 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(duplication.publishedOts).toBe(4000);
     expect(duplication.addedOts).toBe(2000);
 
-    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(
+    expect(values.get('Pares duplicados (circuito medible)')).toBe(
       duplication.pairs,
     );
     expect(values.get('OTS medidos en esos pares, sin duplicar')).toBe(
@@ -372,7 +372,7 @@ describe('hoja de auditoría del informe comercial', () => {
 
   it('no publica nada en la sección de duplicación si no hay pares de 1 sola cámara', async () => {
     const values = await auditValues(report());
-    expect(values.get('Pares de 1 sola cámara (circuito medible)')).toBe(0);
+    expect(values.get('Pares duplicados (circuito medible)')).toBe(0);
     expect(values.get('+ OTS añadidos por duplicación')).toBe(0);
   });
 });
