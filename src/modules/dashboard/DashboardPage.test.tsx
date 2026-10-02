@@ -211,6 +211,76 @@ describe('DashboardPage — resumen operativo', () => {
     ).toHaveClass('dashboard-health--danger');
   });
 
+  it('no degrada la salud por campañas futuras ni por próximos vencimientos preventivos', async () => {
+    const ACTIVA = campaign({
+      id: 'activa',
+      name: 'ACTIVA',
+      nameKey: 'activa',
+      tipo: 'INSTITUCIONAL',
+      fechaInicio: dayOffset(-1),
+      fechaFin: dayOffset(1),
+      link: 'https://example.com',
+    });
+    const FUTURA = campaign({
+      id: 'futura',
+      name: 'FUTURA',
+      nameKey: 'futura',
+      tipo: 'PROVEEDOR',
+      fechaInicio: dayOffset(3),
+      fechaFin: dayOffset(10),
+    });
+
+    vi.mocked(listCampaigns).mockResolvedValue([ACTIVA, FUTURA]);
+    const doneCheck = {
+      completed: true,
+      completedAt: Date.now(),
+      completedByUid: 'test',
+      completedByEmail: 'test@example.com',
+      source: 'manual' as const,
+      updatedAt: Date.now(),
+      updatedByUid: 'test',
+      updatedByEmail: 'test@example.com',
+    };
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      {
+        id: ACTIVA.id,
+        campaignId: ACTIVA.id,
+        campaignNameKey: campaignIdentity(ACTIVA),
+        campaignName: ACTIVA.name,
+        classification: 'institutional',
+        classificationSource: 'tracking-user',
+        classificationUpdatedAt: Date.now(),
+        classificationUpdatedByUid: 'test',
+        classificationUpdatedByEmail: 'test@example.com',
+        lifecycleStatus: 'active',
+        lifecycleUpdatedAt: Date.now(),
+        lifecycleUpdatedByUid: 'test',
+        lifecycleUpdatedByEmail: 'test@example.com',
+        cancellationReason: null,
+        linkDownload: doneCheck,
+        liverpoolValidation: doneCheck,
+        csmProgramming: doneCheck,
+        witnessStart: doneCheck,
+        witnessComplete: doneCheck,
+        comments: [],
+        createdAt: Date.now(),
+        createdByUid: 'test',
+        createdByEmail: 'test@example.com',
+        updatedAt: Date.now(),
+        updatedByUid: 'test',
+        updatedByEmail: 'test@example.com',
+      },
+    ]);
+
+    renderDash();
+
+    const health = await screen.findByLabelText(
+      /Estado operativo: Operación al día/i,
+    );
+    expect(health).toHaveClass('dashboard-health--success');
+    expect(within(health).getByText('100%')).toBeInTheDocument();
+  });
+
   it('incluye terminadas con pendientes (sin testigo vencido) en el widget de Atención inmediata', async () => {
     // Institucional terminada: los testigos NO aplican (no hay "vencido" ni
     // "vence hoy"), pero queda con un check aplicable pendiente → alerta
