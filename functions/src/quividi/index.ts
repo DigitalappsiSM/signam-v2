@@ -24,6 +24,7 @@ import {
   canForceRefreshQuividi,
   canManageQuividiTickets,
   canRefreshQuividiHealth,
+  canRefreshQuividiReport,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -1305,10 +1306,10 @@ export const campaignReport = onCall(
     const campaignId =
       typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
     const forceRefresh = data?.forceRefresh === true;
-    if (forceRefresh && !canForceRefreshQuividi(roleFromClaims(auth.token))) {
+    if (forceRefresh && !canRefreshQuividiReport(roleFromClaims(auth.token))) {
       throw new HttpsError(
         'permission-denied',
-        'Solo un administrador puede forzar el recálculo del reporte Quividi.',
+        'Solo un administrador u operador puede actualizar los datos de Quividi.',
       );
     }
     if (!campaignId) {

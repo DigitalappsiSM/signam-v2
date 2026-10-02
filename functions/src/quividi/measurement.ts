@@ -176,12 +176,32 @@ export function lastCompleteUtcDate(now: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Último día civil completo en la Ciudad de México (ayer, hora local).
+ *
+ * Es el corte del informe de campaña: el día de la operación es el de las
+ * tiendas, no el UTC. Con UTC, entre las 18:00 y la medianoche locales el
+ * "último día completo" ya sería el de hoy, que todavía no ha terminado, y el
+ * informe publicaría un día parcial como si estuviera completo.
+ */
+export function lastCompleteMexicoDate(now: number): string {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const date = new Date(`${today}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export function measurableEndDate(
   startDate: string,
   scheduledEndDate: string,
   now: number,
 ): string | null {
-  const cutoff = lastCompleteUtcDate(now);
+  const cutoff = lastCompleteMexicoDate(now);
   const endDate = scheduledEndDate < cutoff ? scheduledEndDate : cutoff;
   return endDate >= startDate ? endDate : null;
 }
@@ -329,14 +349,29 @@ export function inputSignature(
   return createHash('sha256').update(payload).digest('hex');
 }
 
+/**
+ * Indica si el snapshot guardado todavía sirve.
+ *
+ * Mientras la campaña sigue vigente, el snapshot solo vale si se generó con el
+ * mismo corte de medición que tocaría hoy: en cuanto cierra un día nuevo hay
+ * que volver a pedirlo, aunque el snapshot tenga menos de 24 h. Sin esa
+ * condición, un informe generado el día 1 se seguía sirviendo el día 2 sin el
+ * día 1, que ya estaba medido.
+ *
+ * Terminada la campaña, es definitivo si se generó con el corte ya en el fin
+ * de vigencia (es decir, al día siguiente del cierre o después).
+ */
 export function snapshotIsFresh(
   generatedAt: number,
   endDate: string,
   now: number,
 ): boolean {
-  const endOfCampaign = new Date(`${endDate}T23:59:59Z`).getTime();
-  if (now <= endOfCampaign) return now - generatedAt < ACTIVE_CACHE_MS;
-  return generatedAt > endOfCampaign;
+  const savedCutoff = lastCompleteMexicoDate(generatedAt);
+  if (savedCutoff >= endDate) return true;
+  return (
+    now - generatedAt < ACTIVE_CACHE_MS &&
+    savedCutoff === lastCompleteMexicoDate(now)
+  );
 }
 
 export function viewerByLocationDay(

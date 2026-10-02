@@ -4,6 +4,7 @@ import {
   buildMeasurementRows,
   dayList,
   inputSignature,
+  lastCompleteMexicoDate,
   measurableEndDate,
   parseCivilDate,
   resolvePairs,
@@ -98,10 +99,25 @@ describe('dayList', () => {
   });
 });
 
+describe('lastCompleteMexicoDate', () => {
+  it('es ayer en hora de la Ciudad de México', () => {
+    expect(lastCompleteMexicoDate(Date.parse('2026-10-02T15:00:00Z'))).toBe(
+      '2026-10-01',
+    );
+  });
+
+  it('no da por cerrado el día local aunque en UTC ya sea el siguiente', () => {
+    // 1 de octubre a las 20:00 en CDMX = 2 de octubre 02:00 UTC.
+    expect(lastCompleteMexicoDate(Date.parse('2026-10-02T02:00:00Z'))).toBe(
+      '2026-09-30',
+    );
+  });
+});
+
 describe('measurableEndDate', () => {
   const now = Date.parse('2026-03-10T08:00:00Z');
 
-  it('recorta al último día UTC completo cuando la campaña sigue vigente', () => {
+  it('recorta al último día completo cuando la campaña sigue vigente', () => {
     expect(measurableEndDate('2026-03-01', '2026-03-31', now)).toBe(
       '2026-03-09',
     );
@@ -136,14 +152,38 @@ describe('snapshotIsFresh', () => {
     ).toBe(false);
   });
 
+  it('se invalida en cuanto cierra un día nuevo aunque no hayan pasado 24 h', () => {
+    // Caso Toki: generado el 1 de octubre por la tarde (corte 30/09) y
+    // consultado el 2 por la mañana (corte 01/10).
+    const generado = Date.parse('2026-10-01T22:00:00Z');
+    const consultado = Date.parse('2026-10-02T15:00:00Z');
+    expect(snapshotIsFresh(generado, '2026-10-31', consultado)).toBe(false);
+    expect(
+      snapshotIsFresh(
+        Date.parse('2026-10-02T13:00:00Z'),
+        '2026-10-31',
+        consultado,
+      ),
+    ).toBe(true);
+  });
+
   it('da por definitivo el snapshot generado después del cierre', () => {
+    expect(
+      snapshotIsFresh(
+        Date.parse('2026-04-01T08:00:00Z'),
+        endDate,
+        trasElCierre,
+      ),
+    ).toBe(true);
+    // 31/03 a las 18:00 en CDMX: el último día de vigencia aún no terminaba,
+    // así que ese snapshot no es definitivo.
     expect(
       snapshotIsFresh(
         Date.parse('2026-04-01T00:00:00Z'),
         endDate,
         trasElCierre,
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       snapshotIsFresh(
         Date.parse('2026-03-20T00:00:00Z'),

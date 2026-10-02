@@ -685,9 +685,14 @@ tres de ellos describían mal el separador de artículos.
   **Cambiar la forma de `SupportDay`/`SupportHour` exige subir
   `SNAPSHOT_SCHEMA_VERSION`** (`functions/src/quividi/index.ts`) y el tipo
   `QuividiCampaignReport.schemaVersion` (`src/domain/quividi.ts`). El reporte
-  se cachea comprimido en Firestore (`campaignAudienceSnapshots`) hasta 24h
-  para una campaña vigente; la caché solo se invalida si `schemaVersion` no
-  coincide. Agregar `publishedOts`/`publishedEffectiveOts`/`publishedWatchers`
+  se cachea comprimido en Firestore (`campaignAudienceSnapshots`) para una
+  campaña vigente hasta 24h **y sólo mientras el corte de medición siga siendo
+  el mismo** (`snapshotIsFresh`): en cuanto cierra un día nuevo (hora CDMX) el
+  snapshot se regenera — antes, un informe generado el día 1 se seguía
+  sirviendo el día 2 sin el día 1. Además se invalida si `schemaVersion` no
+  coincide. `admin` y `operator` pueden saltarse la caché con «Actualizar datos
+  de Quividi» en Campañas (`forceRefresh`, `QUIVIDI_REPORT_REFRESH_ROLES` ↔
+  `quividi.refresh`). Agregar `publishedOts`/`publishedEffectiveOts`/`publishedWatchers`
   sin subir la versión (v4→v5) dejó snapshots viejos sirviéndose tal cual sin
   esos campos — el frontend los lee directo (sin fallback) y los trata como
   `0` ante su ausencia, así que el informe entero salía en ceros excepto

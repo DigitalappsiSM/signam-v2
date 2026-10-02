@@ -23,6 +23,7 @@ export type Permission =
   | 'odooIncidents.read'
   | 'reporting.read'
   | 'quividi.report'
+  | 'quividi.refresh'
   | 'quividi.history'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
@@ -41,6 +42,9 @@ export type Permission =
 // consume la API de pago de Quividi, así que si en el futuro se decide
 // restringirla basta con quitarla de un rol aquí y del espejo en
 // `functions/src/quividi/access.ts`.
+// `quividi.refresh` («Actualizar datos de Quividi» en Campañas) lo tienen admin y
+// operator: vuelve a pedir los datos a VidiCenter sin la copia guardada. Su
+// espejo en el servidor es `QUIVIDI_REPORT_REFRESH_ROLES`.
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     'catalog.read',
@@ -60,6 +64,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'reporting.read',
     'odooIncidents.read',
     'quividi.report',
+    'quividi.refresh',
     'quividi.history',
     'digitalOperations.read',
     'digitalOperations.import',
@@ -84,6 +89,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'reporting.read',
     'odooIncidents.read',
     'quividi.report',
+    'quividi.refresh',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',

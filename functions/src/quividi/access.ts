@@ -76,21 +76,31 @@ export function canRefreshQuividiHealth(role: Role): boolean {
 }
 
 /**
- * Roles que pueden forzar el recálculo saltándose la caché.
- *
- * `forceRefresh` ignora el snapshot de ~24 h y vuelve a pedir los cuatro
- * exports a VidiCenter, así que es la operación que más cuota consume y la
- * única vía para provocar llamadas repetidas a voluntad. Queda reservada a
- * `admin`.
- *
- * No tiene espejo en `src/app/permissions.ts` a propósito: esa matriz decide
- * qué se muestra u oculta en la interfaz, y hoy ninguna pantalla ofrece forzar
- * el recálculo (la UI siempre envía `forceRefresh: false`). Si algún día se
- * agrega ese botón, hay que declarar allí la capacidad equivalente.
+ * Roles que pueden ejecutar operaciones masivas contra VidiCenter (backfill de
+ * salud de cámaras). Es la operación que más cuota consume, así que queda
+ * reservada a `admin`.
  */
 export const QUIVIDI_FORCE_REFRESH_ROLES: readonly Role[] = ['admin'];
 
-/** Indica si un rol puede forzar el recálculo saltándose la caché. */
+/** Indica si un rol puede ejecutar operaciones masivas contra VidiCenter. */
 export function canForceRefreshQuividi(role: Role): boolean {
   return QUIVIDI_FORCE_REFRESH_ROLES.includes(role);
+}
+
+/**
+ * Roles que pueden actualizar el informe de una campaña saltándose la caché.
+ *
+ * `forceRefresh` ignora el snapshot guardado y vuelve a pedir los cuatro
+ * exports a VidiCenter para UNA campaña. Por decisión de negocio lo tienen
+ * `admin` y `operator` (botón «Actualizar datos de Quividi» en Campañas); su
+ * espejo en la interfaz es `quividi.refresh` en `src/app/permissions.ts`.
+ */
+export const QUIVIDI_REPORT_REFRESH_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+];
+
+/** Indica si un rol puede actualizar el informe de campaña sin caché. */
+export function canRefreshQuividiReport(role: Role): boolean {
+  return QUIVIDI_REPORT_REFRESH_ROLES.includes(role);
 }

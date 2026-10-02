@@ -360,9 +360,13 @@ El snapshot del reporte usa schema v3 porque además del agregado diario conserv
 `supportHours`, la capa horaria que alimenta el dashboard comercial.
 
 La colección `campaignAudienceSnapshots/{campaignId}` es exclusivamente de
-backend. Para campañas activas se reutiliza el snapshot durante aproximadamente
-24 horas. Para una campaña finalizada, un snapshot generado después del cierre
-se considera final mientras no cambie la configuración de campaña/mapeos.
+backend. Los datos se piden hasta el último día completo en hora de la Ciudad
+de México (ayer). Para campañas activas se reutiliza el snapshot hasta 24 horas
+y sólo mientras ese corte no cambie: al cerrar un día nuevo se regenera. Para
+una campaña finalizada, un snapshot cuyo corte ya alcanzó el fin de vigencia se
+considera final mientras no cambie la configuración de campaña/mapeos. `admin`
+y `operator` pueden forzar la consulta con «Actualizar datos de Quividi» en
+Campañas.
 
 Si el reporte comprimido excede el tamaño seguro del documento Firestore, se
 devuelve el Excel normalmente pero no se persiste el snapshot.
