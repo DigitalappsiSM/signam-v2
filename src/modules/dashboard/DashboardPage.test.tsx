@@ -231,16 +231,45 @@ describe('DashboardPage — resumen operativo', () => {
     });
 
     vi.mocked(listCampaigns).mockResolvedValue([ACTIVA, FUTURA]);
+    const doneCheck = {
+      completed: true,
+      completedAt: Date.now(),
+      completedByUid: 'test',
+      completedByEmail: 'test@example.com',
+      source: 'manual' as const,
+      updatedAt: Date.now(),
+      updatedByUid: 'test',
+      updatedByEmail: 'test@example.com',
+    };
     vi.mocked(listOperationalTracking).mockResolvedValue([
       {
+        id: ACTIVA.id,
         campaignId: ACTIVA.id,
         campaignNameKey: campaignIdentity(ACTIVA),
+        campaignName: ACTIVA.name,
         classification: 'institutional',
-        liverpoolValidated: true,
-        csmProgrammed: true,
-      } as unknown as Awaited<
-        ReturnType<typeof listOperationalTracking>
-      >[number],
+        classificationSource: 'tracking-user',
+        classificationUpdatedAt: Date.now(),
+        classificationUpdatedByUid: 'test',
+        classificationUpdatedByEmail: 'test@example.com',
+        lifecycleStatus: 'active',
+        lifecycleUpdatedAt: Date.now(),
+        lifecycleUpdatedByUid: 'test',
+        lifecycleUpdatedByEmail: 'test@example.com',
+        cancellationReason: null,
+        linkDownload: doneCheck,
+        liverpoolValidation: doneCheck,
+        csmProgramming: doneCheck,
+        witnessStart: doneCheck,
+        witnessComplete: doneCheck,
+        comments: [],
+        createdAt: Date.now(),
+        createdByUid: 'test',
+        createdByEmail: 'test@example.com',
+        updatedAt: Date.now(),
+        updatedByUid: 'test',
+        updatedByEmail: 'test@example.com',
+      },
     ]);
 
     renderDash();
