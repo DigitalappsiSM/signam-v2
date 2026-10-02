@@ -3,10 +3,12 @@ import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandPartialDay,
   brandSingleCameraDuplication,
   brandStoreAttribution,
   brandStoreAudit,
   formatCivilDate,
+  partialDayLabel,
 } from './quividiBrandReport';
 
 /**
@@ -294,6 +296,16 @@ export function addQuividiAuditSheet(
     summary.measuredOts,
     'Suma directa de los par-día con medición del circuito medible. Sin ninguna estimación.',
   );
+  const partial = brandPartialDay(report);
+  if (partial) {
+    row = factRow(
+      sheet,
+      row,
+      '— de ellos, día incompleto',
+      summary.partialOts,
+      `${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}. Sólo lo medido: queda fuera de la rejilla, no entra al promedio y no se extrapola.`,
+    );
+  }
   row = factRow(
     sheet,
     row,

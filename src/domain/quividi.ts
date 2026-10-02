@@ -137,12 +137,20 @@ export interface QuividiMeasurementIncident {
 export interface QuividiCampaignReport {
   // v5 agrega publishedOts/publishedEffectiveOts/publishedWatchers a
   // QuividiSupportDay/QuividiSupportHour (duplicación por cámara única).
-  schemaVersion: 3 | 4 | 5;
+  // v6 agrega el corte de medición (`measuredEndDate`, `partialDate`,
+  // `partialUntil`): el día en curso en horario operativo (día incompleto).
+  schemaVersion: 3 | 4 | 5 | 6;
   campaignId: string;
   campaignName: string;
   startDate: string;
   endDate: string;
   generatedAt: number;
+  /** Último día consultado a Quividi (desde v6; puede ser hoy, incompleto). */
+  measuredEndDate?: string | null;
+  /** Día en curso incluido con datos parciales, 10:00–22:00 CDMX (desde v6). */
+  partialDate?: string | null;
+  /** Hora local `HH:MM` hasta la que se midió `partialDate` (desde v6). */
+  partialUntil?: string | null;
   scopeOrigins: QuividiScopeOrigin[];
   coverage: QuividiCoverage;
   /** Disponible desde schema v4; permite extrapolar sin exponer tiendas individuales. */

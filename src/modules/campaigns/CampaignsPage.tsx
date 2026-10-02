@@ -128,6 +128,11 @@ import {
   buildQuividiCampaignPdfBlob,
   quividiCampaignPdfFileName,
 } from '@/modules/exports/quividiCampaignPdf';
+import {
+  brandPartialDay,
+  effectiveEndDate,
+  partialDayLabel,
+} from '@/modules/exports/quividiBrandReport';
 import { useAnchoredMenu } from './useAnchoredMenu';
 import { CampaignStatusDialog } from './CampaignStatusDialog';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
@@ -310,6 +315,7 @@ export function CampaignsPage() {
   const [quividiBusyId, setQuividiBusyId] = useState<string | null>(null);
   const [quividiMenuId, setQuividiMenuId] = useState<string | null>(null);
   const [quividiError, setQuividiError] = useState<string | null>(null);
+  const [quividiNotice, setQuividiNotice] = useState<string | null>(null);
   const [quividiAvailability, setQuividiAvailability] = useState<
     Map<string, QuividiCampaignAvailability>
   >(new Map());
@@ -429,6 +435,7 @@ export function CampaignsPage() {
 
   const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
   const canReportQuividi = can(user?.role ?? 'viewer', 'quividi.report');
+  const canRefreshQuividi = can(user?.role ?? 'viewer', 'quividi.refresh');
   const canDownloadOperational = can(
     user?.role ?? 'viewer',
     'campaign.downloadOperational',
@@ -772,6 +779,7 @@ export function CampaignsPage() {
   ) {
     if (quividiBusyId) return;
     setQuividiError(null);
+    setQuividiNotice(null);
     setQuividiMenuId(null);
     setQuividiBusyId(c.id);
     try {
@@ -792,6 +800,32 @@ export function CampaignsPage() {
         reportError instanceof Error && reportError.message
           ? reportError.message
           : 'No se pudo generar el informe de audiencia.';
+      setQuividiError(`${c.name}: ${message}`);
+    } finally {
+      setQuividiBusyId(null);
+    }
+  }
+  /** Vuelve a pedir los datos a Quividi sin usar el snapshot guardado. */
+  async function refreshQuividiReport(c: StoredCampaign) {
+    if (quividiBusyId) return;
+    setQuividiError(null);
+    setQuividiNotice(null);
+    setQuividiMenuId(null);
+    setQuividiBusyId(c.id);
+    try {
+      const { report } = await getQuividiCampaignReport(c.id, true);
+      const partial = brandPartialDay(report);
+      const cutoff = partial
+        ? `${formatCivilString(partial.date)} (${partialDayLabel(partial.until).toLowerCase()})`
+        : formatCivilString(effectiveEndDate(report));
+      setQuividiNotice(
+        `${c.name}: datos de Quividi actualizados al ${cutoff}.`,
+      );
+    } catch (refreshError) {
+      const message =
+        refreshError instanceof Error && refreshError.message
+          ? refreshError.message
+          : 'No se pudieron actualizar los datos de Quividi.';
       setQuividiError(`${c.name}: ${message}`);
     } finally {
       setQuividiBusyId(null);
@@ -1049,6 +1083,12 @@ export function CampaignsPage() {
         </div>
       )}
 
+      {quividiNotice && (
+        <div className="catalog__notice" role="status">
+          {quividiNotice}
+        </div>
+      )}
+
       {loading ? (
         <LoadingOverlay
           variant="process"
@@ -1226,6 +1266,11 @@ export function CampaignsPage() {
                           }
                           onPick={(format) =>
                             void downloadQuividiReport(c, format)
+                          }
+                          onRefresh={
+                            canRefreshQuividi
+                              ? () => void refreshQuividiReport(c)
+                              : undefined
                           }
                         />
                         {canDownloadOperational && (
@@ -2001,6 +2046,7 @@ function QuividiReportMenu({
   open,
   onOpenChange,
   onPick,
+  onRefresh,
 }: {
   campaign: StoredCampaign;
   title: string;
@@ -2009,6 +2055,8 @@ function QuividiReportMenu({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (format: QuividiReportFormat) => void;
+  /** Solo para roles con `quividi.refresh`. */
+  onRefresh?: () => void;
 }) {
   const panelId = `quividi-menu-${campaign.id}`;
   const label = `Informe de audiencia de ${campaign.name}`;
@@ -2016,7 +2064,7 @@ function QuividiReportMenu({
     open,
     onOpenChange,
     menuWidth: 264,
-    estimatedHeight: 140,
+    estimatedHeight: onRefresh ? 200 : 140,
   });
 
   return (
@@ -2074,6 +2122,20 @@ function QuividiReportMenu({
                 <small>Detalle por pantalla, día y hora.</small>
               </span>
             </button>
+            {onRefresh && (
+              <button
+                type="button"
+                role="menuitem"
+                className="csv-menu__item report-menu__item"
+                onClick={onRefresh}
+              >
+                <span aria-hidden="true">↻</span>
+                <span>
+                  Actualizar datos de Quividi
+                  <small>Vuelve a consultar Quividi con lo más reciente.</small>
+                </span>
+              </button>
+            )}
           </div>,
           document.body,
         )}

@@ -52,6 +52,13 @@ describe('permisos por rol', () => {
     expect(can('commercial', 'quividi.report')).toBe(true);
   });
 
+  it('actualizar datos de Quividi queda en admin y operator', () => {
+    expect(can('admin', 'quividi.refresh')).toBe(true);
+    expect(can('operator', 'quividi.refresh')).toBe(true);
+    expect(can('viewer', 'quividi.refresh')).toBe(false);
+    expect(can('commercial', 'quividi.refresh')).toBe(false);
+  });
+
   it('Comercial no puede descargar operación ni editar vínculos Ekon', () => {
     expect(can('commercial', 'campaign.downloadOperational')).toBe(false);
     expect(can('commercial', 'campaign.linkEkon')).toBe(false);

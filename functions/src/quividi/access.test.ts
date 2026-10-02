@@ -3,9 +3,11 @@ import {
   QUIVIDI_FORCE_REFRESH_ROLES,
   QUIVIDI_HEALTH_REFRESH_ROLES,
   QUIVIDI_OPERATIONS_ROLES,
+  QUIVIDI_REPORT_REFRESH_ROLES,
   QUIVIDI_REPORT_ROLES,
   canForceRefreshQuividi,
   canRefreshQuividiHealth,
+  canRefreshQuividiReport,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -89,6 +91,26 @@ describe('canForceRefreshQuividi', () => {
   });
 });
 
+
+describe('canRefreshQuividiReport', () => {
+  it('permite actualizar el informe a admin y operator', () => {
+    expect(canRefreshQuividiReport('admin')).toBe(true);
+    expect(canRefreshQuividiReport('operator')).toBe(true);
+    expect(canRefreshQuividiReport('viewer')).toBe(false);
+    expect(canRefreshQuividiReport('commercial')).toBe(false);
+    expect(canRefreshQuividiReport(roleFromClaims(undefined))).toBe(false);
+  });
+
+  it('es más restrictivo que la consulta del informe', () => {
+    expect([...QUIVIDI_REPORT_REFRESH_ROLES].sort()).toEqual([
+      'admin',
+      'operator',
+    ]);
+    for (const role of QUIVIDI_REPORT_REFRESH_ROLES) {
+      expect(QUIVIDI_REPORT_ROLES).toContain(role);
+    }
+  });
+});
 
 describe('canRefreshQuividiHealth', () => {
   it('permite refrescar salud a admin y operator, no a viewer/commercial', () => {

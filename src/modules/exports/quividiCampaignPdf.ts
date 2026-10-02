@@ -16,6 +16,7 @@ import {
   formatCivilDate,
   formatCount,
   formatPercent,
+  partialDayLabel,
   weekStartOf,
   type BrandGenderDayPoint,
 } from './quividiBrandReport';
@@ -504,6 +505,8 @@ interface EvolutionPoint {
   top: string;
   bottom: string;
   emphasis?: boolean;
+  /** Leyenda bajo la fecha (día incompleto). */
+  note?: string;
 }
 
 /** Barras finas (≤26px), con valor rotulado y sin rejillas: la etiqueta ya lo dice todo. */
@@ -564,6 +567,18 @@ function drawEvolutionChart(
       y + chartH + (point.top ? 28 : 16),
       { size: 7.5, color: isPeak ? PINK : MUTED, align: 'center' },
     );
+    if (point.note) {
+      // El día incompleto siempre es el último: se alinea a la derecha de su
+      // barra para no invadir el rótulo de los días anteriores.
+      const last = index === points.length - 1;
+      text(
+        doc,
+        point.note,
+        last ? barX + barW : barX + barW / 2,
+        y + chartH + (point.top ? 40 : 28),
+        { size: 7, color: MUTED, align: last ? 'right' : 'center' },
+      );
+    }
   });
   block(doc, x, y + chartH, w, 1, NAVY);
 }
@@ -573,7 +588,8 @@ function topWeekdayLabel(
 ): { label: string; ots: number } | null {
   if (daily.length === 0) return null;
   const totals = new Map<number, number>();
-  for (const point of daily) {
+  // El día incompleto no compite: todavía no termina.
+  for (const point of daily.filter((item) => item.partialUntil === undefined)) {
     const parsed = new Date(`${point.date}T12:00:00Z`);
     if (Number.isNaN(parsed.getTime())) continue;
     const day = parsed.getUTCDay();
@@ -603,7 +619,7 @@ function weekendDelta(daily: ReturnType<typeof brandDaily>): number | null {
   let weekendCount = 0;
   let weekdaySum = 0;
   let weekdayCount = 0;
-  for (const point of daily) {
+  for (const point of daily.filter((item) => item.partialUntil === undefined)) {
     const parsed = new Date(`${point.date}T12:00:00Z`);
     if (Number.isNaN(parsed.getTime())) continue;
     const day = parsed.getUTCDay();
@@ -653,11 +669,17 @@ function evolutionPage(
         value: week.estimatedOts,
         top: `Sem. ${index + 1}`,
         bottom: `${shortCivilDate(week.weekStart)}–${shortCivilDate(week.weekEnd)}`,
+        ...(week.partialUntil !== undefined
+          ? { note: partialDayLabel(week.partialUntil) }
+          : {}),
       }))
     : daily.map((point) => ({
         value: point.estimatedOts,
         top: weekdayShort(point.date),
         bottom: point.label,
+        ...(point.partialUntil !== undefined
+          ? { note: partialDayLabel(point.partialUntil) }
+          : {}),
       }));
 
   drawEvolutionChart(doc, points, M, 190, CONTENT_W, 250);
@@ -727,12 +749,14 @@ function bucketGenderWeekly(
           ? bucket.reduce((sum, p) => sum + p[field] * p.totalWatchers, 0) /
             totalWatchers
           : 0;
+      const partial = bucket.find((p) => p.partialUntil !== undefined);
       return {
         date: weekStart,
         female: weighted('female'),
         male: weighted('male'),
         unknown: weighted('unknown'),
         totalWatchers,
+        ...(partial ? { partialUntil: partial.partialUntil } : {}),
       };
     });
 }
@@ -937,6 +961,15 @@ function audiencePage(
         align: 'right',
       },
     );
+    if (last.partialUntil !== undefined) {
+      text(
+        doc,
+        partialDayLabel(last.partialUntil),
+        chartX + chartW,
+        chartY + chartH + 28,
+        { size: 7, color: MUTED, align: 'right' },
+      );
+    }
   }
 
   pageFooter(

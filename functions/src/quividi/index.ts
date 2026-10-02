@@ -24,6 +24,7 @@ import {
   canForceRefreshQuividi,
   canManageQuividiTickets,
   canRefreshQuividiHealth,
+  canRefreshQuividiReport,
   canReportQuividi,
   canUseQuividiOperations,
   roleFromClaims,
@@ -81,7 +82,7 @@ import {
   dayList,
   inputSignature,
   lastCompleteUtcDate,
-  measurableEndDate,
+  measurementCutoff,
   parseCivilDate,
   resolvePairs,
   snapshotIsFresh,
@@ -108,15 +109,23 @@ export const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertSta
 // cacheado no tiene esos campos; el frontend los lee directo y los trata
 // como 0 ante su ausencia, así que debe invalidarse y regenerarse, no
 // servirse tal cual.
-const SNAPSHOT_SCHEMA_VERSION = 5;
+// v6: agrega el corte de medición (`measuredEndDate`, `partialDate`,
+// `partialUntil`) para el día incompleto en horario operativo.
+const SNAPSHOT_SCHEMA_VERSION = 6;
 
 interface CampaignReport {
-  schemaVersion: 5;
+  schemaVersion: 6;
   campaignId: string;
   campaignName: string;
   startDate: string;
   endDate: string;
   generatedAt: number;
+  /** Último día consultado a Quividi (puede ser hoy, incompleto). */
+  measuredEndDate: string | null;
+  /** Día en curso incluido con datos parciales (franja 10:00–22:00 CDMX). */
+  partialDate: string | null;
+  /** Hora local `HH:MM` hasta la que se midió `partialDate`. */
+  partialUntil: string | null;
   scopeOrigins: EffectiveScopeOrigin[];
   coverage: ReportCoverage;
   storeCoverage: {
@@ -255,7 +264,8 @@ async function generateReport(
       resolved.pairs.flatMap((pair) => pair.cameras.map((camera) => camera.id)),
     ),
   );
-  const measuredEndDate = measurableEndDate(startDate, endDate, now);
+  const cutoff = measurementCutoff(startDate, endDate, now);
+  const measuredEndDate = cutoff.measuredEndDate;
   const dates = measuredEndDate ? dayList(startDate, measuredEndDate) : [];
 
   let otsRows: OtsExportRow[] = [];
@@ -309,7 +319,13 @@ async function generateReport(
     campaignName: campaign.name ?? '',
     startDate,
     endDate,
-    generatedAt: Date.now(),
+    // El mismo instante con el que se calculó el corte de la consulta: si los
+    // exports terminan después de medianoche, `Date.now()` daría un corte
+    // distinto en el PDF y en la caché que el que realmente se pidió.
+    generatedAt: now,
+    measuredEndDate: cutoff.measuredEndDate,
+    partialDate: cutoff.partialDate,
+    partialUntil: cutoff.partialUntil,
     scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
     storeCoverage: buildStoreCoverage(resolved.pairs),
@@ -1305,10 +1321,10 @@ export const campaignReport = onCall(
     const campaignId =
       typeof data?.campaignId === 'string' ? data.campaignId.trim() : '';
     const forceRefresh = data?.forceRefresh === true;
-    if (forceRefresh && !canForceRefreshQuividi(roleFromClaims(auth.token))) {
+    if (forceRefresh && !canRefreshQuividiReport(roleFromClaims(auth.token))) {
       throw new HttpsError(
         'permission-denied',
-        'Solo un administrador puede forzar el recálculo del reporte Quividi.',
+        'Solo un administrador u operador puede actualizar los datos de Quividi.',
       );
     }
     if (!campaignId) {
@@ -1366,7 +1382,7 @@ export const campaignReport = onCall(
         saved?.schemaVersion === SNAPSHOT_SCHEMA_VERSION &&
         saved?.inputSignature === signature &&
         typeof saved?.generatedAt === 'number' &&
-        snapshotIsFresh(saved.generatedAt, endDate, now)
+        snapshotIsFresh(saved.generatedAt, startDate, endDate, now)
       ) {
         const report = decodeSnapshot(saved?.compressedReport);
         if (report) return { report, cached: true };

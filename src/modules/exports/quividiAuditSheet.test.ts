@@ -112,6 +112,38 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(names).toContain('Metodología');
   });
 
+  it('separa el día incompleto: sólo medido y marcado en las hojas por fecha', async () => {
+    const base = report();
+    const lastDate = DATES[DATES.length - 1] ?? '';
+    const input: QuividiCampaignReport = {
+      ...base,
+      schemaVersion: 6,
+      endDate: '2026-12-31',
+      measuredEndDate: lastDate,
+      partialDate: lastDate,
+      partialUntil: '15:07',
+    };
+    const values = await auditValues(input);
+    const summary = brandCampaignSummary(input);
+    expect(summary.partialOts).toBeGreaterThan(0);
+    expect(values.get('— de ellos, día incompleto')).toBe(summary.partialOts);
+    expect(values.get('= OTS estimados de campaña')).toBe(summary.estimatedOts);
+
+    const wb = await buildQuividiCampaignWorkbook(input);
+    const detail = wb.getWorksheet('Detalle Soportes');
+    if (!detail) throw new Error('falta Detalle Soportes');
+    const notes = new Map<string, string>();
+    detail.eachRow((row, index) => {
+      if (index === 1) return;
+      notes.set(
+        String(row.getCell(1).value),
+        String(row.getCell(14).value ?? ''),
+      );
+    });
+    expect(notes.get(lastDate)).toBe('Día incompleto, medido hasta 15:07');
+    expect(notes.get(DATES[0] ?? '')).toBe('');
+  });
+
   it('publica la rejilla del circuito medible y su reparto exhaustivo', async () => {
     const values = await auditValues(report());
     expect(values.get('Días de vigencia')).toBe(10);

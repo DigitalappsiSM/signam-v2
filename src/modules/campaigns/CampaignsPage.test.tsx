@@ -892,6 +892,63 @@ describe('CampaignsPage — métricas Quividi', () => {
     );
     expect(buildQuividiCampaignPdfBlob).not.toHaveBeenCalled();
   });
+
+  async function openQuividiMenu() {
+    vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
+    vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
+    vi.mocked(consolidate).mockReturnValue({
+      consolidations: [],
+      issues: [],
+      excludedInstore: [],
+    });
+    vi.mocked(getQuividiCampaignAvailability).mockResolvedValue([
+      {
+        campaignId: 'q1',
+        available: true,
+        totalPairs: 1,
+        mappedPairs: 1,
+        scopeOrigins: [],
+      },
+    ]);
+    await renderAllPeriods();
+    await screen.findByText('CAMPAÑA QUIVIDI');
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
+      }),
+    );
+    return screen.getByRole('menu', {
+      name: /Informe de audiencia de CAMPAÑA QUIVIDI/i,
+    });
+  }
+
+  it('el operador puede actualizar los datos de Quividi sin la caché', async () => {
+    authState.role = 'operator';
+    const menu = await openQuividiMenu();
+    await userEvent.click(
+      within(menu).getByRole('menuitem', {
+        name: /Actualizar datos de Quividi/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(getQuividiCampaignReport).toHaveBeenCalledWith('q1', true),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /datos de Quividi actualizados al/i,
+    );
+    expect(buildQuividiCampaignPdfBlob).not.toHaveBeenCalled();
+    expect(buildQuividiCampaignBlob).not.toHaveBeenCalled();
+  });
+
+  it('el visor no ve la opción de actualizar datos', async () => {
+    authState.role = 'viewer';
+    const menu = await openQuividiMenu();
+    expect(
+      within(menu).queryByRole('menuitem', {
+        name: /Actualizar datos de Quividi/i,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('CampaignsPage — perfil Comercial', () => {

@@ -1,6 +1,7 @@
 import type { Row, Workbook, Worksheet } from 'exceljs';
 import { addQuividiMarketingSheets } from './quividiMarketingSheets';
 import { addQuividiAuditSheet } from './quividiAuditSheet';
+import { partialDayNote } from './quividiBrandReport';
 import {
   QUIVIDI_AGE_LABELS,
   QUIVIDI_GENDER_LABELS,
@@ -345,6 +346,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Tasa atención',
     'Attention Time',
     'Dwell Time',
+    'Observación',
   ]);
   styleHeader(sheet.getRow(1));
   for (const row of report.supportDays) {
@@ -366,6 +368,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
       row.ots > 0 ? row.watchers / row.ots : 0,
       row.attentionSeconds,
       row.dwellSeconds,
+      partialDayNote(report, row.date),
     ]);
   }
   numberFormat(sheet, 'H', '#,##0');
@@ -388,6 +391,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
     { width: 14 },
     { width: 16 },
     { width: 14 },
+    { width: 34 },
   ];
   applyBaseSheet(sheet);
 }
@@ -412,6 +416,7 @@ function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Dwell acum. (s)',
     'Active',
     'Last seen',
+    'Observación',
   ]);
   styleHeader(sheet.getRow(1));
   for (const row of report.cameraDays) {
@@ -437,6 +442,7 @@ function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
       row.dwellTenths / 10,
       row.active ? 'Sí' : 'No',
       row.lastSeen ?? '',
+      partialDayNote(report, row.date),
     ]);
   }
   numberFormat(sheet, 'J', '0.0');
@@ -463,6 +469,7 @@ function addCameraDetail(wb: Workbook, report: QuividiCampaignReport): void {
     { width: 18 },
     { width: 10 },
     { width: 20 },
+    { width: 34 },
   ];
   applyBaseSheet(sheet);
 }
@@ -477,6 +484,7 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
     'Género estimado',
     'Edad estimada',
     'Watchers ponderados',
+    'Observación',
   ]);
   styleHeader(sheet.getRow(1));
   for (const row of report.demographics) {
@@ -488,6 +496,7 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
       QUIVIDI_GENDER_LABELS[row.gender] ?? `Código ${row.gender}`,
       QUIVIDI_AGE_LABELS[row.age] ?? `Código ${row.age}`,
       row.watchers,
+      partialDayNote(report, row.date),
     ]);
   }
   numberFormat(sheet, 'G', '#,##0.0');
@@ -499,6 +508,7 @@ function addDemographics(wb: Workbook, report: QuividiCampaignReport): void {
     { width: 20 },
     { width: 24 },
     { width: 20 },
+    { width: 34 },
   ];
   applyBaseSheet(sheet);
 }
@@ -525,7 +535,12 @@ function addQuality(wb: Workbook, report: QuividiCampaignReport): void {
       incident.locationName,
       incident.status === 'missing' ? 'Sin medición' : 'Medición parcial',
       incident.dates.length,
-      incident.dates.join(', '),
+      incident.dates
+        .map((date) => {
+          const note = partialDayNote(report, date);
+          return note ? `${date} (${note.toLowerCase()})` : date;
+        })
+        .join(', '),
     ]);
   }
   if (report.unmappedCameraNames.length > 0) {
