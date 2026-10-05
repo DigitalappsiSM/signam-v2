@@ -435,6 +435,10 @@ export function QuividiHistoryPage() {
                   sin tienda
                 </span>
                 <span>
+                  <strong>{pendingLocations.length}</strong> locations por
+                  conciliar
+                </span>
+                <span>
                   <strong>
                     {overview.unsupported.toLocaleString('es-MX')}
                   </strong>{' '}
