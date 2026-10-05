@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { getFunctions } from 'firebase-admin/functions';
-import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -555,7 +555,7 @@ interface HistoryExplorerInput {
   status?: unknown;
 }
 
-async function historicalPartitionRows(doc: FirebaseFirestore.QueryDocumentSnapshot): Promise<Record<string, unknown>[]> {
+async function historicalPartitionRows(doc: QueryDocumentSnapshot): Promise<Record<string, unknown>[]> {
   const embedded = doc.get('rows');
   if (Array.isArray(embedded)) return embedded as Record<string, unknown>[];
   const rawPath = doc.get('rawPath');
