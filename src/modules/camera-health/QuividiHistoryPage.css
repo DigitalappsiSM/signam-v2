@@ -200,3 +200,59 @@
     grid-template-columns: 1fr;
   }
 }
+
+.quividi-history__export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.quividi-history__file-button {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.quividi-history__file-button input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.quividi-history__comparison {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.quividi-history__comparison > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border, #d8dee7);
+  border-radius: 9px;
+  background: var(--surface, #fff);
+}
+.quividi-history__comparison span,
+.quividi-history__comparison small {
+  color: var(--text-muted, #64748b);
+}
+.quividi-history__comparison strong {
+  font-size: 1.35rem;
+}
+.quividi-history__comparison .is-warning {
+  border-color: #d6a94d;
+  background: #fff8e7;
+}
+.quividi-history__comparison .is-ok {
+  border-color: #86c79a;
+}
+@media (max-width: 900px) {
+  .quividi-history__comparison {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .quividi-history__comparison {
+    grid-template-columns: 1fr;
+  }
+}
