@@ -60,6 +60,7 @@ function odooFixture() {
           tag_ids: [1],
           description: '<p>Solicitante: Persona X</p>',
           create_date: '2026-09-29 10:00:00',
+          active: true,
         },
         {
           id: 11,
@@ -70,6 +71,18 @@ function odooFixture() {
           tag_ids: [2],
           description: '',
           create_date: '2026-09-28 10:00:00',
+          active: true,
+        },
+        {
+          id: 12,
+          name: 'Ticket archivado que conserva etapa abierta',
+          team_id: [6, 'Liverpool'],
+          partner_id: [51, 'Liverpool, 901 - Monterrey'],
+          stage_id: [1, 'En progreso'],
+          tag_ids: [1],
+          description: '',
+          create_date: '2026-09-27 10:00:00',
+          active: false,
         },
       ];
     return [];
@@ -155,6 +168,15 @@ describe('Centro de Control (callable)', () => {
     expect(
       call.mock.calls.every(([, , method]) => method === 'search_read'),
     ).toBe(true);
+    const ticketCall = call.mock.calls.find(
+      ([, model]) => model === 'helpdesk.ticket',
+    );
+    expect(ticketCall?.[3]).toMatchObject({
+      context: { active_test: true },
+      domain: expect.arrayContaining([['active', '=', true]]),
+      fields: expect.arrayContaining(['active']),
+    });
+    expect(result.tickets?.some((ticket) => ticket.id === 12)).toBe(false);
   });
 
   it('si Odoo falla, devuelve cámaras y un aviso en lugar de romper', async () => {
