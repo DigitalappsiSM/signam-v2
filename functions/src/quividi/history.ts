@@ -744,8 +744,10 @@ export const historyInventoryDaily = onSchedule({
   if (conflicts.length) console.warn('Conflictos de tienda/punto en catálogo Quividi.', conflicts);
 });
 
+type ExportTask = PartitionTask | RangeTask;
+
 /** Tasks retry transient failures without advancing or multiplying rows. */
-export const historyPartition = onTaskDispatched<PartitionTask>({
+export const historyPartition = onTaskDispatched<ExportTask>({
   secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '1GiB',
   rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 1 },
   retryConfig: { maxAttempts: 8, minBackoffSeconds: 60 },
@@ -753,18 +755,30 @@ export const historyPartition = onTaskDispatched<PartitionTask>({
   const task = request.data;
   if (!HISTORY_EXPORTS.some((item) => item.type === task.type &&
       item.resolution === task.resolution)) throw new Error('Export no permitido.');
-  historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-  if (task.date < HISTORY_START_DATE || task.date > yesterdayMexico()) {
+  const isRange = 'startDate' in task && 'endDate' in task;
+  const startDate = isRange ? task.startDate : task.date;
+  const endDate = isRange ? task.endDate : task.date;
+  if (startDate < HISTORY_START_DATE || endDate > yesterdayMexico() || startDate > endDate) {
     throw new Error('Fecha fuera de la ventana histórica.');
   }
+  if (!isRange) historyPartitionId(task.locationId, task.date, task.type, task.resolution);
   try {
-    await savePartition(task);
+    if (isRange) await saveRange(task);
+    else await savePartition(task);
   } catch (error) {
-    await getFirestore().collection(PARTITIONS)
-      .doc(historyPartitionId(task.locationId, task.date, task.type, task.resolution))
-      .set({ ...task, networkId: LIVERPOOL_NETWORK_ID, status: 'retrying',
-        lastError: error instanceof Error ? error.message : String(error),
-        lastAttemptAt: Date.now() }, { merge: true });
+    if (!isRange) {
+      await getFirestore().collection(PARTITIONS)
+        .doc(historyPartitionId(task.locationId, task.date, task.type, task.resolution))
+        .set({ ...task, networkId: LIVERPOOL_NETWORK_ID, status: 'retrying',
+          lastError: error instanceof Error ? error.message : String(error),
+          lastAttemptAt: Date.now() }, { merge: true });
+    } else {
+      console.error('Falló export Quividi por rango.', {
+        locationId: task.locationId, startDate: task.startDate, endDate: task.endDate,
+        type: task.type, resolution: task.resolution,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     throw error;
   }
 });
@@ -788,9 +802,10 @@ export const historyCoordinator = onSchedule({
     const refreshDay = todayMexico();
     let refreshIndex = primary.get('refreshDay') === refreshDay
       ? (primary.get('refreshIndex') as number ?? 0) : 0;
-    const totalRecent = 7 * allIds.length * plan.length;
+    // Quividi recommends one daily refresh for D-1. Historical recovery is handled
+    // separately with monthly range exports.
+    const totalRecent = allIds.length * plan.length;
     const recentStart = new Date(`${yesterdayMexico()}T00:00:00Z`);
-    recentStart.setUTCDate(recentStart.getUTCDate() - 6);
     for (let count = 0; count < RECENT_PER_TICK && refreshIndex < totalRecent; count++) {
       const offset = taskAt(refreshIndex, allIds, plan);
       const dayIndex = Math.floor(refreshIndex /
@@ -814,18 +829,41 @@ export const historyCoordinator = onSchedule({
     const locationIds = control.get('locationIds') as number[];
     const plan = control.get('exportPlan') as ExportSpec[];
     if (!locationIds.length) continue;
-    let index = control.get('nextIndex') as number;
+
+    let rangeStartMonth = control.get('rangeStartMonth') as string | undefined;
+    let rangeIndex = control.get('rangeNextIndex') as number | undefined;
+    if (!rangeStartMonth || rangeIndex === undefined) {
+      // Migrate an in-flight daily backfill without restarting from January.
+      // Re-reading the current month is intentional: daily partition hashes make
+      // it idempotent and it closes any gap left inside that month.
+      const legacyIndex = control.get('nextIndex') as number ?? 0;
+      const legacyTask = taskAt(legacyIndex, locationIds, plan);
+      rangeStartMonth = `${legacyTask.date.slice(0, 7)}-01`;
+      rangeIndex = 0;
+      await control.ref.update({
+        rangeStartMonth,
+        rangeNextIndex: rangeIndex,
+        rangeMigrationAt: Date.now(),
+      });
+    }
+
     for (let count = 0; count < Math.max(1, Math.floor(EXPORTS_PER_TICK / controls.size)); count++) {
-      const task = taskAt(index, locationIds, plan);
-      if (task.date > yesterdayMexico()) break;
-      const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
+      const task = monthRangeAt(rangeIndex, rangeStartMonth, locationIds, plan, yesterdayMexico());
+      if (!task) break;
+      const rangeId = [
+        LIVERPOOL_NETWORK_ID, task.locationId, task.startDate, task.endDate,
+        task.type, task.resolution,
+      ].join('__');
       try {
-        await queue.enqueue(task, { id: rowsFingerprint([{ id }]), dispatchDeadlineSeconds: 540 });
+        await queue.enqueue(task, {
+          id: rowsFingerprint([{ id: rangeId }]),
+          dispatchDeadlineSeconds: 540,
+        });
       } catch (error) {
         if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
       }
-      index++;
-      await control.ref.update({ nextIndex: index, lastEnqueuedAt: Date.now() });
+      rangeIndex++;
+      await control.ref.update({ rangeNextIndex: rangeIndex, lastEnqueuedAt: Date.now() });
     }
   }
 });
