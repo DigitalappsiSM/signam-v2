@@ -54,7 +54,9 @@ async function openLiverpoolTickets(
   key: string,
   now: Date,
 ): Promise<ControlCenterTicket[]> {
-  const read = { context: { active_test: false } };
+  // El Centro de Control solo representa incidencias vigentes. Mantener
+  // active_test=true evita que Odoo reincorpore tickets archivados.
+  const read = { context: { active_test: true } };
   const teams = await odooCall<Row[]>(key, 'helpdesk.team', 'search_read', {
     ...read,
     domain: [['name', '=', LIVERPOOL_TEAM]],
@@ -68,6 +70,7 @@ async function openLiverpoolTickets(
       ...read,
       domain: [
         ['team_id', 'in', teams.map((t) => t.id)],
+        ['active', '=', true],
         ['create_date', '>=', odooDateDaysAgo(now, OPEN_TICKET_LOOKBACK_DAYS)],
       ],
       fields: [
@@ -80,6 +83,7 @@ async function openLiverpoolTickets(
         'tag_ids',
         'description',
         'create_date',
+        'active',
       ],
       offset,
       limit: 250,
