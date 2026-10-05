@@ -10,8 +10,11 @@ export const HISTORY_START_DATE = '2026-01-01';
 export const HISTORY_EXPORTS = [
   { type: 'viewers', resolution: 'finest' },
   { type: 'viewers', resolution: '1h' },
+  { type: 'viewers', resolution: '1d' },
+  { type: 'viewers_demographics', resolution: '1d' },
   { type: 'ots', resolution: '5m' },
   { type: 'ots', resolution: '1h' },
+  { type: 'ots', resolution: '1d' },
   { type: 'viewers_apc', resolution: 'finest' },
   { type: 'content_plays', resolution: '1h' },
   { type: 'content_plays', resolution: '5m' },
@@ -45,7 +48,7 @@ export const HISTORY_EXPORTS = [
 
 /** Audience or traffic rows establish measurement; playback and estimates do not. */
 const MEASUREMENT_TYPES = new Set([
-  'viewers', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
+  'viewers', 'viewers_demographics', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
   'vehicles', 'vehicles_footfall', 'retail_analytics_footfall',
   'retail_analytics_footfall_aggregated',
 ]);
