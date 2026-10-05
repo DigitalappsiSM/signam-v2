@@ -112,6 +112,12 @@ const CAMERA_HEALTH_HISTORY_SPECS: readonly PersistedHistorySpec[] = [
   { type: 'viewers', resolution: '1d' },
   { type: 'ots', resolution: '1h' },
 ];
+const CAMPAIGN_REPORT_HISTORY_SPECS: readonly PersistedHistorySpec[] = [
+  { type: 'ots', resolution: '1d' },
+  { type: 'viewers_demographics', resolution: '1d' },
+  { type: 'ots', resolution: '1h' },
+  { type: 'viewers', resolution: '1h' },
+];
 export const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
 export const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
 // v5: agrega publishedOts/publishedEffectiveOts/publishedWatchers a
@@ -286,33 +292,78 @@ async function generateReport(
   let hourlyOtsRows: OtsExportRow[] = [];
   let hourlyViewerRows: ViewerExportRow[] = [];
   if (mappedLocations.length > 0 && measuredEndDate) {
-    const base = {
-      locations: mappedLocations.join(','),
-      start: `${startDate}T00:00:00`,
-      end: `${measuredEndDate}T23:59:59`,
-    };
-    otsRows = (await exportData({
-      ...base,
-      time_resolution: '1d',
-      data_type: 'ots',
-    })) as OtsExportRow[];
-    viewerRows = (await exportData({
-      ...base,
-      time_resolution: '1d',
-      data_type: 'viewers',
-      group_by_demographics: '1',
-    })) as ViewerExportRow[];
+    const persisted = await loadPersistedHistory(
+      mappedLocations,
+      dates,
+      CAMPAIGN_REPORT_HISTORY_SPECS,
+    );
 
-    hourlyOtsRows = (await exportData({
-      ...base,
-      time_resolution: '1h',
-      data_type: 'ots',
-    })) as OtsExportRow[];
-    hourlyViewerRows = (await exportData({
-      ...base,
-      time_resolution: '1h',
-      data_type: 'viewers',
-    })) as ViewerExportRow[];
+    if (persisted.complete && cutoff.partialDate === null) {
+      otsRows = persistedHistoryRows(
+        persisted,
+        'ots',
+        '1d',
+      ) as OtsExportRow[];
+      viewerRows = persistedHistoryRows(
+        persisted,
+        'viewers_demographics',
+        '1d',
+      ) as ViewerExportRow[];
+      hourlyOtsRows = persistedHistoryRows(
+        persisted,
+        'ots',
+        '1h',
+      ) as OtsExportRow[];
+      hourlyViewerRows = persistedHistoryRows(
+        persisted,
+        'viewers',
+        '1h',
+      ) as ViewerExportRow[];
+      console.info('Reporte Quividi generado desde histórico SIGNAM.', {
+        campaignId,
+        startDate,
+        measuredEndDate,
+        locations: mappedLocations.length,
+      });
+    } else {
+      console.warn(
+        'Histórico insuficiente o día parcial; reporte usa fallback VidiCenter.',
+        {
+          campaignId,
+          startDate,
+          measuredEndDate,
+          partialDate: cutoff.partialDate,
+          missingPartitions: persisted.missingPartitionIds.length,
+          sample: persisted.missingPartitionIds.slice(0, 10),
+        },
+      );
+      const base = {
+        locations: mappedLocations.join(','),
+        start: `${startDate}T00:00:00`,
+        end: `${measuredEndDate}T23:59:59`,
+      };
+      otsRows = (await exportData({
+        ...base,
+        time_resolution: '1d',
+        data_type: 'ots',
+      })) as OtsExportRow[];
+      viewerRows = (await exportData({
+        ...base,
+        time_resolution: '1d',
+        data_type: 'viewers',
+        group_by_demographics: '1',
+      })) as ViewerExportRow[];
+      hourlyOtsRows = (await exportData({
+        ...base,
+        time_resolution: '1h',
+        data_type: 'ots',
+      })) as OtsExportRow[];
+      hourlyViewerRows = (await exportData({
+        ...base,
+        time_resolution: '1h',
+        data_type: 'viewers',
+      })) as ViewerExportRow[];
+    }
   }
 
   const measurement = buildMeasurementRows(
