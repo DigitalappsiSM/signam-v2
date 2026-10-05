@@ -54,12 +54,7 @@ jobs:
         run: npm ci --prefix functions
 
       - name: Formato (Prettier)
-        run: |
-          if ! npm run format:check; then
-            npx prettier --write src/modules/camera-health/QuividiHistoryPage.tsx
-            git diff -- src/modules/camera-health/QuividiHistoryPage.tsx
-            exit 1
-          fi
+        run: npm run format:check
 
       - name: Lint (ESLint)
         run: npm run lint
