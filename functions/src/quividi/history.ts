@@ -14,6 +14,9 @@ import {
   HISTORY_START_DATE,
   LIVERPOOL_NETWORK_ID,
   exportDataClass,
+  historyDateRange,
+  historyMonthRangeAt,
+  historyRowCivilDate,
   earliestMeasuredDate,
   historyPartitionId,
   inferredCatalogBinding,
@@ -55,14 +58,7 @@ interface PartitionTask {
   siteId?: number;
 }
 
-interface RangeTask {
-  startDate: string;
-  endDate: string;
-  locationId: number;
-  type: string;
-  resolution: string;
-  siteId?: number;
-}
+type RangeTask = import('./historyModel').HistoryRangeTask;
 
 type ExportSpec = { type: string; resolution: string };
 
@@ -315,52 +311,6 @@ async function archiveNetworkTopology(
   }
 }
 
-function dateRange(startDate: string, endDate: string): string[] {
-  const result: string[] = [];
-  const end = Date.parse(`${endDate}T00:00:00Z`);
-  for (let cursor = Date.parse(`${startDate}T00:00:00Z`); cursor <= end; cursor += 86_400_000) {
-    result.push(new Date(cursor).toISOString().slice(0, 10));
-  }
-  return result;
-}
-
-function rowCivilDate(row: Record<string, unknown>): string | null {
-  for (const key of ['period_start', 'start', 'date', 'timestamp', 'datetime']) {
-    const value = row[key];
-    if (typeof value !== 'string') continue;
-    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1]!;
-  }
-  return null;
-}
-
-function monthRangeAt(
-  index: number,
-  startMonth: string,
-  locationIds: readonly number[],
-  plan: readonly ExportSpec[],
-  maxDate: string,
-): RangeTask | null {
-  const exportIndex = index % plan.length;
-  const locationIndex = Math.floor(index / plan.length) % locationIds.length;
-  const monthIndex = Math.floor(index / (plan.length * locationIds.length));
-  const start = new Date(`${startMonth.slice(0, 7)}-01T00:00:00Z`);
-  start.setUTCMonth(start.getUTCMonth() + monthIndex);
-  const startDate = start.toISOString().slice(0, 10);
-  if (startDate > maxDate) return null;
-  const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 1);
-  end.setUTCDate(0);
-  const endDate = end.toISOString().slice(0, 10) < maxDate
-    ? end.toISOString().slice(0, 10) : maxDate;
-  return {
-    startDate,
-    endDate,
-    locationId: locationIds[locationIndex]!,
-    ...plan[exportIndex]!,
-  };
-}
-
 async function resolveExportScope(task: RangeTask): Promise<RangeTask | null> {
   const db = getFirestore();
   const inventory = await db.collection(INVENTORY).doc(String(task.locationId)).get();
@@ -461,7 +411,7 @@ async function saveRange(task: RangeTask): Promise<void> {
   const scoped = await resolveExportScope(task);
   if (!scoped) return;
   const payload = await fetchExport(scoped);
-  const days = dateRange(scoped.startDate, scoped.endDate);
+  const days = historyDateRange(scoped.startDate, scoped.endDate);
 
   if (payload.state === 'unsupported') {
     for (const date of days) {
@@ -475,7 +425,7 @@ async function saveRange(task: RangeTask): Promise<void> {
 
   const byDate = new Map<string, Record<string, unknown>[]>(days.map((date) => [date, []]));
   for (const row of payload.data ?? []) {
-    const date = rowCivilDate(row);
+    const date = historyRowCivilDate(row);
     if (!date || !byDate.has(date)) {
       throw new Error(`Fila Quividi sin fecha reconocible dentro del rango ${scoped.startDate}..${scoped.endDate}.`);
     }
@@ -848,7 +798,7 @@ export const historyCoordinator = onSchedule({
     }
 
     for (let count = 0; count < Math.max(1, Math.floor(EXPORTS_PER_TICK / controls.size)); count++) {
-      const task = monthRangeAt(rangeIndex, rangeStartMonth, locationIds, plan, yesterdayMexico());
+      const task = historyMonthRangeAt(rangeIndex, rangeStartMonth, locationIds, plan, yesterdayMexico());
       if (!task) break;
       const rangeId = [
         LIVERPOOL_NETWORK_ID, task.locationId, task.startDate, task.endDate,

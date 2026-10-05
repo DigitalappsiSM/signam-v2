@@ -64,6 +64,62 @@ export function earliestMeasuredDate(
   return previous && previous < date ? previous : date;
 }
 
+
+export interface HistoryRangeTask {
+  startDate: string;
+  endDate: string;
+  locationId: number;
+  type: string;
+  resolution: string;
+  siteId?: number;
+}
+
+export function historyDateRange(startDate: string, endDate: string): string[] {
+  const result: string[] = [];
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  for (let cursor = Date.parse(`${startDate}T00:00:00Z`); cursor <= end; cursor += 86_400_000) {
+    result.push(new Date(cursor).toISOString().slice(0, 10));
+  }
+  return result;
+}
+
+export function historyRowCivilDate(row: Record<string, unknown>): string | null {
+  for (const key of ['period_start', 'start', 'date', 'timestamp', 'datetime']) {
+    const value = row[key];
+    if (typeof value !== 'string') continue;
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1]!;
+  }
+  return null;
+}
+
+export function historyMonthRangeAt(
+  index: number,
+  startMonth: string,
+  locationIds: readonly number[],
+  plan: readonly { type: string; resolution: string }[],
+  maxDate: string,
+): HistoryRangeTask | null {
+  if (!locationIds.length || !plan.length || index < 0) return null;
+  const exportIndex = index % plan.length;
+  const locationIndex = Math.floor(index / plan.length) % locationIds.length;
+  const monthIndex = Math.floor(index / (plan.length * locationIds.length));
+  const start = new Date(`${startMonth.slice(0, 7)}-01T00:00:00Z`);
+  start.setUTCMonth(start.getUTCMonth() + monthIndex);
+  const startDate = start.toISOString().slice(0, 10);
+  if (startDate > maxDate) return null;
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  end.setUTCDate(0);
+  const monthEnd = end.toISOString().slice(0, 10);
+  return {
+    startDate,
+    endDate: monthEnd < maxDate ? monthEnd : maxDate,
+    locationId: locationIds[locationIndex]!,
+    ...plan[exportIndex]!,
+  };
+}
+
 export interface StoreBinding {
   locationId: number;
   storeId: string;
