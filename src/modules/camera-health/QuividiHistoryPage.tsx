@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import * as XLSX from 'xlsx';
 import { PageHeader } from '@/components/PageHeader';
 import {
   assignQuividiHistoryBinding,
@@ -31,6 +32,76 @@ function displayValue(value: unknown): string {
 function csvCell(value: unknown): string {
   const text = displayValue(value);
   return '"' + text.replaceAll('"', '""') + '"';
+}
+
+
+function normalizedComparisonValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim();
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) {
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) return String(numeric);
+  }
+  return text;
+}
+
+function canonicalComparisonRow(row: Record<string, unknown>, columns: readonly string[]): string {
+  return columns.map((column) => normalizedComparisonValue(row[column])).join('\u001f');
+}
+
+interface NativeComparison {
+  fileName: string;
+  nativeRows: number;
+  signamRows: number;
+  commonColumns: string[];
+  matched: number;
+  onlySignam: number;
+  onlyNative: number;
+}
+
+function compareNativeRows(
+  fileName: string,
+  signamRows: Array<Record<string, unknown>>,
+  nativeRows: Array<Record<string, unknown>>,
+): NativeComparison {
+  const signamColumns = new Set(
+    signamRows.flatMap((row) => Object.keys(row).filter((key) => !key.startsWith('_'))),
+  );
+  const nativeColumns = new Set(nativeRows.flatMap((row) => Object.keys(row)));
+  const commonColumns = [...signamColumns].filter((column) => nativeColumns.has(column)).sort();
+  if (commonColumns.length === 0) {
+    throw new Error('El archivo no comparte columnas RAW con la consulta actual de SIGNAM.');
+  }
+  const counts = (rows: Array<Record<string, unknown>>) => {
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      const key = canonicalComparisonRow(row, commonColumns);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  };
+  const signam = counts(signamRows);
+  const native = counts(nativeRows);
+  let matched = 0;
+  let onlySignam = 0;
+  let onlyNative = 0;
+  const keys = new Set([...signam.keys(), ...native.keys()]);
+  for (const key of keys) {
+    const a = signam.get(key) ?? 0;
+    const b = native.get(key) ?? 0;
+    matched += Math.min(a, b);
+    if (a > b) onlySignam += a - b;
+    if (b > a) onlyNative += b - a;
+  }
+  return {
+    fileName,
+    nativeRows: nativeRows.length,
+    signamRows: signamRows.length,
+    commonColumns,
+    matched,
+    onlySignam,
+    onlyNative,
+  };
 }
 
 function downloadCsv(result: QuividiHistoryExplorerResult) {
@@ -77,6 +148,9 @@ export function QuividiHistoryPage() {
   const [explorerBusy, setExplorerBusy] = useState(false);
   const [explorerError, setExplorerError] = useState('');
   const [explorer, setExplorer] = useState<QuividiHistoryExplorerResult | null>(null);
+  const [nativeComparison, setNativeComparison] = useState<NativeComparison | null>(null);
+  const [nativeCompareError, setNativeCompareError] = useState('');
+
 
   const reload = useCallback(async () => {
     try {
@@ -159,6 +233,33 @@ export function QuividiHistoryPage() {
       setExplorerError(reason instanceof Error ? reason.message : 'No se pudo consultar el histórico guardado.');
     } finally {
       setExplorerBusy(false);
+    }
+  }
+
+
+  async function compareNativeFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !explorer) return;
+    setNativeCompareError('');
+    setNativeComparison(null);
+    try {
+      const bytes = await file.arrayBuffer();
+      const workbook = XLSX.read(bytes, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) throw new Error('El archivo no contiene hojas o datos legibles.');
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) throw new Error('No se pudo leer la primera hoja.');
+      const nativeRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: '',
+        raw: false,
+      });
+      if (nativeRows.length === 0) throw new Error('El archivo de Quividi no contiene filas.');
+      setNativeComparison(compareNativeRows(file.name, explorer.rows, nativeRows));
+    } catch (reason) {
+      setNativeCompareError(
+        reason instanceof Error ? reason.message : 'No se pudo comparar el archivo nativo.',
+      );
     }
   }
 
@@ -338,15 +439,54 @@ export function QuividiHistoryPage() {
                       <strong>RAW disponible para cotejo</strong>
                       <span>{explorer.rows.length.toLocaleString('es-MX')} filas cargadas en la vista</span>
                     </div>
-                    <button
-                      className="btn btn-secondary"
-                      type="button"
-                      disabled={explorer.rows.length === 0}
-                      onClick={() => downloadCsv(explorer)}
-                    >
-                      Exportar CSV visible
-                    </button>
+                    <div className="quividi-history__export-actions">
+                      <label className="btn btn-secondary quividi-history__file-button">
+                        Comparar archivo Quividi
+                        <input
+                          type="file"
+                          accept=".csv,.xlsx,.xls"
+                          disabled={explorer.rows.length === 0}
+                          onChange={(event) => void compareNativeFile(event)}
+                        />
+                      </label>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={explorer.rows.length === 0}
+                        onClick={() => downloadCsv(explorer)}
+                      >
+                        Exportar CSV visible
+                      </button>
+                    </div>
                   </div>
+
+                  {nativeCompareError && (
+                    <p className="quividi-history__error" role="alert">{nativeCompareError}</p>
+                  )}
+                  {nativeComparison && (
+                    <section className="quividi-history__comparison" aria-label="Conciliación contra archivo nativo">
+                      <div>
+                        <span>Archivo nativo</span>
+                        <strong>{nativeComparison.fileName}</strong>
+                        <small>{nativeComparison.commonColumns.length} columnas RAW comparadas</small>
+                      </div>
+                      <div>
+                        <span>Coinciden</span>
+                        <strong>{nativeComparison.matched.toLocaleString('es-MX')}</strong>
+                        <small>filas idénticas en columnas comunes</small>
+                      </div>
+                      <div className={nativeComparison.onlySignam > 0 ? 'is-warning' : 'is-ok'}>
+                        <span>Sólo SIGNAM</span>
+                        <strong>{nativeComparison.onlySignam.toLocaleString('es-MX')}</strong>
+                        <small>requieren revisión</small>
+                      </div>
+                      <div className={nativeComparison.onlyNative > 0 ? 'is-warning' : 'is-ok'}>
+                        <span>Sólo Quividi</span>
+                        <strong>{nativeComparison.onlyNative.toLocaleString('es-MX')}</strong>
+                        <small>faltan o difieren en SIGNAM</small>
+                      </div>
+                    </section>
+                  )}
 
                   <div className="quividi-history__table-wrap">
                     <table className="quividi-history__table">
