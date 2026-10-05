@@ -16,7 +16,7 @@ describe('Quividi persisted history reader', () => {
     );
 
     expect(ids).toHaveLength(20);
-    expect(new Set(ids).size).toBe(12);
+    expect(new Set(ids).size).toBe(20);
     expect(ids).toContain('3089__11__2026-10-03__ots__1d');
     expect(ids).toContain('3089__22__2026-10-04__viewers__1d');
     expect(ids).toContain(
