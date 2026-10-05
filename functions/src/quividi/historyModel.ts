@@ -323,7 +323,7 @@ export function historyPartitionId(
 ): string {
   if (!Number.isInteger(locationId) || locationId < 1 ||
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-      !/^[a-z_]+$/.test(type) || !/^(finest|5m|1h)$/.test(resolution)) {
+      !/^[a-z_]+$/.test(type) || !/^(finest|5m|1h|1d)$/.test(resolution)) {
     throw new RangeError('Partición Quividi inválida.');
   }
   return `${LIVERPOOL_NETWORK_ID}__${locationId}__${date}__${type}__${resolution}`;
