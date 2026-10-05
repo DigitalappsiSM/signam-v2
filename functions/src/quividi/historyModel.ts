@@ -50,6 +50,16 @@ export const CONSUMER_HISTORY_EXPORTS = [
   { type: 'viewers_demographics', resolution: '1d' },
 ] as const;
 
+export function quividiApiExportSpec(type: string): {
+  dataType: string;
+  groupByDemographics: boolean;
+} {
+  if (type === 'viewers_demographics') {
+    return { dataType: 'viewers', groupByDemographics: true };
+  }
+  return { dataType: type, groupByDemographics: false };
+}
+
 /** Audience or traffic rows establish measurement; playback and estimates do not. */
 const MEASUREMENT_TYPES = new Set([
   'viewers', 'viewers_demographics', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
