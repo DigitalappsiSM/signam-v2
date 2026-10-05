@@ -550,7 +550,7 @@ export function QuividiHistoryPage() {
                   </select>
                 </label>
                 <label>
-                  Soporte
+                  Soporte (filtro)
                   <select
                     value={explorerSupport}
                     onChange={(event) => setExplorerSupport(event.target.value)}
