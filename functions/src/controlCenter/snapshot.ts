@@ -88,6 +88,9 @@ export function toTicket(
   row: Row,
   tagNames: string[],
 ): ControlCenterTicket | null {
+  // Defensa adicional: aunque una consulta futura cambie el contexto de Odoo,
+  // un registro archivado nunca debe convertirse en incidencia del mapa.
+  if (row.active === false) return null;
   const stage = relation(row.stage_id);
   if (!isOpenStage(stage)) return null;
   const description = plainHtml(row.description);
