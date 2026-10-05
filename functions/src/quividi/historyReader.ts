@@ -43,31 +43,41 @@ async function partitionRows(
  * location × day × series partition must exist with status=complete before a
  * consumer is allowed to use these rows. This prevents mixed local/API reports.
  */
+export function expectedHistoryPartitionIds(
+  locationIds: readonly number[],
+  dates: readonly string[],
+  specs: readonly PersistedHistorySpec[],
+): string[] {
+  const uniqueLocations = [...new Set(locationIds)].sort((a, b) => a - b);
+  const uniqueDates = [...new Set(dates)].sort();
+  return uniqueLocations.flatMap((locationId) =>
+    uniqueDates.flatMap((date) =>
+      specs.map((spec) =>
+        historyPartitionId(locationId, date, spec.type, spec.resolution),
+      ),
+    ),
+  );
+}
+
 export async function loadPersistedHistory(
   locationIds: readonly number[],
   dates: readonly string[],
   specs: readonly PersistedHistorySpec[],
 ): Promise<PersistedHistoryLoad> {
   const db = getFirestore();
-  const uniqueLocations = [...new Set(locationIds)].sort((a, b) => a - b);
-  const uniqueDates = [...new Set(dates)].sort();
   const rowsBySpec = new Map<string, Record<string, unknown>[]>(
     specs.map((spec) => [specKey(spec), []]),
   );
 
-  const expected = uniqueLocations.flatMap((locationId) =>
-    uniqueDates.flatMap((date) =>
-      specs.map((spec) => ({
-        id: historyPartitionId(
-          locationId,
-          date,
-          spec.type,
-          spec.resolution,
-        ),
-        spec,
-      })),
-    ),
+  const ids = expectedHistoryPartitionIds(locationIds, dates, specs);
+  const specBySuffix = new Map(
+    specs.map((spec) => [`__${spec.type}__${spec.resolution}`, spec]),
   );
+  const expected = ids.map((id) => {
+    const spec = [...specBySuffix].find(([suffix]) => id.endsWith(suffix))?.[1];
+    if (!spec) throw new Error(`Serie histórica desconocida para ${id}.`);
+    return { id, spec };
+  });
 
   const missingPartitionIds: string[] = [];
   for (let offset = 0; offset < expected.length; offset += 250) {
