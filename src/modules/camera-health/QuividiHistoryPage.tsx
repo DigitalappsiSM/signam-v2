@@ -476,7 +476,7 @@ export function QuividiHistoryPage() {
                 onSubmit={(event) => void runExplorer(event)}
               >
                 <label>
-                  Desde
+                  Fecha inicial
                   <input
                     type="date"
                     required
@@ -485,7 +485,7 @@ export function QuividiHistoryPage() {
                   />
                 </label>
                 <label>
-                  Hasta
+                  Fecha final
                   <input
                     type="date"
                     required
