@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { gzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { getFunctions } from 'firebase-admin/functions';
-import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -540,6 +540,140 @@ export const historyOverview = onCall(async (request) => {
         firstMeasuredDate: doc.get('firstMeasuredDate') ?? null,
         hasPendingData: pendingByLocation.get(location.id) ?? false };
     }).sort((a, b) => a.label.localeCompare(b.label, 'es')),
+  };
+});
+
+
+interface HistoryExplorerInput {
+  startDate?: unknown;
+  endDate?: unknown;
+  locationId?: unknown;
+  type?: unknown;
+  resolution?: unknown;
+  storeId?: unknown;
+  support?: unknown;
+  status?: unknown;
+}
+
+async function historicalPartitionRows(doc: QueryDocumentSnapshot): Promise<Record<string, unknown>[]> {
+  const embedded = doc.get('rows');
+  if (Array.isArray(embedded)) return embedded as Record<string, unknown>[];
+  const rawPath = doc.get('rawPath');
+  if (typeof rawPath !== 'string' || !rawPath) return [];
+  const [bytes] = await getStorage().bucket().file(rawPath).download();
+  const payload = JSON.parse(gunzipSync(bytes).toString('utf8')) as { data?: unknown };
+  return Array.isArray(payload.data) ? payload.data as Record<string, unknown>[] : [];
+}
+
+/**
+ * Explorador de conciliación: lee exclusivamente el histórico persistido.
+ * No consulta VidiCenter, por lo que filtrar/exportar aquí no aumenta el consumo de API Quividi.
+ */
+export const historyExplore = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+  if (!request.auth || roleFromClaims(request.auth.token) !== 'admin') {
+    throw new HttpsError('permission-denied', 'Solo admin puede explorar el histórico Quividi.');
+  }
+  const input = (request.data ?? {}) as HistoryExplorerInput;
+  const startDate = typeof input.startDate === 'string' ? input.startDate : '';
+  const endDate = typeof input.endDate === 'string' ? input.endDate : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
+      startDate > endDate) {
+    throw new HttpsError('invalid-argument', 'Selecciona un rango de fechas válido.');
+  }
+  const days = historyDateRange(startDate, endDate);
+  if (days.length > 31) {
+    throw new HttpsError('invalid-argument', 'El explorador admite hasta 31 días por consulta.');
+  }
+
+  const locationId = Number.isInteger(input.locationId) ? input.locationId as number : null;
+  const type = typeof input.type === 'string' ? input.type.trim() : '';
+  const resolution = typeof input.resolution === 'string' ? input.resolution.trim() : '';
+  const storeId = typeof input.storeId === 'string' ? input.storeId.trim() : '';
+  const support = typeof input.support === 'string' ? input.support.trim() : '';
+  const status = typeof input.status === 'string' ? input.status.trim() : '';
+
+  const snapshot = await getFirestore().collection(PARTITIONS)
+    .where('date', '>=', startDate).where('date', '<=', endDate)
+    .orderBy('date').limit(2500).get();
+
+  const docs = snapshot.docs.filter((doc) => {
+    if (locationId !== null && doc.get('locationId') !== locationId) return false;
+    if (type && doc.get('type') !== type) return false;
+    if (resolution && doc.get('resolution') !== resolution) return false;
+    if (storeId && doc.get('storeId') !== storeId) return false;
+    if (support && doc.get('support') !== support) return false;
+    if (status && doc.get('status') !== status) return false;
+    return true;
+  });
+
+  const summary = {
+    partitions: docs.length,
+    complete: docs.filter((doc) => doc.get('status') === 'complete').length,
+    retrying: docs.filter((doc) => doc.get('status') === 'retrying').length,
+    unsupported: docs.filter((doc) => doc.get('status') === 'unsupported').length,
+    empty: docs.filter((doc) => Number(doc.get('rowCount') ?? 0) === 0).length,
+    sourceRows: docs.reduce((sum, doc) => sum + Number(doc.get('rowCount') ?? 0), 0),
+    locations: new Set(docs.map((doc) => doc.get('locationId'))).size,
+    truncatedPartitions: snapshot.size === 2500,
+  };
+
+  const partitionRows = docs.slice(0, 200);
+  const rows: Array<Record<string, unknown>> = [];
+  const columns = new Set<string>();
+  let truncatedRows = false;
+  for (const doc of partitionRows) {
+    if (doc.get('status') !== 'complete') continue;
+    const sourceRows = await historicalPartitionRows(doc);
+    for (const source of sourceRows) {
+      if (rows.length >= 5000) {
+        truncatedRows = true;
+        break;
+      }
+      const row: Record<string, unknown> = {
+        _date: doc.get('date'),
+        _locationId: doc.get('locationId'),
+        _type: doc.get('type'),
+        _resolution: doc.get('resolution'),
+        _storeId: doc.get('storeId') ?? null,
+        _support: doc.get('support') ?? null,
+        ...source,
+      };
+      Object.keys(row).forEach((key) => columns.add(key));
+      rows.push(row);
+    }
+    if (truncatedRows) break;
+  }
+
+  const types = [...new Set(snapshot.docs.map((doc) => String(doc.get('type') ?? '')).filter(Boolean))].sort();
+  const resolutions = [...new Set(snapshot.docs.map((doc) => String(doc.get('resolution') ?? '')).filter(Boolean))].sort();
+  const stores = [...new Map(snapshot.docs
+    .filter((doc) => doc.get('storeId'))
+    .map((doc) => [String(doc.get('storeId')), {
+      storeId: String(doc.get('storeId')),
+      storeName: String(doc.get('storeName') ?? ''),
+    }])).values()].sort((a, b) => a.storeId.localeCompare(b.storeId));
+  const supports = [...new Set(snapshot.docs.map((doc) => String(doc.get('support') ?? '')).filter(Boolean))].sort();
+
+  return {
+    startDate, endDate, summary,
+    partitions: docs.slice(0, 500).map((doc) => ({
+      id: doc.id,
+      date: doc.get('date'),
+      locationId: doc.get('locationId'),
+      type: doc.get('type'),
+      resolution: doc.get('resolution'),
+      status: doc.get('status'),
+      rowCount: doc.get('rowCount') ?? 0,
+      storeId: doc.get('storeId') ?? null,
+      support: doc.get('support') ?? null,
+      mappingStatus: doc.get('mappingStatus') ?? null,
+      currentHash: doc.get('currentHash') ?? null,
+      updatedAt: doc.get('updatedAt') ?? null,
+    })),
+    rows,
+    columns: [...columns],
+    truncatedRows,
+    filters: { types, resolutions, stores, supports },
   };
 });
 
