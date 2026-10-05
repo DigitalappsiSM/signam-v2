@@ -41,11 +41,18 @@ export const HISTORY_EXPORTS = [
   { type: 'retail_analytics_footfall', resolution: '1h' },
   { type: 'retail_analytics_footfall', resolution: 'finest' },
   { type: 'retail_analytics_footfall_aggregated', resolution: '1h' },
+
+] as const;
+
+export const CONSUMER_HISTORY_EXPORTS = [
+  { type: 'ots', resolution: '1d' },
+  { type: 'viewers', resolution: '1d' },
+  { type: 'viewers_demographics', resolution: '1d' },
 ] as const;
 
 /** Audience or traffic rows establish measurement; playback and estimates do not. */
 const MEASUREMENT_TYPES = new Set([
-  'viewers', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
+  'viewers', 'viewers_demographics', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
   'vehicles', 'vehicles_footfall', 'retail_analytics_footfall',
   'retail_analytics_footfall_aggregated',
 ]);
