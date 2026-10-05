@@ -108,7 +108,6 @@ export async function getQuividiHistoryOverview(): Promise<QuividiHistoryOvervie
   return (await callable({})).data;
 }
 
-
 export interface QuividiHistoryExplorerResult {
   startDate: string;
   endDate: string;
