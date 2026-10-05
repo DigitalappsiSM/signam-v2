@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   historyPartitionId,
+  historyDateRange,
+  historyMonthRangeAt,
+  historyRowCivilDate,
   inferredCatalogBinding,
   earliestMeasuredDate,
   isMeasurementExport,
@@ -15,6 +18,40 @@ import {
 } from './historyModel';
 
 describe('Quividi Liverpool history', () => {
+
+  it('splits monthly export ranges into the existing daily partition model', () => {
+    expect(historyDateRange('2026-02-27', '2026-03-02')).toEqual([
+      '2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02',
+    ]);
+    expect(historyRowCivilDate({ period_start: '2026-09-15T11:00:00' })).toBe('2026-09-15');
+    expect(historyRowCivilDate({ timestamp: '2026-09-16 08:30:00' })).toBe('2026-09-16');
+    expect(historyRowCivilDate({ value: 10 })).toBeNull();
+  });
+
+  it('builds one monthly Quividi export per location and data type, capped at D-1', () => {
+    const plan = [
+      { type: 'ots', resolution: '1h' },
+      { type: 'viewers', resolution: '1h' },
+    ];
+    expect(historyMonthRangeAt(0, '2026-06-01', [11, 22], plan, '2026-08-14')).toEqual({
+      startDate: '2026-06-01', endDate: '2026-06-30',
+      locationId: 11, type: 'ots', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(3, '2026-06-01', [11, 22], plan, '2026-08-14')).toEqual({
+      startDate: '2026-06-01', endDate: '2026-06-30',
+      locationId: 22, type: 'viewers', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(4, '2026-06-01', [11, 22], plan, '2026-08-14')).toEqual({
+      startDate: '2026-07-01', endDate: '2026-07-31',
+      locationId: 11, type: 'ots', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(8, '2026-06-01', [11, 22], plan, '2026-08-14')).toEqual({
+      startDate: '2026-08-01', endDate: '2026-08-14',
+      locationId: 11, type: 'ots', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(12, '2026-06-01', [11, 22], plan, '2026-08-14')).toBeNull();
+  });
+
   it('keeps one store identity across location replacement, with dated evidence', () => {
     const old = {
       locationId: 11, storeId: 'LIV-007', storeName: 'Santa Fe',
