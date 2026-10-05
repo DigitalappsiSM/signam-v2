@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CONSUMER_HISTORY_EXPORTS,
   historyPartitionId,
   historyDateRange,
   historyMonthRangeAt,
   historyRowCivilDate,
+  quividiApiExportSpec,
   inferredCatalogBinding,
   earliestMeasuredDate,
   isMeasurementExport,
@@ -50,6 +52,34 @@ describe('Quividi Liverpool history', () => {
       locationId: 11, type: 'ots', resolution: '1h',
     });
     expect(historyMonthRangeAt(12, '2026-06-01', [11, 22], plan, '2026-08-14')).toBeNull();
+  });
+
+  it('stores native daily series required by reports and camera health', () => {
+    expect(CONSUMER_HISTORY_EXPORTS).toEqual([
+      { type: 'ots', resolution: '1d' },
+      { type: 'viewers', resolution: '1d' },
+      { type: 'viewers_demographics', resolution: '1d' },
+    ]);
+    expect(quividiApiExportSpec('viewers_demographics')).toEqual({
+      dataType: 'viewers',
+      groupByDemographics: true,
+    });
+    expect(quividiApiExportSpec('ots')).toEqual({
+      dataType: 'ots',
+      groupByDemographics: false,
+    });
+    expect(historyPartitionId(22, '2026-09-01', 'ots', '1d')).toContain(
+      '__ots__1d',
+    );
+    expect(
+      historyPartitionId(
+        22,
+        '2026-09-01',
+        'viewers_demographics',
+        '1d',
+      ),
+    ).toContain('__viewers_demographics__1d');
+    expect(isMeasurementExport('viewers_demographics')).toBe(true);
   });
 
   it('keeps one store identity across location replacement, with dated evidence', () => {

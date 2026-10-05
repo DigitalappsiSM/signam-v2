@@ -10,6 +10,7 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { roleFromClaims } from './access';
 import type { ScreenDoc } from './effectiveScope';
 import {
+  CONSUMER_HISTORY_EXPORTS,
   HISTORY_EXPORTS,
   HISTORY_START_DATE,
   LIVERPOOL_NETWORK_ID,
@@ -17,6 +18,7 @@ import {
   historyDateRange,
   historyMonthRangeAt,
   historyRowCivilDate,
+  quividiApiExportSpec,
   earliestMeasuredDate,
   historyPartitionId,
   inferredCatalogBinding,
@@ -210,13 +212,15 @@ async function fetchExport(task: RangeTask): Promise<{
   data?: Record<string, unknown>[];
   [key: string]: unknown;
 }> {
+  const apiSpec = quividiApiExportSpec(task.type);
   const params = new URLSearchParams({
     [task.siteId ? 'sites' : 'locations']: String(task.siteId ?? task.locationId),
     start: `${task.startDate}T00:00:00`,
     end: `${task.endDate}T23:59:59`,
-    data_type: task.type,
+    data_type: apiSpec.dataType,
     time_resolution: task.resolution,
   });
+  if (apiSpec.groupByDemographics) params.set('group_by_demographics', '1');
   if (task.type.startsWith('extrapolated_')) {
     // Empty amount requests Quividi's sample average; it remains labelled derived.
     params.set('extrapolation_amount', '');
@@ -819,10 +823,18 @@ export const historyInventoryDaily = onSchedule({
     } satisfies ReconcileTask);
   }
   if (newIds.length) {
+    const sorted = newIds.sort((a, b) => a - b);
     await db.collection(CONTROL).doc(`liverpool-${today}`).create({
-      networkId: LIVERPOOL_NETWORK_ID, locationIds: newIds.sort((a, b) => a - b),
+      networkId: LIVERPOOL_NETWORK_ID, locationIds: sorted,
       exportPlan: HISTORY_EXPORTS.map((item) => ({ ...item })),
       nextIndex: 0, startDate: HISTORY_START_DATE, status: 'running', startedAt: Date.now(),
+    });
+    await db.collection(CONTROL).doc(`liverpool-consumer-${today}`).create({
+      networkId: LIVERPOOL_NETWORK_ID, locationIds: sorted,
+      exportPlan: CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
+      nextIndex: 0, rangeStartMonth: HISTORY_START_DATE,
+      rangeNextIndex: 0, startDate: HISTORY_START_DATE,
+      status: 'running', startedAt: Date.now(), supplementalSeries: true,
     });
   }
   if (conflicts.length) console.warn('Conflictos de tienda/punto en catálogo Quividi.', conflicts);
@@ -837,7 +849,8 @@ export const historyPartition = onTaskDispatched<ExportTask>({
   retryConfig: { maxAttempts: 8, minBackoffSeconds: 60 },
 }, async (request) => {
   const task = request.data;
-  if (!HISTORY_EXPORTS.some((item) => item.type === task.type &&
+  const allowedExports = [...HISTORY_EXPORTS, ...CONSUMER_HISTORY_EXPORTS];
+  if (!allowedExports.some((item) => item.type === task.type &&
       item.resolution === task.resolution)) throw new Error('Export no permitido.');
   const isRange = 'startDate' in task && 'endDate' in task;
   const startDate = isRange ? task.startDate : task.date;
@@ -880,7 +893,33 @@ export const historyCoordinator = onSchedule({
   const queue = getFunctions().taskQueue('quividi-historyPartition');
   const primary = await db.collection(CONTROL).doc('liverpool').get();
   if (primary.exists) {
-    const plan = primary.get('exportPlan') as ExportSpec[];
+    const supplementalRef = db.collection(CONTROL).doc('liverpool-consumer-v1');
+    const supplemental = await supplementalRef.get();
+    if (!supplemental.exists) {
+      const inventory = await db.collection(INVENTORY).get();
+      const locationIds = inventory.docs.map((doc) => Number(doc.id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+        .sort((a, b) => a - b);
+      if (locationIds.length) {
+        await supplementalRef.create({
+          networkId: LIVERPOOL_NETWORK_ID,
+          locationIds,
+          exportPlan: CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
+          nextIndex: 0,
+          rangeStartMonth: HISTORY_START_DATE,
+          rangeNextIndex: 0,
+          startDate: HISTORY_START_DATE,
+          status: 'running',
+          startedAt: Date.now(),
+          supplementalSeries: true,
+        });
+      }
+    }
+
+    const plan = [
+      ...(primary.get('exportPlan') as ExportSpec[]),
+      ...CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
+    ];
     const allIds = [...new Set(controls.docs.flatMap((doc) =>
       doc.get('locationIds') as number[]))].sort((a, b) => a - b);
     const refreshDay = todayMexico();

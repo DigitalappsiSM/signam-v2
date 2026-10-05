@@ -41,11 +41,28 @@ export const HISTORY_EXPORTS = [
   { type: 'retail_analytics_footfall', resolution: '1h' },
   { type: 'retail_analytics_footfall', resolution: 'finest' },
   { type: 'retail_analytics_footfall_aggregated', resolution: '1h' },
+
 ] as const;
+
+export const CONSUMER_HISTORY_EXPORTS = [
+  { type: 'ots', resolution: '1d' },
+  { type: 'viewers', resolution: '1d' },
+  { type: 'viewers_demographics', resolution: '1d' },
+] as const;
+
+export function quividiApiExportSpec(type: string): {
+  dataType: string;
+  groupByDemographics: boolean;
+} {
+  if (type === 'viewers_demographics') {
+    return { dataType: 'viewers', groupByDemographics: true };
+  }
+  return { dataType: type, groupByDemographics: false };
+}
 
 /** Audience or traffic rows establish measurement; playback and estimates do not. */
 const MEASUREMENT_TYPES = new Set([
-  'viewers', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
+  'viewers', 'viewers_demographics', 'ots', 'viewers_apc', 'compass', 'footfall', 'gate',
   'vehicles', 'vehicles_footfall', 'retail_analytics_footfall',
   'retail_analytics_footfall_aggregated',
 ]);
@@ -306,7 +323,7 @@ export function historyPartitionId(
 ): string {
   if (!Number.isInteger(locationId) || locationId < 1 ||
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-      !/^[a-z_]+$/.test(type) || !/^(finest|5m|1h)$/.test(resolution)) {
+      !/^[a-z_]+$/.test(type) || !/^(finest|5m|1h|1d)$/.test(resolution)) {
     throw new RangeError('Partición Quividi inválida.');
   }
   return `${LIVERPOOL_NETWORK_ID}__${locationId}__${date}__${type}__${resolution}`;
