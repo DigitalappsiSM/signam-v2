@@ -377,16 +377,18 @@ campaña con estado manual, se conserva y se avisa en la vista previa.
   motivo registrado)».
 - El informe Quividi se bloquea también en la Cloud Function, no solo en la UI.
 
-## Panel: carga por tienda y soporte
+## Panel: selector de retailer y carga por tienda y soporte
 
-El Dashboard incluye la sección **Carga por tienda y soporte** (además del
-resumen operativo y las alertas). Deriva todo en memoria de `campaigns`,
-`screens` y `campaignOperationalTracking` (modelo puro `occupancyModel.ts`); no
-persiste métricas en Firestore ni reejecuta la consolidación CSV. Solo cuentan
-las campañas **activas**: en pausa, canceladas, duplicadas y retiradas quedan
-fuera de la carga (ver «Estados de campaña»).
+Con permiso `digitalOperations.read` el Dashboard muestra un **selector de
+retailer** (Liverpool, Chedraui, La Comer, Soriana, San Pablo; color fijo por
+cliente) que absorbe la operación Digital multirretailer, antes suelta al fondo
+de la página. Sin ese permiso el Panel se comporta como antes: un solo cliente
+(Liverpool), sin selector. Elegir Chedraui o La Comer muestra el panel de
+Operación Digital filtrado a ese único retailer; Soriana y San Pablo, sin
+perfil en el Catálogo digital todavía, muestran un estado vacío con acceso
+directo para darlos de alta (solo admin).
 
-La vista prioriza la lectura ejecutiva con tarjetas KPI, semáforos textuales,
+La vista prioriza la lectura ejecutiva con cifras clave, semáforos textuales,
 gráfica principal, estado operativo, acciones rápidas y paneles de atención. Los
 tonos no usan umbrales arbitrarios: **verde** = al día/sin incidencias,
 **amarillo** = revisión o vencimiento próximo, **rojo** = vencido o terminado
@@ -400,11 +402,13 @@ a darlos de alta solo para admin). El selector solo aparece con permiso
 `digitalOperations.read`; sin él, el Panel muestra únicamente Liverpool.
 
 Liverpool se organiza en tres pestañas que comparten filtros y datos: **Hoy**
-(KPIs, estado operativo, **Atención inmediata** y **Carga diaria**),
-**Seguimiento** (**Atención operativa** y **Estados de campaña**) y **Carga**
-(detalle de ocupación por tienda/soporte); **Acciones rápidas** queda visible en
-las tres. El cliente y la pestaña se reflejan en la URL (`retailer`, `vista`). El
-botón **Actualizar** recarga también el panel digital del retailer seleccionado.
+(cifras clave fundidas como texto clicable y reordenable dentro del héroe de
+estado operativo — no una grilla de tarjetas aparte —, más **Atención
+inmediata** y **Carga diaria**), **Seguimiento** (**Atención operativa** y
+**Estados de campaña**) y **Carga** (detalle de ocupación por tienda/soporte);
+**Acciones rápidas** queda visible en las tres. El cliente y la pestaña se
+reflejan en la URL (`retailer`, `vista`). El botón **Actualizar** recarga
+también el panel digital del retailer seleccionado.
 
 - **Métrica principal:** _pico de campañas simultáneas_ — máximo, en cualquier
   día del periodo, de campañas distintas que usan esa tienda/soporte.

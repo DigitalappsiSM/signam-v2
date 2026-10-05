@@ -507,7 +507,6 @@ button {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .dash-tile,
   .occ-card,
   .occ-panel,
   .occ-chart,
@@ -517,36 +516,29 @@ button {
     animation: ui-reveal 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
   }
 
-  /* Escalonado de las rejillas de KPIs y tarjetas del panel. */
-  .dash-summary .dash-tile:nth-child(1),
+  /* Escalonado de las rejillas de tarjetas del panel. */
   .occ-cards .occ-card:nth-child(1) {
     animation-delay: 0.02s;
   }
-  .dash-summary .dash-tile:nth-child(2),
   .occ-cards .occ-card:nth-child(2) {
     animation-delay: 0.07s;
   }
-  .dash-summary .dash-tile:nth-child(3),
   .occ-cards .occ-card:nth-child(3) {
     animation-delay: 0.12s;
   }
-  .dash-summary .dash-tile:nth-child(4),
   .occ-cards .occ-card:nth-child(4) {
     animation-delay: 0.17s;
   }
-  .dash-summary .dash-tile:nth-child(5),
   .occ-cards .occ-card:nth-child(5) {
     animation-delay: 0.22s;
   }
 
   /* Micro-interacción: la tarjeta se eleva ligeramente al pasar el cursor. */
-  .dash-tile,
   .occ-card {
     transition:
       transform 0.15s ease,
       box-shadow 0.15s ease;
   }
-  .dash-tile:hover,
   .occ-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-pop);

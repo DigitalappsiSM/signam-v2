@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
 import { NAV_ROUTES } from '@/app/routes';
 import { canAccessRoute } from '@/app/routes';
 import { can } from '@/app/permissions';
@@ -71,15 +71,30 @@ type KpiId = 'active' | 'full' | 'ontrack' | 'alerts' | 'overdue';
 
 interface Kpi {
   id: KpiId;
-  icon: IconName;
   label: string;
   status: string;
   tone: DashboardTone;
   rows: TrackingRow[];
-  /** Línea de contexto derivada del propio periodo (sin históricos nuevos). */
-  context?: string;
-  /** Proporción 0–100 para la mini-barra, cuando el contexto es un porcentaje. */
-  meter?: number;
+}
+
+/** Orden por defecto de las cifras del héroe; el usuario puede arrastrarlas
+ * para reordenarlas, y esa preferencia se recuerda en este navegador. */
+const KPI_IDS: KpiId[] = ['active', 'full', 'ontrack', 'alerts', 'overdue'];
+const KPI_ORDER_STORAGE_KEY = 'signam.dashboard.kpiOrder';
+
+function loadKpiOrder(): KpiId[] {
+  try {
+    const raw = localStorage.getItem(KPI_ORDER_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return KPI_IDS;
+    const valid = parsed.filter((id): id is KpiId =>
+      KPI_IDS.includes(id as KpiId),
+    );
+    const missing = KPI_IDS.filter((id) => !valid.includes(id));
+    return [...valid, ...missing];
+  } catch {
+    return KPI_IDS;
+  }
 }
 
 type LiverpoolView = 'hoy' | 'seguimiento' | 'carga';
@@ -692,66 +707,77 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
     [selection],
   );
 
-  // --- Tarjetas KPI interactivas -------------------------------------------
-  // Los contextos son SIEMPRE derivables del propio periodo (porcentajes,
-  // desgloses de conteos ya calculados). No se comparan con periodos anteriores
-  // porque el modelo no persiste histórico de estos indicadores.
+  // --- Cifras del héroe (clicables, reordenables) --------------------------
   const urgentCount = view.overdueOrFinishedPending.length;
-  const activeCount = view.active.length;
-  const fullPct = activeCount
-    ? Math.round((view.full.length / activeCount) * 100)
-    : 0;
   const kpis: Kpi[] = [
     {
       id: 'active',
-      icon: 'activity',
       label: 'Campañas activas',
       status: 'En ejecución',
       tone: 'info',
       rows: view.active,
-      context: `${activeCount - view.withAlerts.length} sin alertas`,
     },
     {
       id: 'full',
-      icon: 'check-circle',
       label: 'Seguimiento completo',
       status: 'Completas',
       tone: 'success',
       rows: view.full,
-      context: `${fullPct}% de las activas`,
-      meter: fullPct,
     },
     {
       id: 'ontrack',
-      icon: 'clock',
       label: 'En curso sin atrasos',
       status: 'Al día',
       tone: 'success',
       rows: view.onTrack,
-      context: 'Sin alertas ni vencidas',
     },
     {
       id: 'alerts',
-      icon: 'alert-triangle',
       label: 'Con alertas',
       status: view.withAlerts.length > 0 ? 'Revisión' : 'Sin alertas',
       tone: view.withAlerts.length > 0 ? 'warning' : 'success',
       rows: view.withAlerts,
-      context: `${view.upcomingDue.length} próximas a vencer`,
     },
     {
       id: 'overdue',
-      icon: 'bell',
       label: 'Vencidas con pendientes',
       status: urgentCount > 0 ? 'Urgente' : 'Sin vencidas',
       tone: urgentCount > 0 ? 'danger' : 'success',
       rows: view.overdueOrFinishedPending,
-      context: `${view.overduePending.length} vencidas · ${view.finishedPending.length} terminadas`,
     },
   ];
   const [kpiSelection, setKpiSelection] = useState<KpiId | null>(null);
   const selectedKpi = kpis.find((k) => k.id === kpiSelection) ?? null;
   const periodLabel = rangeLabel(range);
+
+  // Orden de las cifras: arrastrar una sobre otra la reubica; se recuerda en
+  // este navegador (misma idea que el tema claro/oscuro).
+  const [kpiOrder, setKpiOrder] = useState<KpiId[]>(loadKpiOrder);
+  useEffect(() => {
+    try {
+      localStorage.setItem(KPI_ORDER_STORAGE_KEY, JSON.stringify(kpiOrder));
+    } catch {
+      // Ignorar entornos sin almacenamiento.
+    }
+  }, [kpiOrder]);
+  const orderedKpis = kpiOrder
+    .map((id) => kpis.find((k) => k.id === id))
+    .filter((k): k is Kpi => Boolean(k));
+  const [dragKpiId, setDragKpiId] = useState<KpiId | null>(null);
+  const [dragOverKpiId, setDragOverKpiId] = useState<KpiId | null>(null);
+  const dropKpi = (target: KpiId) => {
+    setKpiOrder((order) => {
+      if (!dragKpiId || dragKpiId === target) return order;
+      const from = order.indexOf(dragKpiId);
+      const to = order.indexOf(target);
+      if (from === -1 || to === -1) return order;
+      const next = [...order];
+      next.splice(to, 0, next.splice(from, 1)[0]!);
+      return next;
+    });
+    setDragKpiId(null);
+    setDragOverKpiId(null);
+  };
 
   // Anillo de salud del hero: circunferencia y desfase según la puntuación.
   const healthCirc = 2 * Math.PI * 52;
@@ -859,30 +885,6 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
 
               {liverpoolView === 'hoy' && (
                 <>
-                  <section
-                    className="dash-summary"
-                    aria-label="Resumen de campañas activas"
-                  >
-                    {kpis.map((kpi) => (
-                      <SummaryTile
-                        key={kpi.id}
-                        icon={kpi.icon}
-                        label={kpi.label}
-                        status={kpi.status}
-                        tone={kpi.tone}
-                        value={kpi.rows.length}
-                        context={kpi.context}
-                        meter={kpi.meter}
-                        selected={kpiSelection === kpi.id}
-                        onSelect={() =>
-                          setKpiSelection((cur) =>
-                            cur === kpi.id ? null : kpi.id,
-                          )
-                        }
-                      />
-                    ))}
-                  </section>
-
                   {selectedKpi && (
                     <KpiDetailPanel
                       title={selectedKpi.label}
@@ -932,27 +934,56 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
                         </span>
                         <h2>{operationalHealth.label}</h2>
                         <p>{operationalHealth.detail}</p>
-                        <div className="dashboard-health__meta">
-                          <div>
-                            <b className="tabnum">{view.active.length}</b>
-                            <span>activas</span>
-                          </div>
-                          <div>
-                            <b className="tabnum is-warn">
-                              {view.withAlerts.length}
-                            </b>
-                            <span>con alertas</span>
-                          </div>
-                          <div>
-                            <b className="tabnum is-bad">
-                              {view.overdueOrFinishedPending.length}
-                            </b>
-                            <span>vencidas / pend.</span>
-                          </div>
-                          <div>
-                            <b className="tabnum">{view.full.length}</b>
-                            <span>seguimiento completo</span>
-                          </div>
+                        <div
+                          className="dashboard-health__meta"
+                          aria-label="Resumen de campañas activas"
+                        >
+                          {orderedKpis.map((kpi) => (
+                            <button
+                              key={kpi.id}
+                              type="button"
+                              className={`health-stat health-stat--${kpi.tone}${
+                                dragKpiId === kpi.id
+                                  ? ' health-stat--dragging'
+                                  : ''
+                              }${
+                                dragOverKpiId === kpi.id
+                                  ? ' health-stat--drag-over'
+                                  : ''
+                              }`}
+                              aria-pressed={kpiSelection === kpi.id}
+                              aria-label={`${kpi.label}: ${kpi.rows.length}. ${kpi.status}. Ver detalle`}
+                              draggable
+                              onDragStart={() => setDragKpiId(kpi.id)}
+                              onDragEnd={() => {
+                                setDragKpiId(null);
+                                setDragOverKpiId(null);
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                if (dragKpiId && dragKpiId !== kpi.id) {
+                                  setDragOverKpiId(kpi.id);
+                                }
+                              }}
+                              onDragLeave={() =>
+                                setDragOverKpiId((cur) =>
+                                  cur === kpi.id ? null : cur,
+                                )
+                              }
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                dropKpi(kpi.id);
+                              }}
+                              onClick={() =>
+                                setKpiSelection((cur) =>
+                                  cur === kpi.id ? null : kpi.id,
+                                )
+                              }
+                            >
+                              <b className="tabnum">{kpi.rows.length}</b>
+                              <span>{kpi.label}</span>
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </section>
@@ -1371,72 +1402,6 @@ export function DashboardPage({ role = 'admin' }: { role?: UserRole }) {
         </div>
       </section>
     </div>
-  );
-}
-
-function SummaryTile({
-  icon,
-  label,
-  status,
-  value,
-  tone,
-  context,
-  meter,
-  selected,
-  onSelect,
-}: {
-  icon: IconName;
-  label: string;
-  status: string;
-  value: number;
-  tone: DashboardTone;
-  context?: string;
-  meter?: number;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`dash-tile dash-tile--${tone}${
-        selected ? ' dash-tile--selected' : ''
-      }`}
-      aria-pressed={selected}
-      aria-label={`${label}: ${value}. ${status}. Ver detalle`}
-      onClick={onSelect}
-    >
-      <div className="dash-tile__top">
-        <span className="dash-tile__icon" aria-hidden="true">
-          <Icon name={icon} size={20} />
-        </span>
-        <span className="dash-tile__status">
-          <span className="dash-tile__status-dot" aria-hidden="true" />
-          {status}
-        </span>
-      </div>
-      <div>
-        <div className="dash-tile__value">{value}</div>
-        <div className="dash-tile__label">{label}</div>
-        {context && (
-          <div className="dash-tile__context">
-            <span>{context}</span>
-            {typeof meter === 'number' && (
-              <span
-                className="dash-tile__meter"
-                aria-hidden="true"
-                data-empty={meter === 0 ? '' : undefined}
-              >
-                <i style={{ width: `${Math.max(meter, 2)}%` }} />
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      <span className="dash-tile__action">
-        {selected ? 'Ocultar detalle' : 'Ver detalle'}
-        <Icon name="chevron-down" size={14} />
-      </span>
-    </button>
   );
 }
 

@@ -492,23 +492,44 @@ Detalle técnico completo: [`docs/QUIVIDI_PHASE_2.md`](./QUIVIDI_PHASE_2.md).
 
 ### 6.5 Panel — Carga por tienda y soporte (`/`)
 
-- El Dashboard conserva su resumen operativo (activas, alertas críticas,
-  vencimientos, inicios, terminadas con pendientes) y añade la sección **Carga
-  por tienda y soporte**, derivada en memoria de `campaigns`, `screens` y
-  `campaignOperationalTracking` (modelo puro `occupancyModel.ts`). **No** persiste
-  agregados en Firestore ni reejecuta `consolidate()` (no reutiliza sus
-  resultados porque excluyen InStore Media y agrupan por resolución). La sección
-  de carga **recibe todas las campañas**, incluidas las **canceladas** (solo el
-  resumen operativo superior las excluye); su resultado no cambia por el estado
-  de ciclo de vida.
-- **Jerarquía visual y semáforos**: la cabecera presenta KPIs con icono, texto y
-  tono semántico; la gráfica diaria y sus filtros ocupan el panel principal; un
-  rail lateral muestra salud operativa, clasificación y acciones rápidas; las
-  listas de atención quedan debajo. Azul = informativo, verde = al día, amarillo
-  = revisión/vencimiento próximo, rojo = vencido/terminado con pendientes y gris
-  = neutral. El color nunca es el único medio de comunicar el estado.
+- **Selector de retailer + pestañas**: con permiso `digitalOperations.read` el
+  Panel muestra un selector de cliente (Liverpool, Chedraui, La Comer, Soriana,
+  San Pablo; color fijo por cliente) para absorber la operación Digital
+  multirretailer, que deja de ser una sección suelta al fondo de la página. Sin
+  ese permiso el Panel se comporta como un solo cliente (Liverpool, sin
+  selector). Elegir Chedraui o La Comer muestra `DigitalDashboardPanel` filtrado
+  a ese único retailer (ya no hay desglose "Por retailer": con un solo valor no
+  aporta). Soriana y San Pablo, sin perfil en el Catálogo digital todavía,
+  muestran un estado vacío explícito con acceso directo a darlos de alta (solo
+  admin, `digitalCatalog.manage`).
+- **Liverpool en pestañas**: para absorber el resumen operativo, Liverpool se
+  organiza en tres pestañas que reutilizan el 100% de la lógica y datos
+  existentes — **Hoy** (cifras clave fundidas en el héroe de salud operativa,
+  atención inmediata y carga diaria), **Seguimiento** (alertas críticas,
+  próximos vencimientos/inicios, terminadas con pendientes y estados de
+  campaña) y **Carga** (detalle de carga por tienda y soporte). Los filtros
+  globales del panel (periodo, clasificación, origen, propietario, soporte,
+  tienda, búsqueda) siguen recortando las tres. Todo deriva en memoria de
+  `campaigns`, `screens` y `campaignOperationalTracking` (modelo puro
+  `occupancyModel.ts`). **No** persiste agregados en Firestore ni reejecuta
+  `consolidate()` (no reutiliza sus resultados porque excluyen InStore Media y
+  agrupan por resolución). La pestaña de carga **recibe todas las campañas**,
+  incluidas las **canceladas** (solo el resumen operativo de Hoy/Seguimiento
+  las excluye); su resultado no cambia por el estado de ciclo de vida.
+- **Jerarquía visual y semáforos**: en la pestaña Hoy no hay una grilla de
+  tarjetas KPI aparte — las cinco cifras (activas, seguimiento completo, al
+  día, con alertas, vencidas con pendientes) son texto clicable dentro del
+  héroe "Estado operativo"; cada una abre el mismo `KpiDetailPanel` de siempre
+  y se puede arrastrar para reordenar (el orden se recuerda por navegador,
+  `localStorage` clave `signam.dashboard.kpiOrder`). La gráfica diaria completa
+  el panel principal. Azul = informativo, verde = al día, amarillo =
+  revisión/vencimiento próximo, rojo = vencido/terminado con pendientes y gris =
+  neutral. El color nunca es el único medio de comunicar el estado.
 - **Fuentes separadas**: el bloque Digital multirretailer conserva sus métricas
-  y colecciones independientes; no agrega cifras con Liverpool.
+  y colecciones independientes; no agrega cifras con Liverpool. El botón
+  "Actualizar" refresca ambas fuentes (Liverpool y, si hay un retailer digital
+  seleccionado, su panel) para que la marca de tiempo nunca sugiera datos más
+  frescos de los que realmente se recargaron.
 - **Definición de carga**: métrica principal **pico de campañas simultáneas**
   (`peakConcurrentCampaigns`) = máximo, para cualquier día civil del periodo, de
   campañas distintas que usan esa tienda/soporte ese día. Complementarias:

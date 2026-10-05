@@ -147,10 +147,10 @@ describe('DashboardPage — resumen operativo', () => {
     const summary = await screen.findByLabelText('Resumen de campañas activas');
     expect(
       within(summary).getByLabelText(/Campañas activas: 0\. En ejecución/i),
-    ).toHaveClass('dash-tile--info');
+    ).toHaveClass('health-stat--info');
     expect(
       within(summary).getByLabelText(/Vencidas con pendientes: 1\. Urgente/i),
-    ).toHaveClass('dash-tile--danger');
+    ).toHaveClass('health-stat--danger');
 
     const actionsTitle = screen.getByRole('heading', {
       name: /Acciones rápidas/i,

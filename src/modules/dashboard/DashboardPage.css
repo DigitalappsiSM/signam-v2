@@ -155,186 +155,83 @@
   font-weight: 700;
 }
 
-/* --- KPI / semáforo ------------------------------------------------------ */
-.dash-summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.dash-tile {
-  --dash-tone: var(--color-primary);
-  position: relative;
-  min-height: 158px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.7rem;
-  width: 100%;
-  padding: 1rem 1.05rem 1.1rem;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-top: 3px solid var(--dash-tone);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+/* --- Cifras del héroe (antes: grilla de 5 tarjetas) ---------------------- */
+/* Texto plano dentro de "Estado operativo", separado por divisores finos —
+   nunca una caja con borde/sombra propios. Cada una abre el mismo
+   KpiDetailPanel de siempre y se puede arrastrar para reordenar; el orden
+   se recuerda por navegador (ver `loadKpiOrder` en DashboardPage.tsx). */
+.health-stat {
+  appearance: none;
+  border: none;
+  background: none;
   font: inherit;
   color: inherit;
   text-align: left;
-  cursor: pointer;
-  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  cursor: grab;
+  padding: 0.2rem 1.05rem 0.25rem;
+  margin: 0;
+  border-radius: var(--radius-sm);
+  border-left: 1px solid var(--color-border);
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+    background 0.15s ease,
+    opacity 0.12s ease;
 }
 
-.dash-tile:hover {
-  border-color: color-mix(in srgb, var(--dash-tone) 55%, var(--color-border));
-  transform: translateY(-1px);
+.health-stat:first-child {
+  border-left: none;
+  padding-left: 0;
 }
 
-.dash-tile:focus-visible {
-  outline: 2px solid var(--dash-tone);
-  outline-offset: 2px;
+.health-stat:hover,
+.health-stat:focus-visible {
+  background: var(--color-surface-2);
+  outline: none;
 }
 
-.dash-tile--selected {
-  border-color: var(--dash-tone);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dash-tone) 45%, transparent);
+.health-stat:active {
+  cursor: grabbing;
 }
 
-.dash-tile__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: color-mix(in srgb, var(--dash-tone) 80%, var(--color-text));
-  font-size: 0.72rem;
-  font-weight: 700;
+.health-stat--dragging {
+  opacity: 0.4;
 }
 
-.dash-tile--selected .dash-tile__action svg {
-  transform: rotate(180deg);
+.health-stat--drag-over {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-2));
 }
 
-.dash-tile::after {
-  content: '';
-  position: absolute;
-  width: 88px;
-  height: 88px;
-  right: -38px;
-  bottom: -42px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--dash-tone) 12%, transparent);
-  pointer-events: none;
+.health-stat[aria-pressed='true'] b {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
-.dash-tile--info {
-  --dash-tone: var(--color-primary);
-}
-
-.dash-tile--success {
-  --dash-tone: var(--color-success);
-}
-
-.dash-tile--warning {
-  --dash-tone: var(--color-warning);
-}
-
-.dash-tile--danger {
-  --dash-tone: var(--color-danger);
-}
-
-.dash-tile__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.dash-tile__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 11px;
-  color: var(--dash-tone);
-  background: color-mix(in srgb, var(--dash-tone) 12%, transparent);
-}
-
-.dash-tile__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-  color: color-mix(in srgb, var(--dash-tone) 85%, var(--color-text));
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: right;
-}
-
-.dash-tile__status-dot {
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--dash-tone);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dash-tone) 14%, transparent);
-}
-
-.dash-tile__value {
+.health-stat b {
   font-family: var(--font-display);
-  font-size: clamp(1.85rem, 3vw, 2.35rem);
+  font-size: 1.2rem;
   font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--color-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
 
-.dash-tile__label {
-  margin-top: 0.35rem;
+.health-stat span {
+  font-size: 0.72rem;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
   font-weight: 600;
-  line-height: 1.25;
+  white-space: nowrap;
 }
 
-/* Línea de contexto: siempre derivada del propio periodo (porcentaje o
-   desglose de conteos ya calculados), nunca una comparación con histórico. */
-.dash-tile__context {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  color: var(--color-text-muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.2;
+.health-stat--warning b {
+  color: var(--color-warning-fg);
 }
 
-.dash-tile__context > span:first-child {
-  min-width: 0;
-}
-
-.dash-tile__meter {
-  flex: 1;
-  height: 4px;
-  min-width: 26px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--dash-tone) 15%, var(--color-surface-2));
-}
-
-.dash-tile__meter i {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--dash-tone);
+.health-stat--danger b {
+  color: var(--color-danger-fg);
 }
 
 /* --- Vista principal: columna operativa + rail lateral ------------------ */
@@ -554,33 +451,8 @@
 .dashboard-health__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem 1.4rem;
-}
-
-.dashboard-health__meta > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-health__meta b {
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.dashboard-health__meta .is-warn {
-  color: var(--color-warning-fg);
-}
-
-.dashboard-health__meta .is-bad {
-  color: var(--color-danger-fg);
-}
-
-.dashboard-health__meta span {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
+  gap: 0;
+  margin: 0 -0.1rem;
 }
 
 .tabnum {
@@ -1394,10 +1266,6 @@
 }
 
 @media (max-width: 1180px) {
-  .dash-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .dashboard-overview {
     grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
   }
@@ -1422,14 +1290,9 @@
 }
 
 @media (max-width: 720px) {
-  .dash-summary,
   .dash-grid,
   .dashboard-rail {
     grid-template-columns: 1fr;
-  }
-
-  .dash-tile {
-    min-height: 150px;
   }
 
   .dashboard-health {
