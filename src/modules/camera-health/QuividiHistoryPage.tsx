@@ -140,8 +140,7 @@ function downloadCsv(result: QuividiHistoryExplorerResult) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download =
-    `quividi-signam_${result.startDate}_${result.endDate}.csv`;
+  anchor.download = `quividi-signam_${result.startDate}_${result.endDate}.csv`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -172,8 +171,9 @@ export function QuividiHistoryPage() {
   const [explorerStatus, setExplorerStatus] = useState('');
   const [explorerBusy, setExplorerBusy] = useState(false);
   const [explorerError, setExplorerError] = useState('');
-  const [explorer, setExplorer] =
-    useState<QuividiHistoryExplorerResult | null>(null);
+  const [explorer, setExplorer] = useState<QuividiHistoryExplorerResult | null>(
+    null,
+  );
   const [nativeComparison, setNativeComparison] =
     useState<NativeComparison | null>(null);
   const [nativeCompareError, setNativeCompareError] = useState('');
@@ -211,7 +211,9 @@ export function QuividiHistoryPage() {
       await reload();
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : 'No se pudo iniciar la carga.',
+        reason instanceof Error
+          ? reason.message
+          : 'No se pudo iniciar la carga.',
       );
     } finally {
       setBusy(false);
@@ -264,9 +266,7 @@ export function QuividiHistoryPage() {
       const result = await exploreQuividiHistory({
         startDate: explorerStart,
         endDate: explorerEnd,
-        ...(explorerLocation
-          ? { locationId: Number(explorerLocation) }
-          : {}),
+        ...(explorerLocation ? { locationId: Number(explorerLocation) } : {}),
         ...(explorerType ? { type: explorerType } : {}),
         ...(explorerResolution ? { resolution: explorerResolution } : {}),
         ...(explorerStore ? { storeId: explorerStore } : {}),
@@ -355,9 +355,7 @@ export function QuividiHistoryPage() {
 
   function selectLocation(id: string) {
     setLocationId(id);
-    const current = overview?.locations.find(
-      (item) => item.id === Number(id),
-    );
+    const current = overview?.locations.find((item) => item.id === Number(id));
     setValidFrom(current?.firstMeasuredDate ?? '');
     setValidTo('');
     setStoreId(current?.storeId ?? '');
@@ -409,9 +407,7 @@ export function QuividiHistoryPage() {
                 disabled={busy}
                 onClick={() => void start()}
               >
-                {busy
-                  ? 'Verificando network…'
-                  : 'Iniciar carga de Liverpool'}
+                {busy ? 'Verificando network…' : 'Iniciar carga de Liverpool'}
               </button>
             ) : (
               <div className="quividi-history__metrics">
@@ -470,8 +466,8 @@ export function QuividiHistoryPage() {
                 <p>
                   Esta consulta lee Firestore/Storage de SIGNAM. No llama a la
                   API de Quividi. Las columnas originales se conservan tal cual;
-                  las columnas auxiliares de SIGNAM comienzan con{' '}
-                  <code>_</code>.
+                  las columnas auxiliares de SIGNAM comienzan con <code>_</code>
+                  .
                 </p>
               </div>
 
@@ -485,9 +481,7 @@ export function QuividiHistoryPage() {
                     type="date"
                     required
                     value={explorerStart}
-                    onChange={(event) =>
-                      setExplorerStart(event.target.value)
-                    }
+                    onChange={(event) => setExplorerStart(event.target.value)}
                   />
                 </label>
                 <label>
@@ -559,9 +553,7 @@ export function QuividiHistoryPage() {
                   Soporte
                   <select
                     value={explorerSupport}
-                    onChange={(event) =>
-                      setExplorerSupport(event.target.value)
-                    }
+                    onChange={(event) => setExplorerSupport(event.target.value)}
                   >
                     <option value="">Todos</option>
                     {(explorer?.filters.supports ?? []).map((item) => (
@@ -573,9 +565,7 @@ export function QuividiHistoryPage() {
                   Estado
                   <select
                     value={explorerStatus}
-                    onChange={(event) =>
-                      setExplorerStatus(event.target.value)
-                    }
+                    onChange={(event) => setExplorerStatus(event.target.value)}
                   >
                     <option value="">Todos</option>
                     <option value="complete">Complete</option>
@@ -668,9 +658,7 @@ export function QuividiHistoryPage() {
                           type="file"
                           accept=".csv,.xlsx,.xls"
                           disabled={explorer.rows.length === 0}
-                          onChange={(event) =>
-                            void compareNativeFile(event)
-                          }
+                          onChange={(event) => void compareNativeFile(event)}
                         />
                       </label>
                       <button
@@ -779,8 +767,7 @@ export function QuividiHistoryPage() {
                   <details
                     className="quividi-history__raw"
                     open={
-                      explorer.rows.length > 0 &&
-                      explorer.rows.length <= 100
+                      explorer.rows.length > 0 && explorer.rows.length <= 100
                     }
                   >
                     <summary>
@@ -856,9 +843,7 @@ export function QuividiHistoryPage() {
                     <select
                       required
                       value={locationId}
-                      onChange={(event) =>
-                        selectLocation(event.target.value)
-                      }
+                      onChange={(event) => selectLocation(event.target.value)}
                     >
                       <option value="">Selecciona una location</option>
                       {visibleLocations.map((item) => (
