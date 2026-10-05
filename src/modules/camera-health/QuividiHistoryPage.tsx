@@ -217,6 +217,8 @@ export function QuividiHistoryPage() {
     event?.preventDefault();
     setExplorerBusy(true);
     setExplorerError('');
+    setNativeComparison(null);
+    setNativeCompareError('');
     try {
       const result = await exploreQuividiHistory({
         startDate: explorerStart,
