@@ -108,6 +108,63 @@ export async function getQuividiHistoryOverview(): Promise<QuividiHistoryOvervie
   return (await callable({})).data;
 }
 
+
+export interface QuividiHistoryExplorerResult {
+  startDate: string;
+  endDate: string;
+  summary: {
+    partitions: number;
+    complete: number;
+    retrying: number;
+    unsupported: number;
+    empty: number;
+    sourceRows: number;
+    locations: number;
+    truncatedPartitions: boolean;
+  };
+  partitions: Array<{
+    id: string;
+    date: string;
+    locationId: number;
+    type: string;
+    resolution: string;
+    status: string;
+    rowCount: number;
+    storeId: string | null;
+    support: string | null;
+    mappingStatus: string | null;
+    currentHash: string | null;
+    updatedAt: number | null;
+  }>;
+  rows: Array<Record<string, unknown>>;
+  columns: string[];
+  truncatedRows: boolean;
+  filters: {
+    types: string[];
+    resolutions: string[];
+    stores: Array<{ storeId: string; storeName: string }>;
+    supports: string[];
+  };
+}
+
+export async function exploreQuividiHistory(input: {
+  startDate: string;
+  endDate: string;
+  locationId?: number;
+  type?: string;
+  resolution?: string;
+  storeId?: string;
+  support?: string;
+  status?: string;
+}): Promise<QuividiHistoryExplorerResult> {
+  const callable = httpsCallable<typeof input, QuividiHistoryExplorerResult>(
+    functions(),
+    'quividi-historyExplore',
+    { timeout: 540_000 },
+  );
+  return (await callable(input)).data;
+}
+
 export async function startQuividiHistory(): Promise<void> {
   const callable = httpsCallable<Record<string, never>, unknown>(
     functions(),
