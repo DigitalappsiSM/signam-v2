@@ -6,6 +6,19 @@ export function normalized(value: string): string {
     .toLowerCase()
     .trim();
 }
+/**
+ * Etapas Odoo que cierran un ticket. La API JSON-2 se consulta sin `lang`, así
+ * que Odoo devuelve el nombre de la etapa en inglés (`Canceled`) aunque la
+ * interfaz la muestre en español (`Cancelada`): se reconocen ambos idiomas.
+ */
+export function isCancelledStage(stage: string): boolean {
+  return /^(cancelad[oa]s?|cancell?ed)$/.test(normalized(stage));
+}
+export function isClosedStage(stage: string): boolean {
+  return /^(resuelt[oa]s?|cerrad[oa]s?|solucionad[oa]s?|solved|resolved|closed|done)$/.test(
+    normalized(stage),
+  );
+}
 export function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }

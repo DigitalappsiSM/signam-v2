@@ -1,7 +1,8 @@
 import {
   classify,
+  isCancelledStage,
+  isClosedStage,
   labeled,
-  normalized,
   plainHtml,
   relation,
   text,
@@ -54,7 +55,7 @@ export const OPEN_TICKET_LOOKBACK_DAYS = 120;
 
 /** Un ticket resuelto, cerrado o cancelado no es una incidencia abierta. */
 export function isOpenStage(stage: string): boolean {
-  return !/^(resuelto|cerrado|solucionado)$|cancelad/.test(normalized(stage));
+  return !isCancelledStage(stage) && !isClosedStage(stage);
 }
 
 /**

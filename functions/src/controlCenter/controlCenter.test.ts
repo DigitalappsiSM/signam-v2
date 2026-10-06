@@ -202,6 +202,9 @@ describe('proyección de tickets', () => {
     expect(isOpenStage('En espera de tienda')).toBe(true);
     expect(isOpenStage('Resuelto')).toBe(false);
     expect(isOpenStage('Cancelado')).toBe(false);
+    // La API JSON-2 devuelve la etapa en inglés aunque Odoo muestre «Cancelada».
+    expect(isOpenStage('Canceled')).toBe(false);
+    expect(isOpenStage('Solved')).toBe(false);
   });
 
   it('lee la tienda de la descripción o del contacto de sucursal', () => {

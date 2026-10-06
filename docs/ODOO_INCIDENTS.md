@@ -51,7 +51,11 @@ de compilación de Cloud Functions se ejecuta aparte y no comparte dependencias.
 4. Revisar que los estados de SLA devueltos sean reached/failed/ongoing y comparar
    una muestra con Odoo. No convertir errores de API o estados desconocidos en
    cumplimiento. Cancelada se omite de métricas; Resuelto/Cerrado/Solucionado son
-   estados cerrados reconocidos. Estados personalizados distintos requieren mapeo.
+   estados cerrados reconocidos. La API se consulta sin `lang` y Odoo devuelve la
+   etapa en inglés (`Canceled`, `Solved`…) aunque la interfaz la muestre en
+   español: `isCancelledStage`/`isClosedStage` (`functions/src/odoo/analysis.ts`)
+   reconocen ambos idiomas y los usan tanto Incidencias Odoo como el mapa del
+   Centro de Control. Estados personalizados distintos requieren mapeo.
 
 Cada actualización consulta Odoo; no hay sincronización programada ni cache
 persistente. Máximo 5,000 registros por modelo en una consulta. La clasificación
