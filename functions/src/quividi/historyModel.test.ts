@@ -73,7 +73,7 @@ describe('Quividi Liverpool history', () => {
       startDate: '2026-06-01', endDate: '2026-06-30',
       locationId: 11, type: 'viewers', resolution: '1h',
     });
-    expect(historyMonthRangeAt(5, '2026-06-01', [11], plan, '2026-07-10')).toEqual({
+    expect(historyMonthRangeAt(4, '2026-06-01', [11], plan, '2026-07-10')).toEqual({
       startDate: '2026-07-01', endDate: '2026-07-10',
       locationId: 11, type: 'ots', resolution: '1h',
     });
