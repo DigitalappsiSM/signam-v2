@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isCancelledStage,
+  isClosedStage,
   classify,
   modality,
   slaState,
@@ -50,5 +52,31 @@ describe('clasificación de incidencias Odoo', () => {
     expect(slaState([{ status: 'unknown' }])).toBe('Sin dato');
     expect(validMonth('2026-13')).toBe(false);
     expect(validMonth('2026-09')).toBe(true);
+  });
+});
+
+describe('etapas cerradas de Odoo', () => {
+  it('reconoce cancelación en español y en inglés (la API responde sin lang)', () => {
+    for (const stage of ['Cancelada', 'Cancelado', 'Canceled', 'Cancelled'])
+      expect(isCancelledStage(stage)).toBe(true);
+    expect(isCancelledStage('En progreso')).toBe(false);
+  });
+
+  it('reconoce cierre en español y en inglés', () => {
+    for (const stage of [
+      'Resuelto',
+      'Cerrado',
+      'Solucionado',
+      'Solved',
+      'Closed',
+      'Done',
+    ])
+      expect(isClosedStage(stage)).toBe(true);
+    for (const stage of [
+      'Nuevo',
+      'En espera de permiso de acceso',
+      'In Progress',
+    ])
+      expect(isClosedStage(stage)).toBe(false);
   });
 });

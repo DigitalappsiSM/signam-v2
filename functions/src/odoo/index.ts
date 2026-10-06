@@ -5,9 +5,10 @@ import { odooCall, OdooApiError } from '../quividi/odooTickets';
 import {
   classify,
   hours,
+  isCancelledStage,
+  isClosedStage,
   labeled,
   modality,
-  normalized,
   plainHtml,
   relation,
   slaState,
@@ -231,10 +232,8 @@ export const overview = onCall(
               ? partner.replace(/^.*?,\s*(?=\d{2,4}\s*-)/, '')
               : null);
           const stage = relation(ticket.stage_id);
-          const cancelled = /cancelad/.test(normalized(stage));
-          const closed =
-            !cancelled &&
-            /^(resuelto|cerrado|solucionado)$/.test(normalized(stage));
+          const cancelled = isCancelledStage(stage);
+          const closed = !cancelled && isClosedStage(stage);
           const result = byTicket.get(Number(ticket.id)) ?? [];
           return {
             id: Number(ticket.id),
