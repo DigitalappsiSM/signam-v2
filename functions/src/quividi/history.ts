@@ -957,6 +957,33 @@ export const historyCoordinator = onSchedule({
   timeoutSeconds: 540, maxInstances: 1,
 }, async () => {
   const db = getFirestore();
+  const primary = await db.collection(CONTROL).doc('liverpool').get();
+  if (primary.exists) {
+    const supplementalRef = db.collection(CONTROL).doc('liverpool-consumer-v1');
+    const supplemental = await supplementalRef.get();
+    if (!supplemental.exists) {
+      const inventory = await db.collection(INVENTORY).get();
+      const locationIds = inventory.docs.map((doc) => Number(doc.id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+        .sort((a, b) => a - b);
+      if (locationIds.length) {
+        await supplementalRef.create({
+          networkId: LIVERPOOL_NETWORK_ID,
+          locationIds,
+          exportPlan: CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
+          nextIndex: 0,
+          rangeStartMonth: HISTORY_START_DATE,
+          rangeNextIndex: 0,
+          startDate: HISTORY_START_DATE,
+          status: 'running',
+          mode: 'backfill',
+          startedAt: Date.now(),
+          supplementalSeries: true,
+        });
+      }
+    }
+  }
+
   const controls = await db.collection(CONTROL).where('status', '==', 'running').get();
   if (controls.empty) return;
   await inferExistingCatalogHistory();
