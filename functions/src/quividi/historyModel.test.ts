@@ -3,6 +3,7 @@ import {
   CONSUMER_HISTORY_EXPORTS,
   historyPartitionId,
   historyDateRange,
+  historyDailyTaskAt,
   historyMonthRangeAt,
   historyRowCivilDate,
   quividiApiExportSpec,
@@ -28,6 +29,23 @@ describe('Quividi Liverpool history', () => {
     expect(historyRowCivilDate({ period_start: '2026-09-15T11:00:00' })).toBe('2026-09-15');
     expect(historyRowCivilDate({ timestamp: '2026-09-16 08:30:00' })).toBe('2026-09-16');
     expect(historyRowCivilDate({ value: 10 })).toBeNull();
+  });
+
+  it('builds daily D-1 tasks without re-expanding historical ranges', () => {
+    const plan = [
+      { type: 'ots', resolution: '1d' },
+      { type: 'viewers', resolution: '1d' },
+    ];
+    expect(historyDailyTaskAt(0, '2026-10-05', [11, 22], plan)).toEqual({
+      startDate: '2026-10-05', endDate: '2026-10-05',
+      locationId: 11, type: 'ots', resolution: '1d',
+    });
+    expect(historyDailyTaskAt(3, '2026-10-05', [11, 22], plan)).toEqual({
+      startDate: '2026-10-05', endDate: '2026-10-05',
+      locationId: 22, type: 'viewers', resolution: '1d',
+    });
+    expect(historyDailyTaskAt(4, '2026-10-05', [11, 22], plan)).toBeNull();
+    expect(historyDailyTaskAt(0, 'invalid', [11], plan)).toBeNull();
   });
 
   it('builds one monthly Quividi export per location and data type, capped at D-1', () => {
