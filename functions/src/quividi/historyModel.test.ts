@@ -54,6 +54,31 @@ describe('Quividi Liverpool history', () => {
     expect(historyMonthRangeAt(12, '2026-06-01', [11, 22], plan, '2026-08-14')).toBeNull();
   });
 
+  it('splits proof of play with vehicles and people by site into half-month exports', () => {
+    const plan = [
+      { type: 'ots', resolution: '1h' },
+      { type: 'proof_of_play_vehicle_person_by_site', resolution: '1h' },
+      { type: 'viewers', resolution: '1h' },
+    ];
+
+    expect(historyMonthRangeAt(1, '2026-06-01', [11], plan, '2026-07-31')).toEqual({
+      startDate: '2026-06-01', endDate: '2026-06-15',
+      locationId: 11, type: 'proof_of_play_vehicle_person_by_site', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(2, '2026-06-01', [11], plan, '2026-07-31')).toEqual({
+      startDate: '2026-06-16', endDate: '2026-06-30',
+      locationId: 11, type: 'proof_of_play_vehicle_person_by_site', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(3, '2026-06-01', [11], plan, '2026-07-31')).toEqual({
+      startDate: '2026-06-01', endDate: '2026-06-30',
+      locationId: 11, type: 'viewers', resolution: '1h',
+    });
+    expect(historyMonthRangeAt(5, '2026-06-01', [11], plan, '2026-07-10')).toEqual({
+      startDate: '2026-07-01', endDate: '2026-07-10',
+      locationId: 11, type: 'ots', resolution: '1h',
+    });
+  });
+
   it('stores native daily series required by reports and camera health', () => {
     expect(CONSUMER_HISTORY_EXPORTS).toEqual([
       { type: 'ots', resolution: '1d' },
