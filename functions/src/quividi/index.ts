@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyCoordinator, historyInventoryDaily } from './history';
+export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
   getFirestore,

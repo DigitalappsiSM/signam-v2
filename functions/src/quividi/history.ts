@@ -16,6 +16,7 @@ import {
   LIVERPOOL_NETWORK_ID,
   exportDataClass,
   historyDateRange,
+  historyDailyTaskAt,
   historyMonthRangeAt,
   historyRowCivilDate,
   quividiApiExportSpec,
@@ -41,7 +42,7 @@ const PARTITIONS = 'quividiHistoryPartitions';
 const BINDINGS = 'quividiHistoryBindings';
 const INVENTORY = 'quividiHistoryInventory';
 const EXPORTS_PER_TICK = 150;
-const RECENT_PER_TICK = 30;
+const DAILY_ENQUEUE_CHUNK = 50;
 
 interface Location {
   id: number;
@@ -487,7 +488,8 @@ export const historyStart = onCall({
   await db.collection(CONTROL).doc('liverpool').create({
     networkId: LIVERPOOL_NETWORK_ID, locationIds: ids, nextIndex: 0,
     exportPlan: HISTORY_EXPORTS.map((item) => ({ ...item })),
-    startDate: HISTORY_START_DATE, status: 'running', startedAt: Date.now(),
+    startDate: HISTORY_START_DATE, status: 'running', mode: 'backfill',
+    startedAt: Date.now(),
     catalogInferenceVersion: 2,
   });
   return { networkId: LIVERPOOL_NETWORK_ID, locations: ids.length,
@@ -827,20 +829,29 @@ export const historyInventoryDaily = onSchedule({
     await db.collection(CONTROL).doc(`liverpool-${today}`).create({
       networkId: LIVERPOOL_NETWORK_ID, locationIds: sorted,
       exportPlan: HISTORY_EXPORTS.map((item) => ({ ...item })),
-      nextIndex: 0, startDate: HISTORY_START_DATE, status: 'running', startedAt: Date.now(),
+      nextIndex: 0, startDate: HISTORY_START_DATE, status: 'running', mode: 'backfill',
+      startedAt: Date.now(),
     });
     await db.collection(CONTROL).doc(`liverpool-consumer-${today}`).create({
       networkId: LIVERPOOL_NETWORK_ID, locationIds: sorted,
       exportPlan: CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
       nextIndex: 0, rangeStartMonth: HISTORY_START_DATE,
       rangeNextIndex: 0, startDate: HISTORY_START_DATE,
-      status: 'running', startedAt: Date.now(), supplementalSeries: true,
+      status: 'running', mode: 'backfill', startedAt: Date.now(), supplementalSeries: true,
     });
   }
   if (conflicts.length) console.warn('Conflictos de tienda/punto en catálogo Quividi.', conflicts);
 });
 
 type ExportTask = PartitionTask | RangeTask;
+
+async function historyTaskAlreadyComplete(task: ExportTask): Promise<boolean> {
+  if ('startDate' in task) return false;
+  const snapshot = await getFirestore().collection(PARTITIONS).doc(
+    historyPartitionId(task.locationId, task.date, task.type, task.resolution),
+  ).get();
+  return snapshot.get('status') === 'complete';
+}
 
 /** Tasks retry transient failures without advancing or multiplying rows. */
 export const historyPartition = onTaskDispatched<ExportTask>({
@@ -859,6 +870,7 @@ export const historyPartition = onTaskDispatched<ExportTask>({
     throw new Error('Fecha fuera de la ventana histórica.');
   }
   if (!isRange) historyPartitionId(task.locationId, task.date, task.type, task.resolution);
+  if (await historyTaskAlreadyComplete(task)) return;
   try {
     if (isRange) await saveRange(task);
     else await savePartition(task);
@@ -880,17 +892,66 @@ export const historyPartition = onTaskDispatched<ExportTask>({
   }
 });
 
-/** Bounded enqueue: a large backfill spans many ticks without a long function. */
+/** Daily D-1 ingestion is independent from the historical backfill. */
+export const historyDaily = onSchedule({
+  schedule: '0 6 * * *', timeZone: 'America/Mexico_City',
+  timeoutSeconds: 540, memory: '256MiB',
+}, async () => {
+  const db = getFirestore();
+  const inventory = await db.collection(INVENTORY).get();
+  const locationIds = inventory.docs.map((doc) => Number(doc.id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .sort((a, b) => a - b);
+  if (!locationIds.length) return;
+
+  const plan = [
+    ...HISTORY_EXPORTS.map((item) => ({ ...item })),
+    ...CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
+  ];
+  const targetDate = yesterdayMexico();
+  const tasks: PartitionTask[] = [];
+  const total = locationIds.length * plan.length;
+  for (let index = 0; index < total; index++) {
+    const task = historyDailyTaskAt(index, targetDate, locationIds, plan);
+    if (!task) continue;
+    tasks.push({
+      date: targetDate,
+      locationId: task.locationId,
+      type: task.type,
+      resolution: task.resolution,
+    });
+  }
+
+  const queue = getFunctions().taskQueue('quividi-historyPartition');
+  for (let offset = 0; offset < tasks.length; offset += DAILY_ENQUEUE_CHUNK) {
+    const chunk = tasks.slice(offset, offset + DAILY_ENQUEUE_CHUNK);
+    const refs = chunk.map((task) =>
+      db.collection(PARTITIONS).doc(
+        historyPartitionId(task.locationId, task.date, task.type, task.resolution),
+      ),
+    );
+    const existing = refs.length ? await db.getAll(...refs) : [];
+    await Promise.all(chunk.map(async (task, index) => {
+      if (existing[index]?.get('status') === 'complete') return;
+      const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
+      try {
+        await queue.enqueue(task, {
+          id: rowsFingerprint([{ id, targetDate }]),
+          dispatchDeadlineSeconds: 540,
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
+      }
+    }));
+  }
+});
+
+/** Bounded backfill enqueue. Completed controls stop producing historical work. */
 export const historyCoordinator = onSchedule({
   schedule: 'every 5 minutes', timeZone: 'America/Mexico_City',
   timeoutSeconds: 540, maxInstances: 1,
 }, async () => {
   const db = getFirestore();
-  const controls = await db.collection(CONTROL).where('status', '==', 'running').get();
-  if (controls.empty) return;
-  await inferExistingCatalogHistory();
-  await indexExistingMeasurements();
-  const queue = getFunctions().taskQueue('quividi-historyPartition');
   const primary = await db.collection(CONTROL).doc('liverpool').get();
   if (primary.exists) {
     const supplementalRef = db.collection(CONTROL).doc('liverpool-consumer-v1');
@@ -910,69 +971,63 @@ export const historyCoordinator = onSchedule({
           rangeNextIndex: 0,
           startDate: HISTORY_START_DATE,
           status: 'running',
+          mode: 'backfill',
           startedAt: Date.now(),
           supplementalSeries: true,
         });
       }
     }
-
-    const plan = [
-      ...(primary.get('exportPlan') as ExportSpec[]),
-      ...CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
-    ];
-    const allIds = [...new Set(controls.docs.flatMap((doc) =>
-      doc.get('locationIds') as number[]))].sort((a, b) => a - b);
-    const refreshDay = todayMexico();
-    let refreshIndex = primary.get('refreshDay') === refreshDay
-      ? (primary.get('refreshIndex') as number ?? 0) : 0;
-    // Quividi recommends one daily refresh for D-1. Historical recovery is handled
-    // separately with monthly range exports.
-    const totalRecent = allIds.length * plan.length;
-    const recentStart = new Date(`${yesterdayMexico()}T00:00:00Z`);
-    for (let count = 0; count < RECENT_PER_TICK && refreshIndex < totalRecent; count++) {
-      const offset = taskAt(refreshIndex, allIds, plan);
-      const dayIndex = Math.floor(refreshIndex /
-        (allIds.length * plan.length));
-      const date = new Date(recentStart.getTime() +
-        dayIndex * 86_400_000);
-      const task = { ...offset, date: date.toISOString().slice(0, 10) };
-      const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-      try {
-        await queue.enqueue(task, {
-          id: rowsFingerprint([{ id, refreshDay }]), dispatchDeadlineSeconds: 540,
-        });
-      } catch (error) {
-        if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
-      }
-      refreshIndex++;
-      await primary.ref.update({ refreshDay, refreshIndex });
-    }
   }
+
+  const controls = await db.collection(CONTROL).where('status', '==', 'running').get();
+  if (controls.empty) return;
+  await inferExistingCatalogHistory();
+  await indexExistingMeasurements();
+  const queue = getFunctions().taskQueue('quividi-historyPartition');
+
   for (const control of controls.docs) {
     const locationIds = control.get('locationIds') as number[];
     const plan = control.get('exportPlan') as ExportSpec[];
-    if (!locationIds.length) continue;
+    if (!locationIds.length || !plan.length) {
+      await control.ref.update({
+        status: 'completed',
+        completedAt: Date.now(),
+        completedReason: 'empty_plan',
+      });
+      continue;
+    }
 
     let rangeStartMonth = control.get('rangeStartMonth') as string | undefined;
     let rangeIndex = control.get('rangeNextIndex') as number | undefined;
     if (!rangeStartMonth || rangeIndex === undefined) {
       // Migrate an in-flight daily backfill without restarting from January.
-      // Re-reading the current month is intentional: daily partition hashes make
-      // it idempotent and it closes any gap left inside that month.
       const legacyIndex = control.get('nextIndex') as number ?? 0;
       const legacyTask = taskAt(legacyIndex, locationIds, plan);
       rangeStartMonth = `${legacyTask.date.slice(0, 7)}-01`;
       rangeIndex = 0;
       await control.ref.update({
+        mode: 'backfill',
         rangeStartMonth,
         rangeNextIndex: rangeIndex,
         rangeMigrationAt: Date.now(),
       });
     }
 
-    for (let count = 0; count < Math.max(1, Math.floor(EXPORTS_PER_TICK / controls.size)); count++) {
-      const task = historyMonthRangeAt(rangeIndex, rangeStartMonth, locationIds, plan, yesterdayMexico());
-      if (!task) break;
+    let nextIndex = rangeIndex;
+    let exhausted = false;
+    const perControl = Math.max(1, Math.floor(EXPORTS_PER_TICK / controls.size));
+    for (let count = 0; count < perControl; count++) {
+      const task = historyMonthRangeAt(
+        nextIndex,
+        rangeStartMonth,
+        locationIds,
+        plan,
+        yesterdayMexico(),
+      );
+      if (!task) {
+        exhausted = true;
+        break;
+      }
       const rangeId = [
         LIVERPOOL_NETWORK_ID, task.locationId, task.startDate, task.endDate,
         task.type, task.resolution,
@@ -985,8 +1040,23 @@ export const historyCoordinator = onSchedule({
       } catch (error) {
         if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
       }
-      rangeIndex++;
-      await control.ref.update({ rangeNextIndex: rangeIndex, lastEnqueuedAt: Date.now() });
+      nextIndex++;
+    }
+
+    if (exhausted) {
+      await control.ref.update({
+        mode: 'backfill',
+        status: 'completed',
+        rangeNextIndex: nextIndex,
+        completedAt: Date.now(),
+        completedThrough: yesterdayMexico(),
+      });
+    } else if (nextIndex !== rangeIndex) {
+      await control.ref.update({
+        mode: 'backfill',
+        rangeNextIndex: nextIndex,
+        lastEnqueuedAt: Date.now(),
+      });
     }
   }
 });

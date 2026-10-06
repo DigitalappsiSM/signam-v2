@@ -100,6 +100,31 @@ export function historyDateRange(startDate: string, endDate: string): string[] {
   return result;
 }
 
+export function historyDailyTaskAt(
+  index: number,
+  date: string,
+  locationIds: readonly number[],
+  plan: readonly { type: string; resolution: string }[],
+): HistoryRangeTask | null {
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    locationIds.length === 0 ||
+    plan.length === 0
+  ) return null;
+  const total = locationIds.length * plan.length;
+  if (index >= total) return null;
+  const exportIndex = index % plan.length;
+  const locationIndex = Math.floor(index / plan.length);
+  return {
+    startDate: date,
+    endDate: date,
+    locationId: locationIds[locationIndex]!,
+    ...plan[exportIndex]!,
+  };
+}
+
 export function historyRowCivilDate(row: Record<string, unknown>): string | null {
   for (const key of ['period_start', 'start', 'date', 'timestamp', 'datetime']) {
     const value = row[key];
