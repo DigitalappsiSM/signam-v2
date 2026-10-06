@@ -110,6 +110,10 @@ export function historyRowCivilDate(row: Record<string, unknown>): string | null
   return null;
 }
 
+const HALF_MONTH_EXPORT_TYPES = new Set([
+  'proof_of_play_vehicle_person_by_site',
+]);
+
 export function historyMonthRangeAt(
   index: number,
   startMonth: string,
@@ -118,22 +122,54 @@ export function historyMonthRangeAt(
   maxDate: string,
 ): HistoryRangeTask | null {
   if (!locationIds.length || !plan.length || index < 0) return null;
-  const exportIndex = index % plan.length;
-  const locationIndex = Math.floor(index / plan.length) % locationIds.length;
-  const monthIndex = Math.floor(index / (plan.length * locationIds.length));
-  const start = new Date(`${startMonth.slice(0, 7)}-01T00:00:00Z`);
-  start.setUTCMonth(start.getUTCMonth() + monthIndex);
-  const startDate = start.toISOString().slice(0, 10);
+
+  const tasksPerLocation = plan.reduce(
+    (total, item) => total + (HALF_MONTH_EXPORT_TYPES.has(item.type) ? 2 : 1),
+    0,
+  );
+  const monthSpan = tasksPerLocation * locationIds.length;
+  const monthIndex = Math.floor(index / monthSpan);
+  const withinMonth = index % monthSpan;
+  const locationIndex = Math.floor(withinMonth / tasksPerLocation);
+  const taskWithinLocation = withinMonth % tasksPerLocation;
+
+  let cursor = 0;
+  let spec = plan[0]!;
+  let half = 0;
+  for (const item of plan) {
+    const width = HALF_MONTH_EXPORT_TYPES.has(item.type) ? 2 : 1;
+    if (taskWithinLocation < cursor + width) {
+      spec = item;
+      half = taskWithinLocation - cursor;
+      break;
+    }
+    cursor += width;
+  }
+
+  const monthStart = new Date(`${startMonth.slice(0, 7)}-01T00:00:00Z`);
+  monthStart.setUTCMonth(monthStart.getUTCMonth() + monthIndex);
+  const firstDay = monthStart.toISOString().slice(0, 10);
+  if (firstDay > maxDate) return null;
+
+  const monthEndDate = new Date(monthStart);
+  monthEndDate.setUTCMonth(monthEndDate.getUTCMonth() + 1);
+  monthEndDate.setUTCDate(0);
+  const monthEnd = monthEndDate.toISOString().slice(0, 10);
+
+  const startDate = HALF_MONTH_EXPORT_TYPES.has(spec.type) && half === 1
+    ? `${firstDay.slice(0, 8)}16`
+    : firstDay;
   if (startDate > maxDate) return null;
-  const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 1);
-  end.setUTCDate(0);
-  const monthEnd = end.toISOString().slice(0, 10);
+
+  const naturalEnd = HALF_MONTH_EXPORT_TYPES.has(spec.type) && half === 0
+    ? `${firstDay.slice(0, 8)}15`
+    : monthEnd;
+
   return {
     startDate,
-    endDate: monthEnd < maxDate ? monthEnd : maxDate,
+    endDate: naturalEnd < maxDate ? naturalEnd : maxDate,
     locationId: locationIds[locationIndex]!,
-    ...plan[exportIndex]!,
+    ...spec,
   };
 }
 
