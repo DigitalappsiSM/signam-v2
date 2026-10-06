@@ -846,16 +846,11 @@ export const historyInventoryDaily = onSchedule({
 type ExportTask = PartitionTask | RangeTask;
 
 async function historyTaskAlreadyComplete(task: ExportTask): Promise<boolean> {
-  const startDate = 'startDate' in task ? task.startDate : task.date;
-  const endDate = 'endDate' in task ? task.endDate : task.date;
-  const refs = historyDateRange(startDate, endDate).map((date) =>
-    getFirestore().collection(PARTITIONS).doc(
-      historyPartitionId(task.locationId, date, task.type, task.resolution),
-    ),
-  );
-  if (refs.length === 0) return false;
-  const snapshots = await getFirestore().getAll(...refs);
-  return snapshots.every((snapshot) => snapshot.get('status') === 'complete');
+  if ('startDate' in task) return false;
+  const snapshot = await getFirestore().collection(PARTITIONS).doc(
+    historyPartitionId(task.locationId, task.date, task.type, task.resolution),
+  ).get();
+  return snapshot.get('status') === 'complete';
 }
 
 /** Tasks retry transient failures without advancing or multiplying rows. */
