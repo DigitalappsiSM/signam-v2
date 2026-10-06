@@ -431,11 +431,16 @@ tres de ellos describían mal el separador de artículos.
   único queda `needs_review`, sin tienda inventada. Guardar es por cámara y
   periodo, sin ponderar ni extrapolar: las reglas multi-cámara pertenecen al
   reporte. El histórico no modifica Campañas ni la salud/alertas existentes.
-  El backfill empieza el 2026-01-01 y el scheduler consulta también los siete
-  últimos días para capturar datos tardíos, con Cloud Tasks limitadas a dos
-  exportaciones concurrentes. La API solo expone los datos que efectivamente
-  conserva y autoriza; errores de familia/licencia se registran como
-  `unsupported`, no como cero medido.
+  El backfill empieza el 2026-01-01 y es independiente de la ingesta normal:
+  el coordinador histórico solo encola rangos mensuales pendientes y, al agotar
+  su plan, marca el control como `completed` para no volver a producir trabajo.
+  La ingesta ordinaria corre una vez al día sobre **D-1 exclusivamente** y no
+  reabre meses anteriores; una partición ya `complete` se omite antes de
+  volver a consultar Quividi. Correcciones o huecos históricos se recuperan por
+  backfill/reconciliación explícita, no mediante una ventana móvil automática.
+  Las Cloud Tasks siguen limitadas a dos exportaciones concurrentes. La API solo
+  expone los datos que efectivamente conserva y autoriza; errores de
+  familia/licencia se registran como `unsupported`, no como cero medido.
   La fecha de inicio de medición de cada location es el primer día con filas
   de audiencia o tráfico observadas en Quividi dentro de la ventana consultada.
   Los exports vacíos anteriores se archivan, pero no cuentan como medición ni
