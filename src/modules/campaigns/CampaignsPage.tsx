@@ -508,6 +508,21 @@ export function CampaignsPage() {
     };
   }, [loading, csvCampaigns, ekonLinks, loadEkonContext]);
 
+  // Un CSV agrupa flights homónimos: la dependencia se determina por nombre
+  // consolidado, no solo por el documento de la fila.
+  const ekonDependentNames = useMemo(
+    () =>
+      new Set(
+        campaignsNeedingEkon(csvCampaigns).map((c) => campaignKey(c.name)),
+      ),
+    [csvCampaigns],
+  );
+  const isEkonPending = useCallback(
+    (c: StoredCampaign) =>
+      ekonLoading && ekonDependentNames.has(campaignKey(c.name)),
+    [ekonLoading, ekonDependentNames],
+  );
+
   // Mupi/Pendón sin detalle toman sus tiendas de la campaña Ekon vinculada; los
   // que no pueden resolverse quedan bloqueados con su incidencia.
   const ekonResolution = useMemo(
@@ -655,6 +670,8 @@ export function CampaignsPage() {
     statusOf,
   ]);
 
+  const bulkEkonPending = filtered.some(isEkonPending);
+
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(
     () =>
@@ -753,7 +770,7 @@ export function CampaignsPage() {
   ]);
 
   async function downloadZipFor(c: StoredCampaign, cons: Consolidation[]) {
-    if (ekonLoading || zipBusyName || cons.length === 0) return;
+    if (isEkonPending(c) || zipBusyName || cons.length === 0) return;
     setCsvError(null);
     setZipBusyName(c.name);
     try {
@@ -771,6 +788,7 @@ export function CampaignsPage() {
   }
 
   async function downloadPdf(c: StoredCampaign) {
+    if (isEkonPending(c)) return;
     const res: ConsolidationResult = {
       consolidations: [],
       issues: issuesByCampaign.get(c.name) ?? [],
@@ -802,6 +820,8 @@ export function CampaignsPage() {
   }
 
   function downloadCsvFor(cons: Consolidation) {
+    if (ekonLoading && ekonDependentNames.has(campaignKey(cons.campaignName)))
+      return;
     download(
       new Blob([consolidationCsv(cons)], { type: 'text/csv;charset=utf-8' }),
       csvFileName(cons),
@@ -868,7 +888,7 @@ export function CampaignsPage() {
 
   // Desglose Excel de UNA campaña (la instancia exacta, sin mezclar homónimas).
   async function downloadExcelFor(c: StoredCampaign) {
-    if (ekonLoading || excelBusyId) return;
+    if (isEkonPending(c) || excelBusyId) return;
     setExcelError(null);
     setExcelBusyId(c.id);
     try {
@@ -903,7 +923,12 @@ export function CampaignsPage() {
   // Desglose Excel masivo: exporta exactamente el arreglo `filtered` (respeta
   // búsqueda y periodo Desde/Hasta, tal como los ve la tabla).
   async function downloadBulkExcel() {
-    if (ekonLoading || bulkBusy || perError !== null || filtered.length === 0)
+    if (
+      bulkEkonPending ||
+      bulkBusy ||
+      perError !== null ||
+      filtered.length === 0
+    )
       return;
     setBulkError(null);
     setBulkBusy(true);
@@ -1018,7 +1043,7 @@ export function CampaignsPage() {
                 className="btn btn-primary"
                 onClick={() => void downloadBulkExcel()}
                 disabled={
-                  ekonLoading ||
+                  bulkEkonPending ||
                   bulkBusy ||
                   perError !== null ||
                   filtered.length === 0
@@ -1306,7 +1331,7 @@ export function CampaignsPage() {
                       )}
                     </td>
                     <td>
-                      {ekonLoading && campaignsNeedingEkon([c]).length > 0
+                      {isEkonPending(c)
                         ? 'Verificando…'
                         : (storeCountByCampaign.get(c.name) ?? 0)}
                     </td>
@@ -1355,7 +1380,7 @@ export function CampaignsPage() {
                             <button
                               className="icon-btn"
                               title="Exportar PDF de errores"
-                              disabled={ekonLoading || nIssues === 0}
+                              disabled={isEkonPending(c) || nIssues === 0}
                               onClick={() => void downloadPdf(c)}
                             >
                               📄
@@ -1392,7 +1417,7 @@ export function CampaignsPage() {
                         {canDownloadOperational && (
                           <CampaignDownloadsMenu
                             campaign={c}
-                            pending={ekonLoading}
+                            pending={isEkonPending(c)}
                             cons={cons}
                             open={openMenuId === c.id}
                             zipBusy={zipBusyName === c.name}

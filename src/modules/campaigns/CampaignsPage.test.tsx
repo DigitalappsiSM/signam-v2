@@ -1895,6 +1895,55 @@ describe('CampaignsPage — carga progresiva y paginación', () => {
     );
   });
 
+  it('una carga Ekon pendiente no bloquea otra campaña ni un Excel filtrado independiente', async () => {
+    let resolve!: (value: typeof EMPTY_EKON_CONTEXT) => void;
+    vi.mocked(loadEkonStoreContext).mockReturnValue(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    const dependent = campaign({
+      ...A,
+      supports: [
+        {
+          support: "MUPPI'S",
+          owner: 'instore-media',
+          scope: 'all',
+          scopeSource: 'no-comment',
+          stores: [],
+        },
+      ],
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([dependent, B]);
+    await renderAllPeriods();
+    await screen.findByText('REGRESO A CLASES');
+    await waitFor(() => expect(loadEkonStoreContext).toHaveBeenCalled());
+    expect(
+      screen.getByRole('button', { name: 'Descargas de BUEN FIN' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Descargas de REGRESO A CLASES' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Exportar todas (2)' }),
+    ).toBeDisabled();
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      'REGRESO',
+    );
+    const bulk = screen.getByRole('button', { name: 'Exportar filtradas (1)' });
+    expect(bulk).toBeEnabled();
+    await userEvent.click(bulk);
+    await waitFor(() => expect(buildCampaignReportBlob).toHaveBeenCalled());
+    expect(
+      vi
+        .mocked(buildCampaignReport)
+        .mock.calls.slice(-1)[0]![0]
+        .map((c) => c.id),
+    ).toEqual(['b']);
+    await act(async () => resolve(EMPTY_EKON_CONTEXT));
+  });
+
   it('consolida solo el periodo y conserva flights homónimos fuera de él', async () => {
     const today = todayIsoDate();
     const current = campaign({

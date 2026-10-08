@@ -165,7 +165,9 @@ tres de ellos describían mal el separador de artículos.
   La tabla se muestra tras las lecturas base y migraciones legacy, sin esperar
   el contexto Ekon ni la disponibilidad Quividi. Mientras Ekon resuelve las
   tiendas, se muestra «Verificando…» y se bloquean las descargas operativas que
-  dependen de ese contexto. La consolidación y el contexto Ekon se calculan para
+  dependen de ese contexto (incluidos sus flights homónimos consolidados); las
+  demás campañas y el Excel filtrado sin dependencias Ekon siguen descargándose.
+  La consolidación y el contexto Ekon se calculan para
   el periodo consultado, incluyendo los flights homónimos fuera del periodo para
   conservar la llave `Campaña + RESOLUCION` y el CSV individual vigente.
   Quividi consulta solo la página visible y los estados que permiten informe;
