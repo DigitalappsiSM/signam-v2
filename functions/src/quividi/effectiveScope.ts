@@ -280,24 +280,36 @@ function screensByPair(
   return result;
 }
 
-function allStoresForSupport(
-  support: string,
+/** Índices y lecturas compartidas por una solicitud de disponibilidad. */
+export interface EffectiveScopeContext {
+  byPair: ReadonlyMap<string, ScreenDoc[]>;
+  storesBySupport: ReadonlyMap<string, string[]>;
+  ekonNumber?: (
+    campaignId: string,
+    campaign: CampaignDoc,
+  ) => Promise<number | null>;
+  assignmentRequests: Map<number, Promise<EkonAssignmentDoc[]>>;
+}
+
+export function buildEffectiveScopeContext(
   screens: readonly ScreenDoc[],
-): string[] {
-  return Array.from(
-    new Set(
-      activeScreens(screens)
-        .filter(
-          (screen) =>
-            normalizeSupport(screen.metadata?.calendarSupport ?? '') ===
-            support,
-        )
-        .map((screen) =>
-          normalizeStore(screen.original?.['Numero de Tienda'] ?? ''),
-        )
-        .filter(Boolean),
+): EffectiveScopeContext {
+  const stores = new Map<string, Set<string>>();
+  for (const screen of activeScreens(screens)) {
+    const support = normalizeSupport(screen.metadata?.calendarSupport ?? '');
+    const store = normalizeStore(screen.original?.['Numero de Tienda'] ?? '');
+    if (!support || !store) continue;
+    const bucket = stores.get(support) ?? new Set<string>();
+    bucket.add(store);
+    stores.set(support, bucket);
+  }
+  return {
+    byPair: screensByPair(screens),
+    storesBySupport: new Map(
+      [...stores].map(([support, values]) => [support, [...values]]),
     ),
-  );
+    assignmentRequests: new Map(),
+  };
 }
 
 function pairFromStore(
@@ -366,19 +378,30 @@ async function assignmentsForEkon(
   db: Firestore,
   ekonNumber: number,
   cache: Map<number, EkonAssignmentDoc[]>,
+  requests: Map<number, Promise<EkonAssignmentDoc[]>>,
 ): Promise<EkonAssignmentDoc[]> {
   const cached = cache.get(ekonNumber);
   if (cached) return cached;
-  const snapshot = await db
-    .collection('ekonAssignments')
-    .where('campaignNumber', '==', String(ekonNumber))
-    .where('active', '==', true)
-    .get();
-  const rows = snapshot.docs
-    .map((doc) => doc.data() as EkonAssignmentDoc)
-    .filter((assignment) => !assignment.conflict);
-  cache.set(ekonNumber, rows);
-  return rows;
+  const pending = requests.get(ekonNumber);
+  if (pending) return pending;
+  const request = (async () => {
+    const snapshot = await db
+      .collection('ekonAssignments')
+      .where('campaignNumber', '==', String(ekonNumber))
+      .where('active', '==', true)
+      .get();
+    const rows = snapshot.docs
+      .map((doc) => doc.data() as EkonAssignmentDoc)
+      .filter((assignment) => !assignment.conflict);
+    cache.set(ekonNumber, rows);
+    return rows;
+  })();
+  requests.set(ekonNumber, request);
+  try {
+    return await request;
+  } finally {
+    requests.delete(ekonNumber);
+  }
 }
 
 function noCommentFullCircuitSupport(support: string): boolean {
@@ -391,17 +414,20 @@ export async function buildEffectiveSupportPairs(
   campaign: CampaignDoc,
   screens: readonly ScreenDoc[],
   assignmentCache: Map<number, EkonAssignmentDoc[]> = new Map(),
+  context: EffectiveScopeContext = buildEffectiveScopeContext(screens),
 ): Promise<EffectiveScopeResult> {
   const campaignStart = campaign.fechaInicio?.trim() ?? '';
   const campaignEnd = campaign.fechaFin?.trim() ?? '';
-  const byPair = screensByPair(screens);
+  const byPair = context.byPair;
   const result = new Map<string, EffectiveSupportPair>();
   const origins: EffectiveScopeOrigin[] = [];
   let resolvedEkonNumber: number | null | undefined;
 
   const getEkonNumber = async (): Promise<number | null> => {
     if (resolvedEkonNumber !== undefined) return resolvedEkonNumber;
-    resolvedEkonNumber = await ekonNumberForCampaign(db, campaignId, campaign);
+    resolvedEkonNumber = await (context.ekonNumber
+      ? context.ekonNumber(campaignId, campaign)
+      : ekonNumberForCampaign(db, campaignId, campaign));
     return resolvedEkonNumber;
   };
 
@@ -437,16 +463,20 @@ export async function buildEffectiveSupportPairs(
       item.scopeSource === 'resolution-all'
     ) {
       source = 'calendar-all';
-      targetStores = allStoresForSupport(support, screens).map((numero) => ({
-        numero,
-        nombre: '',
-      }));
+      targetStores = (context.storesBySupport.get(support) ?? []).map(
+        (numero) => ({
+          numero,
+          nombre: '',
+        }),
+      );
     } else if (noCommentFullCircuitSupport(support)) {
       source = 'calendar-full-circuit';
-      targetStores = allStoresForSupport(support, screens).map((numero) => ({
-        numero,
-        nombre: '',
-      }));
+      targetStores = (context.storesBySupport.get(support) ?? []).map(
+        (numero) => ({
+          numero,
+          nombre: '',
+        }),
+      );
     } else {
       ekonNumber = await getEkonNumber();
       if (ekonNumber != null && campaignStart && campaignEnd) {
@@ -454,6 +484,7 @@ export async function buildEffectiveSupportPairs(
           db,
           ekonNumber,
           assignmentCache,
+          context.assignmentRequests,
         );
         const byStore = new Map<string, string>();
         for (const assignment of assignments) {
