@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { act, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { CampaignsPage } from './CampaignsPage';
@@ -16,6 +16,10 @@ import {
   listCampaigns,
 } from '@/services/campaigns';
 import { listScreens } from '@/services/screens';
+import {
+  EMPTY_EKON_CONTEXT,
+  loadEkonStoreContext,
+} from '@/modules/consolidation/ekonStoreContext';
 import {
   listEkonLinks,
   saveEkonLink,
@@ -132,6 +136,12 @@ vi.mock('@/services/campaigns', () => ({
   correctCampaign: vi.fn(),
   listCampaignCorrections: vi.fn(),
 }));
+vi.mock('@/modules/consolidation/ekonStoreContext', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/modules/consolidation/ekonStoreContext')
+  >('@/modules/consolidation/ekonStoreContext');
+  return { ...actual, loadEkonStoreContext: vi.fn() };
+});
 vi.mock('@/services/screens', () => ({ listScreens: vi.fn() }));
 vi.mock('@/services/campaignOperationalTracking', () => ({
   listOperationalTracking: vi.fn(),
@@ -258,6 +268,9 @@ function defaultConsolidation() {
 
 beforeEach(() => {
   authState.role = 'admin';
+  vi.mocked(loadEkonStoreContext)
+    .mockReset()
+    .mockResolvedValue(EMPTY_EKON_CONTEXT);
   vi.mocked(listCampaigns).mockResolvedValue([A, B]);
   vi.mocked(listScreens).mockResolvedValue([]);
   vi.mocked(listOperationalTracking).mockResolvedValue([]);
@@ -1839,6 +1852,222 @@ describe('CampaignsPage — estados de campaña', () => {
     expect(migrateLegacyOperationalTracking).toHaveBeenCalledWith(
       [A, B],
       [legacy],
+    );
+  });
+});
+
+describe('CampaignsPage — carga progresiva y paginación', () => {
+  it('muestra la tabla mientras Ekon carga y bloquea las exportaciones incompletas', async () => {
+    let resolve!: (value: typeof EMPTY_EKON_CONTEXT) => void;
+    vi.mocked(loadEkonStoreContext).mockReturnValue(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    const c = campaign({
+      ...A,
+      supports: [
+        {
+          support: "MUPPI'S",
+          owner: 'instore-media',
+          scope: 'all',
+          scopeSource: 'no-comment',
+          stores: [],
+        },
+      ],
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([c]);
+    await renderAllPeriods();
+    expect(await screen.findByText('BUEN FIN')).toBeInTheDocument();
+    await waitFor(() => expect(loadEkonStoreContext).toHaveBeenCalled());
+    expect(
+      screen.getByRole('button', { name: 'Exportar todas (1)' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Descargas de BUEN FIN' }),
+    ).toBeDisabled();
+    expect(screen.getByText('Verificando…')).toBeInTheDocument();
+    await act(async () => resolve(EMPTY_EKON_CONTEXT));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Exportar todas (1)' }),
+      ).toBeEnabled(),
+    );
+  });
+
+  it('una carga Ekon pendiente no bloquea otra campaña ni un Excel filtrado independiente', async () => {
+    let resolve!: (value: typeof EMPTY_EKON_CONTEXT) => void;
+    vi.mocked(loadEkonStoreContext).mockReturnValue(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    const dependent = campaign({
+      ...A,
+      supports: [
+        {
+          support: "MUPPI'S",
+          owner: 'instore-media',
+          scope: 'all',
+          scopeSource: 'no-comment',
+          stores: [],
+        },
+      ],
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([dependent, B]);
+    await renderAllPeriods();
+    await screen.findByText('REGRESO A CLASES');
+    await waitFor(() => expect(loadEkonStoreContext).toHaveBeenCalled());
+    expect(
+      screen.getByRole('button', { name: 'Descargas de BUEN FIN' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Descargas de REGRESO A CLASES' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Exportar todas (2)' }),
+    ).toBeDisabled();
+    await userEvent.type(
+      screen.getByPlaceholderText(/Buscar por campaña o # Ekon/i),
+      'REGRESO',
+    );
+    const bulk = screen.getByRole('button', { name: 'Exportar filtradas (1)' });
+    expect(bulk).toBeEnabled();
+    await userEvent.click(bulk);
+    await waitFor(() => expect(buildCampaignReportBlob).toHaveBeenCalled());
+    expect(
+      vi
+        .mocked(buildCampaignReport)
+        .mock.calls.slice(-1)[0]![0]
+        .map((c) => c.id),
+    ).toEqual(['b']);
+    await act(async () => resolve(EMPTY_EKON_CONTEXT));
+  });
+
+  it('consolida solo el periodo y conserva flights homónimos fuera de él', async () => {
+    const today = todayIsoDate();
+    const current = campaign({
+      id: 'current',
+      name: 'MISMA CAMPAÑA',
+      fechaInicio: today,
+      fechaFin: today,
+    });
+    const oldFlight = campaign({
+      id: 'old-flight',
+      name: 'MISMA CAMPAÑA',
+      fechaInicio: '2020-01-01',
+      fechaFin: '2020-01-31',
+    });
+    const unrelated = campaign({
+      id: 'unrelated',
+      name: 'HISTÓRICA DISTINTA',
+      fechaInicio: '2020-01-01',
+      fechaFin: '2020-01-31',
+    });
+    vi.mocked(listCampaigns).mockResolvedValue([current, oldFlight, unrelated]);
+    render(<CampaignsPage />);
+    await screen.findByText('MISMA CAMPAÑA');
+    const calls = vi.mocked(consolidate).mock.calls;
+    expect(
+      calls
+        .slice(-1)[0]![0]
+        .map((c) => (c as StoredCampaign).id)
+        .sort(),
+    ).toEqual(['current', 'old-flight']);
+    expect(screen.queryByText('HISTÓRICA DISTINTA')).not.toBeInTheDocument();
+  });
+
+  it('muestra la tabla aunque Quividi siga pendiente', async () => {
+    let resolve!: (
+      items: Awaited<ReturnType<typeof getQuividiCampaignAvailability>>,
+    ) => void;
+    vi.mocked(getQuividiCampaignAvailability).mockReturnValue(
+      new Promise((res) => {
+        resolve = res;
+      }),
+    );
+    await renderAllPeriods();
+    expect(await screen.findByText('BUEN FIN')).toBeInTheDocument();
+    const button = screen.getByRole('button', {
+      name: /Informe de audiencia de BUEN FIN/i,
+    });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Verificando cobertura Quividi…');
+    await act(async () =>
+      resolve([
+        {
+          campaignId: 'a',
+          available: true,
+          totalPairs: 1,
+          mappedPairs: 1,
+          scopeOrigins: [],
+        },
+      ]),
+    );
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
+  it('renderiza 50 filas, consulta solo esa página y exporta las 55 filtradas', async () => {
+    const campaigns = Array.from({ length: 55 }, (_, i) =>
+      campaign({ id: `c-${i}`, name: `CAMPAÑA ${String(i).padStart(2, '0')}` }),
+    );
+    vi.mocked(listCampaigns).mockResolvedValue(campaigns);
+    await renderAllPeriods();
+    await screen.findByText('CAMPAÑA 00');
+    expect(screen.getAllByRole('row')).toHaveLength(51);
+    expect(screen.queryByText('CAMPAÑA 54')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(getQuividiCampaignAvailability).toHaveBeenCalled(),
+    );
+    expect(
+      vi
+        .mocked(getQuividiCampaignAvailability)
+        .mock.calls.flatMap(([ids]) => ids),
+    ).not.toContain('c-54');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Exportar todas (55)' }),
+    );
+    await waitFor(() => expect(buildCampaignReport).toHaveBeenCalled());
+    expect(
+      vi.mocked(buildCampaignReport).mock.calls.slice(-1)[0]![0],
+    ).toHaveLength(55);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Página siguiente' }),
+    );
+    expect(await screen.findByText('CAMPAÑA 54')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(6);
+    await waitFor(() =>
+      expect(getQuividiCampaignAvailability).toHaveBeenLastCalledWith(
+        campaigns.slice(50).map((c) => c.id),
+      ),
+    );
+    const requests = vi.mocked(getQuividiCampaignAvailability).mock.calls
+      .length;
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Página anterior' }),
+    );
+    expect(getQuividiCampaignAvailability).toHaveBeenCalledTimes(requests);
+  });
+
+  it('no consulta cobertura de campañas canceladas ni retiradas', async () => {
+    vi.mocked(listCampaigns).mockResolvedValue([
+      A,
+      B,
+      campaign({ id: 'withdrawn', active: false }),
+    ]);
+    vi.mocked(listOperationalTracking).mockResolvedValue([
+      {
+        campaignId: 'a',
+        campaignNameKey: A.nameKey,
+        lifecycleStatus: 'cancelled',
+      } as unknown as Awaited<
+        ReturnType<typeof listOperationalTracking>
+      >[number],
+    ]);
+    await renderAllPeriods();
+    await screen.findByText('BUEN FIN');
+    await waitFor(() =>
+      expect(getQuividiCampaignAvailability).toHaveBeenCalledWith(['b']),
     );
   });
 });

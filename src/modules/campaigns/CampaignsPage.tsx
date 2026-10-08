@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -74,7 +74,11 @@ import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
 import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
-import { campaignIdentity, type StoredCampaign } from './campaignDiff';
+import {
+  campaignKey,
+  campaignIdentity,
+  type StoredCampaign,
+} from './campaignDiff';
 import { parseEkonNumber, otherCampaignsWithEkonNumber } from './ekon';
 import {
   analyzeLowOccupancy,
@@ -116,7 +120,6 @@ import { classifyFromTipo } from '@/modules/operational-tracking/campaignClassif
 import { isValidDownloadUrl } from '@/modules/operational-tracking/downloadLink';
 import { can } from '@/app/permissions';
 import {
-  getQuividiCampaignAvailability,
   getQuividiCampaignReport,
   type QuividiCampaignAvailability,
 } from '@/services/quividi';
@@ -136,9 +139,9 @@ import {
 import { useAnchoredMenu } from './useAnchoredMenu';
 import { CampaignStatusDialog } from './CampaignStatusDialog';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
+import { useCampaignAvailability } from './useCampaignAvailability';
 import {
   EFFECTIVE_STATUS_LABELS,
-  campaignsAllowedFor,
   formatStatusReason,
   statusAllows,
   statusByCampaignId,
@@ -169,7 +172,7 @@ function safeName(name: string): string {
 }
 
 function quividiScopeLabel(
-  availability: QuividiCampaignAvailability | undefined,
+  availability: QuividiCampaignAvailability | null | undefined,
 ): string {
   if (!availability) return 'Cobertura Quividi pendiente de validación';
   const sources = new Set(
@@ -316,11 +319,10 @@ export function CampaignsPage() {
   const [quividiMenuId, setQuividiMenuId] = useState<string | null>(null);
   const [quividiError, setQuividiError] = useState<string | null>(null);
   const [quividiNotice, setQuividiNotice] = useState<string | null>(null);
-  const [quividiAvailability, setQuividiAvailability] = useState<
-    Map<string, QuividiCampaignAvailability>
-  >(new Map());
-  const [quividiAvailabilityLoaded, setQuividiAvailabilityLoaded] =
-    useState(false);
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
+  const [ekonLoading, setEkonLoading] = useState(false);
+  const loadGeneration = useRef(0);
+  const ekonGeneration = useRef(0);
 
   // Lee las asignaciones Ekon solo de las campañas que las necesitan (Mupi o
   // Pendón sin detalle de tiendas). Los roles sin acceso a Ekon (comercial) no
@@ -328,28 +330,40 @@ export function CampaignsPage() {
   const canReadEkon = can(user?.role ?? 'viewer', 'reconciliation.read');
   const loadEkonContext = useCallback(
     async (list: StoredCampaign[], links: CampaignEkonLink[]) => {
+      const generation = ++ekonGeneration.current;
       if (!canReadEkon || campaignsNeedingEkon(list).length === 0) {
         setEkonLoaded(EMPTY_EKON_CONTEXT);
+        setEkonReadFailed(false);
+        setEkonLoading(false);
         return;
       }
+      setEkonLoading(true);
       try {
-        setEkonLoaded(await loadEkonStoreContext(list, links));
+        const loaded = await loadEkonStoreContext(list, links);
+        if (generation !== ekonGeneration.current) return;
+        setEkonLoaded(loaded);
         setEkonReadFailed(false);
       } catch {
+        if (generation !== ekonGeneration.current) return;
         setEkonLoaded(EMPTY_EKON_CONTEXT);
         setEkonReadFailed(true);
         setError(
           'No se pudieron leer los datos de Ekon: los Mupi y Pendón sin detalle de tiendas no se resolvieron y no generan CSV hasta reintentar.',
         );
+      } finally {
+        if (generation === ekonGeneration.current) setEkonLoading(false);
       }
     },
     [canReadEkon],
   );
 
   const reload = useCallback(async () => {
+    const generation = ++loadGeneration.current;
+    ++ekonGeneration.current;
     setLoading(true);
+    setEkonLoading(true);
     setError(null);
-    setQuividiAvailabilityLoaded(false);
+    setAvailabilityVersion((n) => n + 1);
     try {
       // Incluye las retiradas del calendario: se muestran con su etiqueta, pero
       // su estado las deja fuera de CSV, Quividi y baja ocupación.
@@ -382,55 +396,35 @@ export function CampaignsPage() {
         // La migración es idempotente y se reintentará en la próxima carga; no
         // se bloquea la consulta por un fallo transitorio de escritura.
       }
+      if (generation !== loadGeneration.current) return;
       c.sort((a, b) => a.name.localeCompare(b.name, 'es'));
       setCampaigns(c);
       setScreens(s);
       setEkonLinks(e);
       setTrackingList(tracking);
-      await loadEkonContext(
-        campaignsAllowedFor('consolidationCsv', c, tracking),
-        e,
-      );
-      try {
-        const availability = await getQuividiCampaignAvailability(
-          c.map((campaign) => campaign.id),
-        );
-        setQuividiAvailability(
-          new Map(availability.map((item) => [item.campaignId, item])),
-        );
-      } catch {
-        setQuividiAvailability(new Map());
-      } finally {
-        setQuividiAvailabilityLoaded(true);
-      }
     } catch {
+      if (generation !== loadGeneration.current) return;
+      setEkonLoading(false);
       setError('No se pudieron cargar las campañas o el catálogo.');
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [loadEkonContext]);
+  }, []);
 
   const reloadEkon = useCallback(async () => {
     const links = await listEkonLinks();
     setEkonLinks(links);
-    await loadEkonContext(
-      campaignsAllowedFor('consolidationCsv', campaigns, trackingList),
-      links,
-    );
-    try {
-      const availability = await getQuividiCampaignAvailability(
-        campaigns.map((campaign) => campaign.id),
-      );
-      setQuividiAvailability(
-        new Map(availability.map((item) => [item.campaignId, item])),
-      );
-    } catch {
-      // La disponibilidad se volverá a validar al recargar la página.
-    }
-  }, [campaigns, trackingList, loadEkonContext]);
+    setAvailabilityVersion((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     void reload();
+    const loads = loadGeneration;
+    const ekonLoads = ekonGeneration;
+    return () => {
+      ++loads.current;
+      ++ekonLoads.current;
+    };
   }, [reload]);
 
   const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
@@ -486,11 +480,47 @@ export function CampaignsPage() {
       statuses.get(c.id) ?? 'active',
     [statuses],
   );
-  // Solo las campañas activas o en pausa consolidan y generan CSV.
-  const csvCampaigns = useMemo(
+  // Consolida el periodo consultado. Conserva todos los flights homónimos:
+  // la llave de negocio sigue siendo Campaña + RESOLUCION, no campaign.id.
+  const csvCampaigns = useMemo(() => {
+    const allowed = campaigns.filter((c) =>
+      statusAllows(statusOf(c), 'consolidationCsv'),
+    );
+    if (periodError(desde, hasta)) return [];
+    const start = parseCampaignDate(desde);
+    const end = parseCampaignDate(hasta);
+    const names = new Set(
+      allowed
+        .filter((c) =>
+          campaignIntersectsPeriod(c.fechaInicio, c.fechaFin, start, end),
+        )
+        .map((c) => campaignKey(c.name)),
+    );
+    return allowed.filter((c) => names.has(campaignKey(c.name)));
+  }, [campaigns, statusOf, desde, hasta]);
+
+  useEffect(() => {
+    if (loading) return;
+    void loadEkonContext(csvCampaigns, ekonLinks);
+    const loads = ekonGeneration;
+    return () => {
+      ++loads.current;
+    };
+  }, [loading, csvCampaigns, ekonLinks, loadEkonContext]);
+
+  // Un CSV agrupa flights homónimos: la dependencia se determina por nombre
+  // consolidado, no solo por el documento de la fila.
+  const ekonDependentNames = useMemo(
     () =>
-      campaigns.filter((c) => statusAllows(statusOf(c), 'consolidationCsv')),
-    [campaigns, statusOf],
+      new Set(
+        campaignsNeedingEkon(csvCampaigns).map((c) => campaignKey(c.name)),
+      ),
+    [csvCampaigns],
+  );
+  const isEkonPending = useCallback(
+    (c: StoredCampaign) =>
+      ekonLoading && ekonDependentNames.has(campaignKey(c.name)),
+    [ekonLoading, ekonDependentNames],
   );
 
   // Mupi/Pendón sin detalle toman sus tiendas de la campaña Ekon vinculada; los
@@ -640,6 +670,8 @@ export function CampaignsPage() {
     statusOf,
   ]);
 
+  const bulkEkonPending = filtered.some(isEkonPending);
+
   const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const sorted = useMemo(
     () =>
@@ -655,6 +687,25 @@ export function CampaignsPage() {
     [filtered, sort, ekonByKey, storeCountByCampaign, statusOf],
   );
   const onSort = (k: string) => setSort((s) => nextSortState(s, k));
+
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+  useEffect(() => {
+    setPage(1);
+    setOpenMenuId(null);
+    setQuividiMenuId(null);
+  }, [search, desde, hasta, classFilter, statusFilter, sort]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageRows = sorted.slice(pageStart, pageStart + pageSize);
+  const availability = useCampaignAvailability(
+    pageRows
+      .filter((c) => statusAllows(statusOf(c), 'quividiReport'))
+      .map((c) => c.id),
+    canReportQuividi && !loading,
+    availabilityVersion,
+  );
 
   const filtersActive =
     search.trim() !== '' ||
@@ -719,7 +770,7 @@ export function CampaignsPage() {
   ]);
 
   async function downloadZipFor(c: StoredCampaign, cons: Consolidation[]) {
-    if (zipBusyName || cons.length === 0) return;
+    if (isEkonPending(c) || zipBusyName || cons.length === 0) return;
     setCsvError(null);
     setZipBusyName(c.name);
     try {
@@ -737,6 +788,7 @@ export function CampaignsPage() {
   }
 
   async function downloadPdf(c: StoredCampaign) {
+    if (isEkonPending(c)) return;
     const res: ConsolidationResult = {
       consolidations: [],
       issues: issuesByCampaign.get(c.name) ?? [],
@@ -768,6 +820,8 @@ export function CampaignsPage() {
   }
 
   function downloadCsvFor(cons: Consolidation) {
+    if (ekonLoading && ekonDependentNames.has(campaignKey(cons.campaignName)))
+      return;
     download(
       new Blob([consolidationCsv(cons)], { type: 'text/csv;charset=utf-8' }),
       csvFileName(cons),
@@ -834,7 +888,7 @@ export function CampaignsPage() {
 
   // Desglose Excel de UNA campaña (la instancia exacta, sin mezclar homónimas).
   async function downloadExcelFor(c: StoredCampaign) {
-    if (excelBusyId) return;
+    if (isEkonPending(c) || excelBusyId) return;
     setExcelError(null);
     setExcelBusyId(c.id);
     try {
@@ -869,7 +923,13 @@ export function CampaignsPage() {
   // Desglose Excel masivo: exporta exactamente el arreglo `filtered` (respeta
   // búsqueda y periodo Desde/Hasta, tal como los ve la tabla).
   async function downloadBulkExcel() {
-    if (bulkBusy || perError !== null || filtered.length === 0) return;
+    if (
+      bulkEkonPending ||
+      bulkBusy ||
+      perError !== null ||
+      filtered.length === 0
+    )
+      return;
     setBulkError(null);
     setBulkBusy(true);
     try {
@@ -983,7 +1043,10 @@ export function CampaignsPage() {
                 className="btn btn-primary"
                 onClick={() => void downloadBulkExcel()}
                 disabled={
-                  bulkBusy || perError !== null || filtered.length === 0
+                  bulkEkonPending ||
+                  bulkBusy ||
+                  perError !== null ||
+                  filtered.length === 0
                 }
                 aria-busy={bulkBusy}
                 title="Exportar el desglose Excel de las campañas visibles"
@@ -1089,6 +1152,24 @@ export function CampaignsPage() {
         </div>
       )}
 
+      {!loading && ekonLoading && (
+        <p role="status" className="text-muted">
+          Resolviendo tiendas de Ekon… Las descargas operativas estarán
+          disponibles al terminar.
+        </p>
+      )}
+      {!loading && pageRows.some((c) => availability.failed.has(c.id)) && (
+        <div className="catalog__notice" role="status">
+          No se pudo verificar la cobertura Quividi.
+          <button
+            className="btn btn-secondary"
+            onClick={() => setAvailabilityVersion((n) => n + 1)}
+          >
+            Reintentar cobertura
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <LoadingOverlay
           variant="process"
@@ -1165,7 +1246,7 @@ export function CampaignsPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((c) => {
+              {pageRows.map((c) => {
                 const status = statusOf(c);
                 const inCsv = statusAllows(status, 'consolidationCsv');
                 const quividiAllowed = statusAllows(status, 'quividiReport');
@@ -1174,7 +1255,8 @@ export function CampaignsPage() {
                   ? (issuesByCampaign.get(c.name) ?? []).length
                   : 0;
                 const ekon = ekonByKey.get(c.id);
-                const quividi = quividiAvailability.get(c.id);
+                const quividi = availability.items.get(c.id);
+                const quividiAvailabilityLoaded = availability.loaded(c.id);
                 const hasQuividi = quividi?.available === true;
                 const statusTracking = trackingById.get(c.id) ?? null;
                 const statusReason =
@@ -1187,9 +1269,11 @@ export function CampaignsPage() {
                     ? `Sin informe Quividi: la campaña está ${EFFECTIVE_STATUS_LABELS[status].toLowerCase()}`
                     : !quividiAvailabilityLoaded
                       ? 'Verificando cobertura Quividi…'
-                      : hasQuividi
-                        ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
-                        : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
+                      : availability.failed.has(c.id)
+                        ? 'No se pudo verificar la cobertura Quividi; reintenta la consulta'
+                        : hasQuividi
+                          ? `Descargar métricas Quividi de ${c.name} · ${quividiScopeLabel(quividi)}`
+                          : `Sin cobertura Quividi · ${quividiScopeLabel(quividi)}`;
                 return (
                   <tr key={c.id}>
                     <td>
@@ -1246,7 +1330,11 @@ export function CampaignsPage() {
                         <span className="text-muted">Link pendiente</span>
                       )}
                     </td>
-                    <td>{storeCountByCampaign.get(c.name) ?? 0}</td>
+                    <td>
+                      {isEkonPending(c)
+                        ? 'Verificando…'
+                        : (storeCountByCampaign.get(c.name) ?? 0)}
+                    </td>
                     <td>
                       <div className="campaign-actions">
                         <QuividiReportMenu
@@ -1292,7 +1380,7 @@ export function CampaignsPage() {
                             <button
                               className="icon-btn"
                               title="Exportar PDF de errores"
-                              disabled={nIssues === 0}
+                              disabled={isEkonPending(c) || nIssues === 0}
                               onClick={() => void downloadPdf(c)}
                             >
                               📄
@@ -1329,6 +1417,7 @@ export function CampaignsPage() {
                         {canDownloadOperational && (
                           <CampaignDownloadsMenu
                             campaign={c}
+                            pending={isEkonPending(c)}
                             cons={cons}
                             open={openMenuId === c.id}
                             zipBusy={zipBusyName === c.name}
@@ -1350,6 +1439,42 @@ export function CampaignsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && sorted.length > 0 && (
+        <nav className="campaign-pager" aria-label="Paginación de campañas">
+          <span>
+            Mostrando {pageStart + 1}–
+            {Math.min(pageStart + pageSize, sorted.length)} de {sorted.length}
+          </span>
+          <button
+            className="btn btn-secondary"
+            aria-label="Página anterior"
+            disabled={currentPage <= 1}
+            onClick={() => {
+              setPage(currentPage - 1);
+              setOpenMenuId(null);
+              setQuividiMenuId(null);
+            }}
+          >
+            Anterior
+          </button>
+          <span>
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            className="btn btn-secondary"
+            aria-label="Página siguiente"
+            disabled={currentPage >= totalPages}
+            onClick={() => {
+              setPage(currentPage + 1);
+              setOpenMenuId(null);
+              setQuividiMenuId(null);
+            }}
+          >
+            Siguiente
+          </button>
+        </nav>
       )}
 
       {detail && (
@@ -1390,13 +1515,8 @@ export function CampaignsPage() {
               updated,
             ];
             setTrackingList(next);
+            setAvailabilityVersion((n) => n + 1);
             setStatusCampaign(null);
-            // Una campaña que vuelve al CSV (p. ej. Mupi/Pendón sin tiendas)
-            // necesita su contexto Ekon, que se omitió mientras estaba fuera.
-            void loadEkonContext(
-              campaignsAllowedFor('consolidationCsv', campaigns, next),
-              ekonLinks,
-            );
           }}
           onClose={() => setStatusCampaign(null)}
         />
@@ -2145,6 +2265,7 @@ function QuividiReportMenu({
 
 function CampaignDownloadsMenu({
   campaign,
+  pending,
   cons,
   open,
   zipBusy,
@@ -2155,6 +2276,7 @@ function CampaignDownloadsMenu({
   onDownloadZip,
 }: {
   campaign: StoredCampaign;
+  pending: boolean;
   cons: Consolidation[];
   open: boolean;
   zipBusy: boolean;
@@ -2178,6 +2300,8 @@ function CampaignDownloadsMenu({
         ref={btnRef}
         type="button"
         className="icon-btn"
+        disabled={pending}
+        title={pending ? 'Resolviendo tiendas de Ekon…' : undefined}
         aria-label={`Descargas de ${campaign.name}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -2187,6 +2311,7 @@ function CampaignDownloadsMenu({
         ⬇️
       </button>
       {open &&
+        !pending &&
         createPortal(
           <div
             ref={panelRef}

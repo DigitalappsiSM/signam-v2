@@ -159,8 +159,27 @@ tres de ellos describían mal el separador de artículos.
   «Restablecer» y limpiar filtros recuperan ese mes; «Ver todo» quita las fechas.
   La búsqueda, clasificación y estado se combinan con el periodo. Los contadores
   visibles y la exportación masiva Excel respetan ese filtro, por lo que al abrir
-  se exporta el mes actual, no todo el histórico. No modifica datos, CSV
-  individuales, importación, permisos ni lecturas de Firestore.
+  se exporta el mes actual, no todo el histórico. La tabla tiene páginas de 50
+  filas; filtros y orden vuelven a la primera página. Los contadores y el Excel
+  masivo incluyen **todas** las campañas filtradas, no solo la página visible.
+  La tabla se muestra tras las lecturas base y migraciones legacy, sin esperar
+  el contexto Ekon ni la disponibilidad Quividi. Mientras Ekon resuelve las
+  tiendas, se muestra «Verificando…» y se bloquean las descargas operativas que
+  dependen de ese contexto (incluidos sus flights homónimos consolidados); las
+  demás campañas y el Excel filtrado sin dependencias Ekon siguen descargándose.
+  La consolidación y el contexto Ekon se calculan para
+  el periodo consultado, incluyendo los flights homónimos fuera del periodo para
+  conservar la llave `Campaña + RESOLUCION` y el CSV individual vigente.
+  Quividi consulta solo la página visible y los estados que permiten informe;
+  su caché dura mientras el módulo está montado y se invalida al actualizar,
+  corregir/crear una campaña, cambiar estado o vincular/desvincular Ekon.
+  Las respuestas tardías de una carga anterior no sustituyen los datos nuevos.
+  Un fallo de cobertura se muestra como error reintentable, no como ausencia de
+  cobertura. La callable agrupa las lecturas de campañas y enlaces, comparte los
+  índices del catálogo y las solicitudes Ekon pendientes, y procesa como máximo
+  ocho campañas concurrentes. Las lecturas base siguen incluyendo el histórico
+  completo para búsqueda, duplicados y diálogos de estado; no se migra el modelo
+  de fechas ni se modifican datos, importación o permisos.
 - **Vista de Seguimiento operativo**: por defecto muestra campañas cuya vigencia
   intersecta el mes actual al abrir el módulo, no el campo textual `mes`.
   «Restablecer» y limpiar filtros vuelven a ese mes; «Ver todo» quita las fechas.

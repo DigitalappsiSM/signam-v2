@@ -1,3 +1,4 @@
+import { loadCampaignAvailability, type CampaignAvailabilityItem } from './campaignAvailability';
 import { Buffer } from 'node:buffer';
 export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';
 import { gunzipSync, gzipSync } from 'node:zlib';
@@ -17,7 +18,6 @@ import {
   type CampaignDoc,
   type EffectiveScopeOrigin,
   type EffectiveSupportPair,
-  type EkonAssignmentDoc,
   type ScreenDoc,
 } from './effectiveScope';
 import {
@@ -1525,14 +1525,6 @@ export const campaignReport = onCall(
 );
 
 
-interface CampaignAvailabilityItem {
-  campaignId: string;
-  available: boolean;
-  totalPairs: number;
-  mappedPairs: number;
-  scopeOrigins: EffectiveScopeOrigin[];
-}
-
 export const campaignAvailability = onCall(
   async (request): Promise<{ items: CampaignAvailabilityItem[] }> => {
     requireQuividiAccess(request);
@@ -1557,41 +1549,7 @@ export const campaignAvailability = onCall(
     }
     if (campaignIds.length === 0) return { items: [] };
 
-    const db = getFirestore();
-    const screensSnap = await db.collection('screens').get();
-    const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
-    const refs = campaignIds.map((id) => db.collection('campaigns').doc(id));
-    const campaignSnaps = await db.getAll(...refs);
-    const items: CampaignAvailabilityItem[] = [];
-    // Las asignaciones Ekon solo dependen del número de campaña, así que una
-    // caché compartida entre campañas de la misma solicitud evita repetir la
-    // consulta para campañas que apuntan al mismo número. La callable es de
-    // solo lectura: no hay escrituras intermedias que la vuelvan obsoleta.
-    const assignmentCache = new Map<number, EkonAssignmentDoc[]>();
-
-    for (const snap of campaignSnaps) {
-      if (!snap.exists) continue;
-      const campaign = snap.data() as CampaignDoc;
-      const effectiveScope = await buildEffectiveSupportPairs(
-        db,
-        snap.id,
-        campaign,
-        screens,
-        assignmentCache,
-      );
-      const mappedPairs = effectiveScope.pairs.filter(
-        (pair) => pair.cameraNames.length > 0,
-      ).length;
-      items.push({
-        campaignId: snap.id,
-        available: mappedPairs > 0,
-        totalPairs: effectiveScope.pairs.length,
-        mappedPairs,
-        scopeOrigins: effectiveScope.origins,
-      });
-    }
-
-    return { items };
+    return { items: await loadCampaignAvailability(getFirestore(), campaignIds) };
   },
 );
 

@@ -237,3 +237,19 @@ missing. Percentages use passed / (passed + failed) per type, excluding cancelle
 ongoing and missing results. Late first response does not penalize resolution.
 Native Odoo results preserve calendars, access-permission pauses and reopened
 state history. See AGENTS.md and docs/ODOO_INCIDENTS.md.
+
+
+## Campaigns loading and performance
+
+`CampaignsPage` renders after base reads and legacy migrations, without waiting for
+Ekon scope or Quividi availability. Ekon-dependent exports stay disabled during scope
+loading. The table uses 50-row client pages; counts and bulk Excel cover all filtered
+campaigns. Consolidation/Ekon scope is limited to the queried period plus all same-name
+flights to preserve the existing `Campaign + RESOLUTION` consolidation rule. Base
+Firestore reads still include the historical data needed by duplicate/state dialogs;
+there is no date-schema migration. `useCampaignAvailability` fetches only eligible
+campaigns on the visible page and caches results for the mounted module; refresh,
+campaign writes, status changes and Ekon edits invalidate coverage. Failed coverage is
+retryable and is not interpreted as no coverage. The server batches campaign/link reads,
+shares catalog indices and pending Ekon reads, and limits processing to eight concurrent
+campaigns. See the **Vista de Campañas** rule in `AGENTS.md`.
