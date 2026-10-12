@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  combineCameraAverageSeconds,
   combineCameraValues,
   detectCameraPairGaps,
   isZoneSplitPair,
@@ -36,6 +37,39 @@ describe('isZoneSplitPair', () => {
     expect(
       isZoneSplitPair({ storeName: 'COAPA', support: 'MUPI DIGITAL' }),
     ).toBe(false);
+  });
+});
+
+describe('combineCameraAverageSeconds', () => {
+  it('sin watchers devuelve 0', () => {
+    expect(combineCameraAverageSeconds([], false)).toBe(0);
+    expect(
+      combineCameraAverageSeconds([{ watchers: 0, tenths: 90 }], false),
+    ).toBe(0);
+  });
+
+  it('fuera de zona partida usa sólo la cámara con más watchers', () => {
+    expect(
+      combineCameraAverageSeconds(
+        [
+          { watchers: 30, tenths: 400 },
+          { watchers: 50, tenths: 500 },
+        ],
+        false,
+      ),
+    ).toBeCloseTo(1);
+  });
+
+  it('en zona partida pondera todas las cámaras', () => {
+    expect(
+      combineCameraAverageSeconds(
+        [
+          { watchers: 30, tenths: 400 },
+          { watchers: 50, tenths: 500 },
+        ],
+        true,
+      ),
+    ).toBeCloseTo(900 / 80 / 10);
   });
 });
 

@@ -518,9 +518,9 @@ describe('buildMeasurementRows · ponderación multi-cámara', () => {
       publishedOts: 600,
       publishedWatchers: 60,
     });
-    // (200 + 600) décimas / 50 watchers / 10 = 1.6 s
-    expect(rows.supportDays[0]?.attentionSeconds).toBeCloseTo(1.6, 10);
-    expect(rows.supportDays[0]?.dwellSeconds).toBeCloseTo(2.6, 10);
+    // Sólo la cámara con más watchers: 600 décimas / 30 watchers / 10 = 2 s
+    expect(rows.supportDays[0]?.attentionSeconds).toBeCloseTo(2, 10);
+    expect(rows.supportDays[0]?.dwellSeconds).toBeCloseTo(3, 10);
   });
 
   it('excluye las cámaras parciales cuando existe alguna completa', () => {

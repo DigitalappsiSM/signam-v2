@@ -164,7 +164,7 @@ describe('App — con sesión activa', () => {
     ).toBeInTheDocument();
   });
 
-  it('Comercial solo navega por Panel, Seguimiento y Campañas', () => {
+  it('Comercial solo navega por Panel, Seguimiento, Campañas e Inteligencia Comercial', () => {
     signIn();
     authState.user!.role = 'commercial';
     renderAt('/');
@@ -176,7 +176,10 @@ describe('App — con sesión activa', () => {
       nav.getByRole('link', { name: /Seguimiento operativo/i }),
     ).toBeInTheDocument();
     expect(nav.getByRole('link', { name: /Campañas/i })).toBeInTheDocument();
-    expect(nav.getAllByRole('link')).toHaveLength(3);
+    expect(
+      nav.getByRole('link', { name: /Inteligencia Comercial/i }),
+    ).toBeInTheDocument();
+    expect(nav.getAllByRole('link')).toHaveLength(4);
     expect(screen.getByText('Comercial')).toBeInTheDocument();
   });
 

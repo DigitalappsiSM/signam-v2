@@ -180,7 +180,7 @@ logic. The load-bearing ones:
   attention time are not (they're per-person averages, not counts), though they weight double when averaged across
   stores. This is a business assumption applied to 100%-measured data, not gap-filling, so it's deliberately
   separate from extrapolation. Raw (`ots`/`effectiveOts`/`watchers`) and published (`publishedOts`/…) values both
-  survive on every row; watchers and the gender × age profile follow the same camera rule, and demographics are
+  survive on every row; watchers, the gender × age profile and dwell/attention time follow the same camera rule (dwell/attention come from the camera with the most watchers outside zone-split, `combineCameraAverageSeconds`), and demographics are
   extrapolated like OTS (`brandDemographics`: format average watchers × measured profile for missing days and
   camera-less supports). The commercial PDF (`quividiBrandReport.ts`) reads `published*` everywhere it feeds the
   published figure, while the technical Excel (`quividiCampaignExcel.ts`) keeps reading the raw fields — its

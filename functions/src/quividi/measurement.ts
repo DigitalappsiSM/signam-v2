@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   combineCameraValues,
+  combineCameraAverageSeconds,
   isZoneSplitPair,
   publishedValue,
 } from './cameraCombination';
@@ -593,10 +594,6 @@ export function buildMeasurementRows(
           : all.every((row) => row.status === 'complete')
             ? 'complete'
             : 'partial';
-      const watchersTotal = selected.reduce(
-        (sum, row) => sum + row.watchers,
-        0,
-      );
       const dayOts = combineCameraValues(
         selected.map((row) => row.ots),
         zoneSplit,
@@ -634,18 +631,20 @@ export function buildMeasurementRows(
           pair.cameras.length,
           zoneSplit,
         ),
-        attentionSeconds:
-          watchersTotal > 0
-            ? selected.reduce((sum, row) => sum + row.attentionTenths, 0) /
-              watchersTotal /
-              10
-            : 0,
-        dwellSeconds:
-          watchersTotal > 0
-            ? selected.reduce((sum, row) => sum + row.dwellTenths, 0) /
-              watchersTotal /
-              10
-            : 0,
+        attentionSeconds: combineCameraAverageSeconds(
+          selected.map((row) => ({
+            watchers: row.watchers,
+            tenths: row.attentionTenths,
+          })),
+          zoneSplit,
+        ),
+        dwellSeconds: combineCameraAverageSeconds(
+          selected.map((row) => ({
+            watchers: row.watchers,
+            tenths: row.dwellTenths,
+          })),
+          zoneSplit,
+        ),
       });
 
       if (selected.length === 0) continue;

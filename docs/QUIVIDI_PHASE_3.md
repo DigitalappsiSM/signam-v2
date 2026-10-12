@@ -50,7 +50,9 @@ e «Duplicación de la cifra»):
    basa en cuántos puntos tiene **asignados** el catálogo, no en cuántos
    reportaron ese día.
 4. Attention Time y Dwell Time **nunca se duplican**: son promedios por
-   watcher, no conteos.
+   watcher, no conteos. Salen de la misma cámara de referencia que watchers
+   (la de **más watchers** fuera de zona partida; ponderado de todas en zona
+   partida), con el mismo helper que Fase 1 (`combineCameraAverageSeconds`).
 
 Esta capa **no toca** `quividiHistoryPartitions` (crudo) ni el reporte por
 campaña de Fase 1 (`campaignAudienceSnapshots`); solo produce su propio rollup

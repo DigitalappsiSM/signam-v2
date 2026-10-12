@@ -174,7 +174,11 @@ de la sección *Informe comercial de audiencia*.
 - OTS, Effective OTS y Watchers: la lectura más alta del día entre cámaras
   válidas del mismo soporte (suma en zona partida); después se acumulan los
   días.
-- Attention Time y Dwell Time: promedio ponderado por Watchers.
+- Attention Time y Dwell Time: misma cámara de referencia que watchers y
+  demografía (octubre 2026): fuera de zona partida, sólo la cámara con **más
+  watchers** del día/hora; en zona partida, promedio ponderado por Watchers de
+  todas sus cámaras (`combineCameraAverageSeconds`). Entre tiendas/días se
+  sigue ponderando por Watchers.
 - Tasa de atención: se recalcula como `Watchers / OTS`; no se promedian
   porcentajes.
 - Demografía: misma regla multi-cámara (perfil de la cámara con más watchers;

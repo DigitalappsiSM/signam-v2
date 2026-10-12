@@ -708,6 +708,10 @@ tres de ellos describían mal el separador de artículos.
   Se calcula en el mismo origen del dato que la regla de Multi-cámara
   (`cameraCombination.ts` → `publishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR
   = 2`), aplicado **después** de `combineCameraValues`.
+  Dwell time y attention time de un par multi-cámara salen de la misma cámara
+  de referencia que watchers y demografía (octubre 2026): fuera de zona
+  partida, sólo la de **más watchers**; en zona partida, ponderado de todas
+  (`combineCameraAverageSeconds`, compartido por diario, horario y Fase 3).
   Se duplican OTS, OTS efectivos y watchers; **no** se duplican dwell time ni
   attention time (son promedios por persona, no conteos — duplicar el tiempo
   que alguien mira la pantalla no tiene sentido), pero sí pesan el doble al

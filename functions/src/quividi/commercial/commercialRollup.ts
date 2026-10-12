@@ -1,9 +1,14 @@
 import {
   combineCameraValues,
+  combineCameraAverageSeconds,
   isZoneSplitPair,
   publishedValue,
 } from '../cameraCombination';
-import { numeric, type OtsExportRow, type ViewerExportRow } from '../measurement';
+import {
+  numeric,
+  type OtsExportRow,
+  type ViewerExportRow,
+} from '../measurement';
 
 /**
  * Rollup comercial derivado de Inteligencia Comercial (Fase 3).
@@ -85,7 +90,10 @@ export function aggregateHourlyCameraDay(
       (sum, row) => sum + numeric(row.effective_ots_count),
       0,
     ),
-    watchers: viewerRows.reduce((sum, row) => sum + numeric(row.watcher_count), 0),
+    watchers: viewerRows.reduce(
+      (sum, row) => sum + numeric(row.watcher_count),
+      0,
+    ),
     attentionTenths: viewerRows.reduce(
       (sum, row) => sum + numeric(row.attention_time_in_tenths_of_sec),
       0,
@@ -154,7 +162,10 @@ export function buildCommercialDailyRow(
     };
   }
 
-  const ots = combineCameraValues(measured.map((camera) => camera.ots), zoneSplit);
+  const ots = combineCameraValues(
+    measured.map((camera) => camera.ots),
+    zoneSplit,
+  );
   const effectiveOts = combineCameraValues(
     measured.map((camera) => camera.effectiveOts),
     zoneSplit,
@@ -163,7 +174,6 @@ export function buildCommercialDailyRow(
     measured.map((camera) => camera.watchers),
     zoneSplit,
   );
-  const watchersTotal = measured.reduce((sum, camera) => sum + camera.watchers, 0);
 
   return {
     ...base,
@@ -177,18 +187,20 @@ export function buildCommercialDailyRow(
       zoneSplit,
     ),
     publishedWatchers: publishedValue(watchers, configuredCameras, zoneSplit),
-    attentionSeconds:
-      watchersTotal > 0
-        ? measured.reduce((sum, camera) => sum + camera.attentionTenths, 0) /
-          watchersTotal /
-          10
-        : 0,
-    dwellSeconds:
-      watchersTotal > 0
-        ? measured.reduce((sum, camera) => sum + camera.dwellTenths, 0) /
-          watchersTotal /
-          10
-        : 0,
+    attentionSeconds: combineCameraAverageSeconds(
+      measured.map((camera) => ({
+        watchers: camera.watchers,
+        tenths: camera.attentionTenths,
+      })),
+      zoneSplit,
+    ),
+    dwellSeconds: combineCameraAverageSeconds(
+      measured.map((camera) => ({
+        watchers: camera.watchers,
+        tenths: camera.dwellTenths,
+      })),
+      zoneSplit,
+    ),
     pointIdsUsed: measured
       .map((camera) => camera.pointId)
       .filter((id): id is string => id != null),

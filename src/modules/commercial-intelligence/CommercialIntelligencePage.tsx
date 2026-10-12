@@ -5,7 +5,11 @@ import {
   getQuividiCommercialAudit,
   type QuividiCommercialAuditResult,
 } from '@/services/quividi';
-import { consistencyLabel, statusLabel, zoneSplitLabel } from './commercialAuditView';
+import {
+  consistencyLabel,
+  statusLabel,
+  zoneSplitLabel,
+} from './commercialAuditView';
 import './CommercialIntelligencePage.css';
 
 function formatNumber(value: number): string {
@@ -33,7 +37,9 @@ export function CommercialIntelligencePage() {
   const [campaignId, setCampaignId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<QuividiCommercialAuditResult | null>(null);
+  const [result, setResult] = useState<QuividiCommercialAuditResult | null>(
+    null,
+  );
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -161,7 +167,9 @@ export function CommercialIntelligencePage() {
                   <tr key={day.date}>
                     <td>{day.date}</td>
                     <td>
-                      {day.raw.length === 0 && <small>Sin puntos configurados</small>}
+                      {day.raw.length === 0 && (
+                        <small>Sin puntos configurados</small>
+                      )}
                       {day.raw.map((point) => (
                         <span key={point.locationId}>
                           {point.pointId ?? `Location ${point.locationId}`}:{' '}
@@ -175,15 +183,19 @@ export function CommercialIntelligencePage() {
                       {day.commercial ? (
                         <>
                           <span>
-                            {formatNumber(day.commercial.publishedOts)} OTS publicados ·{' '}
-                            {formatNumber(day.commercial.publishedWatchers)} watchers
+                            {formatNumber(day.commercial.publishedOts)} OTS
+                            publicados ·{' '}
+                            {formatNumber(day.commercial.publishedWatchers)}{' '}
+                            watchers
                           </span>
                           <small>
                             Combinado: {formatNumber(day.commercial.ots)} OTS ·{' '}
                             {formatNumber(day.commercial.watchers)} watchers
                           </small>
                           <small>{statusLabel(day.commercial.status)}</small>
-                          <small>{zoneSplitLabel(day.commercial.zoneSplit)}</small>
+                          <small>
+                            {zoneSplitLabel(day.commercial.zoneSplit)}
+                          </small>
                         </>
                       ) : (
                         <small>Sin rollup guardado</small>
@@ -193,7 +205,8 @@ export function CommercialIntelligencePage() {
                       {day.fase1 ? (
                         <>
                           <span>
-                            {formatNumber(day.fase1.publishedOts)} OTS publicados ·{' '}
+                            {formatNumber(day.fase1.publishedOts)} OTS
+                            publicados ·{' '}
                             {formatNumber(day.fase1.publishedWatchers)} watchers
                           </span>
                           <small>{zoneSplitLabel(day.fase1.zoneSplit)}</small>

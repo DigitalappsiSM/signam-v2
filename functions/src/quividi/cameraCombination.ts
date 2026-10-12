@@ -110,6 +110,46 @@ export function combineCameraValues(
   return Math.max(...values);
 }
 
+/** Lectura de una cámara para promediar un tiempo por persona (atención o
+ * permanencia): décimas de segundo acumuladas y watchers que las generaron. */
+export interface CameraTimeReading {
+  watchers: number;
+  tenths: number;
+}
+
+/**
+ * Tiempo promedio por persona (segundos) de un par tienda+soporte, con la
+ * misma cámara de referencia que watchers y demografía:
+ *
+ * - Zona partida (`isZoneSplit`): promedio ponderado de todas las cámaras
+ *   (dos audiencias distintas).
+ * - Si no: sólo la cámara con **más watchers** (octubre 2026). Mezclar la
+ *   cámara baja — ángulo u obstrucción — contaminaría el promedio de la alta.
+ *
+ * No se duplica nunca: es un promedio por persona, no un conteo.
+ */
+export function combineCameraAverageSeconds(
+  readings: readonly CameraTimeReading[],
+  isZoneSplit: boolean,
+): number {
+  const reference = isZoneSplit
+    ? readings
+    : readings.reduce<CameraTimeReading[]>(
+        (best, reading) =>
+          best.length === 0 || reading.watchers > best[0]!.watchers
+            ? [reading]
+            : best,
+        [],
+      );
+  const watchers = reference.reduce(
+    (sum, reading) => sum + reading.watchers,
+    0,
+  );
+  if (watchers <= 0) return 0;
+  const tenths = reference.reduce((sum, reading) => sum + reading.tenths, 0);
+  return tenths / watchers / 10;
+}
+
 /** Entrada de salud de una cámara, lo mínimo que hace falta para agruparla
  * con sus hermanas de par y comparar su OTS. */
 export interface CameraPairGapInput {

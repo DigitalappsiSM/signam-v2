@@ -11,7 +11,9 @@ import type {
  * regla de negocio.
  */
 
-export function statusLabel(status: QuividiCommercialDailyRow['status']): string {
+export function statusLabel(
+  status: QuividiCommercialDailyRow['status'],
+): string {
   switch (status) {
     case 'measured':
       return 'Medido';
