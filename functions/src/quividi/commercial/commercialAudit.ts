@@ -1,12 +1,21 @@
 import { gunzipSync } from 'node:zlib';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { canUseCommercialIntelligence, roleFromClaims } from '../access';
 import { combineCameraValues, isZoneSplitPair } from '../cameraCombination';
+import {
+  buildEffectiveSupportPairs,
+  type CampaignDoc,
+  type ScreenDoc,
+} from '../effectiveScope';
 import type { StoreBinding } from '../historyModel';
 import {
   dayList,
+  inputSignature,
   numeric,
+  parseCivilDate,
+  SNAPSHOT_SCHEMA_VERSION,
+  snapshotIsFresh,
   type OtsExportRow,
   type SupportDay,
   type ViewerExportRow,
@@ -30,6 +39,30 @@ import type { CommercialDailyRow } from './commercialRollup';
  */
 
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
+
+/**
+ * Rango máximo (días, inclusive) de una auditoría. Cada día dispara varias
+ * lecturas de Firestore/Storage; sin tope, una llamada directa al callable con
+ * `0000-01-01`…`9999-12-31` materializaría millones de fechas.
+ */
+export const MAX_AUDIT_DAYS = 93;
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+/** Rango válido: fechas reales, fin ≥ inicio y como máximo `MAX_AUDIT_DAYS`. */
+export function isValidAuditRange(startDate: string, endDate: string): boolean {
+  if (!isCalendarDate(startDate) || !isCalendarDate(endDate)) return false;
+  if (endDate < startDate) return false;
+  const days =
+    (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) /
+      86_400_000 +
+    1;
+  return days <= MAX_AUDIT_DAYS;
+}
 
 export interface RawPointDay {
   locationId: number;
@@ -188,15 +221,55 @@ function decodeFase1SupportDays(value: unknown): SupportDay[] | null {
   }
 }
 
-async function fase1FigureFor(
+/**
+ * `supportDays` del snapshot Fase 1 **sólo si sigue vigente**, con las mismas
+ * comprobaciones que el reporte por campaña (`index.ts`): versión de esquema,
+ * firma de entradas (campaña, alcance y vigencia) y frescura del corte. Un
+ * snapshot que Fase 1 rechazaría y regeneraría no se muestra como referencia.
+ */
+async function loadValidFase1SupportDays(
+  db: Firestore,
   campaignId: string,
+): Promise<SupportDay[] | null> {
+  const [campaignSnap, snapshot] = await Promise.all([
+    db.collection('campaigns').doc(campaignId).get(),
+    db.collection(SNAPSHOT_COLLECTION).doc(campaignId).get(),
+  ]);
+  if (!campaignSnap.exists || !snapshot.exists) return null;
+  const saved = snapshot.data();
+  if (
+    saved?.schemaVersion !== SNAPSHOT_SCHEMA_VERSION ||
+    typeof saved?.generatedAt !== 'number'
+  ) {
+    return null;
+  }
+  const campaign = campaignSnap.data() as CampaignDoc;
+  const startDate = parseCivilDate(campaign.fechaInicio ?? '');
+  const endDate = parseCivilDate(campaign.fechaFin ?? '');
+  if (!startDate || !endDate) return null;
+  if (!snapshotIsFresh(saved.generatedAt, startDate, endDate, Date.now())) {
+    return null;
+  }
+  const screensSnap = await db.collection('screens').get();
+  const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
+  const scope = await buildEffectiveSupportPairs(db, campaignId, campaign, screens);
+  const signature = inputSignature(
+    campaign,
+    scope.pairs,
+    scope.origins,
+    startDate,
+    endDate,
+  );
+  if (saved.inputSignature !== signature) return null;
+  return decodeFase1SupportDays(saved.compressedReport);
+}
+
+function fase1FigureFor(
+  supportDays: readonly SupportDay[] | null,
   storeNumber: string,
   support: string,
   date: string,
-): Promise<Fase1Figure | null> {
-  const doc = await getFirestore().collection(SNAPSHOT_COLLECTION).doc(campaignId).get();
-  if (!doc.exists) return null;
-  const supportDays = decodeFase1SupportDays(doc.get('compressedReport'));
+): Fase1Figure | null {
   if (!supportDays) return null;
   const row = supportDays.find(
     (day) =>
@@ -238,21 +311,19 @@ export const commercialAudit = onCall(async (request) => {
   const startDate = typeof data.startDate === 'string' ? data.startDate : '';
   const endDate = typeof data.endDate === 'string' ? data.endDate : '';
   const campaignId = typeof data.campaignId === 'string' ? data.campaignId : null;
-  if (
-    !storeNumber ||
-    !support ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
-    endDate < startDate
-  ) {
-    throw new HttpsError('invalid-argument', 'Tienda, soporte y rango de fechas son obligatorios.');
+  if (!storeNumber || !support || !isValidAuditRange(startDate, endDate)) {
+    throw new HttpsError(
+      'invalid-argument',
+      `Tienda, soporte y un rango de fechas válido (máximo ${MAX_AUDIT_DAYS} días) son obligatorios.`,
+    );
   }
 
   const db = getFirestore();
-  const [bindingsSnap, dates] = [
-    await db.collection(BINDINGS_COLLECTION).get(),
-    dayList(startDate, endDate),
-  ];
+  const [bindingsSnap, fase1SupportDays] = await Promise.all([
+    db.collection(BINDINGS_COLLECTION).get(),
+    campaignId ? loadValidFase1SupportDays(db, campaignId) : null,
+  ]);
+  const dates = dayList(startDate, endDate);
   const bindings = bindingsSnap.docs.map((doc) => doc.data() as StoreBinding);
   const storeBinding = bindings.find(
     (binding) => binding.storeId === `LIV-${storeNumber}` && binding.support === support,
@@ -264,14 +335,14 @@ export const commercialAudit = onCall(async (request) => {
 
   const days: CommercialAuditDay[] = await Promise.all(
     dates.map(async (date) => {
-      const [raw, commercialDoc, fase1] = await Promise.all([
+      const [raw, commercialDoc] = await Promise.all([
         rawPointDaysFor(storeNumber, support, date, bindings),
         db
           .collection(COMMERCIAL_DAILY_COLLECTION)
           .doc(commercialDailyDocId(date, storeNumber, support))
           .get(),
-        campaignId ? fase1FigureFor(campaignId, storeNumber, support, date) : null,
       ]);
+      const fase1 = fase1FigureFor(fase1SupportDays, storeNumber, support, date);
       const commercial = commercialDoc.exists
         ? (commercialDoc.data() as CommercialDailyRow)
         : null;

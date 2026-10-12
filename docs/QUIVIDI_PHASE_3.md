@@ -128,6 +128,16 @@ rollup del día está desalineado (p. ej. datos tardíos de Fase 2 que aún no
 dispararon `quividi-commercialRollupBuild`), nunca dispara una corrección
 automática.
 
+- **Rango acotado**: fechas de calendario reales, fin ≥ inicio y como máximo
+  `MAX_AUDIT_DAYS` (93) días; fuera de eso responde `invalid-argument`.
+- **Snapshot vigente** significa lo mismo que en el reporte por campaña:
+  `schemaVersion === SNAPSHOT_SCHEMA_VERSION` (8), `inputSignature` igual a
+  la de la campaña y alcance actuales, y `snapshotIsFresh` con el corte
+  actual. Si cualquiera falla, la columna Fase 1 sale vacía en vez de mostrar
+  una cifra que Fase 1 rechazaría.
+- El cliente rotula los puntos por su `pointId` de catálogo o, si no lo
+  tiene, «Punto N»; nunca por Location ID.
+
 ## 5. Permisos
 
 | Capacidad | admin | operator | viewer | commercial |

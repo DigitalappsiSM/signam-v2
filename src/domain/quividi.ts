@@ -147,7 +147,7 @@ export interface QuividiCampaignReport {
   // v6 agrega el corte de medición (`measuredEndDate`, `partialDate`,
   // `partialUntil`): el día en curso en horario operativo (día incompleto).
   // v7: 2 cámaras fuera de zona partida → lectura más alta × 2.
-  schemaVersion: 3 | 4 | 5 | 6 | 7;
+  schemaVersion: 3 | 4 | 5 | 6 | 7 | 8;
   campaignId: string;
   campaignName: string;
   startDate: string;

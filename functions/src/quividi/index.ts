@@ -92,6 +92,7 @@ import {
   measurementCutoff,
   parseCivilDate,
   resolvePairs,
+  SNAPSHOT_SCHEMA_VERSION,
   snapshotIsFresh,
   type CameraDay,
   type DemographicRow,
@@ -122,20 +123,9 @@ const CAMPAIGN_REPORT_HISTORY_SPECS: readonly PersistedHistorySpec[] = [
 ];
 export const CAMERA_HEALTH_ALERT_COLLECTION = 'quividiCameraHealthAlerts';
 export const CAMERA_HEALTH_ALERT_STATE_COLLECTION = 'quividiCameraHealthAlertState';
-// v5: agrega publishedOts/publishedEffectiveOts/publishedWatchers a
-// SupportDay/SupportHour (duplicación por cámara única). Un snapshot v4
-// cacheado no tiene esos campos; el frontend los lee directo y los trata
-// como 0 ante su ausencia, así que debe invalidarse y regenerarse, no
-// servirse tal cual.
-// v6: agrega el corte de medición (`measuredEndDate`, `partialDate`,
-// `partialUntil`) para el día incompleto en horario operativo.
-// v7: circuitos de 2 cámaras (fuera de zona partida) toman la lectura más
-// alta y la duplican; cambia `ots`/`published*` sin cambiar la forma, así que
-// los snapshots v6 deben regenerarse.
-const SNAPSHOT_SCHEMA_VERSION = 7;
 
 interface CampaignReport {
-  schemaVersion: 7;
+  schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
   campaignId: string;
   campaignName: string;
   startDate: string;

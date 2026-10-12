@@ -141,6 +141,23 @@ export interface Incident {
   status: 'partial' | 'missing';
 }
 
+// v5: agrega publishedOts/publishedEffectiveOts/publishedWatchers a
+// SupportDay/SupportHour (duplicación por cámara única). Un snapshot v4
+// cacheado no tiene esos campos; el frontend los lee directo y los trata
+// como 0 ante su ausencia, así que debe invalidarse y regenerarse, no
+// servirse tal cual.
+// v6: agrega el corte de medición (`measuredEndDate`, `partialDate`,
+// `partialUntil`) para el día incompleto en horario operativo.
+// v7: circuitos de 2 cámaras (fuera de zona partida) toman la lectura más
+// alta y la duplican; cambia `ots`/`published*` sin cambiar la forma, así que
+// los snapshots v6 deben regenerarse.
+// v8: Attention/Dwell Time de pares multi-cámara fuera de zona partida salen
+// sólo de la cámara con más watchers (`combineCameraAverageSeconds`); cambia
+// cifras sin cambiar la forma, así que los snapshots v7 deben regenerarse.
+// Vive aquí (no en index.ts) para que la auditoría de Fase 3 valide los
+// snapshots con la misma versión sin importar index.ts (ciclo).
+export const SNAPSHOT_SCHEMA_VERSION = 8;
+
 export function parseCivilDate(value: string): string | null {
   const text = value.trim();
   let match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);

@@ -38,3 +38,12 @@ export function consistencyLabel(flag: QuividiCommercialConsistency): string {
       return 'Sin datos';
   }
 }
+
+/**
+ * Rótulo de un punto en la columna de crudo: su `pointId` de catálogo o, si
+ * el binding no lo tiene, un rótulo neutro por posición. Nunca el Location ID
+ * de Quividi: el cliente identifica por Tienda+Soporte (AGENTS.md, Fase 3).
+ */
+export function pointLabel(pointId: string | null, index: number): string {
+  return pointId ?? `Punto ${index + 1}`;
+}

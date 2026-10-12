@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   consistencyLabel,
+  pointLabel,
   statusLabel,
   zoneSplitLabel,
 } from './commercialAuditView';
@@ -27,5 +28,15 @@ describe('consistencyLabel', () => {
       'Revisar: no cuadra con el crudo',
     );
     expect(consistencyLabel('no-data')).toBe('Sin datos');
+  });
+});
+
+describe('pointLabel', () => {
+  it('usa el pointId de catálogo cuando existe', () => {
+    expect(pointLabel('LIV-199-MUPI-P1', 0)).toBe('LIV-199-MUPI-P1');
+  });
+
+  it('sin pointId usa un rótulo neutro, nunca el Location ID', () => {
+    expect(pointLabel(null, 1)).toBe('Punto 2');
   });
 });

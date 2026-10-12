@@ -7,6 +7,7 @@ import {
 } from '@/services/quividi';
 import {
   consistencyLabel,
+  pointLabel,
   statusLabel,
   zoneSplitLabel,
 } from './commercialAuditView';
@@ -170,9 +171,9 @@ export function CommercialIntelligencePage() {
                       {day.raw.length === 0 && (
                         <small>Sin puntos configurados</small>
                       )}
-                      {day.raw.map((point) => (
+                      {day.raw.map((point, index) => (
                         <span key={point.locationId}>
-                          {point.pointId ?? `Location ${point.locationId}`}:{' '}
+                          {pointLabel(point.pointId, index)}:{' '}
                           {point.measured
                             ? `${formatNumber(point.ots)} OTS · ${formatNumber(point.watchers)} watchers`
                             : 'sin medición'}
