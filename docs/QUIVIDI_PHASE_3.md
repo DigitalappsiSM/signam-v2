@@ -138,10 +138,12 @@ automática.
 - El cliente rotula los puntos por su `pointId` de catálogo o, si no lo
   tiene, «Punto N»; nunca por Location ID.
 - Formulario: Soporte es un selector cerrado (`MUPI DIGITAL`, `BANNER
-  DIGITAL`) y Tienda se busca por nombre o número entre las tiendas del
-  Catálogo Admira con ese soporte y al menos una cámara Quividi
-  (`storeOptions.ts`). Se envía el número normalizado a 3 dígitos, igual que
-  los bindings del histórico (`LIV-005`).
+  DIGITAL`) y Tienda se busca por nombre o número (teclado: flechas, Enter,
+  Escape) entre las tiendas del Catálogo Admira con ese soporte y al menos una
+  cámara Quividi (`storeOptions.ts`). `MUPI DIGITAL` agrupa el
+  `MEGA MUPI DIGITAL` del catálogo (alias `MUPPI'S`). Se envía el soporte
+  **literal del catálogo** y el número normalizado a 3 dígitos, igual que los
+  bindings del histórico (`LIV-005`), que comparan exacto.
 
 ## 5. Permisos
 

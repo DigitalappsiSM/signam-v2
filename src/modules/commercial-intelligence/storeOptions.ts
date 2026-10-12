@@ -11,14 +11,30 @@ import type { AdmiraScreen } from '@/domain/models';
  * guardan como `LIV-005`, no `LIV-5`.
  */
 
-/** Únicos soportes con medición Quividi que se auditan en Fase 3. */
+/** Únicos soportes con medición Quividi que se auditan en Fase 3 (rótulo visible). */
 export const COMMERCIAL_SUPPORTS = ['MUPI DIGITAL', 'BANNER DIGITAL'] as const;
 export type CommercialSupport = (typeof COMMERCIAL_SUPPORTS)[number];
+
+/**
+ * Nombres con que cada soporte aparece en `calendarSupport` del catálogo. El
+ * mupi se mapea como `MEGA MUPI DIGITAL` (alias `MUPPI'S` → `MEGA MUPI
+ * DIGITAL`, AGENTS.md); se acepta también `MUPI DIGITAL` por si el maestro lo
+ * nombra así. Al backend se envía siempre el nombre literal del catálogo,
+ * porque los bindings del histórico lo comparan exacto.
+ */
+const CATALOG_SUPPORT_NAMES: Readonly<
+  Record<CommercialSupport, readonly string[]>
+> = {
+  'MUPI DIGITAL': ['MEGA MUPI DIGITAL', 'MUPI DIGITAL'],
+  'BANNER DIGITAL': ['BANNER DIGITAL'],
+};
 
 export interface CommercialStoreOption {
   /** Número normalizado a 3 dígitos, tal como lo espera el backend. */
   storeNumber: string;
   storeName: string;
+  /** Soporte tal como está en el catálogo (lo que se envía al backend). */
+  support: string;
   /** Texto visible en las sugerencias: `NOMBRE (005)`. */
   label: string;
 }
@@ -56,9 +72,11 @@ export function buildStoreOptions(
   screens: readonly AdmiraScreen[],
   support: CommercialSupport,
 ): CommercialStoreOption[] {
+  const catalogNames = CATALOG_SUPPORT_NAMES[support];
   const byNumber = new Map<string, CommercialStoreOption>();
   for (const screen of screens) {
-    if (searchKey(screen.metadata.calendarSupport ?? '') !== support) continue;
+    const catalogSupport = (screen.metadata.calendarSupport ?? '').trim();
+    if (!catalogNames.includes(searchKey(catalogSupport))) continue;
     if (!hasQuividiCamera(screen)) continue;
     const storeNumber = normalizeStoreNumber(
       screen.original['Numero de Tienda'] ?? '',
@@ -70,6 +88,7 @@ export function buildStoreOptions(
     byNumber.set(storeNumber, {
       storeNumber,
       storeName,
+      support: catalogSupport,
       label: `${storeName} (${storeNumber})`,
     });
   }

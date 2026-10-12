@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import {
@@ -50,6 +56,7 @@ export function CommercialIntelligencePage() {
   const [selectedStore, setSelectedStore] =
     useState<CommercialStoreOption | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [campaignId, setCampaignId] = useState('');
@@ -90,6 +97,29 @@ export function CommercialIntelligencePage() {
     setSelectedStore(option);
     setStoreQuery(option.label);
     setShowSuggestions(false);
+    setActiveIndex(-1);
+  }
+
+  function handleStoreKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (suggestions.length === 0) return;
+      event.preventDefault();
+      setShowSuggestions(true);
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex(
+        (current) => (current + step + suggestions.length) % suggestions.length,
+      );
+    } else if (event.key === 'Enter') {
+      const option = showSuggestions ? suggestions[activeIndex] : undefined;
+      if (option) {
+        // Enter elige la sugerencia activa en vez de enviar el formulario.
+        event.preventDefault();
+        selectStore(option);
+      }
+    } else if (event.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
   }
 
   function changeSupport(next: CommercialSupport) {
@@ -124,7 +154,7 @@ export function CommercialIntelligencePage() {
     try {
       const audit = await getQuividiCommercialAudit({
         storeNumber: store.storeNumber,
-        support,
+        support: store.support,
         startDate,
         endDate,
         campaignId: campaignId.trim() || undefined,
@@ -178,7 +208,9 @@ export function CommercialIntelligencePage() {
               setStoreQuery(e.target.value);
               setSelectedStore(null);
               setShowSuggestions(true);
+              setActiveIndex(-1);
             }}
+            onKeyDown={handleStoreKeyDown}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setShowSuggestions(false)}
             placeholder="Escribe el nombre de la tienda"
@@ -186,6 +218,11 @@ export function CommercialIntelligencePage() {
             aria-expanded={showSuggestions && suggestions.length > 0}
             aria-controls="commercial-intel-store-list"
             aria-autocomplete="list"
+            aria-activedescendant={
+              showSuggestions && activeIndex >= 0
+                ? `commercial-intel-store-${activeIndex}`
+                : undefined
+            }
             autoComplete="off"
           />
           {showSuggestions && suggestions.length > 0 && (
@@ -194,18 +231,19 @@ export function CommercialIntelligencePage() {
               className="commercial-intel__suggestions"
               role="listbox"
             >
-              {suggestions.map((option) => (
+              {suggestions.map((option, index) => (
                 <li
                   key={option.storeNumber}
+                  id={`commercial-intel-store-${index}`}
                   role="option"
-                  aria-selected={
-                    selectedStore?.storeNumber === option.storeNumber
-                  }
+                  aria-selected={index === activeIndex}
                   // mousedown en vez de click: se dispara antes del blur del input.
                   onMouseDown={(e) => {
                     e.preventDefault();
                     selectStore(option);
                   }}
+                  // click: lo que disparan los lectores de pantalla al activar.
+                  onClick={() => selectStore(option)}
                 >
                   {option.label}
                 </li>
