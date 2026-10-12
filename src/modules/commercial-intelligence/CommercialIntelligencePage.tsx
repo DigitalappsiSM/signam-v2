@@ -1,16 +1,26 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import {
   getQuividiCommercialAudit,
   type QuividiCommercialAuditResult,
 } from '@/services/quividi';
+import { listScreens } from '@/services/screens';
+import type { AdmiraScreen } from '@/domain/models';
 import {
   consistencyLabel,
   pointLabel,
   statusLabel,
   zoneSplitLabel,
 } from './commercialAuditView';
+import {
+  COMMERCIAL_SUPPORTS,
+  buildStoreOptions,
+  filterStoreOptions,
+  resolveStoreOption,
+  type CommercialStoreOption,
+  type CommercialSupport,
+} from './storeOptions';
 import './CommercialIntelligencePage.css';
 
 function formatNumber(value: number): string {
@@ -31,8 +41,15 @@ function isIsoDate(value: string): boolean {
  * sub-fases posteriores (ver docs/QUIVIDI_PHASE_3.md).
  */
 export function CommercialIntelligencePage() {
-  const [storeNumber, setStoreNumber] = useState('');
-  const [support, setSupport] = useState('');
+  const [screens, setScreens] = useState<AdmiraScreen[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [support, setSupport] = useState<CommercialSupport>(
+    COMMERCIAL_SUPPORTS[0],
+  );
+  const [storeQuery, setStoreQuery] = useState('');
+  const [selectedStore, setSelectedStore] =
+    useState<CommercialStoreOption | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [campaignId, setCampaignId] = useState('');
@@ -42,24 +59,72 @@ export function CommercialIntelligencePage() {
     null,
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    listScreens()
+      .then((list) => {
+        if (!cancelled) setScreens(list);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogError(
+            'No se pudo leer el Catálogo Admira para sugerir tiendas.',
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const storeOptions = useMemo(
+    () => buildStoreOptions(screens, support),
+    [screens, support],
+  );
+  const suggestions = useMemo(
+    () => filterStoreOptions(storeOptions, storeQuery),
+    [storeOptions, storeQuery],
+  );
+
+  function selectStore(option: CommercialStoreOption) {
+    setSelectedStore(option);
+    setStoreQuery(option.label);
+    setShowSuggestions(false);
+  }
+
+  function changeSupport(next: CommercialSupport) {
+    setSupport(next);
+    // La tienda elegida puede no tener cámara en el otro soporte.
+    if (
+      selectedStore &&
+      !buildStoreOptions(screens, next).some(
+        (option) => option.storeNumber === selectedStore.storeNumber,
+      )
+    ) {
+      setSelectedStore(null);
+      setStoreQuery('');
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (
-      !storeNumber.trim() ||
-      !support.trim() ||
-      !isIsoDate(startDate) ||
-      !isIsoDate(endDate) ||
-      endDate < startDate
-    ) {
-      setError('Captura tienda, soporte y un rango de fechas válido.');
+    const store = selectedStore ?? resolveStoreOption(storeOptions, storeQuery);
+    if (!store) {
+      setError(
+        `Elige una tienda con cámara Quividi en ${support} de la lista de sugerencias.`,
+      );
+      return;
+    }
+    if (!isIsoDate(startDate) || !isIsoDate(endDate) || endDate < startDate) {
+      setError('Captura un rango de fechas válido.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const audit = await getQuividiCommercialAudit({
-        storeNumber: storeNumber.trim(),
-        support: support.trim(),
+        storeNumber: store.storeNumber,
+        support,
         startDate,
         endDate,
         campaignId: campaignId.trim() || undefined,
@@ -93,20 +158,67 @@ export function CommercialIntelligencePage() {
 
       <form className="commercial-intel__form" onSubmit={handleSubmit}>
         <label>
-          <span className="text-muted">Tienda (Numero de Tienda)</span>
-          <input
-            value={storeNumber}
-            onChange={(e) => setStoreNumber(e.target.value)}
-            placeholder="199"
-          />
-        </label>
-        <label>
           <span className="text-muted">Soporte</span>
-          <input
+          <select
             value={support}
-            onChange={(e) => setSupport(e.target.value)}
-            placeholder="BANNER DIGITAL"
+            onChange={(e) => changeSupport(e.target.value as CommercialSupport)}
+          >
+            {COMMERCIAL_SUPPORTS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="commercial-intel__store">
+          <span className="text-muted">Tienda (nombre o número)</span>
+          <input
+            value={storeQuery}
+            onChange={(e) => {
+              setStoreQuery(e.target.value);
+              setSelectedStore(null);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setShowSuggestions(false)}
+            placeholder="Escribe el nombre de la tienda"
+            role="combobox"
+            aria-expanded={showSuggestions && suggestions.length > 0}
+            aria-controls="commercial-intel-store-list"
+            aria-autocomplete="list"
+            autoComplete="off"
           />
+          {showSuggestions && suggestions.length > 0 && (
+            <ul
+              id="commercial-intel-store-list"
+              className="commercial-intel__suggestions"
+              role="listbox"
+            >
+              {suggestions.map((option) => (
+                <li
+                  key={option.storeNumber}
+                  role="option"
+                  aria-selected={
+                    selectedStore?.storeNumber === option.storeNumber
+                  }
+                  // mousedown en vez de click: se dispara antes del blur del input.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectStore(option);
+                  }}
+                >
+                  {option.label}
+                </li>
+              ))}
+            </ul>
+          )}
+          {showSuggestions &&
+            storeQuery.trim() !== '' &&
+            suggestions.length === 0 && (
+              <small className="commercial-intel__hint">
+                Sin tiendas con cámara Quividi en {support} que coincidan.
+              </small>
+            )}
         </label>
         <label>
           <span className="text-muted">Desde</span>
@@ -136,6 +248,12 @@ export function CommercialIntelligencePage() {
           Auditar
         </button>
       </form>
+
+      {catalogError && (
+        <div className="commercial-intel__error" role="alert">
+          {catalogError}
+        </div>
+      )}
 
       {error && (
         <div className="commercial-intel__error" role="alert">

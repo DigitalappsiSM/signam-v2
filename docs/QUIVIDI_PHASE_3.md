@@ -137,6 +137,11 @@ automática.
   una cifra que Fase 1 rechazaría.
 - El cliente rotula los puntos por su `pointId` de catálogo o, si no lo
   tiene, «Punto N»; nunca por Location ID.
+- Formulario: Soporte es un selector cerrado (`MUPI DIGITAL`, `BANNER
+  DIGITAL`) y Tienda se busca por nombre o número entre las tiendas del
+  Catálogo Admira con ese soporte y al menos una cámara Quividi
+  (`storeOptions.ts`). Se envía el número normalizado a 3 dígitos, igual que
+  los bindings del histórico (`LIV-005`).
 
 ## 5. Permisos
 
