@@ -16,6 +16,7 @@ import {
   type QuividiHistoryExplorerResult,
   type QuividiHistoryOverview,
 } from '@/services/quividi';
+import { HistoryGapsPanel } from './HistoryGapsPanel';
 import './QuividiHistoryPage.css';
 
 function isoDate(value: Date): string {
@@ -459,6 +460,8 @@ export function QuividiHistoryPage() {
               Actualizar estado
             </button>
           </section>
+
+          {overview.started && <HistoryGapsPanel />}
 
           {overview.started && (
             <section className="quividi-history__panel quividi-history__explorer">

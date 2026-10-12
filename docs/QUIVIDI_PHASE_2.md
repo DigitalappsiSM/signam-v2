@@ -79,6 +79,46 @@ volumen de los exports `finest`. La topología y las alertas de status solo
 pueden archivarse desde que empieza este proceso; Quividi limita las listas
 de mensajes recientes, así que no equivalen a un histórico de status anterior.
 
+### Huecos del histórico (detección, recarga y revisión diaria)
+
+Una partición puede quedar incompleta para siempre sin que nada la vuelva a
+pedir: `historyDaily` (06:00) baja D-1 y, si VidiCenter aún no lo procesó,
+guarda la partición `complete` con 0 filas; todo el pipeline salta las
+`complete`. Tampoco se reencolan las que agotaron sus 8 reintentos
+(`retrying`). `functions/src/quividi/historyGaps.ts` (puro, con tests) define
+qué es un hueco:
+
+- **`missing`**: no existe la partición. **`incomplete`**: existe y no está
+  `complete` (p. ej. `retrying`). Se revisan en **todas** las series del plan
+  (`HISTORY_EXPORTS` + `CONSUMER_HISTORY_EXPORTS`) salvo los agregados por
+  sitio (`*_by_site`), que solo guarda la primera Location de cada sitio.
+- **`empty`**: `complete` con 0 filas, **solo** en series de medición
+  (`EMPTY_REFETCH_EXPORTS`: OTS 1h/1d/5m, viewers 1h/1d/finest,
+  viewers_demographics 1d). En el resto (vehículos, aforo, PMP…) vacío es lo
+  normal para Liverpool y repedirlo solo gastaría API de pago. Se recarga con
+  `force: true`, que salta el atajo de «ya completa» de `historyPartition`.
+- `unsupported` no es hueco (VidiCenter dijo que no existe).
+
+Callables y job (todos **solo admin**, como `historyStart`):
+
+- `quividi-historyGapScan` `{ month: 'YYYY-MM', reload?: boolean }`: sin
+  `reload` solo cuenta (no consume API); con `reload` encola la recarga de los
+  huecos, hasta `MAX_RELOAD_TASKS` (20 000) por corrida. El id de tarea incluye
+  el día de la corrida, así que repetirla el mismo día no duplica tareas.
+- `quividi-historyCoverageExport` `{ month }`: CSV por Location y día con
+  `ots_count`/`effective_ots_count`/`watcher_count` (de las series 1d) y el
+  estado de ots/viewers 1d y 1h, mismas columnas de conteo que el export
+  diario de VidiCenter para compararlo línea a línea.
+- `quividi-historyGapSweepDaily` (08:15 CDMX): la garantía del día a día.
+  Revisa y recarga los huecos de **D-2…D-8** (D-1 sigue en manos de
+  `historyDaily`). Si VidiCenter procesó tarde, el dato entra al día siguiente
+  sin intervención; un día que siga vacío tras 7 días es un hueco real.
+
+Cada corrida queda en `quividiHistoryGapRuns` (conteos por motivo, días con
+huecos de medición, encoladas y pendientes). UI: **Histórico Quividi → Huecos
+del histórico** (`HistoryGapsPanel`): mes, «Revisar huecos», «Recargar
+faltantes» (con confirmación) y «Descargar cobertura (CSV)».
+
 ---
 
 > Estado vigente de la integración operativa Quividi en SIGNAM V2.

@@ -346,3 +346,42 @@ export async function rebuildQuividiCommercialRollup(
   const result = await callable(request);
   return result.data;
 }
+
+/** Resumen de una revisión/recarga de huecos del histórico (`quividi-historyGapScan`). */
+export interface QuividiHistoryGapResult {
+  dates: string[];
+  locations: number;
+  checked: number;
+  missing: number;
+  incomplete: number;
+  empty: number;
+  datesWithMeasurementGaps: string[];
+  reload: boolean;
+  enqueued: number;
+  pending: number;
+}
+
+/** Revisa (sin costo) o recarga (consume API de Quividi) los huecos de un mes. Solo admin. */
+export async function scanQuividiHistoryGaps(input: {
+  month: string;
+  reload: boolean;
+}): Promise<QuividiHistoryGapResult> {
+  const callable = httpsCallable<
+    { month: string; reload: boolean },
+    QuividiHistoryGapResult
+  >(functions(), 'quividi-historyGapScan', { timeout: 540_000 });
+  const result = await callable(input);
+  return result.data;
+}
+
+/** CSV de cobertura del histórico de un mes por Location y día. Solo admin. */
+export async function exportQuividiHistoryCoverage(
+  month: string,
+): Promise<{ month: string; csv: string; rows: number }> {
+  const callable = httpsCallable<
+    { month: string },
+    { month: string; csv: string; rows: number }
+  >(functions(), 'quividi-historyCoverageExport', { timeout: 540_000 });
+  const result = await callable({ month });
+  return result.data;
+}

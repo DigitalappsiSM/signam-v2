@@ -33,6 +33,19 @@ import {
   rowsFingerprint,
   type StoreBinding,
 } from './historyModel';
+import {
+  GAP_EXPORTS,
+  MAX_RELOAD_TASKS,
+  coverageCsv,
+  dailySweepDates,
+  findHistoryGaps,
+  monthDates,
+  summarizeHistoryGaps,
+  type CoverageRowInput,
+  type HistoryGap,
+  type HistoryGapSummary,
+  type PartitionState,
+} from './historyGaps';
 
 const USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const TOKEN = defineSecret('QUIVIDI_API_TOKEN');
@@ -43,6 +56,7 @@ const BINDINGS = 'quividiHistoryBindings';
 const INVENTORY = 'quividiHistoryInventory';
 const EXPORTS_PER_TICK = 150;
 const DAILY_ENQUEUE_CHUNK = 50;
+const GAP_RUNS = 'quividiHistoryGapRuns';
 
 interface Location {
   id: number;
@@ -59,6 +73,11 @@ interface PartitionTask {
   type: string;
   resolution: string;
   siteId?: number;
+  /**
+   * Volver a pedir aunque la partición ya esté `complete` (huecos `empty`:
+   * guardada vacía porque se pidió antes de que VidiCenter la procesara).
+   */
+  force?: boolean;
 }
 
 type RangeTask = import('./historyModel').HistoryRangeTask;
@@ -870,7 +889,8 @@ export const historyPartition = onTaskDispatched<ExportTask>({
     throw new Error('Fecha fuera de la ventana histórica.');
   }
   if (!isRange) historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-  if (await historyTaskAlreadyComplete(task)) return;
+  const forced = !isRange && (task as PartitionTask).force === true;
+  if (!forced && await historyTaskAlreadyComplete(task)) return;
   try {
     if (isRange) await saveRange(task);
     else await savePartition(task);
@@ -1059,4 +1079,194 @@ export const historyCoordinator = onSchedule({
       });
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// Huecos del histórico: detección, recarga y cobertura (ver historyGaps.ts).
+// ---------------------------------------------------------------------------
+
+async function inventoryLocationIds(): Promise<number[]> {
+  const inventory = await getFirestore().collection(INVENTORY).get();
+  return inventory.docs.map((doc) => Number(doc.id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .sort((a, b) => a - b);
+}
+
+/** Estado (`status`, `rowCount`) de todas las particiones guardadas en esas fechas. */
+async function partitionStates(dates: readonly string[]): Promise<Map<string, PartitionState>> {
+  const states = new Map<string, PartitionState>();
+  if (!dates.length) return states;
+  const sorted = [...dates].sort();
+  const snapshot = await getFirestore().collection(PARTITIONS)
+    .where('date', '>=', sorted[0])
+    .where('date', '<=', sorted[sorted.length - 1])
+    .select('status', 'rowCount')
+    .get();
+  for (const doc of snapshot.docs) {
+    states.set(doc.id, { status: doc.get('status'), rowCount: doc.get('rowCount') });
+  }
+  return states;
+}
+
+/**
+ * Encola la recarga de los huecos (hasta `MAX_RELOAD_TASKS`). El id de tarea
+ * incluye el día de la corrida: repetir la misma corrida el mismo día no
+ * duplica tareas (`task-already-exists`).
+ */
+async function enqueueGapReloads(gaps: readonly HistoryGap[]): Promise<number> {
+  const queue = getFunctions().taskQueue('quividi-historyPartition');
+  const tag = todayMexico();
+  const selected = gaps.slice(0, MAX_RELOAD_TASKS);
+  let enqueued = 0;
+  for (let offset = 0; offset < selected.length; offset += 200) {
+    const chunk = selected.slice(offset, offset + 200);
+    await Promise.all(chunk.map(async (gap) => {
+      const id = historyPartitionId(gap.locationId, gap.date, gap.type, gap.resolution);
+      const task: PartitionTask = {
+        date: gap.date, locationId: gap.locationId, type: gap.type,
+        resolution: gap.resolution, ...(gap.reason === 'empty' ? { force: true } : {}),
+      };
+      try {
+        await queue.enqueue(task, {
+          id: rowsFingerprint([{ id, reload: tag }]),
+          dispatchDeadlineSeconds: 540,
+        });
+        enqueued++;
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
+      }
+    }));
+  }
+  return enqueued;
+}
+
+interface GapRunResult extends HistoryGapSummary {
+  dates: string[];
+  locations: number;
+  reload: boolean;
+  enqueued: number;
+  /** Huecos que no cupieron en esta corrida (tope `MAX_RELOAD_TASKS`). */
+  pending: number;
+}
+
+async function runGapScan(
+  dates: readonly string[],
+  reload: boolean,
+  runId: string,
+  meta: Record<string, unknown>,
+): Promise<GapRunResult> {
+  const locationIds = await inventoryLocationIds();
+  const states = await partitionStates(dates);
+  const gaps = findHistoryGaps(locationIds, dates, states);
+  const summary = summarizeHistoryGaps(locationIds.length * dates.length * GAP_EXPORTS.length, gaps);
+  const enqueued = reload ? await enqueueGapReloads(gaps) : 0;
+  const result: GapRunResult = {
+    ...summary,
+    dates: [...dates],
+    locations: locationIds.length,
+    reload,
+    enqueued,
+    pending: reload ? Math.max(0, gaps.length - MAX_RELOAD_TASKS) : 0,
+  };
+  await getFirestore().collection(GAP_RUNS).doc(runId).set({
+    ...result, ...meta, runAt: Date.now(),
+  });
+  return result;
+}
+
+function requireHistoryAdmin(auth: { token: Record<string, unknown> } | undefined): void {
+  if (!auth || roleFromClaims(auth.token) !== 'admin') {
+    throw new HttpsError('permission-denied', 'Solo admin puede revisar o recargar el histórico.');
+  }
+}
+
+/**
+ * Revisa (y opcionalmente recarga) los huecos de un mes: `{ month: 'YYYY-MM',
+ * reload?: boolean }`. Sin `reload` solo cuenta (no consume API de Quividi).
+ */
+export const historyGapScan = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+  requireHistoryAdmin(request.auth);
+  const data = (request.data ?? {}) as { month?: unknown; reload?: unknown };
+  const month = typeof data.month === 'string' ? data.month : '';
+  const dates = monthDates(month, yesterdayMexico());
+  if (!dates.length) {
+    throw new HttpsError('invalid-argument', 'Mes inválido o fuera de la ventana histórica (YYYY-MM).');
+  }
+  const reload = data.reload === true;
+  return runGapScan(dates, reload, `${reload ? 'reload' : 'scan'}-${month}-${Date.now()}`, {
+    month, trigger: 'manual', requestedByUid: request.auth!.uid,
+  });
+});
+
+/**
+ * Garantía del día a día: después de la ingesta diaria, vuelve a pedir los
+ * huecos de D-2…D-8. Si VidiCenter procesó tarde, el dato entra al día
+ * siguiente sin intervención; lo que siga faltando queda en `quividiHistoryGapRuns`.
+ */
+export const historyGapSweepDaily = onSchedule({
+  schedule: '15 8 * * *', timeZone: 'America/Mexico_City',
+  timeoutSeconds: 540, memory: '1GiB',
+}, async () => {
+  const dates = dailySweepDates(yesterdayMexico());
+  await runGapScan(dates, true, `daily-${todayMexico()}`, { trigger: 'daily' });
+});
+
+function rowsOf(doc: FirebaseFirestore.DocumentSnapshot): Record<string, unknown>[] {
+  const rows = doc.get('rows') as Record<string, unknown>[] | undefined;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function sumField(rows: readonly Record<string, unknown>[], field: string): number {
+  return rows.reduce((sum, row) => sum + (Number(row[field]) || 0), 0);
+}
+
+/**
+ * CSV de cobertura de un mes por Location y día, con los conteos diarios
+ * guardados (`ots`/`viewers` 1d) y el estado de las series 1d/1h, para
+ * compararlo contra el export diario de VidiCenter.
+ */
+export const historyCoverageExport = onCall({ timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+  requireHistoryAdmin(request.auth);
+  const month = typeof (request.data as { month?: unknown } | undefined)?.month === 'string'
+    ? (request.data as { month: string }).month : '';
+  const dates = monthDates(month, yesterdayMexico());
+  if (!dates.length) {
+    throw new HttpsError('invalid-argument', 'Mes inválido o fuera de la ventana histórica (YYYY-MM).');
+  }
+  const db = getFirestore();
+  const locationIds = await inventoryLocationIds();
+  const states = await partitionStates(dates);
+  const grid = dates.flatMap((date) => locationIds.map((locationId) => ({ date, locationId })));
+  const rows: CoverageRowInput[] = [];
+  for (let offset = 0; offset < grid.length; offset += 150) {
+    const chunk = grid.slice(offset, offset + 150);
+    const refs = chunk.flatMap(({ date, locationId }) => [
+      db.collection(PARTITIONS).doc(historyPartitionId(locationId, date, 'ots', '1d')),
+      db.collection(PARTITIONS).doc(historyPartitionId(locationId, date, 'viewers', '1d')),
+    ]);
+    const docs = await db.getAll(...refs);
+    chunk.forEach(({ date, locationId }, index) => {
+      const ots = docs[index * 2]!;
+      const viewers = docs[index * 2 + 1]!;
+      const otsRows = rowsOf(ots);
+      const viewerRows = rowsOf(viewers);
+      rows.push({
+        locationId,
+        date,
+        ots1d: ots.exists ? {
+          state: { status: ots.get('status'), rowCount: ots.get('rowCount') },
+          otsCount: sumField(otsRows, 'ots_count'),
+          effectiveOtsCount: sumField(otsRows, 'effective_ots_count'),
+        } : undefined,
+        viewers1d: viewers.exists ? {
+          state: { status: viewers.get('status'), rowCount: viewers.get('rowCount') },
+          watcherCount: sumField(viewerRows, 'watcher_count'),
+        } : undefined,
+        ots1h: states.get(historyPartitionId(locationId, date, 'ots', '1h')),
+        viewers1h: states.get(historyPartitionId(locationId, date, 'viewers', '1h')),
+      });
+    });
+  }
+  rows.sort((a, b) => a.locationId - b.locationId || a.date.localeCompare(b.date));
+  return { month, csv: coverageCsv(rows), rows: rows.length };
 });
