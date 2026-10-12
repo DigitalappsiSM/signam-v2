@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  commercialSummary,
   consistencyLabel,
   hasPendingRollup,
   rawPointSummary,
@@ -93,5 +94,27 @@ describe('hasPendingRollup', () => {
         { consistency: 'pending-rollup' },
       ]),
     ).toBe(true);
+  });
+});
+
+describe('commercialSummary', () => {
+  const fmt = (value: number) => String(value);
+  it('rotula la serie no medida del rollup como «sin medir»', () => {
+    expect(
+      commercialSummary(
+        {
+          publishedOts: 0,
+          publishedWatchers: 458,
+          otsMeasured: false,
+          viewersMeasured: true,
+        },
+        fmt,
+      ),
+    ).toBe('OTS sin medir · 458 watchers');
+  });
+  it('filas anteriores sin los campos se muestran medidas', () => {
+    expect(
+      commercialSummary({ publishedOts: 100, publishedWatchers: 40 }, fmt),
+    ).toBe('100 OTS publicados · 40 watchers');
   });
 });

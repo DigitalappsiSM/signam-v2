@@ -38,6 +38,10 @@ export interface CommercialCameraDay {
   attentionTenths: number;
   dwellTenths: number;
   measured: boolean;
+  /** Llegó la serie de OTS del día; si no, `ots`/`effectiveOts` NO son 0 medido. */
+  otsMeasured: boolean;
+  /** Llegó la serie de viewers del día; si no, `watchers` NO es 0 medido. */
+  viewersMeasured: boolean;
 }
 
 export interface CommercialPair {
@@ -73,6 +77,13 @@ export interface CommercialDailyRow {
   publishedWatchers: number;
   pointIdsUsed: string[];
   locationIdsUsed: number[];
+  /**
+   * Algún punto aportó la serie de OTS / de viewers. Si es `false`, las cifras
+   * de esa serie quedan en 0 pero **no medidas** (Fase 2 no la guardó); el
+   * visor las rotula «sin medir». Filas anteriores sin el campo: medidas.
+   */
+  otsMeasured: boolean;
+  viewersMeasured: boolean;
 }
 
 /** Suma las horas de un día para una sola cámara/punto a partir de los exports 1h ya guardados. */
@@ -103,6 +114,8 @@ export function aggregateHourlyCameraDay(
       0,
     ),
     measured: otsRows.length > 0 || viewerRows.length > 0,
+    otsMeasured: otsRows.length > 0,
+    viewersMeasured: viewerRows.length > 0,
   };
 }
 
@@ -128,10 +141,17 @@ export function buildCommercialDailyRow(
     support: pair.support,
   });
   const measured = cameraDays.filter((camera) => camera.measured);
+  // Cada serie se combina solo con los puntos que la tienen: un punto con
+  // watchers pero sin OTS no debe aportar un «0 OTS» a la combinación.
+  const withOts = measured.filter((camera) => camera.otsMeasured);
+  const withViewers = measured.filter((camera) => camera.viewersMeasured);
+  const everySeries = measured.every(
+    (camera) => camera.otsMeasured && camera.viewersMeasured,
+  );
   const status: CommercialRowStatus =
     measured.length === 0
       ? 'missing'
-      : measured.length >= configuredCameras
+      : measured.length >= configuredCameras && everySeries
         ? 'measured'
         : 'partial';
 
@@ -159,19 +179,21 @@ export function buildCommercialDailyRow(
       publishedWatchers: 0,
       pointIdsUsed: [],
       locationIdsUsed: [],
+      otsMeasured: false,
+      viewersMeasured: false,
     };
   }
 
   const ots = combineCameraValues(
-    measured.map((camera) => camera.ots),
+    withOts.map((camera) => camera.ots),
     zoneSplit,
   );
   const effectiveOts = combineCameraValues(
-    measured.map((camera) => camera.effectiveOts),
+    withOts.map((camera) => camera.effectiveOts),
     zoneSplit,
   );
   const watchers = combineCameraValues(
-    measured.map((camera) => camera.watchers),
+    withViewers.map((camera) => camera.watchers),
     zoneSplit,
   );
 
@@ -188,14 +210,14 @@ export function buildCommercialDailyRow(
     ),
     publishedWatchers: publishedValue(watchers, configuredCameras, zoneSplit),
     attentionSeconds: combineCameraAverageSeconds(
-      measured.map((camera) => ({
+      withViewers.map((camera) => ({
         watchers: camera.watchers,
         tenths: camera.attentionTenths,
       })),
       zoneSplit,
     ),
     dwellSeconds: combineCameraAverageSeconds(
-      measured.map((camera) => ({
+      withViewers.map((camera) => ({
         watchers: camera.watchers,
         tenths: camera.dwellTenths,
       })),
@@ -205,5 +227,7 @@ export function buildCommercialDailyRow(
       .map((camera) => camera.pointId)
       .filter((id): id is string => id != null),
     locationIdsUsed: measured.map((camera) => camera.locationId),
+    otsMeasured: withOts.length > 0,
+    viewersMeasured: withViewers.length > 0,
   };
 }

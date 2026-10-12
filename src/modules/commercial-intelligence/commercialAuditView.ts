@@ -79,3 +79,25 @@ export function hasPendingRollup(
 ): boolean {
   return days.some((day) => day.consistency === 'pending-rollup');
 }
+
+/**
+ * Cifra comercial publicada de un día. Una serie que el rollup no midió
+ * (`otsMeasured`/`viewersMeasured === false`) se rotula «sin medir», no 0.
+ */
+export function commercialSummary(
+  row: Pick<
+    QuividiCommercialDailyRow,
+    'publishedOts' | 'publishedWatchers' | 'otsMeasured' | 'viewersMeasured'
+  >,
+  formatNumber: (value: number) => string,
+): string {
+  const ots =
+    row.otsMeasured === false
+      ? 'OTS sin medir'
+      : `${formatNumber(row.publishedOts)} OTS publicados`;
+  const watchers =
+    row.viewersMeasured === false
+      ? 'watchers sin medir'
+      : `${formatNumber(row.publishedWatchers)} watchers`;
+  return `${ots} · ${watchers}`;
+}

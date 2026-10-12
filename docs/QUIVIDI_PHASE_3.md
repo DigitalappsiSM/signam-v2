@@ -140,6 +140,11 @@ construyó (no es una discrepancia); `mismatch` = el rollup existe y no cuadra
 - **Series parciales**: cada punto crudo indica `otsMeasured` y
   `viewersMeasured` por separado. Si Fase 2 guardó solo una de las dos series,
   la que falta se rotula «OTS sin medir» / «watchers sin medir», nunca 0.
+  El rollup (`quividiCommercialDaily`) guarda lo mismo a nivel de par
+  (`otsMeasured`/`viewersMeasured`): cada serie se combina solo con los puntos
+  que la tienen, un día con alguna serie ausente queda `partial`, y la cifra
+  publicada de la serie ausente se rotula «sin medir». Filas anteriores sin
+  esos campos se consideran medidas.
 
 - **Rango acotado**: fechas de calendario reales, fin ≥ inicio y como máximo
   `MAX_AUDIT_DAYS` (93) días; fuera de eso responde `invalid-argument`.

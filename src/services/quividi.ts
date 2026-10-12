@@ -278,6 +278,9 @@ export interface QuividiCommercialDailyRow {
   dwellSeconds: number;
   pointIdsUsed: string[];
   locationIdsUsed: number[];
+  /** Ausentes en filas anteriores: se consideran medidas. */
+  otsMeasured?: boolean;
+  viewersMeasured?: boolean;
 }
 
 export interface QuividiCommercialFase1Figure {
@@ -339,7 +342,7 @@ export async function rebuildQuividiCommercialRollup(
   const callable = httpsCallable<
     QuividiCommercialRollupRebuildRequest,
     QuividiCommercialRollupRebuildResult
-  >(functions(), 'quividi-commercialRollupBuild');
+  >(functions(), 'quividi-commercialRollupBuild', { timeout: 540_000 });
   const result = await callable(request);
   return result.data;
 }

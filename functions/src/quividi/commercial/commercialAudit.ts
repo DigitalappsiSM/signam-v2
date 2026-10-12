@@ -191,7 +191,14 @@ export function consistencyFor(
     return measured.length === 0 ? 'no-data' : 'mismatch';
   }
   if (measured.length === 0) return 'no-data';
-  const recombined = combineCameraValues(measured.map((point) => point.ots), zoneSplit);
+  // Filas anteriores a `otsMeasured` se consideran medidas.
+  const rollupHasOts = commercial.otsMeasured !== false;
+  const rawWithOts = measured.filter((point) => point.otsMeasured);
+  if (!rollupHasOts || rawWithOts.length === 0) {
+    // Una serie sin medir no cuadra contra una medida; dos sin medir, sí.
+    return rollupHasOts === rawWithOts.length > 0 ? 'ok' : 'mismatch';
+  }
+  const recombined = combineCameraValues(rawWithOts.map((point) => point.ots), zoneSplit);
   return Math.abs(recombined - commercial.ots) <= CONSISTENCY_TOLERANCE
     ? 'ok'
     : 'mismatch';

@@ -22,8 +22,12 @@ function raw(ots: number, measured = true): RawPointDay {
   };
 }
 
-function rollup(ots: number, status: CommercialDailyRow['status'] = 'measured') {
-  return { ots, status } as CommercialDailyRow;
+function rollup(
+  ots: number,
+  status: CommercialDailyRow['status'] = 'measured',
+  otsMeasured?: boolean,
+) {
+  return { ots, status, otsMeasured } as CommercialDailyRow;
 }
 
 describe('isValidAuditRange', () => {
@@ -64,5 +68,24 @@ describe('consistencyFor', () => {
     expect(consistencyFor([raw(7482)], rollup(0, 'missing'), false)).toBe(
       'mismatch',
     );
+  });
+});
+
+describe('consistencyFor · series parciales', () => {
+  const rawNoOts: RawPointDay = { ...raw(0), otsMeasured: false };
+
+  it('OTS sin medir en crudo y en rollup: cuadra', () => {
+    expect(consistencyFor([rawNoOts], rollup(0, 'partial', false), false)).toBe('ok');
+  });
+
+  it('crudo con OTS contra rollup sin OTS (o al revés): no cuadra', () => {
+    expect(consistencyFor([raw(6223)], rollup(0, 'partial', false), false)).toBe(
+      'mismatch',
+    );
+    expect(consistencyFor([rawNoOts], rollup(6223), false)).toBe('mismatch');
+  });
+
+  it('filas anteriores sin otsMeasured se tratan como medidas', () => {
+    expect(consistencyFor([raw(7482)], rollup(7482), false)).toBe('ok');
   });
 });

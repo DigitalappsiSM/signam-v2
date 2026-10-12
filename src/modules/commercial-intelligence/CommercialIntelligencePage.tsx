@@ -17,6 +17,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain/models';
 import {
+  commercialSummary,
   consistencyLabel,
   hasPendingRollup,
   pointLabel,
@@ -417,15 +418,16 @@ export function CommercialIntelligencePage() {
                       {day.commercial ? (
                         <>
                           <span>
-                            {formatNumber(day.commercial.publishedOts)} OTS
-                            publicados ·{' '}
-                            {formatNumber(day.commercial.publishedWatchers)}{' '}
-                            watchers
+                            {commercialSummary(day.commercial, formatNumber)}
                           </span>
-                          <small>
-                            Combinado: {formatNumber(day.commercial.ots)} OTS ·{' '}
-                            {formatNumber(day.commercial.watchers)} watchers
-                          </small>
+                          {day.commercial.otsMeasured !== false &&
+                            day.commercial.viewersMeasured !== false && (
+                              <small>
+                                Combinado: {formatNumber(day.commercial.ots)}{' '}
+                                OTS · {formatNumber(day.commercial.watchers)}{' '}
+                                watchers
+                              </small>
+                            )}
                           <small>{statusLabel(day.commercial.status)}</small>
                           <small>
                             {zoneSplitLabel(day.commercial.zoneSplit)}
