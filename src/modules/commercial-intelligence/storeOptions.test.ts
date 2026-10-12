@@ -27,9 +27,15 @@ function screen(
   };
 }
 
+const ALIAS_SCREENS = [
+  screen('9', 'LIVERPOOL SATÉLITE', "MUPPI'S", { id: 3, id2: 4 }),
+  screen('11', 'LIVERPOOL COAPA', 'MEGAMUPI DIGITAL'),
+  screen('12', 'LIVERPOOL PERISUR', 'PENDON'),
+];
+
 const SCREENS = [
   screen('5', 'LIVERPOOL INSURGENTES', 'BANNER DIGITAL'),
-  screen('5', 'LIVERPOOL INSURGENTES', 'MUPI DIGITAL'),
+  screen('5', 'LIVERPOOL INSURGENTES', 'MEGA MUPI DIGITAL'),
   screen('199', 'LIVERPOOL POLANCO', 'MUPI DIGITAL'),
   screen('78', 'LIVERPOOL GALERÍAS GUADALAJARA', 'MUPI DIGITAL', {
     id: null,
@@ -48,21 +54,47 @@ describe('normalizeStoreNumber', () => {
 });
 
 describe('buildStoreOptions', () => {
+  it('MUPI DIGITAL incluye el MEGA MUPI DIGITAL del catálogo y conserva su nombre literal', () => {
+    const insurgentes = buildStoreOptions(SCREENS, 'MUPI DIGITAL').find(
+      (option) => option.storeNumber === '005',
+    );
+    expect(insurgentes?.support).toBe('MEGA MUPI DIGITAL');
+  });
+
+  it("reconoce los nombres literales y alias del catálogo (MUPPI'S, MEGAMUPI, PENDON)", () => {
+    const mupi = buildStoreOptions(ALIAS_SCREENS, 'MUPI DIGITAL');
+    expect(mupi.find((o) => o.storeNumber === '009')?.support).toBe("MUPPI'S");
+    expect(mupi.find((o) => o.storeNumber === '011')?.support).toBe(
+      'MEGAMUPI DIGITAL',
+    );
+    expect(
+      filterStoreOptions(mupi, 'satelite').map((o) => o.storeNumber),
+    ).toEqual(['009']);
+    expect(
+      buildStoreOptions(ALIAS_SCREENS, 'BANNER DIGITAL').map(
+        (o) => o.storeNumber,
+      ),
+    ).toEqual(['012']);
+  });
+
   it('sólo tiendas del soporte con alguna cámara Quividi, una por número', () => {
     expect(buildStoreOptions(SCREENS, 'MUPI DIGITAL')).toEqual([
       {
         storeNumber: '078',
         storeName: 'LIVERPOOL GALERÍAS GUADALAJARA',
+        support: 'MUPI DIGITAL',
         label: 'LIVERPOOL GALERÍAS GUADALAJARA (078)',
       },
       {
         storeNumber: '005',
         storeName: 'LIVERPOOL INSURGENTES',
+        support: 'MEGA MUPI DIGITAL',
         label: 'LIVERPOOL INSURGENTES (005)',
       },
       {
         storeNumber: '199',
         storeName: 'LIVERPOOL POLANCO',
+        support: 'MUPI DIGITAL',
         label: 'LIVERPOOL POLANCO (199)',
       },
     ]);
