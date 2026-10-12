@@ -23,6 +23,7 @@ import { DigitalCatalogPage } from '@/modules/digital-operations/DigitalCatalogP
 import { ReportingPage } from '@/modules/reporting/ReportingPage';
 import { CameraHealthPage } from '@/modules/camera-health/CameraHealthPage';
 import { QuividiHistoryPage } from '@/modules/camera-health/QuividiHistoryPage';
+import { CommercialIntelligencePage } from '@/modules/commercial-intelligence/CommercialIntelligencePage';
 import { canAccessRoute, routeByPath } from './routes';
 
 function RouteAccess({
@@ -180,6 +181,14 @@ export function App() {
           element={
             <RouteAccess path="/historial-quividi">
               <QuividiHistoryPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/inteligencia-comercial"
+          element={
+            <RouteAccess path="/inteligencia-comercial">
+              <CommercialIntelligencePage />
             </RouteAccess>
           }
         />

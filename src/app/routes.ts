@@ -80,6 +80,15 @@ export const NAV_ROUTES: RouteMeta[] = [
     permission: 'quividi.history',
   },
   {
+    path: '/inteligencia-comercial',
+    label: 'Inteligencia Comercial',
+    icon: 'activity',
+    description:
+      'Auditoría comercial Quividi, reportes y propuestas por tienda/soporte.',
+    group: 'Operación',
+    permission: 'quividi.commercial',
+  },
+  {
     path: '/importar',
     label: 'Importar Calendario',
     icon: 'calendar',
@@ -178,7 +187,12 @@ export const NAV_ROUTES: RouteMeta[] = [
   },
 ];
 
-const COMMERCIAL_ROUTE_PATHS = new Set(['/', '/campanas', '/seguimiento']);
+const COMMERCIAL_ROUTE_PATHS = new Set([
+  '/',
+  '/campanas',
+  '/seguimiento',
+  '/inteligencia-comercial',
+]);
 
 /**
  * Valida navegación y acceso directo. Comercial usa una lista cerrada de

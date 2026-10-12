@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  QUIVIDI_COMMERCIAL_GENERATE_ROLES,
+  QUIVIDI_COMMERCIAL_ROLES,
   QUIVIDI_FORCE_REFRESH_ROLES,
   QUIVIDI_HEALTH_REFRESH_ROLES,
   QUIVIDI_OPERATIONS_ROLES,
   QUIVIDI_REPORT_REFRESH_ROLES,
   QUIVIDI_REPORT_ROLES,
   canForceRefreshQuividi,
+  canGenerateCommercialProposal,
   canRefreshQuividiHealth,
   canRefreshQuividiReport,
   canReportQuividi,
+  canUseCommercialIntelligence,
   canUseQuividiOperations,
   roleFromClaims,
 } from './access';
@@ -119,5 +123,36 @@ describe('canRefreshQuividiHealth', () => {
     expect(canRefreshQuividiHealth('viewer')).toBe(false);
     expect(canRefreshQuividiHealth('commercial')).toBe(false);
     expect(QUIVIDI_HEALTH_REFRESH_ROLES).toEqual(['admin', 'operator']);
+  });
+});
+
+describe('canUseCommercialIntelligence', () => {
+  it('permite ver Inteligencia Comercial a los cuatro roles', () => {
+    expect(canUseCommercialIntelligence('admin')).toBe(true);
+    expect(canUseCommercialIntelligence('operator')).toBe(true);
+    expect(canUseCommercialIntelligence('viewer')).toBe(true);
+    expect(canUseCommercialIntelligence('commercial')).toBe(true);
+    expect([...QUIVIDI_COMMERCIAL_ROLES].sort()).toEqual([
+      'admin',
+      'commercial',
+      'operator',
+      'viewer',
+    ]);
+  });
+});
+
+describe('canGenerateCommercialProposal', () => {
+  it('excluye a viewer de generar/confirmar una propuesta final', () => {
+    expect(canGenerateCommercialProposal('admin')).toBe(true);
+    expect(canGenerateCommercialProposal('operator')).toBe(true);
+    expect(canGenerateCommercialProposal('commercial')).toBe(true);
+    expect(canGenerateCommercialProposal('viewer')).toBe(false);
+    expect(QUIVIDI_COMMERCIAL_GENERATE_ROLES).not.toContain('viewer');
+  });
+
+  it('es más restrictivo que ver el módulo', () => {
+    for (const role of QUIVIDI_COMMERCIAL_GENERATE_ROLES) {
+      expect(QUIVIDI_COMMERCIAL_ROLES).toContain(role);
+    }
   });
 });

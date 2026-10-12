@@ -17,12 +17,17 @@ describe('rutas del perfil Comercial', () => {
       );
     }
   });
-  it('limita la navegación a Panel, Campañas y Seguimiento operativo', () => {
+  it('limita la navegación a Panel, Campañas, Seguimiento operativo e Inteligencia Comercial', () => {
     const visible = NAV_ROUTES.filter((route) =>
       canAccessRoute('commercial', route),
     ).map((route) => route.path);
 
-    expect(visible).toEqual(['/', '/seguimiento', '/campanas']);
+    expect(visible).toEqual([
+      '/',
+      '/seguimiento',
+      '/inteligencia-comercial',
+      '/campanas',
+    ]);
   });
 
   it('bloquea rutas directas fuera de su lista permitida', () => {
@@ -44,6 +49,15 @@ describe('rutas del perfil Comercial', () => {
     expect(history && canAccessRoute('admin', history)).toBe(true);
     for (const role of ['operator', 'viewer', 'commercial'] as const) {
       expect(history && canAccessRoute(role, history)).toBe(false);
+    }
+  });
+
+  it('Inteligencia Comercial está disponible para los cuatro roles', () => {
+    const commercialIntelligence = routeByPath('/inteligencia-comercial');
+    for (const role of ['admin', 'operator', 'viewer', 'commercial'] as const) {
+      expect(
+        commercialIntelligence && canAccessRoute(role, commercialIntelligence),
+      ).toBe(true);
     }
   });
 });

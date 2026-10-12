@@ -86,6 +86,12 @@ const RULES = [
     why: 'El directorio es la fuente única de ubicación de las tiendas; sus reglas de CP, estado y coordenadas están documentadas.',
   },
   {
+    name: 'Inteligencia Comercial Quividi (Fase 3)',
+    code: [/^functions\/src\/quividi\/commercial\//],
+    docs: ['AGENTS.md', 'docs/QUIVIDI_PHASE_3.md', 'CLAUDE.md'],
+    why: 'La capa comercial derivada (duplicación por flujo compartido, auditoría, reportes) decide cifras que ven las marcas; si cambia sin documentarse, la metodología deja de describirla.',
+  },
+  {
     name: 'Control de acceso',
     code: [
       /^firestore\.rules$/,

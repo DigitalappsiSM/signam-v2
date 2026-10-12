@@ -1,5 +1,6 @@
 import {
   combineCameraValues,
+  combineCameraAverageSeconds,
   isZoneSplitPair,
   publishedValue,
 } from './cameraCombination';
@@ -187,10 +188,6 @@ export function buildSupportHours(
 
       if (measured.length === 0) continue;
 
-      const watchersTotal = measured.reduce(
-        (sum, item) => sum + (item.viewers?.watchers ?? 0),
-        0,
-      );
       const [date, hourText] = period.split('|');
       const hourOts = combineCameraValues(
         measured.map((item) => item.ots.ots),
@@ -229,24 +226,20 @@ export function buildSupportHours(
           pair.cameras.length,
           zoneSplit,
         ),
-        attentionSeconds:
-          watchersTotal > 0
-            ? measured.reduce(
-                (sum, item) => sum + (item.viewers?.attentionTenths ?? 0),
-                0,
-              ) /
-              watchersTotal /
-              10
-            : 0,
-        dwellSeconds:
-          watchersTotal > 0
-            ? measured.reduce(
-                (sum, item) => sum + (item.viewers?.dwellTenths ?? 0),
-                0,
-              ) /
-              watchersTotal /
-              10
-            : 0,
+        attentionSeconds: combineCameraAverageSeconds(
+          measured.map((item) => ({
+            watchers: item.viewers?.watchers ?? 0,
+            tenths: item.viewers?.attentionTenths ?? 0,
+          })),
+          zoneSplit,
+        ),
+        dwellSeconds: combineCameraAverageSeconds(
+          measured.map((item) => ({
+            watchers: item.viewers?.watchers ?? 0,
+            tenths: item.viewers?.dwellTenths ?? 0,
+          })),
+          zoneSplit,
+        ),
       });
     }
   }
