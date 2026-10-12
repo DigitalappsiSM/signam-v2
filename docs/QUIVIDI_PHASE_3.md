@@ -105,10 +105,18 @@ reproducible), `status` (`draft`/`confirmed`), `confirmedBy*`. El PDF final
 
 ### `quividi-commercialRollupBuild`
 
-Callable de backfill/soporte manual. Reservado a `admin`/`operator` (`viewer`
-observa, no recalcula — mismo criterio que `QUIVIDI_HEALTH_REFRESH_ROLES`).
-No llama a VidiCenter: solo relee `quividiHistoryPartitions`/`Bindings` ya
-ingeridos. Idempotente por `date__storeNumber__support`.
+Callable de backfill/soporte manual. Reservado a `admin`/`operator`
+(`quividi.commercial.rebuild` / `canRebuildCommercialRollup`; `viewer` y
+`commercial` observan, no recalculan). No llama a VidiCenter: solo relee
+`quividiHistoryPartitions`/`Bindings` ya ingeridos. Idempotente por
+`date__storeNumber__support`. Dos formas:
+
+- `{ date }`: todas las Tienda+Soporte de ese día.
+- `{ storeNumber, support, startDate, endDate }`: una sola Tienda+Soporte en un
+  rango de hasta `MAX_AUDIT_DAYS` días. Es lo que usa el botón «Reconstruir
+  rollup» del visor de auditoría (visible solo con días `pending-rollup`), y
+  cubre el backfill de días anteriores al despliegue, que el job diario no
+  reconstruye.
 
 ### `quividi-commercialRollupDaily` (scheduled)
 
@@ -121,12 +129,17 @@ Callable de solo lectura, gated por `quividi.commercial` (los cuatro roles).
 Dado Tienda+Soporte+rango de fechas (+ `campaignId` opcional), devuelve por
 día: el crudo (por punto, sumando las horas ya guardadas), el rollup
 comercial ya persistido, la cifra de Fase 1 si la campaña indicada tiene
-snapshot vigente, y una bandera `consistency` (`ok`/`mismatch`/`no-data`)
-que recombina el crudo medido con la **misma** `combineCameraValues` del
-rollup y lo compara contra lo persistido — una discrepancia señala que el
-rollup del día está desalineado (p. ej. datos tardíos de Fase 2 que aún no
-dispararon `quividi-commercialRollupBuild`), nunca dispara una corrección
-automática.
+snapshot vigente, y una bandera `consistency`
+(`ok`/`mismatch`/`pending-rollup`/`no-data`) que recombina el crudo medido con
+la **misma** `combineCameraValues` del rollup y lo compara contra lo
+persistido. `pending-rollup` = hay crudo pero el rollup de ese día nunca se
+construyó (no es una discrepancia); `mismatch` = el rollup existe y no cuadra
+(p. ej. datos tardíos de Fase 2 que aún no dispararon
+`quividi-commercialRollupBuild`). Nunca dispara una corrección automática.
+
+- **Series parciales**: cada punto crudo indica `otsMeasured` y
+  `viewersMeasured` por separado. Si Fase 2 guardó solo una de las dos series,
+  la que falta se rotula «OTS sin medir» / «watchers sin medir», nunca 0.
 
 - **Rango acotado**: fechas de calendario reales, fin ≥ inicio y como máximo
   `MAX_AUDIT_DAYS` (93) días; fuera de eso responde `invalid-argument`.
@@ -152,6 +165,7 @@ automática.
 |---|---|---|---|---|
 | `quividi.commercial` (ver reportes/auditoría) | ✅ | ✅ | ✅ | ✅ |
 | `quividi.commercial.generate` (confirmar/generar propuesta final) | ✅ | ✅ | ❌ | ✅ |
+| `quividi.commercial.rebuild` (reconstruir el rollup comercial) | ✅ | ✅ | ❌ | ❌ |
 
 `viewer` observa, no dispara acciones mutantes — mismo criterio usado en Salud
 de Cámaras (`QUIVIDI_HEALTH_REFRESH_ROLES`). Espejo en backend:
@@ -213,7 +227,8 @@ Frontend:
 - `src/modules/commercial-intelligence/commercialAuditView.ts`
 - `src/services/quividi.ts` (`getQuividiCommercialAudit`)
 - `src/app/routes.ts` (`/inteligencia-comercial`, `COMMERCIAL_ROUTE_PATHS`)
-- `src/app/permissions.ts` (`quividi.commercial`, `quividi.commercial.generate`)
+- `src/app/permissions.ts` (`quividi.commercial`, `quividi.commercial.generate`,
+  `quividi.commercial.rebuild`)
 
 Documentación:
 

@@ -1001,7 +1001,9 @@ modifica el crudo ni los snapshots por campaña. Detalle completo en
 - **Permisos**: `quividi.commercial` (ver) lo tienen los cuatro roles, igual
   que `quividi.report`. `quividi.commercial.generate` (confirmar/generar una
   propuesta final) excluye a `viewer` — mismo criterio que
-  `QUIVIDI_HEALTH_REFRESH_ROLES`. Espejo en
+  `QUIVIDI_HEALTH_REFRESH_ROLES`. `quividi.commercial.rebuild` (reconstruir
+  `quividiCommercialDaily` desde el histórico, `quividi-commercialRollupBuild`)
+  es solo `admin`/`operator`. Espejo en
   `functions/src/quividi/access.ts`. La ruta `/inteligencia-comercial`
   necesita estar en `COMMERCIAL_ROUTE_PATHS` (`src/app/routes.ts`) además del
   permiso, porque el rol `commercial` tiene navegación cerrada.

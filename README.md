@@ -606,6 +606,7 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 | Importar Ekon                       |   ✓   |    ✓     |        |            |
 | Ver conciliación                    |   ✓   |    ✓     |   ✓    |            |
 | Exportar CSV                        |   ✓   |    ✓     |        |            |
+| Reconstruir rollup comercial        |   ✓   |    ✓     |        |            |
 | Administrar usuarios                |   ✓   |          |        |            |
 
 `commercial` usa una lista cerrada de rutas: `/`, `/campanas` y
