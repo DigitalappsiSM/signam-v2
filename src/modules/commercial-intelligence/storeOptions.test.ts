@@ -27,6 +27,12 @@ function screen(
   };
 }
 
+const ALIAS_SCREENS = [
+  screen('9', 'LIVERPOOL SATÉLITE', "MUPPI'S", { id: 3, id2: 4 }),
+  screen('11', 'LIVERPOOL COAPA', 'MEGAMUPI DIGITAL'),
+  screen('12', 'LIVERPOOL PERISUR', 'PENDON'),
+];
+
 const SCREENS = [
   screen('5', 'LIVERPOOL INSURGENTES', 'BANNER DIGITAL'),
   screen('5', 'LIVERPOOL INSURGENTES', 'MEGA MUPI DIGITAL'),
@@ -53,6 +59,22 @@ describe('buildStoreOptions', () => {
       (option) => option.storeNumber === '005',
     );
     expect(insurgentes?.support).toBe('MEGA MUPI DIGITAL');
+  });
+
+  it("reconoce los nombres literales y alias del catálogo (MUPPI'S, MEGAMUPI, PENDON)", () => {
+    const mupi = buildStoreOptions(ALIAS_SCREENS, 'MUPI DIGITAL');
+    expect(mupi.find((o) => o.storeNumber === '009')?.support).toBe("MUPPI'S");
+    expect(mupi.find((o) => o.storeNumber === '011')?.support).toBe(
+      'MEGAMUPI DIGITAL',
+    );
+    expect(
+      filterStoreOptions(mupi, 'satelite').map((o) => o.storeNumber),
+    ).toEqual(['009']);
+    expect(
+      buildStoreOptions(ALIAS_SCREENS, 'BANNER DIGITAL').map(
+        (o) => o.storeNumber,
+      ),
+    ).toEqual(['012']);
   });
 
   it('sólo tiendas del soporte con alguna cámara Quividi, una por número', () => {

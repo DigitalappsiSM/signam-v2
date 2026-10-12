@@ -140,8 +140,9 @@ automática.
 - Formulario: Soporte es un selector cerrado (`MUPI DIGITAL`, `BANNER
   DIGITAL`) y Tienda se busca por nombre o número (teclado: flechas, Enter,
   Escape) entre las tiendas del Catálogo Admira con ese soporte y al menos una
-  cámara Quividi (`storeOptions.ts`). `MUPI DIGITAL` agrupa el
-  `MEGA MUPI DIGITAL` del catálogo (alias `MUPPI'S`). Se envía el soporte
+  cámara Quividi (`storeOptions.ts`). `MUPI DIGITAL` agrupa los nombres
+  de catálogo del mupi (`MEGA MUPI DIGITAL`, `MEGAMUPI DIGITAL`, `MUPPI'S`,
+  `MUPI DIGITAL`…) y `BANNER DIGITAL` incluye `PENDON`. Se envía el soporte
   **literal del catálogo** y el número normalizado a 3 dígitos, igual que los
   bindings del histórico (`LIV-005`), que comparan exacto.
 

@@ -18,15 +18,23 @@ export type CommercialSupport = (typeof COMMERCIAL_SUPPORTS)[number];
 /**
  * Nombres con que cada soporte aparece en `calendarSupport` del catálogo. El
  * mupi se mapea como `MEGA MUPI DIGITAL` (alias `MUPPI'S` → `MEGA MUPI
- * DIGITAL`, AGENTS.md); se acepta también `MUPI DIGITAL` por si el maestro lo
- * nombra así. Al backend se envía siempre el nombre literal del catálogo,
+ * DIGITAL`, AGENTS.md), pero el maestro puede traer el nombre literal
+ * (`MUPPI'S`, `PENDON`) o variantes (`MEGAMUPI DIGITAL`, alias de Quividi);
+ * se aceptan todas. Al backend se envía siempre el nombre literal del catálogo,
  * porque los bindings del histórico lo comparan exacto.
  */
 const CATALOG_SUPPORT_NAMES: Readonly<
   Record<CommercialSupport, readonly string[]>
 > = {
-  'MUPI DIGITAL': ['MEGA MUPI DIGITAL', 'MUPI DIGITAL'],
-  'BANNER DIGITAL': ['BANNER DIGITAL'],
+  'MUPI DIGITAL': [
+    'MEGA MUPI DIGITAL',
+    'MEGAMUPI DIGITAL',
+    'MEGA MUPI',
+    'MUPI DIGITAL',
+    'MUPPIS',
+    'MUPIS',
+  ],
+  'BANNER DIGITAL': ['BANNER DIGITAL', 'PENDON'],
 };
 
 export interface CommercialStoreOption {
@@ -51,6 +59,7 @@ function searchKey(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/['\u2019\u00b4`\u02bc]/g, '')
     .toUpperCase()
     .replace(/\s+/g, ' ')
     .trim();
