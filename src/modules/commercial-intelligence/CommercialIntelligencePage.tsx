@@ -105,10 +105,15 @@ export function CommercialIntelligencePage() {
       if (suggestions.length === 0) return;
       event.preventDefault();
       setShowSuggestions(true);
-      const step = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex(
-        (current) => (current + step + suggestions.length) % suggestions.length,
-      );
+      const down = event.key === 'ArrowDown';
+      const last = suggestions.length - 1;
+      setActiveIndex((current) => {
+        // Sin opción activa: abajo va a la primera, arriba a la última.
+        if (current < 0) return down ? 0 : last;
+        return down
+          ? (current + 1) % suggestions.length
+          : (current - 1 + suggestions.length) % suggestions.length;
+      });
     } else if (event.key === 'Enter') {
       const option = showSuggestions ? suggestions[activeIndex] : undefined;
       if (option) {
@@ -124,16 +129,15 @@ export function CommercialIntelligencePage() {
 
   function changeSupport(next: CommercialSupport) {
     setSupport(next);
-    // La tienda elegida puede no tener cámara en el otro soporte.
-    if (
-      selectedStore &&
-      !buildStoreOptions(screens, next).some(
-        (option) => option.storeNumber === selectedStore.storeNumber,
-      )
-    ) {
-      setSelectedStore(null);
-      setStoreQuery('');
-    }
+    if (!selectedStore) return;
+    // Se reemplaza por la opción del nuevo soporte (que lleva SU nombre de
+    // catálogo): conservar la anterior enviaría el soporte viejo. Si la tienda
+    // no tiene cámara en el nuevo soporte, se limpia.
+    const match = buildStoreOptions(screens, next).find(
+      (option) => option.storeNumber === selectedStore.storeNumber,
+    );
+    setSelectedStore(match ?? null);
+    setStoreQuery(match?.label ?? '');
   }
 
   async function handleSubmit(event: FormEvent) {
