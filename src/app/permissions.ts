@@ -25,6 +25,8 @@ export type Permission =
   | 'quividi.report'
   | 'quividi.refresh'
   | 'quividi.history'
+  | 'quividi.commercial'
+  | 'quividi.commercial.generate'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
   | 'digitalOperations.track'
@@ -45,6 +47,13 @@ export type Permission =
 // `quividi.refresh` («Actualizar datos de Quividi» en Campañas) lo tienen admin y
 // operator: vuelve a pedir los datos a VidiCenter sin la copia guardada. Su
 // espejo en el servidor es `QUIVIDI_REPORT_REFRESH_ROLES`.
+// `quividi.commercial` (Inteligencia Comercial, Fase 3) también lo tienen los
+// cuatro roles: ver reportes/auditoría es lectura, igual que `quividi.report`.
+// `quividi.commercial.generate` excluye a `viewer`: confirmar una propuesta
+// final persiste `quividiCommercialProposals` y produce el PDF que ve la
+// marca, una acción mutante — mismo criterio que el resto de acciones de
+// escritura de la matriz. Espejo en `functions/src/quividi/access.ts`
+// (`QUIVIDI_COMMERCIAL_ROLES` / `QUIVIDI_COMMERCIAL_GENERATE_ROLES`).
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     'catalog.read',
@@ -66,6 +75,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quividi.report',
     'quividi.refresh',
     'quividi.history',
+    'quividi.commercial',
+    'quividi.commercial.generate',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -90,6 +101,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'odooIncidents.read',
     'quividi.report',
     'quividi.refresh',
+    'quividi.commercial',
+    'quividi.commercial.generate',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -105,9 +118,15 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'reporting.read',
     'odooIncidents.read',
     'quividi.report',
+    'quividi.commercial',
     'digitalOperations.read',
   ],
-  commercial: ['tracking.read', 'quividi.report'],
+  commercial: [
+    'tracking.read',
+    'quividi.report',
+    'quividi.commercial',
+    'quividi.commercial.generate',
+  ],
 };
 
 /** Indica si un rol tiene un permiso dado. */

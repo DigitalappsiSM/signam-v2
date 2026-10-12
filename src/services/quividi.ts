@@ -237,3 +237,83 @@ export async function refreshQuividiCameraHealth(): Promise<QuividiCameraHealthR
   const result = await callable({});
   return result.data;
 }
+
+export interface QuividiCommercialAuditRequest {
+  storeNumber: string;
+  support: string;
+  startDate: string;
+  endDate: string;
+  campaignId?: string;
+}
+
+export interface QuividiCommercialRawPointDay {
+  locationId: number;
+  pointId: string | null;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
+  attentionSeconds: number;
+  dwellSeconds: number;
+  measured: boolean;
+}
+
+export interface QuividiCommercialDailyRow {
+  date: string;
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  configuredCameras: number;
+  measuredCameras: number;
+  status: 'measured' | 'partial' | 'missing';
+  zoneSplit: boolean;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
+  attentionSeconds: number;
+  dwellSeconds: number;
+  pointIdsUsed: string[];
+  locationIdsUsed: number[];
+}
+
+export interface QuividiCommercialFase1Figure {
+  zoneSplit: boolean;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
+  attentionSeconds: number;
+  dwellSeconds: number;
+}
+
+export type QuividiCommercialConsistency = 'ok' | 'mismatch' | 'no-data';
+
+export interface QuividiCommercialAuditDay {
+  date: string;
+  raw: QuividiCommercialRawPointDay[];
+  commercial: QuividiCommercialDailyRow | null;
+  fase1: QuividiCommercialFase1Figure | null;
+  consistency: QuividiCommercialConsistency;
+}
+
+export interface QuividiCommercialAuditResult {
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  days: QuividiCommercialAuditDay[];
+}
+
+export async function getQuividiCommercialAudit(
+  request: QuividiCommercialAuditRequest,
+): Promise<QuividiCommercialAuditResult> {
+  const callable = httpsCallable<
+    QuividiCommercialAuditRequest,
+    QuividiCommercialAuditResult
+  >(functions(), 'quividi-commercialAudit');
+  const result = await callable(request);
+  return result.data;
+}

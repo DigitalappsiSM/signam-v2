@@ -72,4 +72,18 @@ describe('permisos por rol', () => {
     expect(can('operator', 'reporting.read')).toBe(true);
     expect(can('viewer', 'reporting.read')).toBe(true);
   });
+
+  it('Inteligencia Comercial: ver reportes/auditoría está disponible para los cuatro roles', () => {
+    expect(can('admin', 'quividi.commercial')).toBe(true);
+    expect(can('operator', 'quividi.commercial')).toBe(true);
+    expect(can('viewer', 'quividi.commercial')).toBe(true);
+    expect(can('commercial', 'quividi.commercial')).toBe(true);
+  });
+
+  it('Inteligencia Comercial: generar/confirmar una propuesta excluye a viewer', () => {
+    expect(can('admin', 'quividi.commercial.generate')).toBe(true);
+    expect(can('operator', 'quividi.commercial.generate')).toBe(true);
+    expect(can('commercial', 'quividi.commercial.generate')).toBe(true);
+    expect(can('viewer', 'quividi.commercial.generate')).toBe(false);
+  });
 });

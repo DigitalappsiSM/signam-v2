@@ -1,0 +1,105 @@
+.commercial-intel {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.commercial-intel__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.commercial-intel__form label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+}
+
+.commercial-intel__store-label {
+  margin: 0;
+}
+
+.commercial-intel__error {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-fg);
+}
+
+.commercial-intel__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.commercial-intel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.commercial-intel__table th,
+.commercial-intel__table td {
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.commercial-intel__table th {
+  background: var(--table-head-bg);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.commercial-intel__table td > span,
+.commercial-intel__table td > small {
+  display: block;
+}
+
+.commercial-intel__table td > small {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.commercial-intel__flag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.commercial-intel__flag--ok {
+  color: var(--color-success-fg);
+  background: color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+
+.commercial-intel__flag--mismatch {
+  color: var(--color-danger-fg);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+.commercial-intel__flag--no-data {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.commercial-intel__empty {
+  padding: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}

@@ -966,6 +966,51 @@ tres de ellos describían mal el separador de artículos.
 - Pantallas inactivas: permanecen con su historial pero no consolidan ni generan
   filas de CSV; una campaña que las solicite produce una incidencia explícita.
 
+### Inteligencia Comercial Quividi — Fase 3 (no romper sin decisión documentada)
+
+Capa comercial derivada, separada de Fase 1 (reporte por campaña) y Fase 2
+(histórico + salud de cámaras): nunca llama a VidiCenter de nuevo, nunca
+modifica el crudo ni los snapshots por campaña. Detalle completo en
+`docs/QUIVIDI_PHASE_3.md`.
+
+- **Combinación/duplicación multi-cámara: reusa `cameraCombination.ts`, no
+  reimplementa nada.** El rollup comercial (`quividiCommercialDaily`,
+  `functions/src/quividi/commercial/commercialRollup.ts`) construye su cifra
+  con **las mismas** `combineCameraValues` / `isZoneSplitPair` /
+  `publishedValue` que ya usa Fase 1 (`measurement.ts`/`hourly.ts`), para que
+  Inteligencia Comercial nunca pueda divergir de la cifra que ya ve la marca
+  en el reporte por campaña. Zona partida (Insurgentes, cualquier soporte
+  `BANNER DIGITAL`) suma siempre sus puntos; cualquier otro caso toma el de
+  mayor OTS. La cifra publicada (`publishedOts`/`publishedEffectiveOts`/
+  `publishedWatchers`) duplica (×2) cuando el par tiene 1 punto configurado,
+  o 2 fuera de zona partida — nunca con 3+ puntos ni en zona partida.
+  Attention/Dwell Time **nunca se duplican** (son promedios por watcher, no
+  conteos). Vive únicamente en `quividiCommercialDaily`; **no** toca
+  `quividiHistoryPartitions` ni `campaignAudienceSnapshots`. Si
+  `cameraCombination.ts` cambia, el rollup comercial cambia con él sin
+  requerir ningún ajuste aquí — esa es la garantía de reusarlo en vez de
+  tener una copia propia de la regla.
+- **Auditoría de consistencia**: solo lectura, nunca corrige ni dispara
+  alertas. Compara por `locationId`/punto en el backend; el cliente siempre
+  rotula por Tienda+Soporte, nunca por Location ID
+  (`quividi-commercialAudit`).
+- **Permisos**: `quividi.commercial` (ver) lo tienen los cuatro roles, igual
+  que `quividi.report`. `quividi.commercial.generate` (confirmar/generar una
+  propuesta final) excluye a `viewer` — mismo criterio que
+  `QUIVIDI_HEALTH_REFRESH_ROLES`. Espejo en
+  `functions/src/quividi/access.ts`. La ruta `/inteligencia-comercial`
+  necesita estar en `COMMERCIAL_ROUTE_PATHS` (`src/app/routes.ts`) además del
+  permiso, porque el rol `commercial` tiene navegación cerrada.
+- **El PDF de propuestas comerciales no se guarda en Storage**: `commercial`
+  no lee ni escribe Storage (`storage.rules`). Se renderiza en cliente desde
+  el registro Firestore reproducible (`quividiCommercialProposals`),
+  reusando `src/modules/exports/quividiPdfKit.ts`. El agente LLM (Vertex AI
+  Gemini) sigue la misma regla que el PDF de Fase 1: puede citar cifras
+  finales, nunca metodología ni el mecanismo de duplicación.
+- **Demografía no está en el rollup todavía**: el backfill de Fase 2 no pide
+  el export de `viewers` con desglose demográfico; agregarlo es una familia
+  nueva de cuota, aislada en su propia sub-fase.
+
 ## Integración Ekon (no romper sin decisión documentada)
 
 Dominio puro en `src/domain/ekon`, servicios en `src/services/ekon*.ts`, módulos

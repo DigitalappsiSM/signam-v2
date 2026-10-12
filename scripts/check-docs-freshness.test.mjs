@@ -44,6 +44,24 @@ describe('guardia de deriva entre código y documentación', () => {
     ).toHaveLength(0);
   });
 
+  it('exige documentación al tocar el rollup comercial de Inteligencia Comercial', () => {
+    const { failures } = evaluate([
+      'functions/src/quividi/commercial/commercialRollup.ts',
+    ]);
+    expect(failures.map((failure) => failure.rule.name)).toContain(
+      'Inteligencia Comercial Quividi (Fase 3)',
+    );
+  });
+
+  it('acepta el cambio comercial cuando se documentó en Fase 3', () => {
+    expect(
+      evaluate([
+        'functions/src/quividi/commercial/commercialRollup.ts',
+        'docs/QUIVIDI_PHASE_3.md',
+      ]).failures,
+    ).toHaveLength(0);
+  });
+
   it('no molesta cuando sólo cambian pruebas', () => {
     expect(evaluate(['src/domain/csv.test.ts']).failures).toHaveLength(0);
   });

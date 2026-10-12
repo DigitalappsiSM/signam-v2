@@ -104,3 +104,35 @@ export const QUIVIDI_REPORT_REFRESH_ROLES: readonly Role[] = [
 export function canRefreshQuividiReport(role: Role): boolean {
   return QUIVIDI_REPORT_REFRESH_ROLES.includes(role);
 }
+
+/**
+ * Inteligencia Comercial (Fase 3): ver el módulo (reportes, auditoría) es
+ * lectura para los cuatro roles, igual que `quividi.report`. Espejo de
+ * `quividi.commercial` en `src/app/permissions.ts`.
+ */
+export const QUIVIDI_COMMERCIAL_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+  'viewer',
+  'commercial',
+];
+
+export function canUseCommercialIntelligence(role: Role): boolean {
+  return QUIVIDI_COMMERCIAL_ROLES.includes(role);
+}
+
+/**
+ * Generar/confirmar una propuesta comercial final es una acción mutante
+ * (persiste `quividiCommercialProposals` y produce el PDF que ve la marca).
+ * `viewer` observa, no dispara — mismo criterio que
+ * `QUIVIDI_HEALTH_REFRESH_ROLES`. Espejo de `quividi.commercial.generate`.
+ */
+export const QUIVIDI_COMMERCIAL_GENERATE_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+  'commercial',
+];
+
+export function canGenerateCommercialProposal(role: Role): boolean {
+  return QUIVIDI_COMMERCIAL_GENERATE_ROLES.includes(role);
+}

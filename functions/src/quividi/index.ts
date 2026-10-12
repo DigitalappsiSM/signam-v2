@@ -1,6 +1,8 @@
 import { loadCampaignAvailability, type CampaignAvailabilityItem } from './campaignAvailability';
 import { Buffer } from 'node:buffer';
 export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';
+export { commercialRollupBuild, commercialRollupDaily } from './commercial/commercialRollupJob';
+export { commercialAudit } from './commercial/commercialAudit';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
   getFirestore,
