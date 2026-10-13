@@ -27,6 +27,7 @@ export type Permission =
   | 'quividi.history'
   | 'quividi.commercial'
   | 'quividi.commercial.generate'
+  | 'quividi.commercial.rebuild'
   | 'digitalOperations.read'
   | 'digitalOperations.import'
   | 'digitalOperations.track'
@@ -49,6 +50,9 @@ export type Permission =
 // espejo en el servidor es `QUIVIDI_REPORT_REFRESH_ROLES`.
 // `quividi.commercial` (Inteligencia Comercial, Fase 3) también lo tienen los
 // cuatro roles: ver reportes/auditoría es lectura, igual que `quividi.report`.
+// `quividi.commercial.rebuild` (botón «Reconstruir rollup») es solo admin y
+// operator: reescribe `quividiCommercialDaily` desde el histórico; es operación,
+// no lectura ni acción comercial. Espejo `QUIVIDI_COMMERCIAL_REBUILD_ROLES`.
 // `quividi.commercial.generate` excluye a `viewer`: confirmar una propuesta
 // final persiste `quividiCommercialProposals` y produce el PDF que ve la
 // marca, una acción mutante — mismo criterio que el resto de acciones de
@@ -77,6 +81,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quividi.history',
     'quividi.commercial',
     'quividi.commercial.generate',
+    'quividi.commercial.rebuild',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',
@@ -103,6 +108,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quividi.refresh',
     'quividi.commercial',
     'quividi.commercial.generate',
+    'quividi.commercial.rebuild',
     'digitalOperations.read',
     'digitalOperations.import',
     'digitalOperations.track',

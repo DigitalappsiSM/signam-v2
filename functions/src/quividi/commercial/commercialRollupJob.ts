@@ -3,9 +3,14 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { roleFromClaims } from '../access';
+import { canRebuildCommercialRollup, roleFromClaims } from '../access';
 import { historyPartitionId, type StoreBinding } from '../historyModel';
-import { lastCompleteUtcDate, type OtsExportRow, type ViewerExportRow } from '../measurement';
+import {
+  dayList,
+  lastCompleteUtcDate,
+  type OtsExportRow,
+  type ViewerExportRow,
+} from '../measurement';
 import {
   aggregateHourlyCameraDay,
   buildCommercialDailyRow,
@@ -13,6 +18,13 @@ import {
   type CommercialDailyRow,
   type CommercialPair,
 } from './commercialRollup';
+import { MAX_AUDIT_DAYS, isValidAuditRange } from './dateRange';
+
+/** Restringe la reconstrucción a una Tienda+Soporte (número a 3 dígitos). */
+export interface CommercialRollupScope {
+  storeNumber: string;
+  support: string;
+}
 
 /**
  * Orquestación del rollup comercial (Fase 3): construye
@@ -101,11 +113,23 @@ async function cameraDayFor(
  */
 export async function buildCommercialRollupForDate(
   date: string,
+  scope?: CommercialRollupScope,
+  preloadedBindings?: readonly StoreBinding[],
 ): Promise<CommercialDailyRow[]> {
   const db = getFirestore();
-  const bindingsSnap = await db.collection(BINDINGS_COLLECTION).get();
-  const bindings = bindingsSnap.docs.map((doc) => doc.data() as StoreBinding);
-  const groups = groupBindingsByPair(bindings, date);
+  const bindings =
+    preloadedBindings ??
+    (await db.collection(BINDINGS_COLLECTION).get()).docs.map(
+      (doc) => doc.data() as StoreBinding,
+    );
+  const scoped = scope
+    ? bindings.filter(
+        (binding) =>
+          binding.storeId === `LIV-${scope.storeNumber}` &&
+          binding.support === scope.support,
+      )
+    : bindings;
+  const groups = groupBindingsByPair(scoped, date);
 
   const rows: CommercialDailyRow[] = [];
   for (const [, group] of groups) {
@@ -146,19 +170,61 @@ export async function buildCommercialRollupForDate(
 /**
  * Backfill/soporte manual. No dispara llamadas a Quividi: solo relee lo ya
  * ingerido por Fase 2. Reservado a admin/operator — viewer observa, no
- * recalcula (mismo criterio que `QUIVIDI_HEALTH_REFRESH_ROLES`).
+ * recalcula (`canRebuildCommercialRollup`, espejo de
+ * `quividi.commercial.rebuild`).
+ *
+ * Acepta `{ date }` (todas las Tienda+Soporte de ese día) o
+ * `{ storeNumber, support, startDate, endDate }` (una sola Tienda+Soporte en
+ * un rango de hasta `MAX_AUDIT_DAYS` días, lo que usa el botón «Reconstruir
+ * rollup» del visor de auditoría).
  */
 export const commercialRollupBuild = onCall(
   { timeoutSeconds: 540, memory: '512MiB' },
   async (request) => {
     const role = roleFromClaims(request.auth?.token);
-    if (!request.auth || (role !== 'admin' && role !== 'operator')) {
+    if (!request.auth || !canRebuildCommercialRollup(role)) {
       throw new HttpsError(
         'permission-denied',
         'Solo admin u operator pueden construir el rollup comercial.',
       );
     }
-    const date = (request.data as { date?: unknown } | undefined)?.date;
+    const data = (request.data ?? {}) as {
+      date?: unknown;
+      storeNumber?: unknown;
+      support?: unknown;
+      startDate?: unknown;
+      endDate?: unknown;
+    };
+
+    if (data.startDate !== undefined || data.endDate !== undefined) {
+      const storeNumber =
+        typeof data.storeNumber === 'string' ? data.storeNumber.trim() : '';
+      const support = typeof data.support === 'string' ? data.support.trim() : '';
+      const startDate = typeof data.startDate === 'string' ? data.startDate : '';
+      const endDate = typeof data.endDate === 'string' ? data.endDate : '';
+      if (!storeNumber || !support || !isValidAuditRange(startDate, endDate)) {
+        throw new HttpsError(
+          'invalid-argument',
+          `Tienda, soporte y un rango válido (máximo ${MAX_AUDIT_DAYS} días) son obligatorios.`,
+        );
+      }
+      const db = getFirestore();
+      const bindings = (await db.collection(BINDINGS_COLLECTION).get()).docs.map(
+        (doc) => doc.data() as StoreBinding,
+      );
+      let rowsWritten = 0;
+      for (const date of dayList(startDate, endDate)) {
+        const rows = await buildCommercialRollupForDate(
+          date,
+          { storeNumber, support },
+          bindings,
+        );
+        rowsWritten += rows.length;
+      }
+      return { startDate, endDate, storeNumber, support, rowsWritten };
+    }
+
+    const date = data.date;
     if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new HttpsError('invalid-argument', 'Fecha inválida (YYYY-MM-DD).');
     }

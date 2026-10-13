@@ -86,4 +86,11 @@ describe('permisos por rol', () => {
     expect(can('commercial', 'quividi.commercial.generate')).toBe(true);
     expect(can('viewer', 'quividi.commercial.generate')).toBe(false);
   });
+
+  it('Inteligencia Comercial: reconstruir el rollup es solo admin y operator', () => {
+    expect(can('admin', 'quividi.commercial.rebuild')).toBe(true);
+    expect(can('operator', 'quividi.commercial.rebuild')).toBe(true);
+    expect(can('viewer', 'quividi.commercial.rebuild')).toBe(false);
+    expect(can('commercial', 'quividi.commercial.rebuild')).toBe(false);
+  });
 });

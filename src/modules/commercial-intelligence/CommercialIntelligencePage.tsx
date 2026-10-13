@@ -9,13 +9,19 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import {
   getQuividiCommercialAudit,
+  rebuildQuividiCommercialRollup,
   type QuividiCommercialAuditResult,
 } from '@/services/quividi';
+import { can } from '@/app/permissions';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { listScreens } from '@/services/screens';
 import type { AdmiraScreen } from '@/domain/models';
 import {
+  commercialSummary,
   consistencyLabel,
+  hasPendingRollup,
   pointLabel,
+  rawPointSummary,
   statusLabel,
   zoneSplitLabel,
 } from './commercialAuditView';
@@ -47,6 +53,8 @@ function isIsoDate(value: string): boolean {
  * sub-fases posteriores (ver docs/QUIVIDI_PHASE_3.md).
  */
 export function CommercialIntelligencePage() {
+  const { user } = useAuth();
+  const canRebuild = !!user && can(user.role, 'quividi.commercial.rebuild');
   const [screens, setScreens] = useState<AdmiraScreen[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [support, setSupport] = useState<CommercialSupport>(
@@ -65,6 +73,12 @@ export function CommercialIntelligencePage() {
   const [result, setResult] = useState<QuividiCommercialAuditResult | null>(
     null,
   );
+  const [auditedRange, setAuditedRange] = useState<{
+    startDate: string;
+    endDate: string;
+    campaignId?: string;
+  } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,10 +119,15 @@ export function CommercialIntelligencePage() {
       if (suggestions.length === 0) return;
       event.preventDefault();
       setShowSuggestions(true);
-      const step = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex(
-        (current) => (current + step + suggestions.length) % suggestions.length,
-      );
+      const down = event.key === 'ArrowDown';
+      const last = suggestions.length - 1;
+      setActiveIndex((current) => {
+        // Sin opción activa: abajo va a la primera, arriba a la última.
+        if (current < 0) return down ? 0 : last;
+        return down
+          ? (current + 1) % suggestions.length
+          : (current - 1 + suggestions.length) % suggestions.length;
+      });
     } else if (event.key === 'Enter') {
       const option = showSuggestions ? suggestions[activeIndex] : undefined;
       if (option) {
@@ -124,16 +143,15 @@ export function CommercialIntelligencePage() {
 
   function changeSupport(next: CommercialSupport) {
     setSupport(next);
-    // La tienda elegida puede no tener cámara en el otro soporte.
-    if (
-      selectedStore &&
-      !buildStoreOptions(screens, next).some(
-        (option) => option.storeNumber === selectedStore.storeNumber,
-      )
-    ) {
-      setSelectedStore(null);
-      setStoreQuery('');
-    }
+    if (!selectedStore) return;
+    // Se reemplaza por la opción del nuevo soporte (que lleva SU nombre de
+    // catálogo): conservar la anterior enviaría el soporte viejo. Si la tienda
+    // no tiene cámara en el nuevo soporte, se limpia.
+    const match = buildStoreOptions(screens, next).find(
+      (option) => option.storeNumber === selectedStore.storeNumber,
+    );
+    setSelectedStore(match ?? null);
+    setStoreQuery(match?.label ?? '');
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -151,15 +169,20 @@ export function CommercialIntelligencePage() {
     }
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
-      const audit = await getQuividiCommercialAudit({
-        storeNumber: store.storeNumber,
-        support: store.support,
+      const range = {
         startDate,
         endDate,
         campaignId: campaignId.trim() || undefined,
+      };
+      const audit = await getQuividiCommercialAudit({
+        storeNumber: store.storeNumber,
+        support: store.support,
+        ...range,
       });
       setResult(audit);
+      setAuditedRange(range);
     } catch (err) {
       setError(
         err instanceof Error
@@ -167,6 +190,42 @@ export function CommercialIntelligencePage() {
           : 'No se pudo consultar la auditoría comercial.',
       );
       setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * Reconstruye el rollup de la Tienda+Soporte+rango ya auditados (no de lo
+   * que haya cambiado en el formulario después) y vuelve a auditar.
+   */
+  async function handleRebuild() {
+    if (!result || !auditedRange) return;
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { rowsWritten } = await rebuildQuividiCommercialRollup({
+        storeNumber: result.storeNumber,
+        support: result.support,
+        startDate: auditedRange.startDate,
+        endDate: auditedRange.endDate,
+      });
+      const audit = await getQuividiCommercialAudit({
+        storeNumber: result.storeNumber,
+        support: result.support,
+        ...auditedRange,
+      });
+      setResult(audit);
+      setNotice(
+        `Rollup reconstruido: ${rowsWritten} día(s) escritos desde el histórico guardado.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo reconstruir el rollup comercial.',
+      );
     } finally {
       setLoading(false);
     }
@@ -299,8 +358,29 @@ export function CommercialIntelligencePage() {
         </div>
       )}
 
+      {notice && (
+        <div className="commercial-intel__notice" role="status">
+          {notice}
+        </div>
+      )}
+
       {result && (
         <>
+          {canRebuild && hasPendingRollup(result.days) && (
+            <div className="commercial-intel__pending">
+              <span>
+                Hay días con histórico guardado y sin rollup comercial. Se puede
+                reconstruir desde lo ya guardado, sin consultar a Quividi.
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRebuild}
+              >
+                Reconstruir rollup
+              </button>
+            </div>
+          )}
           <p className="text-muted commercial-intel__store-label">
             <strong>
               Tienda {result.storeNumber}
@@ -330,9 +410,7 @@ export function CommercialIntelligencePage() {
                       {day.raw.map((point, index) => (
                         <span key={point.locationId}>
                           {pointLabel(point.pointId, index)}:{' '}
-                          {point.measured
-                            ? `${formatNumber(point.ots)} OTS · ${formatNumber(point.watchers)} watchers`
-                            : 'sin medición'}
+                          {rawPointSummary(point, formatNumber)}
                         </span>
                       ))}
                     </td>
@@ -340,15 +418,16 @@ export function CommercialIntelligencePage() {
                       {day.commercial ? (
                         <>
                           <span>
-                            {formatNumber(day.commercial.publishedOts)} OTS
-                            publicados ·{' '}
-                            {formatNumber(day.commercial.publishedWatchers)}{' '}
-                            watchers
+                            {commercialSummary(day.commercial, formatNumber)}
                           </span>
-                          <small>
-                            Combinado: {formatNumber(day.commercial.ots)} OTS ·{' '}
-                            {formatNumber(day.commercial.watchers)} watchers
-                          </small>
+                          {day.commercial.otsMeasured !== false &&
+                            day.commercial.viewersMeasured !== false && (
+                              <small>
+                                Combinado: {formatNumber(day.commercial.ots)}{' '}
+                                OTS · {formatNumber(day.commercial.watchers)}{' '}
+                                watchers
+                              </small>
+                            )}
                           <small>{statusLabel(day.commercial.status)}</small>
                           <small>
                             {zoneSplitLabel(day.commercial.zoneSplit)}

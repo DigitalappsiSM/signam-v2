@@ -136,3 +136,18 @@ export const QUIVIDI_COMMERCIAL_GENERATE_ROLES: readonly Role[] = [
 export function canGenerateCommercialProposal(role: Role): boolean {
   return QUIVIDI_COMMERCIAL_GENERATE_ROLES.includes(role);
 }
+
+/**
+ * Reconstruir el rollup comercial (`quividi-commercialRollupBuild`) reescribe
+ * `quividiCommercialDaily` a partir del histórico ya guardado: acción de
+ * operación, no de lectura ni comercial. Espejo de
+ * `quividi.commercial.rebuild`.
+ */
+export const QUIVIDI_COMMERCIAL_REBUILD_ROLES: readonly Role[] = [
+  'admin',
+  'operator',
+];
+
+export function canRebuildCommercialRollup(role: Role): boolean {
+  return QUIVIDI_COMMERCIAL_REBUILD_ROLES.includes(role);
+}

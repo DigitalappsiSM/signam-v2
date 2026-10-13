@@ -255,6 +255,8 @@ export interface QuividiCommercialRawPointDay {
   attentionSeconds: number;
   dwellSeconds: number;
   measured: boolean;
+  otsMeasured: boolean;
+  viewersMeasured: boolean;
 }
 
 export interface QuividiCommercialDailyRow {
@@ -276,6 +278,9 @@ export interface QuividiCommercialDailyRow {
   dwellSeconds: number;
   pointIdsUsed: string[];
   locationIdsUsed: number[];
+  /** Ausentes en filas anteriores: se consideran medidas. */
+  otsMeasured?: boolean;
+  viewersMeasured?: boolean;
 }
 
 export interface QuividiCommercialFase1Figure {
@@ -290,7 +295,8 @@ export interface QuividiCommercialFase1Figure {
   dwellSeconds: number;
 }
 
-export type QuividiCommercialConsistency = 'ok' | 'mismatch' | 'no-data';
+export type QuividiCommercialConsistency =
+  'ok' | 'mismatch' | 'pending-rollup' | 'no-data';
 
 export interface QuividiCommercialAuditDay {
   date: string;
@@ -314,6 +320,29 @@ export async function getQuividiCommercialAudit(
     QuividiCommercialAuditRequest,
     QuividiCommercialAuditResult
   >(functions(), 'quividi-commercialAudit');
+  const result = await callable(request);
+  return result.data;
+}
+
+export interface QuividiCommercialRollupRebuildRequest {
+  storeNumber: string;
+  support: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface QuividiCommercialRollupRebuildResult {
+  rowsWritten: number;
+}
+
+/** Reconstruye el rollup comercial de una Tienda+Soporte en un rango (admin/operator). */
+export async function rebuildQuividiCommercialRollup(
+  request: QuividiCommercialRollupRebuildRequest,
+): Promise<QuividiCommercialRollupRebuildResult> {
+  const callable = httpsCallable<
+    QuividiCommercialRollupRebuildRequest,
+    QuividiCommercialRollupRebuildResult
+  >(functions(), 'quividi-commercialRollupBuild', { timeout: 540_000 });
   const result = await callable(request);
   return result.data;
 }

@@ -39,6 +39,7 @@ function viewer(over: Partial<ViewerExportRow> = {}): ViewerExportRow {
 }
 
 function camera(over: Partial<CommercialCameraDay> = {}): CommercialCameraDay {
+  const measured = over.measured ?? true;
   return {
     locationId: 1,
     pointId: 'LIV-199-MUPI-P1',
@@ -47,7 +48,9 @@ function camera(over: Partial<CommercialCameraDay> = {}): CommercialCameraDay {
     watchers: 40,
     attentionTenths: 400,
     dwellTenths: 800,
-    measured: true,
+    measured,
+    otsMeasured: measured,
+    viewersMeasured: measured,
     ...over,
   };
 }
@@ -195,5 +198,40 @@ describe('buildCommercialDailyRow', () => {
   it('sin puntos configurados, no genera fila', () => {
     const row = buildCommercialDailyRow(pair({ configuredPointIds: [] }), DATE, [camera()]);
     expect(row).toBeNull();
+  });
+});
+
+describe('buildCommercialDailyRow · series parciales', () => {
+  it('sin serie de OTS: no publica un 0 medido, marca parcial', () => {
+    const row = buildCommercialDailyRow(
+      pair({ configuredPointIds: ['LIV-199-MUPI-P1'] }),
+      DATE,
+      [camera({ ots: 0, effectiveOts: 0, otsMeasured: false, watchers: 229 })],
+    );
+    expect(row).toMatchObject({
+      status: 'partial',
+      otsMeasured: false,
+      viewersMeasured: true,
+      watchers: 229,
+      publishedWatchers: 458,
+    });
+  });
+
+  it('cada serie se combina solo con los puntos que la tienen', () => {
+    const row = buildCommercialDailyRow(
+      pair({ configuredPointIds: ['LIV-199-MUPI-P1', 'LIV-199-MUPI-P2'] }),
+      DATE,
+      [
+        camera({ ots: 0, otsMeasured: false, watchers: 300 }),
+        camera({ locationId: 2, pointId: 'LIV-199-MUPI-P2', ots: 500, watchers: 0, viewersMeasured: false }),
+      ],
+    );
+    expect(row).toMatchObject({
+      status: 'partial',
+      ots: 500,
+      watchers: 300,
+      otsMeasured: true,
+      viewersMeasured: true,
+    });
   });
 });

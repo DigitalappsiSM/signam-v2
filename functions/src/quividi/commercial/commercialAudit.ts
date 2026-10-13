@@ -28,6 +28,9 @@ import {
   loadPartitionRows,
 } from './commercialRollupJob';
 import type { CommercialDailyRow } from './commercialRollup';
+import { MAX_AUDIT_DAYS, isValidAuditRange } from './dateRange';
+
+export { MAX_AUDIT_DAYS, isValidAuditRange } from './dateRange';
 
 /**
  * Auditoría de consistencia (Fase 3): visor de solo lectura, sin acción
@@ -40,30 +43,6 @@ import type { CommercialDailyRow } from './commercialRollup';
 
 const SNAPSHOT_COLLECTION = 'campaignAudienceSnapshots';
 
-/**
- * Rango máximo (días, inclusive) de una auditoría. Cada día dispara varias
- * lecturas de Firestore/Storage; sin tope, una llamada directa al callable con
- * `0000-01-01`…`9999-12-31` materializaría millones de fechas.
- */
-export const MAX_AUDIT_DAYS = 93;
-
-function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-/** Rango válido: fechas reales, fin ≥ inicio y como máximo `MAX_AUDIT_DAYS`. */
-export function isValidAuditRange(startDate: string, endDate: string): boolean {
-  if (!isCalendarDate(startDate) || !isCalendarDate(endDate)) return false;
-  if (endDate < startDate) return false;
-  const days =
-    (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) /
-      86_400_000 +
-    1;
-  return days <= MAX_AUDIT_DAYS;
-}
-
 export interface RawPointDay {
   locationId: number;
   pointId: string | null;
@@ -73,6 +52,10 @@ export interface RawPointDay {
   attentionSeconds: number;
   dwellSeconds: number;
   measured: boolean;
+  /** Llegó la serie de OTS del día (partición completa en Fase 2). */
+  otsMeasured: boolean;
+  /** Llegó la serie de watchers/viewers del día. */
+  viewersMeasured: boolean;
 }
 
 export interface Fase1Figure {
@@ -93,7 +76,12 @@ export interface Fase1Figure {
  * discrepancia sugiere reconstruir el rollup (`quividi-commercialRollupBuild`),
  * nunca dispara una corrección automática.
  */
-export type ConsistencyFlag = 'ok' | 'mismatch' | 'no-data';
+/**
+ * - `pending-rollup`: hay crudo pero el rollup de ese día aún no se construyó
+ *   (no es una discrepancia: falta correr `quividi-commercialRollupBuild`).
+ * - `mismatch`: el rollup existe y no cuadra con el crudo actual.
+ */
+export type ConsistencyFlag = 'ok' | 'mismatch' | 'pending-rollup' | 'no-data';
 
 export interface CommercialAuditDay {
   date: string;
@@ -174,6 +162,8 @@ async function rawPointDaysFor(
         attentionSeconds: tenthsToSeconds(attentionTenths, watchers),
         dwellSeconds: tenthsToSeconds(dwellTenths, watchers),
         measured: otsRows.length > 0 || viewerRows.length > 0,
+        otsMeasured: otsRows.length > 0,
+        viewersMeasured: viewerRows.length > 0,
       };
     }),
   );
@@ -188,17 +178,27 @@ const CONSISTENCY_TOLERANCE = 0.5;
  * desalineado con el crudo actual (por ejemplo, datos tardíos de Fase 2 que
  * aún no reconstruyeron el rollup del día).
  */
-function consistencyFor(
+export function consistencyFor(
   raw: readonly RawPointDay[],
   commercial: CommercialDailyRow | null,
   zoneSplit: boolean,
 ): ConsistencyFlag {
   const measured = raw.filter((point) => point.measured);
-  if (!commercial || commercial.status === 'missing') {
+  if (!commercial) {
+    return measured.length === 0 ? 'no-data' : 'pending-rollup';
+  }
+  if (commercial.status === 'missing') {
     return measured.length === 0 ? 'no-data' : 'mismatch';
   }
   if (measured.length === 0) return 'no-data';
-  const recombined = combineCameraValues(measured.map((point) => point.ots), zoneSplit);
+  // Filas anteriores a `otsMeasured` se consideran medidas.
+  const rollupHasOts = commercial.otsMeasured !== false;
+  const rawWithOts = measured.filter((point) => point.otsMeasured);
+  if (!rollupHasOts || rawWithOts.length === 0) {
+    // Una serie sin medir no cuadra contra una medida; dos sin medir, sí.
+    return rollupHasOts === rawWithOts.length > 0 ? 'ok' : 'mismatch';
+  }
+  const recombined = combineCameraValues(rawWithOts.map((point) => point.ots), zoneSplit);
   return Math.abs(recombined - commercial.ots) <= CONSISTENCY_TOLERANCE
     ? 'ok'
     : 'mismatch';

@@ -9,6 +9,7 @@ import {
   QUIVIDI_REPORT_ROLES,
   canForceRefreshQuividi,
   canGenerateCommercialProposal,
+  canRebuildCommercialRollup,
   canRefreshQuividiHealth,
   canRefreshQuividiReport,
   canReportQuividi,
@@ -154,5 +155,14 @@ describe('canGenerateCommercialProposal', () => {
     for (const role of QUIVIDI_COMMERCIAL_GENERATE_ROLES) {
       expect(QUIVIDI_COMMERCIAL_ROLES).toContain(role);
     }
+  });
+});
+
+describe('canRebuildCommercialRollup', () => {
+  it('solo admin y operator reconstruyen el rollup comercial', () => {
+    expect(canRebuildCommercialRollup('admin')).toBe(true);
+    expect(canRebuildCommercialRollup('operator')).toBe(true);
+    expect(canRebuildCommercialRollup('viewer')).toBe(false);
+    expect(canRebuildCommercialRollup('commercial')).toBe(false);
   });
 });

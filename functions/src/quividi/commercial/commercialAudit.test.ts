@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_AUDIT_DAYS, isValidAuditRange } from './commercialAudit';
+import {
+  MAX_AUDIT_DAYS,
+  consistencyFor,
+  isValidAuditRange,
+  type RawPointDay,
+} from './commercialAudit';
+import type { CommercialDailyRow } from './commercialRollup';
+
+function raw(ots: number, measured = true): RawPointDay {
+  return {
+    locationId: 1,
+    pointId: 'LIV-004-MUPI-P1',
+    ots,
+    effectiveOts: 0,
+    watchers: 0,
+    attentionSeconds: 0,
+    dwellSeconds: 0,
+    measured,
+    otsMeasured: measured,
+    viewersMeasured: measured,
+  };
+}
+
+function rollup(
+  ots: number,
+  status: CommercialDailyRow['status'] = 'measured',
+  otsMeasured?: boolean,
+) {
+  return { ots, status, otsMeasured } as CommercialDailyRow;
+}
 
 describe('isValidAuditRange', () => {
   it('acepta un rango real dentro del tope', () => {
@@ -18,5 +47,45 @@ describe('isValidAuditRange', () => {
     expect(isValidAuditRange('2026-03-02', '2026-03-01')).toBe(false);
     expect(isValidAuditRange('2026-02-30', '2026-03-01')).toBe(false);
     expect(isValidAuditRange('2026-3-1', '2026-03-05')).toBe(false);
+  });
+});
+
+describe('consistencyFor', () => {
+  it('crudo sin rollup es «pendiente», no una discrepancia', () => {
+    expect(consistencyFor([raw(7482)], null, false)).toBe('pending-rollup');
+  });
+
+  it('sin crudo ni rollup: sin datos', () => {
+    expect(consistencyFor([raw(0, false)], null, false)).toBe('no-data');
+  });
+
+  it('rollup guardado: cuadra o no con el crudo recombinado', () => {
+    expect(consistencyFor([raw(7482)], rollup(7482), false)).toBe('ok');
+    expect(consistencyFor([raw(7482)], rollup(7000), false)).toBe('mismatch');
+  });
+
+  it('rollup guardado como «sin medición» pero ya hay crudo: discrepancia', () => {
+    expect(consistencyFor([raw(7482)], rollup(0, 'missing'), false)).toBe(
+      'mismatch',
+    );
+  });
+});
+
+describe('consistencyFor · series parciales', () => {
+  const rawNoOts: RawPointDay = { ...raw(0), otsMeasured: false };
+
+  it('OTS sin medir en crudo y en rollup: cuadra', () => {
+    expect(consistencyFor([rawNoOts], rollup(0, 'partial', false), false)).toBe('ok');
+  });
+
+  it('crudo con OTS contra rollup sin OTS (o al revés): no cuadra', () => {
+    expect(consistencyFor([raw(6223)], rollup(0, 'partial', false), false)).toBe(
+      'mismatch',
+    );
+    expect(consistencyFor([rawNoOts], rollup(6223), false)).toBe('mismatch');
+  });
+
+  it('filas anteriores sin otsMeasured se tratan como medidas', () => {
+    expect(consistencyFor([raw(7482)], rollup(7482), false)).toBe('ok');
   });
 });
