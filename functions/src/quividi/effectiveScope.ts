@@ -404,6 +404,44 @@ async function assignmentsForEkon(
   }
 }
 
+/**
+ * Soportes confirmados Calendario ↔ Ekon (`campaignSupportOverrides`, ver
+ * `src/modules/campaigns/supportOverride.ts`). Con decisión `ekon`, sus soportes
+ * reemplazan a los del calendario, igual que en el CSV; con `calendar` o sin
+ * documento, la campaña queda tal cual. Los llamadores lo aplican ANTES de
+ * `buildEffectiveSupportPairs`, así la firma del snapshot cambia sola.
+ */
+export async function withSupportOverride(
+  db: Firestore,
+  campaignId: string,
+  campaign: CampaignDoc,
+): Promise<CampaignDoc> {
+  const snap = await db
+    .collection('campaignSupportOverrides')
+    .doc(campaignId)
+    .get();
+  return applySupportOverrideDoc(
+    campaign,
+    snap.exists ? snap.data() : undefined,
+  );
+}
+
+/** Variante pura para lecturas agrupadas (`getAll`). */
+export function applySupportOverrideDoc(
+  campaign: CampaignDoc,
+  data: unknown,
+): CampaignDoc {
+  const doc = data as { decision?: unknown; supports?: unknown } | undefined;
+  if (
+    doc?.decision !== 'ekon' ||
+    !Array.isArray(doc.supports) ||
+    doc.supports.length === 0
+  ) {
+    return campaign;
+  }
+  return { ...campaign, supports: doc.supports as CampaignSupport[] };
+}
+
 function noCommentFullCircuitSupport(support: string): boolean {
   return FULL_CIRCUIT_WITHOUT_COMMENT.has(normalizeSupport(support));
 }

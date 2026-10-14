@@ -43,7 +43,7 @@ const FAMILY: Readonly<Record<string, 'MEGA MUPI DIGITAL' | 'BANNER DIGITAL'>> =
     'BANNER DIGITAL': 'BANNER DIGITAL',
   };
 
-function periodsOverlap(
+export function periodsOverlap(
   campaign: Pick<ParsedCampaign, 'fechaInicio' | 'fechaFin'>,
   assignment: Pick<EkonAssignment, 'inicioPeriodo' | 'finPeriodo'>,
 ): boolean {

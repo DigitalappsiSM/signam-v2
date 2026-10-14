@@ -5,6 +5,7 @@ import { canUseCommercialIntelligence, roleFromClaims } from '../access';
 import { combineCameraValues, isZoneSplitPair } from '../cameraCombination';
 import {
   buildEffectiveSupportPairs,
+  withSupportOverride,
   type CampaignDoc,
   type ScreenDoc,
 } from '../effectiveScope';
@@ -243,7 +244,11 @@ async function loadValidFase1SupportDays(
   ) {
     return null;
   }
-  const campaign = campaignSnap.data() as CampaignDoc;
+  const campaign = await withSupportOverride(
+    db,
+    campaignId,
+    campaignSnap.data() as CampaignDoc,
+  );
   const startDate = parseCivilDate(campaign.fechaInicio ?? '');
   const endDate = parseCivilDate(campaign.fechaFin ?? '');
   if (!startDate || !endDate) return null;

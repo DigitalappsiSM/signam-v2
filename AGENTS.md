@@ -1069,7 +1069,8 @@ Dominio puro en `src/domain/ekon`, servicios en `src/services/ekon*.ts`, módulo
   producto, tipo, periodos ERP y artículo/circuito; **Liverpool** manda en fechas
   exactas, tiendas operativas y soportes solicitados; el **Master Admira** resuelve
   las pantallas físicas. La conciliación **compara**, nunca corrige ni mueve
-  asociaciones.
+  asociaciones. Única excepción, siempre humana: la **confirmación de soportes
+  Calendario ↔ Ekon** (abajo).
 - **Identidad estable de asignación**: `Año + Campaña + Línea campaña +
 Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   (21 327 filas → 21 317 llaves; 10 colisiones son la misma asignación con solo
@@ -1106,6 +1107,37 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
 - **Asociación campaña ↔ Ekon**: sigue siendo **manual y muchos-a-uno** en
   `campaignEkonLinks`; la importación Ekon nunca la crea ni la mueve. Un cambio de
   número Ekon no reasocia campañas automáticamente.
+- **Confirmación de soportes Calendario ↔ Ekon** (`modules/campaigns/supportOverride.ts`,
+  `campaignSupportOverrides/{campaignId}`). El calendario se captura a mano y puede
+  traer el soporte o las tiendas equivocados (caso real: APPLE vino como `MUPPI'S`
+  cuando se pautó en `BANNER DIGITAL`; Ekon lo tenía bien). Con número Ekon
+  vinculado, SIGNAM compara **tienda por tienda el soporte** del calendario contra el
+  circuito Ekon (`detectSupportDiscrepancies`, sobre `reconcileCampaign`). **No compara
+  fechas**: solo entran las asignaciones cuyo periodo se traslapa con la vigencia,
+  para no mezclar flights. Mupi/Pendón sin detalle se resuelven antes con Ekon (no
+  son diferencia) y un soporte sin lista de tiendas no se compara tienda por tienda.
+  Si difieren, se muestra un **aviso visual** en Campañas y en Seguimiento operativo
+  («Soporte/tiendas difieren de Ekon»). **No bloquea** el CSV ni nada más.
+  Un admin/operator (`tracking.write`) decide, con **motivo obligatorio** e
+  **historial que solo crece**:
+  - **Usar Ekon**: los soportes del calendario **con tiendas** se reemplazan por los
+    de Ekon. Cada circuito se traduce al soporte Liverpool que el catálogo Admira
+    tiene **activo** en esa tienda (`ESPECTACULAR IN STORE` puede ser LED, Columna o
+    Banner); si hay varios candidatos (o ninguno), el usuario elige. Los soportes
+    **sin** lista de tiendas que ningún circuito Ekon cubre se conservan. Mupi/Pendón
+    sin detalle se descartan porque Ekon ya los cubre. En la práctica equivale a
+    «reemplazar todo por Ekon», salvo esos soportes sin detalle que Ekon no vende.
+  - **Mantener calendario**: no cambia nada y apaga el aviso.
+  La decisión vive **fuera** de `campaigns`: la reimportación del calendario nunca
+  la toca y sobrevive. Se aplica **antes** de la resolución Ekon y de
+  `consolidate` en todo consumidor: CSV/Excel/PPT de Campañas, Seguimiento y
+  Dashboard (`useEkonResolvedCampaigns`), Reportes (`reportingModel`) y Quividi en
+  servidor (`withSupportOverride` / `applySupportOverrideDoc` antes de
+  `buildEffectiveSupportPairs`: el informe, la auditoría comercial y la
+  disponibilidad). Guarda huellas del calendario y de Ekon. Si alguna cambia
+  después de confirmar, la decisión **se sigue aplicando** y el aviso vuelve como
+  «Revisar: cambió desde la confirmación». El «ojito» (detalle de campaña) muestra
+  siempre las tiendas finales: confirmadas, del calendario o resueltas desde Ekon.
 - **Idempotencia**: `contentHash` del contenido normalizado; reimportar el mismo
   archivo y alcance no duplica. Un fallo a mitad deja el lote sin `completed` y es
   reintentable (el diff se recalcula sobre el estado vigente).

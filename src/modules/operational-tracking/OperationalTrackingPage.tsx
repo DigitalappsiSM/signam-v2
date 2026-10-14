@@ -52,6 +52,9 @@ import {
 import { SortableTh } from '@/components/SortableTh';
 import { CampaignStatusDialog } from '@/modules/campaigns/CampaignStatusDialog';
 import { CampaignStatusBadge } from '@/modules/campaigns/CampaignStatusBadge';
+import { SupportReviewDialog } from '@/modules/campaigns/SupportReviewDialog';
+import { SUPPORT_REVIEW_LABELS } from '@/modules/campaigns/supportOverride';
+import { useSupportReview } from '@/modules/campaigns/useSupportReview';
 import {
   EFFECTIVE_STATUS_LABELS,
   formatStatusReason,
@@ -386,6 +389,30 @@ export function OperationalTrackingPage() {
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageRows = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Aviso Calendario ↔ Ekon: se evalúa sobre la campaña tal como viene del
+  // calendario (las filas ya traen aplicadas las confirmaciones).
+  const campaignsById = useMemo(
+    () => new Map(campaigns.map((c) => [c.id, c])),
+    [campaigns],
+  );
+  const pageCampaignsKey = pageRows.map((r) => r.campaign.id).join('|');
+  const pageCampaigns = useMemo(
+    () =>
+      pageCampaignsKey.split('|').flatMap((id) => {
+        const c = campaignsById.get(id);
+        return c ? [c] : [];
+      }),
+    [pageCampaignsKey, campaignsById],
+  );
+  const supportReview = useSupportReview(
+    pageCampaigns,
+    null,
+    can(user?.role ?? 'viewer', 'reconciliation.read'),
+  );
+  const [reviewCampaign, setReviewCampaign] = useState<StoredCampaign | null>(
+    null,
+  );
 
   // Fila seleccionada para el panel lateral (o null si ya no está visible).
   const detailRow = detailKey
@@ -811,6 +838,31 @@ export function OperationalTrackingPage() {
                               <span className="ot-campaign__name">
                                 {r.campaign.name}
                               </span>
+                              {(() => {
+                                const raw = campaignsById.get(r.campaign.id);
+                                const state = raw
+                                  ? supportReview.stateOf(raw)
+                                  : 'none';
+                                if (!raw || state === 'none') return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    className={
+                                      state === 'confirmed'
+                                        ? 'badge badge-info'
+                                        : 'badge badge-warning'
+                                    }
+                                    style={{
+                                      cursor: 'pointer',
+                                      border: 'none',
+                                    }}
+                                    onClick={() => setReviewCampaign(raw)}
+                                    title="Comparar soportes y tiendas del calendario contra Ekon"
+                                  >
+                                    {SUPPORT_REVIEW_LABELS[state]}
+                                  </button>
+                                );
+                              })()}
                               {inactive && (
                                 <>
                                   <CampaignStatusBadge
@@ -1191,6 +1243,29 @@ export function OperationalTrackingPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {reviewCampaign && (
+        <SupportReviewDialog
+          campaign={reviewCampaign}
+          state={supportReview.stateOf(reviewCampaign)}
+          assignments={(() => {
+            const n = supportReview.ekonNumberOf(reviewCampaign);
+            return n != null
+              ? supportReview.assignmentsByNumber.get(String(n))
+              : [];
+          })()}
+          ekonNumber={supportReview.ekonNumberOf(reviewCampaign)}
+          screens={screens}
+          override={supportReview.overrides.get(reviewCampaign.id)}
+          canConfirm={can(user?.role ?? 'viewer', 'tracking.write')}
+          actor={user?.email || user?.uid || ''}
+          onSaved={async () => {
+            await supportReview.reload();
+            await reload();
+          }}
+          onClose={() => setReviewCampaign(null)}
+        />
       )}
 
       {statusRow && (

@@ -22,6 +22,14 @@ import {
 } from '@/modules/consolidation/ekonStoreContext';
 import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
+import { supportStoreSource } from './supportStores';
+import {
+  applySupportOverrides,
+  SUPPORT_REVIEW_LABELS,
+} from './supportOverride';
+import type { CampaignSupportOverride } from './supportOverride';
+import { useSupportReview } from './useSupportReview';
+import { SupportReviewDialog } from './SupportReviewDialog';
 import {
   listEkonLinks,
   ekonNumberForCampaign,
@@ -73,7 +81,10 @@ import {
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
-import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
+import {
+  effectiveCampaignSupportScope,
+  type StoreRef,
+} from '@/modules/liverpool-import/campaignParse';
 import {
   campaignKey,
   campaignIdentity,
@@ -482,6 +493,31 @@ export function CampaignsPage() {
   );
   // Consolida el periodo consultado. Conserva todos los flights homónimos:
   // la llave de negocio sigue siendo Campaña + RESOLUCION, no campaign.id.
+  // Aviso Calendario ↔ Ekon: se evalúa sobre la página visible (ver más abajo
+  // `setReviewRows`) y sus confirmaciones se aplican al CSV antes de todo.
+  const [reviewRows, setReviewRows] = useState<StoredCampaign[]>([]);
+  const [reviewCampaign, setReviewCampaign] = useState<StoredCampaign | null>(
+    null,
+  );
+  const supportReview = useSupportReview(reviewRows, ekonLinks, canReadEkon);
+  const supportOverrides = supportReview.overrides;
+
+  // Campañas fuera del CSV (canceladas, duplicadas, retiradas) no pasan por
+  // `resolvedById`, pero su detalle debe mostrar igual las tiendas finales: se
+  // resuelven con las asignaciones que ya leyó el aviso Calendario ↔ Ekon.
+  const detailFallback = (campaign: StoredCampaign) => {
+    const n = supportReview.ekonNumberOf(campaign);
+    const rows =
+      n != null ? supportReview.assignmentsByNumber.get(String(n)) : undefined;
+    const [withOverride] = applySupportOverrides([campaign], supportOverrides);
+    return resolveCampaignsWithEkon([withOverride ?? campaign], () => ({
+      hasEkonLink: n != null,
+      hasCompletedBatch: true,
+      available: n == null || rows !== undefined,
+      assignments: (rows ?? []).filter((a) => a.active && !a.conflict),
+    })).campaigns[0];
+  };
+
   const csvCampaigns = useMemo(() => {
     const allowed = campaigns.filter((c) =>
       statusAllows(statusOf(c), 'consolidationCsv'),
@@ -496,8 +532,11 @@ export function CampaignsPage() {
         )
         .map((c) => campaignKey(c.name)),
     );
-    return allowed.filter((c) => names.has(campaignKey(c.name)));
-  }, [campaigns, statusOf, desde, hasta]);
+    return applySupportOverrides(
+      allowed.filter((c) => names.has(campaignKey(c.name))),
+      supportOverrides,
+    );
+  }, [campaigns, statusOf, desde, hasta, supportOverrides]);
 
   useEffect(() => {
     if (loading) return;
@@ -699,6 +738,12 @@ export function CampaignsPage() {
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
   const pageRows = sorted.slice(pageStart, pageStart + pageSize);
+  const pageRowsKey = pageRows.map((c) => c.id).join('|');
+  useEffect(() => {
+    setReviewRows(pageRows);
+    // pageRows es un arreglo nuevo en cada render: basta con su identidad.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageRowsKey, campaigns]);
   const availability = useCampaignAvailability(
     pageRows
       .filter((c) => statusAllows(statusOf(c), 'quividiReport'))
@@ -1280,6 +1325,10 @@ export function CampaignsPage() {
                       <div className="avatar-cell">
                         <EntityAvatar decorative label={toInitials(c.name)} />
                         <span className="avatar-cell__name">{c.name}</span>
+                        <SupportReviewBadge
+                          state={supportReview.stateOf(c)}
+                          onOpen={() => setReviewCampaign(c)}
+                        />
                         {campaignOrigin(c) === 'manual' && (
                           <span
                             className="badge badge-info"
@@ -1480,6 +1529,10 @@ export function CampaignsPage() {
       {detail && (
         <CampaignDetail
           campaign={detail}
+          override={supportOverrides.get(detail.id)}
+          onReviewSupports={() => setReviewCampaign(detail)}
+          resolved={resolvedById.get(detail.id) ?? detailFallback(detail)}
+          ekonLoading={ekonLoading}
           issues={issuesByCampaign.get(detail.name) ?? []}
           ekonNumber={ekonByKey.get(detail.id) ?? null}
           ekonLinks={ekonLinks}
@@ -1487,6 +1540,30 @@ export function CampaignsPage() {
           canEditEkon={canLinkEkon}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {reviewCampaign && (
+        <SupportReviewDialog
+          campaign={reviewCampaign}
+          state={supportReview.stateOf(reviewCampaign)}
+          assignments={(() => {
+            const n = supportReview.ekonNumberOf(reviewCampaign);
+            return n != null
+              ? supportReview.assignmentsByNumber.get(String(n))
+              : [];
+          })()}
+          ekonNumber={supportReview.ekonNumberOf(reviewCampaign)}
+          screens={screens}
+          override={supportOverrides.get(reviewCampaign.id)}
+          canConfirm={canChangeStatus}
+          actor={actor.email || actor.uid}
+          onSaved={async () => {
+            await supportReview.reload();
+            // Los soportes confirmados cambian el alcance Quividi.
+            setAvailabilityVersion((v) => v + 1);
+          }}
+          onClose={() => setReviewCampaign(null)}
         />
       )}
 
@@ -1838,6 +1915,10 @@ function CampaignCorrectionModal({
 
 function CampaignDetail({
   campaign,
+  override,
+  onReviewSupports,
+  resolved,
+  ekonLoading,
   issues,
   ekonNumber,
   ekonLinks,
@@ -1847,6 +1928,12 @@ function CampaignDetail({
   onClose,
 }: {
   campaign: StoredCampaign;
+  /** Confirmación Calendario ↔ Ekon vigente (si la hay). */
+  override: CampaignSupportOverride | undefined;
+  onReviewSupports: () => void;
+  /** La campaña tras resolver Mupi/Pendón sin detalle con Ekon. */
+  resolved: StoredCampaign | undefined;
+  ekonLoading: boolean;
   issues: ConsolidationIssue[];
   ekonNumber: number | null;
   ekonLinks: CampaignEkonLink[];
@@ -1857,6 +1944,9 @@ function CampaignDetail({
 }) {
   const byStore = new Map<string, string>();
   const bySupport = new Map<string, string>();
+  // Lo que va al CSV: los confirmados desde Ekon o, si no, los del calendario.
+  const finalSupports =
+    override?.decision === 'ekon' ? override.supports : campaign.supports;
   for (const i of issues) {
     if (i.store)
       byStore.set(`${normalizeSupport(i.support)}|${i.store}`, i.code);
@@ -1894,28 +1984,85 @@ function CampaignDetail({
           </section>
         )}
 
-        {campaign.supports.length === 0 && (
+        {override?.decision === 'ekon' && (
+          <p className="campaign-status__reason">
+            <strong>Soportes confirmados desde Ekon</strong> (el calendario
+            decía {campaign.supports.map((s) => s.support).join(', ') || '—'}) ·{' '}
+            {override.reason}
+          </p>
+        )}
+        {ekonNumber != null && (
+          <p style={{ margin: '0 0 0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onReviewSupports}
+            >
+              Calendario vs Ekon
+            </button>
+          </p>
+        )}
+
+        {finalSupports.length === 0 && (
           <p className="text-muted">La campaña no tiene soportes asignados.</p>
         )}
 
-        {campaign.supports.map((s, idx) => {
+        {finalSupports.map((s, idx) => {
           const instore = isInStoreMediaSupport(s.support);
           const supNorm = normalizeSupport(s.support);
+          const source = supportStoreSource(s, resolved, issues);
+          const storeList = (stores: readonly StoreRef[]) => (
+            <ul className="detail-stores">
+              {stores.map((st, j) => {
+                const code = byStore.get(
+                  `${supNorm}|${normalizeStore(st.numero)}`,
+                );
+                return (
+                  <li key={j}>
+                    <span>
+                      {st.numero} {st.nombre}
+                    </span>
+                    {code ? (
+                      <span className="badge badge-warning">
+                        {ISSUE_LABELS[code as keyof typeof ISSUE_LABELS] ??
+                          'incidencia'}
+                      </span>
+                    ) : (
+                      <span className="badge badge-info">OK</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          );
           return (
             <section key={idx} className="detail-support">
               <h3>
                 {s.support}{' '}
                 {instore ? (
-                  <span className="badge badge-warning">
-                    InStore (excluido)
-                  </span>
+                  <span className="badge badge-muted">InStore</span>
                 ) : (
                   <span className="badge badge-muted">Liverpool</span>
                 )}
               </h3>
-              {instore ? (
+              {source.kind === 'ekon' ? (
+                <>
+                  <p className="text-muted" style={{ margin: 0 }}>
+                    Sin detalle en el calendario: tiendas tomadas de la campaña
+                    Ekon{ekonNumber != null ? ` #${ekonNumber}` : ''}.
+                  </p>
+                  {storeList(source.stores)}
+                </>
+              ) : source.kind === 'blocked' ? (
+                <p style={{ margin: 0 }}>
+                  {source.issue.message}{' '}
+                  <span className="badge badge-danger">Bloqueado</span>
+                </p>
+              ) : source.kind === 'pending' ? (
                 <p className="text-muted" style={{ margin: 0 }}>
-                  Excluido de la consolidación en esta etapa.
+                  {ekonLoading
+                    ? 'Sin detalle en el calendario: resolviendo tiendas desde Ekon…'
+                    : 'Sin detalle en el calendario: tiendas de Ekon no disponibles en esta vista.'}
                 </p>
               ) : effectiveCampaignSupportScope(s) === 'invalid' ? (
                 <p style={{ margin: 0 }}>
@@ -1936,28 +2083,7 @@ function CampaignDetail({
                   )}
                 </p>
               ) : (
-                <ul className="detail-stores">
-                  {s.stores.map((st, j) => {
-                    const code = byStore.get(
-                      `${supNorm}|${normalizeStore(st.numero)}`,
-                    );
-                    return (
-                      <li key={j}>
-                        <span>
-                          {st.numero} {st.nombre}
-                        </span>
-                        {code ? (
-                          <span className="badge badge-warning">
-                            {ISSUE_LABELS[code as keyof typeof ISSUE_LABELS] ??
-                              'incidencia'}
-                          </span>
-                        ) : (
-                          <span className="badge badge-info">OK</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                storeList(s.stores)
               )}
             </section>
           );
@@ -2374,5 +2500,29 @@ function CampaignDownloadsMenu({
           document.body,
         )}
     </>
+  );
+}
+
+/** Aviso Calendario ↔ Ekon en la fila de la campaña. */
+function SupportReviewBadge({
+  state,
+  onOpen,
+}: {
+  state: ReturnType<ReturnType<typeof useSupportReview>['stateOf']>;
+  onOpen: () => void;
+}) {
+  if (state === 'none') return null;
+  return (
+    <button
+      type="button"
+      className={
+        state === 'confirmed' ? 'badge badge-info' : 'badge badge-warning'
+      }
+      style={{ cursor: 'pointer', border: 'none' }}
+      onClick={onOpen}
+      title="Comparar soportes y tiendas del calendario contra Ekon"
+    >
+      {SUPPORT_REVIEW_LABELS[state]}
+    </button>
   );
 }

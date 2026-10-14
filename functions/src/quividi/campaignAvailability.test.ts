@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { loadCampaignAvailability } from './campaignAvailability';
 
-function fixture(count: number, fallback = true, legacy = false) {
+function fixture(
+  count: number,
+  fallback = true,
+  legacy = false,
+  override?: Record<string, unknown>,
+) {
   let concurrent = 0;
   let maximum = 0;
   const assignmentRead = vi.fn(async () => {
@@ -56,9 +61,14 @@ function fixture(count: number, fallback = true, legacy = false) {
     async (...refs: Array<{ collection: string; id: string }>) =>
       refs.map((ref) => ({
         id: ref.id,
-        exists: ref.collection === 'campaigns' || !legacy,
+        exists:
+          ref.collection === 'campaignSupportOverrides'
+            ? override !== undefined
+            : ref.collection === 'campaigns' || !legacy,
         data: () =>
-          ref.collection === 'campaigns'
+          ref.collection === 'campaignSupportOverrides'
+            ? override
+            : ref.collection === 'campaigns'
             ? {
                 name: ref.id,
                 nameKey: legacy ? ref.id : 'same-name',
@@ -102,7 +112,8 @@ describe('disponibilidad Quividi agrupada', () => {
           item.scopeOrigins[0]?.source === 'ekon',
       ),
     ).toBe(true);
-    expect(f.getAll).toHaveBeenCalledTimes(2);
+    // campañas + confirmaciones de soportes + enlaces.
+    expect(f.getAll).toHaveBeenCalledTimes(3);
     expect(f.screensRead).toHaveBeenCalledTimes(1);
     expect(f.assignmentRead).toHaveBeenCalledTimes(1);
     expect(f.legacyRead).not.toHaveBeenCalled();
@@ -118,8 +129,31 @@ describe('disponibilidad Quividi agrupada', () => {
           item.scopeOrigins[0]?.source === 'calendar-selected',
       ),
     ).toBe(true);
-    expect(f.getAll).toHaveBeenCalledTimes(1);
+    // campañas + confirmaciones de soportes (sin enlaces).
+    expect(f.getAll).toHaveBeenCalledTimes(2);
     expect(f.assignmentRead).not.toHaveBeenCalled();
+  });
+
+  it('usa los soportes confirmados desde Ekon en lugar de los del calendario', async () => {
+    const f = fixture(1, true, false, {
+      decision: 'ekon',
+      supports: [
+        {
+          support: 'MEGA MUPI DIGITAL',
+          scope: 'selected',
+          stores: [{ numero: '7' }],
+        },
+      ],
+    });
+    const [item] = await loadCampaignAvailability(f.db, f.ids);
+    expect(item?.scopeOrigins[0]?.source).toBe('calendar-selected');
+    expect(f.assignmentRead).not.toHaveBeenCalled();
+  });
+
+  it('la decisión «mantener calendario» no cambia el alcance', async () => {
+    const f = fixture(1, true, false, { decision: 'calendar', supports: [] });
+    const [item] = await loadCampaignAvailability(f.db, f.ids);
+    expect(item?.scopeOrigins[0]?.source).toBe('ekon');
   });
 
   it('limita la concurrencia del fallback legacy y mantiene el orden', async () => {
