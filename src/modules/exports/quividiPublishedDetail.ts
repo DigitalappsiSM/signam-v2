@@ -12,6 +12,11 @@ import {
   partialDayLabel,
   type BrandDemographicRow,
 } from './quividiBrandReport';
+import {
+  brandGapFill,
+  gapFillMethodLabel,
+  type BrandGapFillEntry,
+} from './quividiGapFill';
 
 /**
  * Detalle «Quividi sin modificar → cifra publicada» para el Excel.
@@ -35,7 +40,7 @@ export interface DetailCameraReading {
 }
 
 export type PublishedDetailOrigin =
-  'measured' | 'partial' | 'missing' | 'uncovered' | 'excluded';
+  'measured' | 'partial' | 'filled' | 'missing' | 'uncovered' | 'excluded';
 
 export interface PublishedSupportDetailRow {
   date: string;
@@ -115,9 +120,41 @@ function formatInt(value: number): string {
   return Math.round(value).toLocaleString('es-MX');
 }
 
+/** Frase del relleno con promedio propio de un par-día. */
+function gapFillRationale(
+  row: QuividiSupportDay,
+  readings: readonly DetailCameraReading[],
+  fills: readonly BrandGapFillEntry[],
+): string {
+  const parts = fills.map((fill) =>
+    fill.locationId === null
+      ? gapFillMethodLabel(fill)
+      : `${fill.locationName}: ${gapFillMethodLabel(fill)}`,
+  );
+  if (row.gapFill?.full && fills.every((fill) => fill.locationId === null)) {
+    return `Estimado, sin dato ese día · ${parts.join(' · ')}`;
+  }
+  const rule = row.gapFill?.full
+    ? 'Zona partida: suma de ambas cámaras, sin duplicar'
+    : cameraRuleRationale(row, readings);
+  return `${rule} · Estimado: ${parts.join(' · ')}`;
+}
+
+/**
+ * Con `report` ya rellenado (`brandGapFill`), cada fila con `gapFill` sale
+ * como `filled`: el promedio propio de la pantalla, igual que en el PDF.
+ */
 export function publishedSupportDetail(
-  report: QuividiCampaignReport,
+  input: QuividiCampaignReport,
 ): PublishedSupportDetailRow[] {
+  const { report, fills } = brandGapFill(input);
+  const fillsByRow = new Map<string, BrandGapFillEntry[]>();
+  for (const fill of fills) {
+    const key = pairKey(fill.date, fill.storeNumber, fill.support);
+    const list = fillsByRow.get(key) ?? [];
+    list.push(fill);
+    fillsByRow.set(key, list);
+  }
   const scope = brandMeasurableScope(report);
   const measurable = new Set(scope.measurable.map((format) => format.support));
   const rates = brandFormatRates(report);
@@ -167,6 +204,20 @@ export function publishedSupportDetail(
           'Formato sin ninguna medición: fuera de la cifra (alcance adicional)',
       };
     }
+    if (row.gapFill) {
+      return {
+        ...base,
+        publishedOts: row.publishedOts,
+        publishedEffectiveOts: row.publishedEffectiveOts,
+        publishedWatchers: row.publishedWatchers,
+        origin: 'filled' as const,
+        rationale: gapFillRationale(
+          row,
+          readings,
+          fillsByRow.get(pairKey(row.date, row.storeNumber, row.support)) ?? [],
+        ),
+      };
+    }
     if (!measured) {
       const rate = rates.get(row.support);
       return {
@@ -175,7 +226,7 @@ export function publishedSupportDetail(
         publishedEffectiveOts: rate?.effectiveOts ?? 0,
         publishedWatchers: rate?.watchers ?? 0,
         origin: 'missing' as const,
-        rationale: `Sin dato ese día: promedio del formato (${formatInt(rate?.ots ?? 0)} OTS por soporte-día)`,
+        rationale: `Sin ningún día medido en la vigencia: promedio del formato (${formatInt(rate?.ots ?? 0)} OTS por soporte-día)`,
       };
     }
     return {
@@ -224,8 +275,9 @@ export interface PublishedDemographicDetailRow extends BrandDemographicRow {
 
 /** Demografía con la lectura de cada cámara, lo publicado y su origen. */
 export function publishedDemographicDetail(
-  report: QuividiCampaignReport,
+  input: QuividiCampaignReport,
 ): PublishedDemographicDetailRow[] {
+  const report = brandGapFill(input).report;
   const partial = brandPartialDay(report);
   const partialText = partial ? partialDayLabel(partial.until) : '';
   const cameras = camerasByPair(report);
@@ -236,10 +288,12 @@ export function publishedDemographicDetail(
     ]),
   );
   const raw = new Map(
-    report.demographics.map((row) => [
-      `${pairKey(row.date, row.storeNumber, row.support)}|${row.gender}|${row.age}`,
-      row,
-    ]),
+    report.demographics
+      .filter((row) => !row.estimated)
+      .map((row) => [
+        `${pairKey(row.date, row.storeNumber, row.support)}|${row.gender}|${row.age}`,
+        row,
+      ]),
   );
 
   return brandDemographics(report)
@@ -268,9 +322,11 @@ export function publishedDemographicDetail(
           ? rule
           : row.origin === 'partial'
             ? `${partialText}: sólo lo medido · ${rule}`
-            : row.origin === 'missing'
-              ? 'Estimado: sin dato ese día (promedio y perfil del formato)'
-              : `Estimado: sin cámara (promedio y perfil del formato × ${row.uncoveredPairs ?? 0})`;
+            : row.origin === 'filled'
+              ? 'Estimado: promedio propio de la pantalla, con el perfil medido del propio soporte'
+              : row.origin === 'missing'
+                ? 'Estimado: sin ningún día medido (promedio y perfil del formato)'
+                : `Estimado: sin cámara (promedio y perfil del formato × ${row.uncoveredPairs ?? 0})`;
       return { ...row, cameraWatchers, rationale };
     })
     .sort(

@@ -52,6 +52,22 @@ export interface SupportHour {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /**
+   * Lectura de cada cámara que reportó esa hora, sólo en pares de zona
+   * partida con 2+ cámaras (Insurgentes, BANNER DIGITAL), donde la cifra es
+   * la suma de caras distintas. El informe comercial la usa para rellenar el
+   * día sin dato de UNA cara con su propio promedio dentro de la franja
+   * operativa (v9); en el resto de pares la cifra no depende de qué cámara
+   * reportó y no se envía, para no inflar el snapshot.
+   */
+  cameraReadings?: CameraHourReading[];
+}
+
+export interface CameraHourReading {
+  locationId: number;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
 }
 
 interface OtsAggregate {
@@ -173,6 +189,7 @@ export function buildSupportHours(
           const otsRow = ots.get(key);
           if (!otsRow || otsRow.duration <= 0) return null;
           return {
+            locationId: camera.id,
             ots: otsRow,
             viewers: viewers.get(key),
           };
@@ -181,6 +198,7 @@ export function buildSupportHours(
           (
             item,
           ): item is {
+            locationId: number;
             ots: OtsAggregate;
             viewers: ViewerAggregate | undefined;
           } => item != null,
@@ -240,6 +258,16 @@ export function buildSupportHours(
           })),
           zoneSplit,
         ),
+        ...(zoneSplit && pair.cameras.length >= 2
+          ? {
+              cameraReadings: measured.map((item) => ({
+                locationId: item.locationId,
+                ots: item.ots.ots,
+                effectiveOts: item.ots.effectiveOts,
+                watchers: item.viewers?.watchers ?? 0,
+              })),
+            }
+          : {}),
       });
     }
   }

@@ -543,6 +543,43 @@ tres de ellos describían mal el separador de artículos.
   OTS observado en `0` (cámara activa, cero personas detectadas) es un dato
   real y **nunca** se trata como hueco.
 
+  **Antes de la extrapolación por formato, relleno con promedio propio**
+  (decisión de negocio, octubre 2026, caso LEGO — `quividiGapFill.ts`): cada
+  tienda tiene su propio tráfico, así que un día sin dato de una pantalla que
+  **sí midió otros días** se completa con el promedio de **esa misma tienda +
+  formato + pantalla**, nunca con el del formato:
+
+  - promedio de sus días medidos del **mismo tipo** — entre semana (lunes a
+    viernes) o fin de semana (sábado y domingo); si no midió ningún día de ese
+    tipo, el promedio de todos sus días medidos;
+  - en **zona partida con 2+ cámaras** (Insurgentes, `BANNER DIGITAL`) la cifra
+    es la suma de caras distintas, así que el hueco se evalúa **cámara a
+    cámara**: si una cara no reportó y la otra sí, se completa sólo la cara
+    caída con su propio promedio. Para hacerlo dentro de la franja 10:00–22:00
+    del PDF, `supportHours[].cameraReadings` trae la lectura de cada cámara
+    en esos pares (schema v9) y `brandOperationalReport` reconstruye
+    `cameraDays` en la franja;
+  - una **cara sin cámara de `BANNER DIGITAL`** (cámara configurada que no
+    reportó en toda la vigencia) **copia día a día** el valor de su cara
+    hermana. Sólo en `BANNER DIGITAL`; en el resto la cara queda fuera;
+  - la duplicación de 1 cámara no cambia: el promedio se toma sobre la cifra ya
+    publicada (un par de 1 cámara rellena con su lectura × 2);
+  - una pantalla **sin ningún día medido** no tiene promedio propio y sigue con
+    el promedio de su formato, igual que un soporte sin cámara; el día
+    incompleto nunca se rellena.
+
+  Lo estimado se publica en el PDF **igual que lo medido** (portada, evolución,
+  Tiendas TOP, demografía; todas las cifras concilian) y **nunca** se distingue
+  ahí. Sólo se documenta en el Excel: «Auditoría de cifras» separa
+  `measuredOts` (sólo medido) + `filledOts` (promedio propio) +
+  `extrapolatedOts` (por formato) = `estimatedOts`, y su sección 11 lista cada
+  relleno por tienda · soporte · cámara · fecha, con la celda en **amarillo** y
+  una nota con el método; «Detalle Soportes» marca igual la cifra publicada de
+  esas filas. La demografía estimada reparte los watchers rellenados con el
+  perfil medido del propio soporte. Las filas tocadas llevan `gapFill` (nunca
+  viene del backend); `brandCoverage`, `brandExtrapolationBasis`,
+  `brandStoreAudit` y `brandSingleCameraDuplication` cuentan sólo lo medido.
+
   El porcentaje de cobertura por tienda y por tienda-día (`brandCoverage`) se
   conserva como referencia operativa del despliegue de cámaras. El divisor por
   tienda sigue siendo el universo de campaña: una tienda con sólo formatos no

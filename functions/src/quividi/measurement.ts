@@ -156,7 +156,11 @@ export interface Incident {
 // cifras sin cambiar la forma, así que los snapshots v7 deben regenerarse.
 // Vive aquí (no en index.ts) para que la auditoría de Fase 3 valide los
 // snapshots con la misma versión sin importar index.ts (ciclo).
-export const SNAPSHOT_SCHEMA_VERSION = 8;
+// v9: `supportHours[].cameraReadings` en pares de zona partida con 2+
+// cámaras, para que el informe comercial rellene la cara sin dato con su
+// propio promedio dentro de la franja operativa; cambia la forma, así que los
+// snapshots v8 deben regenerarse.
+export const SNAPSHOT_SCHEMA_VERSION = 9;
 
 export function parseCivilDate(value: string): string | null {
   const text = value.trim();

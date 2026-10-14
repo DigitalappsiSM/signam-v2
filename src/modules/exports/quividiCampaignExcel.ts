@@ -424,7 +424,7 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
   );
   for (const row of rows) {
     const [first, second] = row.cameras;
-    sheet.addRow([
+    const added = sheet.addRow([
       row.date,
       row.storeNumber,
       row.storeName,
@@ -446,6 +446,19 @@ function addSupportDetail(wb: Workbook, report: QuividiCampaignReport): void {
       row.dwellSeconds || '',
       row.rationale,
     ]);
+    // Estimado con el promedio propio de la pantalla: amarillo, igual que en
+    // «Auditoría de cifras».
+    if (row.origin === 'filled') {
+      for (const column of [15, 16, 17]) {
+        const cell = added.getCell(column);
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFF176' },
+        };
+        cell.note = row.rationale;
+      }
+    }
   }
   for (const column of ['H', 'I', 'J', 'L', 'M', 'N', 'O', 'P', 'Q']) {
     numberFormat(sheet, column, '#,##0');

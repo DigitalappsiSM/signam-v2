@@ -73,6 +73,32 @@ export interface QuividiSupportDay {
   dwellSeconds: number;
   /** Zona partida (Insurgentes, BANNER DIGITAL): suma sus cámaras (v7). */
   zoneSplit?: boolean;
+  /**
+   * Parte **estimada** de la fila, ya incluida en `ots`/`published*`. Nunca
+   * viene del backend: la añade el informe comercial al rellenar con el
+   * promedio propio de la pantalla (`quividiGapFill.ts`). `full` indica que
+   * el par-día entero es estimado (ninguna cámara reportó).
+   */
+  gapFill?: QuividiGapFillAmount;
+}
+
+/** Cantidad estimada por relleno de huecos (cruda y publicada). */
+export interface QuividiGapFillAmount {
+  full: boolean;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
+  publishedOts: number;
+  publishedEffectiveOts: number;
+  publishedWatchers: number;
+}
+
+/** Lectura de una cámara en una hora (v9, sólo zona partida con 2+ cámaras). */
+export interface QuividiCameraHourReading {
+  locationId: number;
+  ots: number;
+  effectiveOts: number;
+  watchers: number;
 }
 
 export interface QuividiSupportHour {
@@ -93,6 +119,8 @@ export interface QuividiSupportHour {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /** Lectura de cada cámara que reportó (v9, zona partida con 2+ cámaras). */
+  cameraReadings?: QuividiCameraHourReading[];
 }
 
 export interface QuividiDemographicRow {
@@ -108,6 +136,8 @@ export interface QuividiDemographicRow {
   publishedWatchers?: number;
   /** Lectura tal cual de cada cámara del par (desde schema v7). */
   cameraWatchers?: Array<{ locationId: number; watchers: number }>;
+  /** Fila estimada por relleno de huecos (sólo en cliente, nunca del backend). */
+  estimated?: boolean;
 }
 
 export interface QuividiCoverageBySupport {
@@ -147,7 +177,8 @@ export interface QuividiCampaignReport {
   // v6 agrega el corte de medición (`measuredEndDate`, `partialDate`,
   // `partialUntil`): el día en curso en horario operativo (día incompleto).
   // v7: 2 cámaras fuera de zona partida → lectura más alta × 2.
-  schemaVersion: 3 | 4 | 5 | 6 | 7 | 8;
+  // v9: `supportHours[].cameraReadings` en zona partida con 2+ cámaras.
+  schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9;
   campaignId: string;
   campaignName: string;
   startDate: string;
@@ -169,6 +200,8 @@ export interface QuividiCampaignReport {
   demographics: QuividiDemographicRow[];
   incidents: QuividiMeasurementIncident[];
   unmappedCameraNames: string[];
+  /** Ya pasó por el relleno de huecos del informe comercial (sólo cliente). */
+  gapFilled?: boolean;
 }
 
 export const QUIVIDI_GENDER_LABELS: Record<number, string> = {
