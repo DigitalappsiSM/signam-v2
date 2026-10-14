@@ -44,12 +44,17 @@ export function useSupportReview(
   const [overrides, setOverrides] = useState<
     ReadonlyMap<string, CampaignSupportOverride>
   >(new Map());
-  const [ownLinks, setOwnLinks] = useState<CampaignEkonLink[]>([]);
+  const [ownLinks, setOwnLinks] = useState<CampaignEkonLink[] | null>(null);
   const [assignments, setAssignments] = useState<
     ReadonlyMap<string, StoredEkonAssignment[]>
   >(new Map());
   const requested = useRef(new Set<string>());
-  const effectiveLinks = links ?? ownLinks;
+  const effectiveLinks = useMemo(
+    () => links ?? ownLinks ?? [],
+    [links, ownLinks],
+  );
+  // Sin vínculos cargados no se sabe el número vigente: no se marca «Revisar».
+  const linksKnown = links !== null || ownLinks !== null;
 
   const loadOverrides = useCallback(async () => {
     try {
@@ -130,9 +135,10 @@ export function useSupportReview(
         campaign,
         canReadEkon ? rows : undefined,
         overrides.get(campaign.id),
+        linksKnown ? n : undefined,
       );
     },
-    [ekonNumberOf, assignments, overrides, canReadEkon],
+    [ekonNumberOf, assignments, overrides, canReadEkon, linksKnown],
   );
 
   return useMemo(

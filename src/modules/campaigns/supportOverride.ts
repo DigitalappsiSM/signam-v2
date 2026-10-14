@@ -304,7 +304,19 @@ export function supportReviewState(
   campaign: CampaignLike,
   assignments: readonly EkonAssignment[] | undefined,
   override: CampaignSupportOverride | undefined,
+  /**
+   * Número Ekon vinculado HOY (`undefined` = aún no se sabe). Si ya no es el
+   * de la confirmación (desvinculada o cambiada), la decisión está vencida.
+   */
+  currentEkonNumber?: number | null,
 ): SupportReviewState {
+  if (
+    override &&
+    currentEkonNumber !== undefined &&
+    currentEkonNumber !== override.ekonNumber
+  ) {
+    return 'stale';
+  }
   if (!assignments) return override ? 'confirmed' : 'none';
   if (override) {
     const same =

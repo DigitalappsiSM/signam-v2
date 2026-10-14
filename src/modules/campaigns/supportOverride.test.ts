@@ -244,6 +244,24 @@ describe('supportReviewState', () => {
     );
   });
 
+  it('vuelve a revisión si se desvincula o cambia el número Ekon', () => {
+    expect(supportReviewState(apple, undefined, override(), null)).toBe(
+      'stale',
+    );
+    expect(supportReviewState(apple, ekonBanner, override(), 99999)).toBe(
+      'stale',
+    );
+    expect(supportReviewState(apple, ekonBanner, override(), 26658)).toBe(
+      'confirmed',
+    );
+  });
+
+  it('sin vínculos cargados no marca revisión por el número', () => {
+    expect(supportReviewState(apple, undefined, override(), undefined)).toBe(
+      'confirmed',
+    );
+  });
+
   it('sin Ekon cargado no inventa avisos', () => {
     expect(supportReviewState(apple, undefined, undefined)).toBe('none');
   });

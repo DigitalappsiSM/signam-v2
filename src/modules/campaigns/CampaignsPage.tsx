@@ -502,6 +502,22 @@ export function CampaignsPage() {
   const supportReview = useSupportReview(reviewRows, ekonLinks, canReadEkon);
   const supportOverrides = supportReview.overrides;
 
+  // Campañas fuera del CSV (canceladas, duplicadas, retiradas) no pasan por
+  // `resolvedById`, pero su detalle debe mostrar igual las tiendas finales: se
+  // resuelven con las asignaciones que ya leyó el aviso Calendario ↔ Ekon.
+  const detailFallback = (campaign: StoredCampaign) => {
+    const n = supportReview.ekonNumberOf(campaign);
+    const rows =
+      n != null ? supportReview.assignmentsByNumber.get(String(n)) : undefined;
+    const [withOverride] = applySupportOverrides([campaign], supportOverrides);
+    return resolveCampaignsWithEkon([withOverride ?? campaign], () => ({
+      hasEkonLink: n != null,
+      hasCompletedBatch: true,
+      available: n == null || rows !== undefined,
+      assignments: (rows ?? []).filter((a) => a.active && !a.conflict),
+    })).campaigns[0];
+  };
+
   const csvCampaigns = useMemo(() => {
     const allowed = campaigns.filter((c) =>
       statusAllows(statusOf(c), 'consolidationCsv'),
@@ -1515,7 +1531,7 @@ export function CampaignsPage() {
           campaign={detail}
           override={supportOverrides.get(detail.id)}
           onReviewSupports={() => setReviewCampaign(detail)}
-          resolved={resolvedById.get(detail.id)}
+          resolved={resolvedById.get(detail.id) ?? detailFallback(detail)}
           ekonLoading={ekonLoading}
           issues={issuesByCampaign.get(detail.name) ?? []}
           ekonNumber={ekonByKey.get(detail.id) ?? null}
