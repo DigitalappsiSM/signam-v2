@@ -7,6 +7,7 @@ import {
   brandSingleCameraDuplication,
   brandStoreAttribution,
 } from './quividiBrandReport';
+import { brandGapFilledReport } from './quividiGapFill';
 
 const DATES = Array.from(
   { length: 10 },
@@ -156,28 +157,37 @@ describe('hoja de auditoría del informe comercial', () => {
     const partial = Number(values.get('Par-día con medición parcial'));
     const missing = Number(values.get('Par-día sin dato (cámara instalada)'));
     const uncovered = Number(values.get('Par-día sin cámara instalada'));
+    const filled = Number(
+      values.get('Par-día sin dato completados con promedio propio'),
+    );
     expect(complete).toBe(13);
     expect(partial).toBe(0);
-    expect(missing).toBe(7);
+    // Santa Fe sí midió 3 días: sus 7 días caídos se completan con SU
+    // promedio, ya no quedan como hueco del formato.
+    expect(missing).toBe(0);
+    expect(filled).toBe(7);
     expect(uncovered).toBe(10);
     // El reparto cubre la rejilla completa sin solapes ni huecos.
-    expect(complete + partial + missing + uncovered).toBe(30);
+    expect(complete + partial + missing + uncovered + filled).toBe(30);
     expect(values.get('Par-día medidos')).toBe(13);
   });
 
   it('reconstruye la cifra publicada sin recalcularla', async () => {
     const input = report();
     const values = await auditValues(input);
-    const summary = brandCampaignSummary(input);
+    const summary = brandCampaignSummary(brandGapFilledReport(input));
 
     expect(values.get('OTS medidos')).toBe(summary.measuredOts);
+    expect(values.get('OTS medidos')).toBe(13_000);
+    expect(values.get('+ OTS completados con promedio propio')).toBe(7000);
     expect(values.get('= OTS estimados de campaña')).toBe(summary.estimatedOts);
-    expect(values.get('De los cuales, extrapolados')).toBe(
+    expect(values.get('De los cuales, extrapolados por formato')).toBe(
       summary.extrapolatedOts,
     );
     expect(
       Number(values.get('OTS medidos')) +
-        Number(values.get('De los cuales, extrapolados')),
+        Number(values.get('+ OTS completados con promedio propio')) +
+        Number(values.get('De los cuales, extrapolados por formato')),
     ).toBeCloseTo(summary.estimatedOts, 6);
   });
 
@@ -246,7 +256,7 @@ describe('hoja de auditoría del informe comercial', () => {
   it('separa los OTS extrapolados por motivo del hueco, y concilia con el total', async () => {
     const input = report();
     const values = await auditValues(input);
-    const byReason = brandExtrapolationByReason(input);
+    const byReason = brandExtrapolationByReason(brandGapFilledReport(input));
 
     expect(values.get('— por días sin dato (cámara instalada)')).toBe(
       byReason.missingOts,
@@ -257,7 +267,40 @@ describe('hoja de auditoría del informe comercial', () => {
     expect(
       Number(values.get('— por días sin dato (cámara instalada)')) +
         Number(values.get('— por soportes sin cámara instalada')),
-    ).toBeCloseTo(Number(values.get('De los cuales, extrapolados')), 6);
+    ).toBeCloseTo(
+      Number(values.get('De los cuales, extrapolados por formato')),
+      6,
+    );
+  });
+
+  it('documenta cada día estimado en amarillo, con nota, por tienda y soporte', async () => {
+    const wb = await buildQuividiCampaignWorkbook(report());
+    const sheet = wb.getWorksheet('Auditoría de cifras');
+    if (!sheet) throw new Error('falta la hoja de auditoría');
+
+    const detail: Array<{ date: unknown; ots: unknown; note: unknown }> = [];
+    let section = false;
+    sheet.eachRow((row) => {
+      const first = row.getCell(1).value;
+      if (typeof first === 'string' && first.startsWith('11 · ')) {
+        section = true;
+      }
+      if (!section || first !== '2 · SANTA FE · MUPI DIGITAL') return;
+      if (row.getCell(4).value !== 'Día sin dato') return;
+      const cell = row.getCell(5);
+      expect(cell.fill).toMatchObject({ fgColor: { argb: 'FFFFF176' } });
+      detail.push({
+        date: row.getCell(3).value,
+        ots: cell.value,
+        note: cell.note,
+      });
+    });
+
+    // Del 04 al 10/09: 7 días, cada uno con el promedio propio del tipo de día.
+    expect(detail).toHaveLength(7);
+    expect(detail.every((item) => item.ots === 1000)).toBe(true);
+    expect(String(detail[0]?.note)).toContain('2 · SANTA FE · MUPI DIGITAL');
+    expect(String(detail[0]?.note)).toContain('Promedio propio');
   });
 
   it('hace visible que la clasificación de portada y la técnica no son el mismo porcentaje', async () => {

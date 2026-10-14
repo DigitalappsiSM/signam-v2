@@ -215,6 +215,38 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
     });
   });
 
+  it('zona partida con 2+ cámaras expone la lectura de cada cámara que reportó', () => {
+    const rows = buildSupportHours(
+      [pair()],
+      [ots(1, HOUR), ots(2, HOUR, { ots_count: 150, effective_ots_count: 90 })],
+      [viewer(1, HOUR), viewer(2, HOUR, { watcher_count: 35 })],
+    );
+
+    expect(rows[0]?.cameraReadings).toEqual([
+      { locationId: 1, ots: 100, effectiveOts: 60, watchers: 20 },
+      { locationId: 2, ots: 150, effectiveOts: 90, watchers: 35 },
+    ]);
+  });
+
+  it('zona partida con una cara caída sólo lista la cámara que reportó', () => {
+    const rows = buildSupportHours([pair()], [ots(2, HOUR)], []);
+
+    expect(rows[0]).toMatchObject({ status: 'partial', measuredCameras: 1 });
+    expect(rows[0]?.cameraReadings).toEqual([
+      { locationId: 2, ots: 100, effectiveOts: 60, watchers: 0 },
+    ]);
+  });
+
+  it('fuera de zona partida no envía lecturas por cámara', () => {
+    const rows = buildSupportHours(
+      [pair({ support: 'MUPI DIGITAL' })],
+      [ots(1, HOUR), ots(2, HOUR)],
+      [],
+    );
+
+    expect(rows[0]?.cameraReadings).toBeUndefined();
+  });
+
   it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
     const rows = buildSupportHours(
       [pair({ storeName: 'LIVERPOOL INSURGENTES', support: 'MUPI DIGITAL' })],

@@ -161,7 +161,12 @@ logic. The load-bearing ones:
   figure covers **only support formats that had measurement** during the flight; formats with no camera at all stay
   out of the OTS and are reported as additional reach. Within that measurable circuit it extrapolates **per format**,
   each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
-  a mupi's performance. Averages divide by **measured** pair-days, never the full grid: missing days entering the
+  a mupi's performance. **Before that**, a missing day of a screen that measured other days is filled with **that same
+  store + format + screen's own average** (`quividiGapFill.ts`): its measured weekdays (Mon–Fri) or weekend days
+  (Sat–Sun), falling back to all its measured days; zone-split pairs with 2+ cameras are filled **camera by camera**
+  (per-camera hourly `cameraReadings`, schema v9), and a `BANNER DIGITAL` face with no camera copies its sister face
+  day by day. The PDF shows filled values exactly like measured ones; only the Excel marks them (yellow + note in
+  «Auditoría de cifras» section 11 and «Detalle Soportes»), splitting `measuredOts` + `filledOts` + `extrapolatedOts`. Averages divide by **measured** pair-days, never the full grid: missing days entering the
   numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. While the
   campaign is still running, that grid is capped at the last **complete** measured day (`effectiveEndDate`/
   `measuredPeriodDays`), never the contracted end date: a future day that hasn't happened yet is not a measurement

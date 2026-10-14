@@ -50,6 +50,11 @@ export interface BrandExtrapolationBasis {
   missingPairDays: number;
   /** Par-día de soportes del universo sin cámara instalada. */
   uncoveredPairDays: number;
+  /**
+   * Par-día sin ningún dato completados con el promedio propio de la pantalla
+   * (`quividiGapFill.ts`); no cuentan en `measuredPairDays`.
+   */
+  filledPairDays: number;
   otsPerMeasuredPairDay: number;
 }
 
@@ -64,7 +69,15 @@ export interface BrandHeader {
 }
 
 export interface BrandCampaignSummary {
+  /** Sólo lo medido: sin relleno propio ni extrapolación por formato. */
   measuredOts: number;
+  /**
+   * Huecos completados con el promedio propio de cada pantalla
+   * (`quividiGapFill.ts`). `measuredOts + filledOts + extrapolatedOts` es
+   * exactamente `estimatedOts`.
+   */
+  filledOts: number;
+  /** Lo que queda por formato: pantallas sin ningún día medido y soportes sin cámara. */
   extrapolatedOts: number;
   estimatedOts: number;
   dailyAverage: number;
@@ -106,8 +119,24 @@ export interface BrandSupportFormat {
   /** Soportes de ese formato con cámara instalada. */
   mappedPairs: number;
   pairDays: number;
+  /** Par-día con dato: medidos más los enteramente rellenados (`filledPairDays`). */
   measuredPairDays: number;
+  /** OTS de esos par-día, incluido lo rellenado (`filledOts`). */
   measuredOts: number;
+  /** Par-día sin ningún dato completados con el promedio propio de la pantalla. */
+  filledPairDays: number;
+  /** OTS añadidos por relleno propio (días y caras sin dato). */
+  filledOts: number;
+  /**
+   * Base del promedio del formato que completa lo que queda (pantallas sin
+   * ningún día medido, soportes sin cámara): sólo par-día con observación
+   * directa. Excluye los par-día enteramente rellenados — usarlos haría que el
+   * promedio de una tienda pesara más cuantos más días le faltaran —, pero
+   * conserva la cara rellenada de un día medido en zona partida: ese par-día
+   * es real y, sin su cara, su OTS sería la mitad y deflactaría el promedio.
+   */
+  baselinePairDays: number;
+  baselineOts: number;
   /** Pares medidos del formato en el día incompleto (fuera de la rejilla). */
   partialPairs: number;
   /** OTS medidos del formato en el día incompleto; nunca se extrapolan. */
@@ -173,7 +202,11 @@ export interface BrandStoreAttribution {
   storeName: string;
   /** OTS registrados directamente, sin completar huecos. */
   measuredOts: number;
-  /** OTS ajustados: el propio dato más los huecos de la tienda completados al promedio de su formato. */
+  /**
+   * OTS ajustados: el propio dato, más sus días y caras sin dato completados
+   * con el promedio propio de cada pantalla, más — sólo si una pantalla no
+   * midió ningún día — el promedio de su formato.
+   */
   adjustedOts: number;
   /**
    * OTS medidos el día incompleto (ya incluidos en `measuredOts` y
@@ -225,6 +258,8 @@ export interface BrandStoreAudit {
    * si la tienda no tiene ningún par duplicado.
    */
   publishedOts: number;
+  /** OTS publicados añadidos por relleno con promedio propio (`quividiGapFill.ts`). */
+  filledOts: number;
 }
 
 /**
@@ -264,6 +299,37 @@ function pairKey(
   row: Pick<QuividiSupportDay, 'storeNumber' | 'support'>,
 ): string {
   return `${row.storeNumber}|${row.support}`;
+}
+
+/** Fila con dato propio: medida, no enteramente estimada por relleno. */
+function hasOwnMeasurement(row: QuividiSupportDay): boolean {
+  return row.status !== 'missing' && !row.gapFill?.full;
+}
+
+/** Parte medida de una métrica, sin lo añadido por relleno de huecos. */
+function measuredPart(
+  row: QuividiSupportDay,
+  field:
+    | 'ots'
+    | 'publishedOts'
+    | 'effectiveOts'
+    | 'publishedEffectiveOts'
+    | 'watchers'
+    | 'publishedWatchers',
+): number {
+  return numeric(row[field]) - numeric(row.gapFill?.[field] ?? 0);
+}
+
+/**
+ * OTS por par-día con observación directa del formato: el promedio que
+ * completa los par-día que siguen sin dato tras el relleno propio.
+ */
+export function brandFormatRate(
+  format: Pick<BrandSupportFormat, 'baselinePairDays' | 'baselineOts'>,
+): number {
+  return format.baselinePairDays > 0
+    ? format.baselineOts / format.baselinePairDays
+    : 0;
 }
 
 function supportDayKey(
@@ -430,9 +496,7 @@ export function brandPartialSupportDays(
 export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
   const rows = brandSupportDays(report);
   const measuredFromRows = new Set(
-    rows
-      .filter((row) => row.status !== 'missing')
-      .map((row) => row.storeNumber),
+    rows.filter(hasOwnMeasurement).map((row) => row.storeNumber),
   ).size;
 
   const totalStores = Math.max(
@@ -454,7 +518,7 @@ export function brandCoverage(report: QuividiCampaignReport): BrandCoverage {
     totalStoreDays,
     new Set(
       rows
-        .filter((row) => row.status !== 'missing')
+        .filter(hasOwnMeasurement)
         .map((row) => `${row.storeNumber}|${row.date}`),
     ).size,
   );
@@ -491,11 +555,12 @@ export function brandExtrapolationBasis(
   const inScope = rows.filter((row) => measurableSupports.has(row.support));
 
   const completePairDays = inScope.filter(
-    (row) => row.status === 'complete',
+    (row) => row.status === 'complete' && !row.gapFill?.full,
   ).length;
   const partialPairDays = inScope.filter(
-    (row) => row.status === 'partial',
+    (row) => row.status === 'partial' && !row.gapFill?.full,
   ).length;
+  const filledPairDays = inScope.filter((row) => row.gapFill?.full).length;
   const missingPairDays = inScope.filter(
     (row) => row.status === 'missing',
   ).length;
@@ -508,11 +573,9 @@ export function brandExtrapolationBasis(
   return {
     days: scope.days,
     totalPairs: scope.measurablePairs,
-    measuredPairs: new Set(
-      inScope.filter((row) => row.status !== 'missing').map(pairKey),
-    ).size,
+    measuredPairs: new Set(inScope.filter(hasOwnMeasurement).map(pairKey)).size,
     totalPairDays: scope.measurablePairDays,
-    measuredPairDays: scope.measuredPairDays,
+    measuredPairDays: scope.measuredPairDays - filledPairDays,
     completePairDays,
     partialPairDays,
     missingPairDays,
@@ -520,6 +583,7 @@ export function brandExtrapolationBasis(
       0,
       scope.measurablePairDays - scope.measuredPairDays - missingPairDays,
     ),
+    filledPairDays,
     otsPerMeasuredPairDay:
       scope.measuredPairDays > 0 ? measuredOts / scope.measuredPairDays : 0,
   };
@@ -564,10 +628,7 @@ export function brandExtrapolationByReason(
 
   const byFormat: BrandExtrapolationReasonRow[] = scope.measurable.map(
     (format) => {
-      const rate =
-        format.measuredPairDays > 0
-          ? format.measuredOts / format.measuredPairDays
-          : 0;
+      const rate = brandFormatRate(format);
       const missingPairDays = rows.filter(
         (row) => row.support === format.support && row.status === 'missing',
       ).length;
@@ -598,9 +659,8 @@ export function brandHeader(report: QuividiCampaignReport): BrandHeader {
   const supports = Array.from(
     new Set(adjusted.map((row) => row.support).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b, 'es'));
-  const measuredPairs = new Set(
-    adjusted.filter((row) => row.status !== 'missing').map(pairKey),
-  ).size;
+  const measuredPairs = new Set(adjusted.filter(hasOwnMeasurement).map(pairKey))
+    .size;
 
   return {
     campaignName: report.campaignName,
@@ -639,14 +699,17 @@ export function brandCampaignSummary(
   const gridEstimatedOts = sum(
     scope.measurable.map((format) =>
       format.measuredPairDays > 0
-        ? (format.measuredOts / format.measuredPairDays) * format.pairDays
+        ? format.measuredOts +
+          brandFormatRate(format) *
+            Math.max(0, format.pairDays - format.measuredPairDays)
         : 0,
     ),
   );
   const extrapolatedOts = Math.max(0, gridEstimatedOts - gridMeasuredOts);
   // El día incompleto suma sólo lo medido: no entra al promedio ni se rellena.
   const partialOts = sum(scope.measurable.map((format) => format.partialOts));
-  const measuredOts = gridMeasuredOts + partialOts;
+  const filledOts = sum(scope.measurable.map((format) => format.filledOts));
+  const measuredOts = gridMeasuredOts - filledOts + partialOts;
   const estimatedOts = gridEstimatedOts + partialOts;
   const days = scope.days;
   // El divisor por tienda sigue siendo el universo de campaña. Una tienda que
@@ -663,6 +726,7 @@ export function brandCampaignSummary(
 
   return {
     measuredOts,
+    filledOts,
     extrapolatedOts,
     estimatedOts,
     dailyAverage: averageDays > 0 ? averageOts / averageDays : 0,
@@ -698,12 +762,7 @@ export function brandDaily(report: QuividiCampaignReport): BrandDailyPoint[] {
     scope.measurable.map((format) => format.support),
   );
   const rateByFormat = new Map(
-    scope.measurable.map((format) => [
-      format.support,
-      format.measuredPairDays > 0
-        ? format.measuredOts / format.measuredPairDays
-        : 0,
-    ]),
+    scope.measurable.map((format) => [format.support, brandFormatRate(format)]),
   );
   const rows = brandSupportDays(report).filter((row) =>
     measurableSupports.has(row.support),
@@ -818,7 +877,7 @@ export function brandWeeklyEvolution(
 
 /** Origen de una fila de demografía publicada. */
 export type BrandDemographicOrigin =
-  'measured' | 'partial' | 'missing' | 'uncovered';
+  'measured' | 'partial' | 'filled' | 'missing' | 'uncovered';
 
 /** Fila de demografía de cara a marca (watchers publicados). */
 export interface BrandDemographicRow {
@@ -863,17 +922,16 @@ export function brandFormatRates(
   report: QuividiCampaignReport,
 ): Map<string, { ots: number; effectiveOts: number; watchers: number }> {
   const scope = brandMeasurableScope(report);
-  const rows = brandSupportDays(report).filter(
-    (row) => row.status !== 'missing',
-  );
+  // Misma base que `brandFormatRate`: sin los par-día enteramente rellenados.
+  const rows = brandSupportDays(report).filter(hasOwnMeasurement);
   return new Map(
     scope.measurable.map((format) => {
       const formatRows = rows.filter((row) => row.support === format.support);
-      const days = format.measuredPairDays;
+      const days = format.baselinePairDays;
       return [
         format.support,
         {
-          ots: days > 0 ? format.measuredOts / days : 0,
+          ots: brandFormatRate(format),
           effectiveOts:
             days > 0
               ? sum(formatRows.map((row) => row.publishedEffectiveOts)) / days
@@ -949,9 +1007,10 @@ export function brandDemographics(
       gender: row.gender,
       age: row.age,
       watchers,
-      origin: isPartial ? 'partial' : 'measured',
+      origin: row.estimated ? 'filled' : isPartial ? 'partial' : 'measured',
     });
-    if (isPartial) continue;
+    // El perfil del formato sale sólo de lo medido.
+    if (isPartial || row.estimated) continue;
     const formatProfile = profile.get(row.support) ?? new Map<string, number>();
     const key = `${row.gender}|${row.age}`;
     formatProfile.set(key, (formatProfile.get(key) ?? 0) + watchers);
@@ -1056,7 +1115,7 @@ export function brandStoreAudit(
   return Array.from(groups, ([storeNumber, storeRows]) => {
     const pairs = new Set(storeRows.map((row) => row.support)).size;
     const totalPairDays = pairs * days;
-    const measured = storeRows.filter((row) => row.status !== 'missing');
+    const measured = storeRows.filter(hasOwnMeasurement);
     return {
       storeNumber,
       storeName: storeRows[0]?.storeName ?? '',
@@ -1065,8 +1124,13 @@ export function brandStoreAudit(
       measuredPairDays: measured.length,
       completenessPercent:
         totalPairDays > 0 ? (measured.length / totalPairDays) * 100 : 0,
-      measuredOts: sum(measured.map((row) => row.ots)),
-      publishedOts: sum(measured.map((row) => row.publishedOts)),
+      measuredOts: sum(measured.map((row) => measuredPart(row, 'ots'))),
+      publishedOts: sum(
+        measured.map((row) => measuredPart(row, 'publishedOts')),
+      ),
+      filledOts: sum(
+        storeRows.map((row) => numeric(row.gapFill?.publishedOts ?? 0)),
+      ),
     };
   }).sort((a, b) => a.completenessPercent - b.completenessPercent);
 }
@@ -1087,16 +1151,20 @@ export function brandSingleCameraDuplication(
   // Pares duplicados: 1 cámara configurada, o 2 cámaras fuera de zona
   // partida (el backend ya publicó la más alta × 2). En zona partida
   // `publishedOts === ots`, así que no entra.
+  // Sólo lo medido: un día rellenado con el promedio propio ya llega
+  // duplicado (promedio de cifras publicadas) y se audita como relleno.
   const rows = brandSupportDays(report).filter(
     (row) =>
       measurableSupports.has(row.support) &&
-      row.status !== 'missing' &&
+      hasOwnMeasurement(row) &&
       (row.configuredCameras === 1 ||
         (row.configuredCameras === 2 && row.publishedOts > row.ots)),
   );
 
-  const measuredOts = sum(rows.map((row) => row.ots));
-  const publishedOts = sum(rows.map((row) => row.publishedOts));
+  const measuredOts = sum(rows.map((row) => measuredPart(row, 'ots')));
+  const publishedOts = sum(
+    rows.map((row) => measuredPart(row, 'publishedOts')),
+  );
 
   return {
     pairs: new Set(rows.map(pairKey)).size,
@@ -1162,12 +1230,7 @@ export function brandStoreAttribution(
     scope.measurable.map((format) => format.support),
   );
   const rateByFormat = new Map(
-    scope.measurable.map((format) => [
-      format.support,
-      format.measuredPairDays > 0
-        ? format.measuredOts / format.measuredPairDays
-        : 0,
-    ]),
+    scope.measurable.map((format) => [format.support, brandFormatRate(format)]),
   );
   const rows = brandSupportDays(report).filter((row) =>
     measurableSupports.has(row.support),
@@ -1221,8 +1284,10 @@ export function brandStoreAttribution(
         const formatMeasuredOts = sum(measured.map((row) => row.publishedOts));
         const gap = Math.max(0, formatRows.length - measured.length);
         adjustedOts += formatMeasuredOts + gap * rate;
-        measuredOts += formatMeasuredOts;
-        if (measured.length > 0) everMeasured = true;
+        measuredOts += sum(
+          measured.map((row) => measuredPart(row, 'publishedOts')),
+        );
+        if (measured.some(hasOwnMeasurement)) everMeasured = true;
         measuredRows.push(...measured);
       }
       const partialOts = sum(data.partialRows.map((row) => row.publishedOts));
@@ -1328,6 +1393,9 @@ export function brandOperationalSupportDays(
       ),
       measuredCameras: Math.max(...hours.map((hour) => hour.measuredCameras)),
       status,
+      // Sólo los pares de zona partida con 2+ cámaras traen lectura por
+      // cámara (v9); es lo que permite rellenar cara a cara.
+      ...(hours.some((hour) => hour.cameraReadings) ? { zoneSplit: true } : {}),
       ots: sum(measured.map((hour) => hour.ots)),
       effectiveOts: sum(measured.map((hour) => hour.effectiveOts)),
       watchers: watchersTotal,
@@ -1367,7 +1435,62 @@ export function brandOperationalReport(
   return {
     ...report,
     supportDays: brandOperationalSupportDays(report),
+    cameraDays: brandOperationalCameraDays(report),
   };
+}
+
+/**
+ * `cameraDays` acotado a la franja operativa para los pares que traen lectura
+ * por cámara en `supportHours` (v9: zona partida con 2+ cámaras). Es lo que
+ * permite rellenar, dentro de 10:00–22:00, la cara que no reportó con su
+ * propio promedio (`quividiGapFill.ts`). Una cámara sin ninguna hora en la
+ * franja ese día queda «sin medición». El resto de pares conserva su fila
+ * diaria tal cual: su relleno es por par, no por cámara.
+ */
+export function brandOperationalCameraDays(
+  report: QuividiCampaignReport,
+): QuividiCampaignReport['cameraDays'] {
+  const readings = new Map<
+    string,
+    { ots: number; effectiveOts: number; watchers: number }
+  >();
+  const pairs = new Set<string>();
+  for (const row of report.supportHours) {
+    if (!row.cameraReadings) continue;
+    pairs.add(pairKey(row));
+    if (
+      row.hour < BRAND_OPERATIONAL_START_HOUR ||
+      row.hour >= BRAND_OPERATIONAL_END_HOUR
+    ) {
+      continue;
+    }
+    for (const camera of row.cameraReadings) {
+      const key = `${camera.locationId}|${row.date}`;
+      const current = readings.get(key) ?? {
+        ots: 0,
+        effectiveOts: 0,
+        watchers: 0,
+      };
+      current.ots += numeric(camera.ots);
+      current.effectiveOts += numeric(camera.effectiveOts);
+      current.watchers += numeric(camera.watchers);
+      readings.set(key, current);
+    }
+  }
+  if (pairs.size === 0) return report.cameraDays;
+  return report.cameraDays.map((camera) => {
+    if (!pairs.has(pairKey(camera))) return camera;
+    const reading = readings.get(`${camera.locationId}|${camera.date}`);
+    return reading
+      ? { ...camera, ...reading, status: 'complete' as const }
+      : {
+          ...camera,
+          ots: 0,
+          effectiveOts: 0,
+          watchers: 0,
+          status: 'missing' as const,
+        };
+  });
 }
 
 /**
@@ -1510,16 +1633,39 @@ export function brandSupportFormats(
     partial.set(row.support, current);
   }
 
-  const measured = new Map<string, { pairDays: number; ots: number }>();
+  const measured = new Map<
+    string,
+    {
+      pairDays: number;
+      ots: number;
+      filledPairDays: number;
+      filledOts: number;
+      baselinePairDays: number;
+      baselineOts: number;
+    }
+  >();
   const mapped = new Map<string, Set<string>>();
   for (const row of rows) {
     const seen = mapped.get(row.support) ?? new Set<string>();
     seen.add(row.storeNumber);
     mapped.set(row.support, seen);
     if (row.status === 'missing') continue;
-    const current = measured.get(row.support) ?? { pairDays: 0, ots: 0 };
+    const current = measured.get(row.support) ?? {
+      pairDays: 0,
+      ots: 0,
+      filledPairDays: 0,
+      filledOts: 0,
+      baselinePairDays: 0,
+      baselineOts: 0,
+    };
     current.pairDays += 1;
     current.ots += numeric(row.publishedOts);
+    if (row.gapFill?.full) current.filledPairDays += 1;
+    current.filledOts += numeric(row.gapFill?.publishedOts ?? 0);
+    if (!row.gapFill?.full) {
+      current.baselinePairDays += 1;
+      current.baselineOts += numeric(row.publishedOts);
+    }
     measured.set(row.support, current);
   }
 
@@ -1563,6 +1709,10 @@ export function brandSupportFormats(
       pairDays: counts.pairs * days,
       measuredPairDays: stats?.pairDays ?? 0,
       measuredOts: stats?.ots ?? 0,
+      filledPairDays: stats?.filledPairDays ?? 0,
+      filledOts: stats?.filledOts ?? 0,
+      baselinePairDays: stats?.baselinePairDays ?? 0,
+      baselineOts: stats?.baselineOts ?? 0,
       partialPairs: today?.pairs ?? 0,
       partialOts: today?.ots ?? 0,
       measurable: (stats?.pairDays ?? 0) > 0 || (today?.pairs ?? 0) > 0,

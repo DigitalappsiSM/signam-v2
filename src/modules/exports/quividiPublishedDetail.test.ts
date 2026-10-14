@@ -10,6 +10,7 @@ import {
   brandDemographics,
   brandGender,
 } from './quividiBrandReport';
+import { brandGapFilledReport } from './quividiGapFill';
 import {
   cameraRuleRationale,
   publishedDemographicDetail,
@@ -197,7 +198,11 @@ describe('detalle Quividi → publicado', () => {
     const report = scenario();
     const rows = publishedSupportDetail(report);
     const total = rows.reduce((acc, row) => acc + row.publishedOts, 0);
-    expect(total).toBeCloseTo(brandCampaignSummary(report).estimatedOts, 6);
+    // Misma regla que el PDF: huecos con el promedio propio de la pantalla.
+    expect(total).toBeCloseTo(
+      brandCampaignSummary(brandGapFilledReport(report)).estimatedOts,
+      6,
+    );
   });
 
   it('pone la lectura de cada cámara junto a la cifra publicada y su regla', () => {
@@ -219,10 +224,15 @@ describe('detalle Quividi → publicado', () => {
 
   it('explica los días sin dato y los soportes sin cámara', () => {
     const rows = publishedSupportDetail(scenario());
-    // Promedio del formato: (2,000 + 2,000 + 6,000) / 3 par-día medidos.
-    const missing = rows.find((row) => row.origin === 'missing');
-    expect(missing?.publishedOts).toBeCloseTo(10_000 / 3, 6);
-    expect(missing?.rationale).toContain('Sin dato ese día');
+    // Día sin dato de la tienda 2 (miércoles): promedio propio entre semana,
+    // su único día medido (martes, 6,000 publicados) — no el del formato.
+    const filled = rows.find((row) => row.origin === 'filled');
+    expect(filled).toMatchObject({ storeNumber: '2', date: DATES[1] });
+    expect(filled?.publishedOts).toBeCloseTo(6000, 6);
+    expect(filled?.rationale).toBe(
+      'Estimado, sin dato ese día · Promedio propio entre semana (1 día medido)',
+    );
+    expect(rows.some((row) => row.origin === 'missing')).toBe(false);
     const uncovered = rows.filter((row) => row.origin === 'uncovered');
     expect(uncovered).toHaveLength(2);
     expect(uncovered[0]).toMatchObject({
@@ -258,7 +268,7 @@ describe('demografía publicada', () => {
 
   it('los watchers publicados por demografía suman lo mismo que los del soporte', () => {
     const report = scenario();
-    const demographics = brandDemographics(report).reduce(
+    const demographics = brandDemographics(brandGapFilledReport(report)).reduce(
       (acc, row) => acc + row.watchers,
       0,
     );

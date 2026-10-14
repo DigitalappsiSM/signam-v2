@@ -3,13 +3,20 @@ import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandFormatRate,
   brandPartialDay,
   brandSingleCameraDuplication,
   brandStoreAttribution,
+  brandOperationalReport,
   brandStoreAudit,
   formatCivilDate,
   partialDayLabel,
 } from './quividiBrandReport';
+import {
+  brandGapFill,
+  gapFillMethodLabel,
+  type BrandGapFillEntry,
+} from './quividiGapFill';
 
 /**
  * Hoja de auditoría del informe comercial.
@@ -22,6 +29,10 @@ import {
  *
  * No recalcula nada: consume exactamente las mismas funciones puras que el
  * PDF, de modo que una discrepancia entre ambos es imposible por construcción.
+ *
+ * Es también el único lugar donde se distingue lo estimado con el promedio
+ * propio de cada pantalla (`quividiGapFill.ts`): el PDF lo publica igual que
+ * lo medido, y aquí cada celda estimada va en amarillo con una nota.
  */
 
 const COLORS = {
@@ -35,6 +46,8 @@ const COLORS = {
   line: 'FFD7E3EC',
   amber: 'FFF59E0B',
   amberPale: 'FFFFF5DE',
+  /** Celdas estimadas con el promedio propio de la pantalla. */
+  yellow: 'FFFFF176',
 } as const;
 
 const INT = '#,##0';
@@ -97,10 +110,187 @@ function factRow(
   return row + 1;
 }
 
+/** Marca una celda como estimada: amarillo y nota con cómo se estimó. */
+function markEstimated(cell: Cell, note: string): void {
+  fill(cell, COLORS.yellow);
+  cell.font = { bold: true, color: { argb: COLORS.text } };
+  cell.note = note;
+}
+
+const REASON_LABELS: Record<BrandGapFillEntry['reason'], string> = {
+  'missing-day': 'Día sin dato',
+  'missing-face': 'Cara sin cámara',
+};
+
+function gapFillNote(entry: BrandGapFillEntry): string {
+  const where = [
+    entry.storeNumber,
+    entry.storeName,
+    entry.support,
+    entry.locationName,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return `${where} — ${formatCivilDate(entry.date)}. Estimado: ${gapFillMethodLabel(entry)}. Se publica en el PDF igual que lo medido.`;
+}
+
+function headerRow(sheet: Worksheet, row: number, labels: string[]): number {
+  labels.forEach((label, index) => {
+    const cell = sheet.getCell(row, index + 1);
+    cell.value = label;
+    cell.font = { bold: true, color: { argb: COLORS.white }, size: 9 };
+    cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+    fill(cell, COLORS.blue);
+  });
+  sheet.getRow(row).height = 24;
+  return row + 1;
+}
+
+function tableRow(
+  sheet: Worksheet,
+  row: number,
+  values: Array<number | string>,
+  wrapColumns: readonly number[],
+): void {
+  values.forEach((value, index) => {
+    const cell = sheet.getCell(row, index + 1);
+    cell.value = value;
+    if (typeof value === 'number') cell.numFmt = INT;
+    cell.alignment = {
+      vertical: 'middle',
+      wrapText: wrapColumns.includes(index + 1),
+      horizontal: typeof value === 'number' ? 'right' : 'left',
+      indent: 1,
+    };
+  });
+  sheet.getRow(row).height = 30;
+}
+
+/**
+ * Sección de rellenos con promedio propio: resumen por tienda + soporte (+
+ * cámara en zona partida) y detalle día a día. Usa la franja operativa
+ * 10:00–22:00 del PDF, así que sus OTS son exactamente los que suma el PDF.
+ */
+function addGapFillSection(
+  sheet: Worksheet,
+  startRow: number,
+  report: QuividiCampaignReport,
+): number {
+  const fills = brandGapFill(brandOperationalReport(report)).fills;
+  let row = bandTitle(
+    sheet,
+    startRow,
+    '11 · DÍAS ESTIMADOS CON EL PROMEDIO PROPIO DE CADA PANTALLA',
+  );
+  sheet.mergeCells(row, 1, row, 7);
+  const note = sheet.getCell(row, 1);
+  note.value =
+    'Regla: un día sin dato se completa con el promedio de ESA misma tienda + soporte + pantalla — entre semana (lunes a viernes) o fin de semana (sábado y domingo); si no midió ningún día de ese tipo, con el promedio de todos sus días medidos. En BANNER DIGITAL cada cara se evalúa por separado: si una no reportó, se completa sólo esa cara; una cara sin cámara copia día a día el valor de su cara hermana. Lo estimado se publica en el PDF igual que lo medido; aquí va en amarillo. Cifras de la franja 10:00–22:00, las mismas que suma el PDF.';
+  note.font = { italic: true, color: { argb: COLORS.text }, size: 8.5 };
+  note.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+  sheet.getRow(row).height = 52;
+  row += 1;
+
+  if (fills.length === 0) {
+    sheet.mergeCells(row, 1, row, 7);
+    const cell = sheet.getCell(row, 1);
+    cell.value =
+      'Ninguna pantalla con medición tuvo días sin dato: no se estimó nada con promedio propio.';
+    cell.font = { color: { argb: COLORS.muted }, size: 9 };
+    cell.alignment = { vertical: 'middle', indent: 1 };
+    return row + 1;
+  }
+
+  row += 1;
+  row = headerRow(sheet, row, [
+    'Tienda · Soporte',
+    'Cámara / cara',
+    'Días estimados',
+    'Fechas',
+    'OTS estimados (PDF)',
+    'Watchers estimados',
+    'Cómo se estimó',
+  ]);
+  const groups = new Map<string, BrandGapFillEntry[]>();
+  for (const entry of fills) {
+    const key = `${entry.storeNumber}|${entry.support}|${entry.locationId ?? ''}`;
+    const list = groups.get(key) ?? [];
+    list.push(entry);
+    groups.set(key, list);
+  }
+  for (const entries of groups.values()) {
+    const first = entries[0]!;
+    const methods = Array.from(
+      new Set(entries.map((entry) => gapFillMethodLabel(entry))),
+    );
+    tableRow(
+      sheet,
+      row,
+      [
+        `${first.storeNumber} · ${first.storeName} · ${first.support}`,
+        first.locationName || 'Par completo',
+        entries.length,
+        entries.map((entry) => formatCivilDate(entry.date)).join(', '),
+        entries.reduce((total, entry) => total + entry.publishedOts, 0),
+        entries.reduce((total, entry) => total + entry.publishedWatchers, 0),
+        methods.join(' · '),
+      ],
+      [4, 7],
+    );
+    const explanation = `${REASON_LABELS[first.reason]}: ${methods.join(' · ')}.`;
+    markEstimated(sheet.getCell(row, 5), explanation);
+    markEstimated(sheet.getCell(row, 6), explanation);
+    row += 1;
+  }
+  row = factRow(
+    sheet,
+    row,
+    'OTS estimados con promedio propio (PDF)',
+    fills.reduce((total, entry) => total + entry.publishedOts, 0),
+    'Ya incluidos en la cifra del PDF, dentro de «Tiendas TOP» de cada tienda.',
+    { strong: true },
+  );
+
+  row += 1;
+  row = headerRow(sheet, row, [
+    'Tienda · Soporte',
+    'Cámara / cara',
+    'Fecha',
+    'Motivo',
+    'OTS estimados (PDF)',
+    'Watchers estimados',
+    'Cómo se estimó',
+  ]);
+  for (const entry of fills) {
+    tableRow(
+      sheet,
+      row,
+      [
+        `${entry.storeNumber} · ${entry.storeName} · ${entry.support}`,
+        entry.locationName || 'Par completo',
+        formatCivilDate(entry.date),
+        REASON_LABELS[entry.reason],
+        entry.publishedOts,
+        entry.publishedWatchers,
+        gapFillMethodLabel(entry),
+      ],
+      [7],
+    );
+    const explanation = gapFillNote(entry);
+    markEstimated(sheet.getCell(row, 5), explanation);
+    markEstimated(sheet.getCell(row, 6), explanation);
+    row += 1;
+  }
+  return row;
+}
+
 export function addQuividiAuditSheet(
   wb: Workbook,
-  report: QuividiCampaignReport,
+  input: QuividiCampaignReport,
 ): void {
+  // Misma regla que el PDF: huecos completados con el promedio propio de cada
+  // pantalla antes de reconstruir la cifra.
+  const report = brandGapFill(input).report;
   const sheet = wb.addWorksheet('Auditoría de cifras', {
     views: [{ showGridLines: false }],
   });
@@ -111,6 +301,7 @@ export function addQuividiAuditSheet(
     { width: 26 },
     { width: 30 },
     { width: 20 },
+    { width: 44 },
     { width: 20 },
   ];
   sheet.properties.tabColor = { argb: COLORS.amber };
@@ -223,9 +414,22 @@ export function addQuividiAuditSheet(
     row,
     'Par-día medidos',
     basis.measuredPairDays,
-    'Completos más parciales. Es la base real de la extrapolación.',
+    'Completos más parciales: sólo lo medido de verdad.',
     { strong: true },
   );
+  row = factRow(
+    sheet,
+    row,
+    'Par-día sin dato completados con promedio propio',
+    basis.filledPairDays,
+    'La pantalla sí midió otros días: se completa con SU promedio (ver sección 11). Además, en BANNER DIGITAL se completan caras sueltas dentro de días medidos.',
+  );
+  if (basis.filledPairDays > 0) {
+    markEstimated(
+      sheet.getCell(row - 1, 2),
+      'Par-día enteramente estimados con el promedio propio de la pantalla. Detalle en la sección 11.',
+    );
+  }
 
   const byReason = brandExtrapolationByReason(report);
   const byReasonBySupport = new Map(
@@ -260,10 +464,8 @@ export function addQuividiAuditSheet(
   // Cada formato se completa con SU promedio: un único promedio para todo el
   // circuito haría que un video wall heredara el rendimiento de un mupi.
   for (const format of scope.measurable) {
-    const perPairDay =
-      format.measuredPairDays > 0
-        ? format.measuredOts / format.measuredPairDays
-        : 0;
+    // Base sin par-día enteramente rellenados: la misma que usa el PDF.
+    const perPairDay = brandFormatRate(format);
     const reason = byReasonBySupport.get(format.support);
     const cells: Array<[number, number | string, string?]> = [
       [1, format.support],
@@ -296,6 +498,19 @@ export function addQuividiAuditSheet(
     summary.measuredOts,
     'Suma directa de los par-día con medición del circuito medible. Sin ninguna estimación.',
   );
+  row = factRow(
+    sheet,
+    row,
+    '+ OTS completados con promedio propio',
+    summary.filledOts,
+    'Días y caras sin dato de pantallas que sí midieron, con el promedio de esa misma pantalla. Aquí por día completo; la sección 11 detalla la franja 10:00–22:00 del PDF.',
+  );
+  if (summary.filledOts > 0) {
+    markEstimated(
+      sheet.getCell(row - 1, 2),
+      'Estimado con el promedio propio de cada pantalla (entre semana / fin de semana). Detalle por tienda, soporte y cámara en la sección 11.',
+    );
+  }
   const partial = brandPartialDay(report);
   if (partial) {
     row = factRow(
@@ -317,9 +532,9 @@ export function addQuividiAuditSheet(
   row = factRow(
     sheet,
     row,
-    'De los cuales, extrapolados',
+    'De los cuales, extrapolados por formato',
     summary.extrapolatedOts,
-    `${scope.measurablePairDays - scope.measuredPairDays} par-día sin medición, completados con el promedio de su formato.`,
+    `${scope.measurablePairDays - scope.measuredPairDays} par-día de pantallas sin ningún día medido o sin cámara, completados con el promedio de su formato.`,
   );
 
   row = factRow(
@@ -486,6 +701,7 @@ export function addQuividiAuditSheet(
     'OTS publicados',
     'Soportes con cámara',
     'OTS ajustados',
+    'De ellos, promedio propio',
   ];
   headers.forEach((label, index) => {
     const cell = sheet.getCell(row, index + 1);
@@ -548,9 +764,20 @@ export function addQuividiAuditSheet(
     if (typeof adjusted === 'number') adjustedCell.numFmt = INT;
     adjustedCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
+    const filledCell = sheet.getCell(row, 8);
+    filledCell.value = store.filledOts;
+    filledCell.numFmt = INT;
+    filledCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
     if (row % 2 === 0) {
-      for (let col = 1; col <= 7; col += 1)
+      for (let col = 1; col <= 8; col += 1)
         fill(sheet.getCell(row, col), COLORS.pale);
+    }
+    if (store.filledOts > 0) {
+      markEstimated(
+        filledCell,
+        `${store.storeNumber} · ${store.storeName}: OTS completados con el promedio propio de sus pantallas (días o caras sin dato). Detalle en la sección 11.`,
+      );
     }
     row += 1;
   }
@@ -594,7 +821,7 @@ export function addQuividiAuditSheet(
   sheet.mergeCells(row, 1, row + 2, 5);
   const rule = sheet.getCell(row, 1);
   rule.value =
-    'La cifra publicada cubre únicamente los formatos con medición. Dentro de cada uno, todo hueco de su rejilla par-día se rellena con el promedio de OTS observado en los par-día de ESE MISMO formato que sí midieron, sea el hueco un soporte sin cámara o un día que la cámara instalada no reportó.\n\nLos formatos sin ninguna medición quedan fuera del OTS y se reportan como alcance adicional: aplicarles el promedio de otro formato supondría que un pasillo y un atrio ven pasar a la misma gente.\n\nLos pares de una sola cámara configurada se duplican (ver sección 10): la mayoría son en realidad 2 pantallas en el mismo sitio. Los pares de 2+ cámaras no se duplican: ahí la combinación ya resuelve zona partida, brecha entre cámaras o promedio.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla de aportación existe únicamente para auditar la construcción de la cifra agregada.';
+    'La cifra publicada cubre únicamente los formatos con medición. Un día que una pantalla no reportó se completa con el promedio de ESA MISMA pantalla (tienda + soporte), entre semana o fin de semana según el día; en BANNER DIGITAL, cara a cara, y una cara sin cámara copia día a día a su cara hermana (sección 11). Sólo una pantalla que no midió ningún día, o un soporte sin cámara, se completa con el promedio de su formato.\n\nLos formatos sin ninguna medición quedan fuera del OTS y se reportan como alcance adicional: aplicarles el promedio de otro formato supondría que un pasillo y un atrio ven pasar a la misma gente.\n\nLos pares de una sola cámara configurada se duplican (ver sección 10): la mayoría son en realidad 2 pantallas en el mismo sitio. Los pares de 2+ cámaras no se duplican: ahí la combinación ya resuelve zona partida, brecha entre cámaras o promedio.\n\nEste informe no publica el rendimiento individual de ninguna tienda; la tabla de aportación existe únicamente para auditar la construcción de la cifra agregada.';
   rule.font = { color: { argb: COLORS.text }, size: 9.5 };
   rule.alignment = { vertical: 'top', wrapText: true, indent: 1 };
   for (let offset = 0; offset <= 2; offset += 1) {
@@ -650,4 +877,7 @@ export function addQuividiAuditSheet(
     'Esta cifra ya forma parte de «OTS medidos» y «OTS estimados de campaña» de la sección 3 — no se suma de nuevo.',
     { strong: true },
   );
+
+  row += 1;
+  addGapFillSection(sheet, row, input);
 }

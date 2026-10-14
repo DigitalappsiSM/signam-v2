@@ -183,8 +183,10 @@ de la sección *Informe comercial de audiencia*.
   porcentajes.
 - Demografía: misma regla multi-cámara (perfil de la cámara con más watchers;
   suma en zona partida). En el informe comercial se duplica donde aplica y se
-  extrapola como el OTS: los días sin dato y los soportes sin cámara toman el
-  promedio de watchers y el perfil de género × edad de su formato.
+  completa como el OTS: los días sin dato de una pantalla que midió toman su
+  promedio propio con el perfil de su propio soporte; las pantallas sin ningún
+  día medido y los soportes sin cámara, el promedio de watchers y el perfil de
+  género × edad de su formato.
 - Excel: «Detalle Soportes» y «Demografía» muestran la lectura de cada cámara
   sin modificar, la cifra publicada y la regla aplicada en cada fila.
 - Los resultados se presentan separados por soporte para evitar interpretar
@@ -254,10 +256,26 @@ y un atrio ven pasar a la misma gente. El código no asume dónde hay cámaras:
 detecta por campaña qué formatos tuvieron medición, de modo que un video wall
 instrumentado entra con su propio promedio.
 
+### Relleno con el promedio propio de cada pantalla
+
+Antes de extrapolar por formato, un día sin dato de una pantalla que **sí midió
+otros días** se completa con el promedio de **esa misma tienda + formato +
+pantalla** (octubre 2026, `quividiGapFill.ts`): cada tienda tiene su propio
+tráfico. El promedio es el de sus días medidos del mismo tipo —entre semana
+(lunes a viernes) o fin de semana (sábado y domingo)—; si no midió ningún día de
+ese tipo, el de todos sus días medidos. En zona partida con 2+ cámaras
+(Insurgentes, `BANNER DIGITAL`) se evalúa cara a cara: si una cara no reportó,
+se completa sólo esa cara (con lectura por cámara y hora, schema v9, para
+respetar la franja 10:00–22:00). Una cara de `BANNER DIGITAL` sin cámara copia
+día a día a su cara hermana. El PDF publica lo estimado igual que lo medido; el
+Excel lo marca en amarillo con nota en «Auditoría de cifras» (sección 11, por
+tienda · soporte · cámara · fecha) y en «Detalle Soportes».
+
 ### Extrapolación formato a formato
 
-Dentro del circuito medible, cada formato se completa con **su propio** promedio
-de OTS por par-día medido, nunca con un promedio único del circuito.
+Lo que queda —pantallas sin ningún día medido y soportes sin cámara— se completa
+dentro del circuito medible con **su propio** promedio de formato por par-día
+con dato, nunca con un promedio único del circuito.
 
 Ese promedio se calcula sobre los par-día **medidos** y no sobre la rejilla
 completa del formato. Si los días sin dato entraran al numerador como cero,

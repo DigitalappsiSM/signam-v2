@@ -21,6 +21,7 @@ import {
   weekStartOf,
   type BrandGenderDayPoint,
 } from './quividiBrandReport';
+import { brandGapFilledReport } from './quividiGapFill';
 import { WEEKDAY_LABELS } from './quividiMarketingAnalytics';
 import {
   BLUE,
@@ -1432,8 +1433,11 @@ export async function buildQuividiCampaignPdfBlob(
   // El PDF comercial acota OTS/dwell time a la franja operativa de cara a la
   // marca (10:00–22:00): brandOperationalReport reconstruye supportDays desde
   // supportHours dentro de esa franja. supportHours y demographics (sin hora)
-  // pasan igual; el Excel técnico sigue usando `report` sin acotar.
-  const operational = brandOperationalReport(report);
+  // pasan igual; el Excel técnico sigue usando `report` sin acotar. Después
+  // se rellenan los huecos con el promedio propio de cada pantalla
+  // (`quividiGapFill.ts`): lo estimado se publica igual que lo medido y sólo
+  // se documenta en la hoja «Auditoría de cifras» del Excel.
+  const operational = brandGapFilledReport(brandOperationalReport(report));
 
   coverPage(doc, operational, assets);
   doc.addPage();
