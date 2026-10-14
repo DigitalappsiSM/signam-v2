@@ -459,3 +459,61 @@ describe('relleno con promedio propio · caso BANNER DIGITAL', () => {
     ).toBeCloseTo(0.75, 6);
   });
 });
+
+describe('relleno con promedio propio · base del promedio del formato', () => {
+  it('los días rellenados no entran al promedio que completa pantallas sin medición', () => {
+    // E midió sólo el lunes (200 publicados, 100 por cara) y rellena 6 días;
+    // H publica 600 todos los días; G nunca midió y toma el promedio del
+    // formato sobre observación directa.
+    const specs: PairSpec[] = [
+      {
+        storeNumber: '1',
+        storeName: 'E',
+        support: 'MUPI DIGITAL',
+        zoneSplit: false,
+        faces: [
+          {
+            locationId: 1,
+            name: 'E',
+            series: [100, null, null, null, null, null, null],
+          },
+          {
+            locationId: 2,
+            name: 'E2',
+            series: [100, null, null, null, null, null, null],
+          },
+        ],
+      },
+      {
+        storeNumber: '2',
+        storeName: 'H',
+        support: 'MUPI DIGITAL',
+        zoneSplit: false,
+        faces: [
+          { locationId: 3, name: 'H', series: Array(7).fill(300) },
+          { locationId: 4, name: 'H2', series: Array(7).fill(300) },
+        ],
+      },
+      {
+        storeNumber: '3',
+        storeName: 'G',
+        support: 'MUPI DIGITAL',
+        zoneSplit: false,
+        faces: [
+          { locationId: 5, name: 'G', series: Array(7).fill(null) },
+          { locationId: 6, name: 'G2', series: Array(7).fill(null) },
+        ],
+      },
+    ];
+    const view = brandGapFilledReport(report(specs));
+    const summary = brandCampaignSummary(view);
+    // Observación directa: (200 + 7 × 600) / 8 = 550 por par-día. Con los 6
+    // días rellenados de E dentro, bajaría a (7 × 200 + 7 × 600) / 14 = 400.
+    expect(summary.extrapolatedOts).toBeCloseTo(7 * 550, 6);
+    // E: 7 × 200 (propio) · H: 7 × 600 · G: 7 × 550.
+    expect(summary.estimatedOts).toBeCloseTo(1400 + 4200 + 7 * 550, 6);
+    expect(
+      brandDaily(view).reduce((total, point) => total + point.estimatedOts, 0),
+    ).toBeCloseTo(summary.estimatedOts, 6);
+  });
+});

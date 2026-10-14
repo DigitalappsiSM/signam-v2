@@ -566,7 +566,12 @@ tres de ellos describían mal el separador de artículos.
     publicada (un par de 1 cámara rellena con su lectura × 2);
   - una pantalla **sin ningún día medido** no tiene promedio propio y sigue con
     el promedio de su formato, igual que un soporte sin cámara; el día
-    incompleto nunca se rellena.
+    incompleto nunca se rellena. Ese promedio de formato (`brandFormatRate`)
+    se calcula sólo sobre observación directa: excluye los par-día
+    enteramente rellenados (si no, una tienda pesaría más cuantos más días le
+    faltaran) pero conserva la cara rellenada de un día medido en zona
+    partida (sin ella ese par-día real valdría la mitad y deflactaría el
+    promedio).
 
   Lo estimado se publica en el PDF **igual que lo medido** (portada, evolución,
   Tiendas TOP, demografía; todas las cifras concilian) y **nunca** se distingue

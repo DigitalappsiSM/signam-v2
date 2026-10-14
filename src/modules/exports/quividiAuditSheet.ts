@@ -3,6 +3,7 @@ import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandFormatRate,
   brandPartialDay,
   brandSingleCameraDuplication,
   brandStoreAttribution,
@@ -463,10 +464,8 @@ export function addQuividiAuditSheet(
   // Cada formato se completa con SU promedio: un único promedio para todo el
   // circuito haría que un video wall heredara el rendimiento de un mupi.
   for (const format of scope.measurable) {
-    const perPairDay =
-      format.measuredPairDays > 0
-        ? format.measuredOts / format.measuredPairDays
-        : 0;
+    // Base sin par-día enteramente rellenados: la misma que usa el PDF.
+    const perPairDay = brandFormatRate(format);
     const reason = byReasonBySupport.get(format.support);
     const cells: Array<[number, number | string, string?]> = [
       [1, format.support],
