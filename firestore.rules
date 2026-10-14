@@ -297,6 +297,33 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Confirmación de soportes/tiendas Calendario ↔ Ekon: colección
+    // INDEPENDIENTE de `campaigns` (la reimportación nunca la toca). Escriben
+    // admin/operator; motivo obligatorio e historial que solo crece.
+    function validSupportOverride(data) {
+      return data.campaignId is string
+        && data.decision in ['ekon', 'calendar']
+        && data.reason is string && data.reason.size() > 0
+        && data.supports is list
+        && data.history is list
+        && data.updatedAt is int;
+    }
+    match /campaignSupportOverrides/{campaignId} {
+      allow read: if isSignedIn();
+      allow create: if canWriteTracking()
+        && request.resource.data.campaignId == campaignId
+        && validSupportOverride(request.resource.data);
+      allow update: if canWriteTracking()
+        && request.resource.data.campaignId == resource.data.campaignId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && validSupportOverride(request.resource.data)
+        && request.resource.data.history.size() > resource.data.history.size()
+        && request.resource.data.history[0:resource.data.history.size()]
+            == resource.data.history;
+      allow delete: if false;
+    }
+
     // --- Integración Ekon (colecciones separadas de Liverpool/Master) ---
     //
     // FASE ACTUAL (pre-lanzamiento): cualquier usuario autenticado puede leer y

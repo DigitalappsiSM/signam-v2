@@ -17,6 +17,7 @@ import {
 } from 'firebase-functions/v2/https';
 import {
   buildEffectiveSupportPairs,
+  withSupportOverride,
   type CampaignDoc,
   type EffectiveScopeOrigin,
   type EffectiveSupportPair,
@@ -1430,7 +1431,11 @@ export const campaignReport = onCall(
     if (!campaignSnap.exists) {
       throw new HttpsError('not-found', 'La campaña no existe.');
     }
-    const campaign = campaignSnap.data() as CampaignDoc;
+    const campaign = await withSupportOverride(
+      db,
+      campaignId,
+      campaignSnap.data() as CampaignDoc,
+    );
     const trackingSnap = await db
       .collection('campaignOperationalTracking')
       .doc(campaignId)

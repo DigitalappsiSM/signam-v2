@@ -19,6 +19,7 @@ import {
 import { listCampaigns } from '@/services/campaigns';
 import { listOperationalTracking } from '@/services/campaignOperationalTracking';
 import { listEkonLinks } from '@/services/campaignEkonLinks';
+import { listSupportOverrides } from '@/services/campaignSupportOverrides';
 import { listDigitalOperationalItems } from '@/services/digitalOperationalItems';
 import { listDigitalTracking } from '@/services/digitalOperationalTracking';
 import { listBatches } from '@/services/ekonImports';
@@ -47,6 +48,7 @@ const EMPTY_DATA: Omit<ReportingInput, 'range' | 'today'> = {
   ekonLinks: [],
   assignmentsByNumber: new Map(),
   ekonBatches: [],
+  supportOverrides: [],
 };
 
 function isoDate(date: Date): string {
@@ -612,6 +614,7 @@ export function ReportingPage() {
         digitalTracking,
         links,
         batches,
+        supportOverrides,
       ] = await Promise.all([
         listCampaigns({ includeInactive: true }),
         listScreens(),
@@ -620,6 +623,7 @@ export function ReportingPage() {
         listDigitalTracking(),
         listEkonLinks(),
         listBatches(),
+        listSupportOverrides(),
       ]);
       const numbers = [
         ...new Set(links.map((link) => String(link.ekonCampaignNumber))),
@@ -634,6 +638,7 @@ export function ReportingPage() {
         ekonLinks: links,
         assignmentsByNumber,
         ekonBatches: batches,
+        supportOverrides,
       });
       setLoadedAt(new Date());
     } catch {

@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import {
   buildEffectiveScopeContext,
   buildEffectiveSupportPairs,
+  applySupportOverrideDoc,
   type CampaignDoc,
   type EffectiveScopeOrigin,
   type EkonAssignmentDoc,
@@ -22,12 +23,32 @@ export async function loadCampaignAvailability(
   campaignIds: readonly string[],
 ): Promise<CampaignAvailabilityItem[]> {
   if (campaignIds.length === 0) return [];
-  const [screensSnap, campaignSnaps] = await Promise.all([
+  const [screensSnap, campaignSnaps, overrideSnaps] = await Promise.all([
     db.collection('screens').get(),
     db.getAll(...campaignIds.map((id) => db.collection('campaigns').doc(id))),
+    db.getAll(
+      ...campaignIds.map((id) =>
+        db.collection('campaignSupportOverrides').doc(id),
+      ),
+    ),
   ]);
   const screens = screensSnap.docs.map((doc) => doc.data() as ScreenDoc);
-  const campaigns = campaignSnaps.filter((snap) => snap.exists);
+  // Soportes confirmados Calendario ↔ Ekon antes de todo (igual que el CSV).
+  const overrides = new Map(
+    overrideSnaps
+      .filter((snap) => snap.exists)
+      .map((snap) => [snap.id, snap.data()]),
+  );
+  const campaigns = campaignSnaps
+    .filter((snap) => snap.exists)
+    .map((snap) => ({
+      id: snap.id,
+      data: () =>
+        applySupportOverrideDoc(
+          snap.data() as CampaignDoc,
+          overrides.get(snap.id),
+        ),
+    }));
   const context = buildEffectiveScopeContext(screens);
   // Solo las campañas que requieren fallback pagan la lectura de enlaces.
   const needsLink = campaigns.filter((snap) => {

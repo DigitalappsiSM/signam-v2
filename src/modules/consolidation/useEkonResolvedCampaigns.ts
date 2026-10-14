@@ -14,6 +14,11 @@ import {
   type LoadedEkonContext,
 } from './ekonStoreContext';
 import { resolveCampaignsWithEkon } from './instoreEkon';
+import {
+  applySupportOverrides,
+  type CampaignSupportOverride,
+} from '@/modules/campaigns/supportOverride';
+import { listSupportOverrides } from '@/services/campaignSupportOverrides';
 import type { ConsolidationIssue } from './consolidate';
 
 /**
@@ -24,12 +29,36 @@ import type { ConsolidationIssue } from './consolidate';
  * - Roles que no pueden leer Ekon (comercial): esos soportes se retiran sin
  *   incidencia; nunca se expanden a todo el catálogo.
  * - Mientras carga Ekon (o si falla la lectura) ocurre lo mismo.
+ * - Antes de todo aplica los soportes confirmados Calendario ↔ Ekon
+ *   (`campaignSupportOverrides`), igual que el CSV.
  */
 export function useEkonResolvedCampaigns(
-  campaigns: readonly StoredCampaign[],
+  rawCampaigns: readonly StoredCampaign[],
   role: UserRole,
 ): { campaigns: StoredCampaign[]; issues: ConsolidationIssue[] } {
   const readable = can(role, 'reconciliation.read');
+  const [overrides, setOverrides] = useState<
+    ReadonlyMap<string, CampaignSupportOverride>
+  >(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    listSupportOverrides()
+      .then((list) => {
+        if (!cancelled)
+          setOverrides(new Map(list.map((o) => [o.campaignId, o])));
+      })
+      .catch(() => {
+        // Sin confirmaciones legibles se usa el calendario tal cual.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Se relee al recargar campañas (p. ej. tras confirmar soportes).
+  }, [rawCampaigns]);
+  const campaigns = useMemo(
+    () => applySupportOverrides(rawCampaigns, overrides),
+    [rawCampaigns, overrides],
+  );
   const needsEkon = useMemo(
     () => campaignsNeedingEkon(campaigns).length > 0,
     [campaigns],

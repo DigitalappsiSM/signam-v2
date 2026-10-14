@@ -1,3 +1,7 @@
+import {
+  applySupportOverrides,
+  type CampaignSupportOverride,
+} from '@/modules/campaigns/supportOverride';
 import { resolveCampaignsWithEkon } from '@/modules/consolidation/instoreEkon';
 import { isOperationallyApplicableStatus } from '@/modules/campaigns/campaignStatus';
 import type { AdmiraScreen } from '@/domain';
@@ -46,6 +50,8 @@ export interface ReportingInput {
   ekonLinks: readonly CampaignEkonLink[];
   assignmentsByNumber: ReadonlyMap<string, StoredEkonAssignment[]>;
   ekonBatches: readonly EkonImportBatch[];
+  /** Confirmaciones Calendario ↔ Ekon (opcional; sin ellas, el calendario). */
+  supportOverrides?: readonly CampaignSupportOverride[];
   range: ReportingRange;
   today?: Date;
 }
@@ -219,10 +225,14 @@ function attentionRows(rows: readonly TrackingRow[]): AttentionRow[] {
 
 export function buildReportingModel(input: ReportingInput): ReportingModel {
   const now = input.today ?? todayCivil();
-  const activeCampaigns = input.campaigns.filter(
-    (campaign) =>
-      campaign.active !== false &&
-      overlapsRange(campaign.fechaInicio, campaign.fechaFin, input.range),
+  // Soportes confirmados por un usuario (Calendario ↔ Ekon) antes que nada.
+  const activeCampaigns = applySupportOverrides(
+    input.campaigns.filter(
+      (campaign) =>
+        campaign.active !== false &&
+        overlapsRange(campaign.fechaInicio, campaign.fechaFin, input.range),
+    ),
+    new Map((input.supportOverrides ?? []).map((o) => [o.campaignId, o])),
   );
   // Mupi/Pendón sin detalle toman sus tiendas de Ekon con los datos que este
   // reporte ya carga (misma regla que el CSV).

@@ -24,6 +24,13 @@ import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
 import { supportStoreSource } from './supportStores';
 import {
+  applySupportOverrides,
+  SUPPORT_REVIEW_LABELS,
+} from './supportOverride';
+import type { CampaignSupportOverride } from './supportOverride';
+import { useSupportReview } from './useSupportReview';
+import { SupportReviewDialog } from './SupportReviewDialog';
+import {
   listEkonLinks,
   ekonNumberForCampaign,
   migrateLegacyEkonLinks,
@@ -486,6 +493,15 @@ export function CampaignsPage() {
   );
   // Consolida el periodo consultado. Conserva todos los flights homónimos:
   // la llave de negocio sigue siendo Campaña + RESOLUCION, no campaign.id.
+  // Aviso Calendario ↔ Ekon: se evalúa sobre la página visible (ver más abajo
+  // `setReviewRows`) y sus confirmaciones se aplican al CSV antes de todo.
+  const [reviewRows, setReviewRows] = useState<StoredCampaign[]>([]);
+  const [reviewCampaign, setReviewCampaign] = useState<StoredCampaign | null>(
+    null,
+  );
+  const supportReview = useSupportReview(reviewRows, ekonLinks, canReadEkon);
+  const supportOverrides = supportReview.overrides;
+
   const csvCampaigns = useMemo(() => {
     const allowed = campaigns.filter((c) =>
       statusAllows(statusOf(c), 'consolidationCsv'),
@@ -500,8 +516,11 @@ export function CampaignsPage() {
         )
         .map((c) => campaignKey(c.name)),
     );
-    return allowed.filter((c) => names.has(campaignKey(c.name)));
-  }, [campaigns, statusOf, desde, hasta]);
+    return applySupportOverrides(
+      allowed.filter((c) => names.has(campaignKey(c.name))),
+      supportOverrides,
+    );
+  }, [campaigns, statusOf, desde, hasta, supportOverrides]);
 
   useEffect(() => {
     if (loading) return;
@@ -703,6 +722,12 @@ export function CampaignsPage() {
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
   const pageRows = sorted.slice(pageStart, pageStart + pageSize);
+  const pageRowsKey = pageRows.map((c) => c.id).join('|');
+  useEffect(() => {
+    setReviewRows(pageRows);
+    // pageRows es un arreglo nuevo en cada render: basta con su identidad.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageRowsKey, campaigns]);
   const availability = useCampaignAvailability(
     pageRows
       .filter((c) => statusAllows(statusOf(c), 'quividiReport'))
@@ -1284,6 +1309,10 @@ export function CampaignsPage() {
                       <div className="avatar-cell">
                         <EntityAvatar decorative label={toInitials(c.name)} />
                         <span className="avatar-cell__name">{c.name}</span>
+                        <SupportReviewBadge
+                          state={supportReview.stateOf(c)}
+                          onOpen={() => setReviewCampaign(c)}
+                        />
                         {campaignOrigin(c) === 'manual' && (
                           <span
                             className="badge badge-info"
@@ -1484,6 +1513,8 @@ export function CampaignsPage() {
       {detail && (
         <CampaignDetail
           campaign={detail}
+          override={supportOverrides.get(detail.id)}
+          onReviewSupports={() => setReviewCampaign(detail)}
           resolved={resolvedById.get(detail.id)}
           ekonLoading={ekonLoading}
           issues={issuesByCampaign.get(detail.name) ?? []}
@@ -1493,6 +1524,30 @@ export function CampaignsPage() {
           canEditEkon={canLinkEkon}
           onChanged={reloadEkon}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {reviewCampaign && (
+        <SupportReviewDialog
+          campaign={reviewCampaign}
+          state={supportReview.stateOf(reviewCampaign)}
+          assignments={(() => {
+            const n = supportReview.ekonNumberOf(reviewCampaign);
+            return n != null
+              ? supportReview.assignmentsByNumber.get(String(n))
+              : [];
+          })()}
+          ekonNumber={supportReview.ekonNumberOf(reviewCampaign)}
+          screens={screens}
+          override={supportOverrides.get(reviewCampaign.id)}
+          canConfirm={canChangeStatus}
+          actor={actor.email || actor.uid}
+          onSaved={async () => {
+            await supportReview.reload();
+            // Los soportes confirmados cambian el alcance Quividi.
+            setAvailabilityVersion((v) => v + 1);
+          }}
+          onClose={() => setReviewCampaign(null)}
         />
       )}
 
@@ -1844,6 +1899,8 @@ function CampaignCorrectionModal({
 
 function CampaignDetail({
   campaign,
+  override,
+  onReviewSupports,
   resolved,
   ekonLoading,
   issues,
@@ -1855,6 +1912,9 @@ function CampaignDetail({
   onClose,
 }: {
   campaign: StoredCampaign;
+  /** Confirmación Calendario ↔ Ekon vigente (si la hay). */
+  override: CampaignSupportOverride | undefined;
+  onReviewSupports: () => void;
   /** La campaña tras resolver Mupi/Pendón sin detalle con Ekon. */
   resolved: StoredCampaign | undefined;
   ekonLoading: boolean;
@@ -1868,6 +1928,9 @@ function CampaignDetail({
 }) {
   const byStore = new Map<string, string>();
   const bySupport = new Map<string, string>();
+  // Lo que va al CSV: los confirmados desde Ekon o, si no, los del calendario.
+  const finalSupports =
+    override?.decision === 'ekon' ? override.supports : campaign.supports;
   for (const i of issues) {
     if (i.store)
       byStore.set(`${normalizeSupport(i.support)}|${i.store}`, i.code);
@@ -1905,11 +1968,30 @@ function CampaignDetail({
           </section>
         )}
 
-        {campaign.supports.length === 0 && (
+        {override?.decision === 'ekon' && (
+          <p className="campaign-status__reason">
+            <strong>Soportes confirmados desde Ekon</strong> (el calendario
+            decía {campaign.supports.map((s) => s.support).join(', ') || '—'}) ·{' '}
+            {override.reason}
+          </p>
+        )}
+        {ekonNumber != null && (
+          <p style={{ margin: '0 0 0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onReviewSupports}
+            >
+              Calendario vs Ekon
+            </button>
+          </p>
+        )}
+
+        {finalSupports.length === 0 && (
           <p className="text-muted">La campaña no tiene soportes asignados.</p>
         )}
 
-        {campaign.supports.map((s, idx) => {
+        {finalSupports.map((s, idx) => {
           const instore = isInStoreMediaSupport(s.support);
           const supNorm = normalizeSupport(s.support);
           const source = supportStoreSource(s, resolved, issues);
@@ -2402,5 +2484,29 @@ function CampaignDownloadsMenu({
           document.body,
         )}
     </>
+  );
+}
+
+/** Aviso Calendario ↔ Ekon en la fila de la campaña. */
+function SupportReviewBadge({
+  state,
+  onOpen,
+}: {
+  state: ReturnType<ReturnType<typeof useSupportReview>['stateOf']>;
+  onOpen: () => void;
+}) {
+  if (state === 'none') return null;
+  return (
+    <button
+      type="button"
+      className={
+        state === 'confirmed' ? 'badge badge-info' : 'badge badge-warning'
+      }
+      style={{ cursor: 'pointer', border: 'none' }}
+      onClick={onOpen}
+      title="Comparar soportes y tiendas del calendario contra Ekon"
+    >
+      {SUPPORT_REVIEW_LABELS[state]}
+    </button>
   );
 }

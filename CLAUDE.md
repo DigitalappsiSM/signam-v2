@@ -192,6 +192,16 @@ logic. The load-bearing ones:
   definition of "measured as recorded" doesn't change. The audit sheet's per-store table and its dedicated
   «Duplicación de la cifra (1 y 2 cámaras)» section (`brandSingleCameraDuplication`) make the raw-vs-published gap explicit.
   See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
+- **Calendar ↔ Ekon support confirmation** (`campaigns/supportOverride.ts`, `campaignSupportOverrides/{campaignId}`):
+  with an Ekon link, the calendar's support is compared **store by store** against the Ekon circuit. Dates are not
+  compared: only period-overlapping assignments count. A mismatch shows a **visual-only** warning in Campaigns and
+  Operational tracking. An admin/operator confirms **Usar Ekon** or **Mantener calendario** with a mandatory reason
+  and an append-only history. «Usar Ekon» replaces the calendar supports that have stores. Each circuit maps to the
+  support the Admira catalog has active at that store, and the user picks when there are several. The decision lives
+  outside `campaigns`, so it survives reimports. It is applied **before** Ekon resolution/`consolidate` in every
+  consumer (CSV, tracking, dashboard, reporting) and server-side before `buildEffectiveSupportPairs` (Quividi). If
+  the calendar or Ekon changes after confirmation, the decision keeps applying and the warning returns as «Revisar».
+  See `AGENTS.md`.
 - **Campaign status** (`Activa`/`En pausa`/`Cancelada`/`Duplicada`, plus derived `Retirada del calendario`)
   lives in the tracking doc with mandatory reason + append-only history; its effects on alerts, Dashboard,
   load, consolidation/CSV, low occupancy and Quividi come **only** from `STATUS_EFFECTS` in
