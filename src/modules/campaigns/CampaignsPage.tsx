@@ -22,6 +22,7 @@ import {
 } from '@/modules/consolidation/ekonStoreContext';
 import { ManualCampaignModal } from './ManualCampaignModal';
 import { campaignOrigin } from './manualCampaign';
+import { supportStoreSource } from './supportStores';
 import {
   listEkonLinks,
   ekonNumberForCampaign,
@@ -73,7 +74,10 @@ import {
 import { isInStoreMediaSupport, normalizeSupport } from '@/domain';
 import type { AdmiraScreen } from '@/domain';
 import type { Actor } from '@/modules/admira-catalog/screenFactory';
-import { effectiveCampaignSupportScope } from '@/modules/liverpool-import/campaignParse';
+import {
+  effectiveCampaignSupportScope,
+  type StoreRef,
+} from '@/modules/liverpool-import/campaignParse';
 import {
   campaignKey,
   campaignIdentity,
@@ -1480,6 +1484,8 @@ export function CampaignsPage() {
       {detail && (
         <CampaignDetail
           campaign={detail}
+          resolved={resolvedById.get(detail.id)}
+          ekonLoading={ekonLoading}
           issues={issuesByCampaign.get(detail.name) ?? []}
           ekonNumber={ekonByKey.get(detail.id) ?? null}
           ekonLinks={ekonLinks}
@@ -1838,6 +1844,8 @@ function CampaignCorrectionModal({
 
 function CampaignDetail({
   campaign,
+  resolved,
+  ekonLoading,
   issues,
   ekonNumber,
   ekonLinks,
@@ -1847,6 +1855,9 @@ function CampaignDetail({
   onClose,
 }: {
   campaign: StoredCampaign;
+  /** La campaña tras resolver Mupi/Pendón sin detalle con Ekon. */
+  resolved: StoredCampaign | undefined;
+  ekonLoading: boolean;
   issues: ConsolidationIssue[];
   ekonNumber: number | null;
   ekonLinks: CampaignEkonLink[];
@@ -1901,21 +1912,59 @@ function CampaignDetail({
         {campaign.supports.map((s, idx) => {
           const instore = isInStoreMediaSupport(s.support);
           const supNorm = normalizeSupport(s.support);
+          const source = supportStoreSource(s, resolved, issues);
+          const storeList = (stores: readonly StoreRef[]) => (
+            <ul className="detail-stores">
+              {stores.map((st, j) => {
+                const code = byStore.get(
+                  `${supNorm}|${normalizeStore(st.numero)}`,
+                );
+                return (
+                  <li key={j}>
+                    <span>
+                      {st.numero} {st.nombre}
+                    </span>
+                    {code ? (
+                      <span className="badge badge-warning">
+                        {ISSUE_LABELS[code as keyof typeof ISSUE_LABELS] ??
+                          'incidencia'}
+                      </span>
+                    ) : (
+                      <span className="badge badge-info">OK</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          );
           return (
             <section key={idx} className="detail-support">
               <h3>
                 {s.support}{' '}
                 {instore ? (
-                  <span className="badge badge-warning">
-                    InStore (excluido)
-                  </span>
+                  <span className="badge badge-muted">InStore</span>
                 ) : (
                   <span className="badge badge-muted">Liverpool</span>
                 )}
               </h3>
-              {instore ? (
+              {source.kind === 'ekon' ? (
+                <>
+                  <p className="text-muted" style={{ margin: 0 }}>
+                    Sin detalle en el calendario: tiendas tomadas de la campaña
+                    Ekon{ekonNumber != null ? ` #${ekonNumber}` : ''}.
+                  </p>
+                  {storeList(source.stores)}
+                </>
+              ) : source.kind === 'blocked' ? (
+                <p style={{ margin: 0 }}>
+                  {source.issue.message}{' '}
+                  <span className="badge badge-danger">Bloqueado</span>
+                </p>
+              ) : source.kind === 'pending' ? (
                 <p className="text-muted" style={{ margin: 0 }}>
-                  Excluido de la consolidación en esta etapa.
+                  {ekonLoading
+                    ? 'Sin detalle en el calendario: resolviendo tiendas desde Ekon…'
+                    : 'Sin detalle en el calendario: tiendas de Ekon no disponibles en esta vista.'}
                 </p>
               ) : effectiveCampaignSupportScope(s) === 'invalid' ? (
                 <p style={{ margin: 0 }}>
@@ -1936,28 +1985,7 @@ function CampaignDetail({
                   )}
                 </p>
               ) : (
-                <ul className="detail-stores">
-                  {s.stores.map((st, j) => {
-                    const code = byStore.get(
-                      `${supNorm}|${normalizeStore(st.numero)}`,
-                    );
-                    return (
-                      <li key={j}>
-                        <span>
-                          {st.numero} {st.nombre}
-                        </span>
-                        {code ? (
-                          <span className="badge badge-warning">
-                            {ISSUE_LABELS[code as keyof typeof ISSUE_LABELS] ??
-                              'incidencia'}
-                          </span>
-                        ) : (
-                          <span className="badge badge-info">OK</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                storeList(s.stores)
               )}
             </section>
           );
