@@ -29,9 +29,11 @@ export const CAMERA_PAIR_GAP_THRESHOLD = 1000;
  *   × 2 (octubre 2026, caso Coapa). Si un día/hora sólo reporta una de las
  *   dos, se duplica la que reportó.
  *
- * Los pares de zona partida (Insurgentes, BANNER DIGITAL) ya suman sus 2
- * cámaras y no se duplican. Se basa en cuántas cámaras tiene **asignadas** el
- * circuito en el catálogo (`configuredCameras`), no en cuántas reportaron.
+ * Los pares de zona partida (Mupi de Insurgentes, BANNER DIGITAL) ya suman
+ * sus 2 cámaras y no se duplican; el Mupi de Polanco es una sola pantalla
+ * (`isSingleScreenPair`) y tampoco. Se basa en cuántas cámaras tiene
+ * **asignadas** el circuito en el catálogo (`configuredCameras`), no en
+ * cuántas reportaron.
  */
 export const SINGLE_CAMERA_DUPLICATION_FACTOR = 2;
 
@@ -42,7 +44,9 @@ export const SINGLE_CAMERA_DUPLICATION_FACTOR = 2;
 export function duplicatesPublishedValue(
   configuredCameras: number,
   isZoneSplit: boolean,
+  isSingleScreen = false,
 ): boolean {
+  if (isSingleScreen) return false;
   if (configuredCameras === 1) return true;
   return configuredCameras === 2 && !isZoneSplit;
 }
@@ -50,16 +54,59 @@ export function duplicatesPublishedValue(
 /**
  * Cifra de cara a marca a partir del dato medido (ya combinado por
  * `combineCameraValues`): lo duplica según `duplicatesPublishedValue`; lo deja
- * igual en cualquier otro caso (0 cámaras, zona partida o 3+ cámaras).
+ * igual en cualquier otro caso (0 cámaras, zona partida, pantalla única o 3+
+ * cámaras).
  */
 export function publishedValue(
   measuredValue: number,
   configuredCameras: number,
   isZoneSplit = false,
+  isSingleScreen = false,
 ): number {
-  return duplicatesPublishedValue(configuredCameras, isZoneSplit)
+  return duplicatesPublishedValue(
+    configuredCameras,
+    isZoneSplit,
+    isSingleScreen,
+  )
     ? measuredValue * SINGLE_CAMERA_DUPLICATION_FACTOR
     : measuredValue;
+}
+
+/** Factor (1 o 2) que `publishedValue` aplica a un par; viaja en el reporte
+ * (`publishedFactor`) para que el informe comercial rellene huecos de cámara
+ * con la misma regla sin reimplementarla. */
+export function publishedFactor(
+  configuredCameras: number,
+  isZoneSplit: boolean,
+  isSingleScreen = false,
+): number {
+  return duplicatesPublishedValue(
+    configuredCameras,
+    isZoneSplit,
+    isSingleScreen,
+  )
+    ? SINGLE_CAMERA_DUPLICATION_FACTOR
+    : 1;
+}
+
+/** Soporte Mupi (`MEGA MUPI DIGITAL` y sus variantes de nombre). */
+export function isMupiSupport(support: string): boolean {
+  return normalizeSupport(support).includes('MUPI');
+}
+
+/**
+ * Mupi de Polanco: una sola pantalla, así que su lectura se publica tal cual
+ * (octubre 2026) — ni se suma ni se duplica, aunque tenga 1 cámara. Si algún
+ * día tuviera 2, se tomaría la más alta, también sin duplicar.
+ */
+export function isSingleScreenPair(pair: {
+  storeName: string;
+  support: string;
+}): boolean {
+  return (
+    normalizeStore(pair.storeName).includes('polanco') &&
+    isMupiSupport(pair.support)
+  );
 }
 
 /**
@@ -70,7 +117,9 @@ export function publishedValue(
  * PC con 2 flujos de video del MISMO circuito, p. ej. Toreo, Satélite,
  * Mitikah, Delta).
  *
- * - Insurgentes: sus 2 cámaras están en pisos distintos.
+ * - Mupi de Insurgentes: sus 2 cámaras están en pisos distintos y miden
+ *   audiencias distintas (octubre 2026: sólo el Mupi; hoy sólo Mupis y
+ *   Banners tienen cámara).
  * - Cualquier soporte `BANNER DIGITAL`: sus 2 caras dan a lados distintos del
  *   hueco central del centro comercial.
  *
@@ -83,7 +132,8 @@ export function isZoneSplitPair(pair: {
   support: string;
 }): boolean {
   return (
-    normalizeStore(pair.storeName).includes('insurgentes') ||
+    (normalizeStore(pair.storeName).includes('insurgentes') &&
+      isMupiSupport(pair.support)) ||
     normalizeSupport(pair.support) === 'BANNER DIGITAL'
   );
 }
@@ -176,8 +226,8 @@ export interface CameraPairGap {
  * alerta de cámara caída (eso ya lo cubre el estado `no_measurement` /
  * `partial_measurement` / `no_ots` de cada cámara individual).
  *
- * Excluye los pares de zona partida (Insurgentes, Banner Digital): ahí una
- * brecha grande entre cámaras es el comportamiento esperado (zonas
+ * Excluye los pares de zona partida (Mupi de Insurgentes, Banner Digital):
+ * ahí una brecha grande entre cámaras es el comportamiento esperado (zonas
  * distintas), no una incidencia que alertar.
  */
 export function detectCameraPairGaps(

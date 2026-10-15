@@ -171,7 +171,22 @@ describe('buildCommercialDailyRow', () => {
     });
   });
 
-  it('zona partida por nombre de tienda (Insurgentes) suma aunque el soporte no sea Banner', () => {
+  it('zona partida por nombre de tienda: el Mupi de Insurgentes suma sus 2 pisos', () => {
+    const a = camera({ locationId: 1, ots: 80 });
+    const b = camera({ locationId: 2, ots: 120 });
+    const row = buildCommercialDailyRow(
+      pair({
+        storeName: 'LIVERPOOL INSURGENTES',
+        support: 'MEGA MUPI DIGITAL',
+        configuredPointIds: ['LIV-INS-MUPI-P1', 'LIV-INS-MUPI-P2'],
+      }),
+      DATE,
+      [a, b],
+    );
+    expect(row).toMatchObject({ zoneSplit: true, ots: 200, publishedOts: 200 });
+  });
+
+  it('en Insurgentes, un soporte que no es Mupi no es zona partida', () => {
     const a = camera({ locationId: 1, ots: 80 });
     const b = camera({ locationId: 2, ots: 120 });
     const row = buildCommercialDailyRow(
@@ -183,7 +198,20 @@ describe('buildCommercialDailyRow', () => {
       DATE,
       [a, b],
     );
-    expect(row).toMatchObject({ zoneSplit: true, ots: 200, publishedOts: 200 });
+    expect(row).toMatchObject({ zoneSplit: false, ots: 120, publishedOts: 240 });
+  });
+
+  it('el Mupi de Polanco (pantalla única) publica tal cual, sin duplicar', () => {
+    const row = buildCommercialDailyRow(
+      pair({
+        storeName: 'LIVERPOOL POLANCO',
+        support: 'MEGA MUPI DIGITAL',
+        configuredPointIds: ['LIV-POL-MUPI-P1'],
+      }),
+      DATE,
+      [camera({ locationId: 1, ots: 80 })],
+    );
+    expect(row).toMatchObject({ ots: 80, publishedOts: 80 });
   });
 
   it('sin medición, devuelve fila missing en ceros sin inventar datos', () => {

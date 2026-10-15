@@ -1,6 +1,7 @@
 import {
   combineCameraValues,
   combineCameraAverageSeconds,
+  isSingleScreenPair,
   isZoneSplitPair,
   publishedValue,
 } from '../cameraCombination';
@@ -140,6 +141,11 @@ export function buildCommercialDailyRow(
     storeName: pair.storeName,
     support: pair.support,
   });
+  // Mupi de Polanco: pantalla única, se publica sin duplicar.
+  const singleScreen = isSingleScreenPair({
+    storeName: pair.storeName,
+    support: pair.support,
+  });
   const measured = cameraDays.filter((camera) => camera.measured);
   // Cada serie se combina solo con los puntos que la tienen: un punto con
   // watchers pero sin OTS no debe aportar un «0 OTS» a la combinación.
@@ -202,13 +208,9 @@ export function buildCommercialDailyRow(
     ots,
     effectiveOts,
     watchers,
-    publishedOts: publishedValue(ots, configuredCameras, zoneSplit),
-    publishedEffectiveOts: publishedValue(
-      effectiveOts,
-      configuredCameras,
-      zoneSplit,
-    ),
-    publishedWatchers: publishedValue(watchers, configuredCameras, zoneSplit),
+    publishedOts: publishedValue(ots, configuredCameras, zoneSplit, singleScreen),
+    publishedEffectiveOts: publishedValue(effectiveOts, configuredCameras, zoneSplit, singleScreen),
+    publishedWatchers: publishedValue(watchers, configuredCameras, zoneSplit, singleScreen),
     attentionSeconds: combineCameraAverageSeconds(
       withViewers.map((camera) => ({
         watchers: camera.watchers,

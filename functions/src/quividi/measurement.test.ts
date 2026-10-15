@@ -411,6 +411,9 @@ describe('buildCoverage', () => {
         percent: 100,
       },
     ]);
+    expect(coverage.unmappedPairs).toEqual([
+      expect.objectContaining({ storeNumber: '78', support: 'BANNER DIGITAL' }),
+    ]);
   });
 
   it('no divide entre cero cuando no hay pares', () => {
@@ -419,6 +422,7 @@ describe('buildCoverage', () => {
       mappedPairs: 0,
       percent: 0,
       bySupport: [],
+      unmappedPairs: [],
     });
   });
 });
@@ -605,7 +609,28 @@ describe('buildMeasurementRows · zona partida y brecha entre cámaras', () => {
     });
   });
 
-  it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
+  it('el Mupi de Polanco (pantalla única) publica tal cual', () => {
+    const polanco = pair({
+      storeName: 'LIVERPOOL POLANCO',
+      support: 'MEGA MUPI DIGITAL',
+      cameraNames: ['CAM-A'],
+      cameras: [location(1, 'CAM-A')],
+    });
+    const rows = buildMeasurementRows(
+      [polanco],
+      dates,
+      [ots(1, dates[0]!, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows.supportDays[0]).toMatchObject({
+      publishedFactor: 1,
+      ots: 150,
+      publishedOts: 150,
+    });
+  });
+
+  it('el Mupi de Insurgentes siempre suma sus 2 pisos', () => {
     const insurgentes = pair({
       storeName: 'LIVERPOOL INSURGENTES',
       support: 'MUPI DIGITAL',

@@ -9,12 +9,17 @@ import {
   brandCampaignSummary,
   brandDaily,
   brandDemographics,
+  brandFormatAverageAssignments,
+  brandGender,
+  brandHourlyDistribution,
   brandOperationalReport,
   brandStoreAttribution,
+  brandTopStores,
 } from './quividiBrandReport';
 import {
   brandGapFill,
   brandGapFilledReport,
+  gapFillMethodLabel,
   isWeekendDate,
 } from './quividiGapFill';
 
@@ -35,6 +40,8 @@ interface Face {
   locationId: number;
   name: string;
   series: Series;
+  /** Horas de la franja sin dato, por fecha (el resto del día sí midió). */
+  hourGaps?: Record<string, number[]>;
 }
 
 interface PairSpec {
@@ -42,6 +49,8 @@ interface PairSpec {
   storeName: string;
   support?: string;
   zoneSplit?: boolean;
+  /** Mupi de Polanco: pantalla única, no se duplica. */
+  singleScreen?: boolean;
   faces: Face[];
 }
 
@@ -72,69 +81,98 @@ function cameraDays(spec: PairSpec): QuividiCameraDay[] {
   );
 }
 
+const OPERATIONAL_HOURS = Array.from({ length: 12 }, (_, index) => 10 + index);
+
+/** Regla de cámaras del backend (v10): zona partida suma; si no, la más alta. */
+function combine(values: readonly number[], zoneSplit: boolean): number {
+  if (values.length === 0) return 0;
+  return zoneSplit
+    ? values.reduce((total, value) => total + value, 0)
+    : Math.max(...values);
+}
+
+function factorOf(spec: PairSpec): number {
+  const configured = spec.faces.length;
+  const zoneSplit = spec.zoneSplit ?? true;
+  if (spec.singleScreen) return 1;
+  if (configured === 1) return 2;
+  return configured === 2 && !zoneSplit ? 2 : 1;
+}
+
 /**
- * Una hora de la franja operativa por día, como la arma `buildSupportHours`:
- * zona partida con 2+ cámaras suma y envía la lectura de cada cara; 1 cámara
- * se duplica.
+ * Las 12 horas de la franja operativa por día, como las arma
+ * `buildSupportHours` (v10): cada hora vale 1/12 del día de cada cámara; con
+ * 2+ cámaras envía la lectura de cada una. `hourGaps` quita horas concretas
+ * de una cámara.
  */
 function supportHours(spec: PairSpec): QuividiSupportHour[] {
   const configured = spec.faces.length;
   const zoneSplit = spec.zoneSplit ?? true;
-  const factor = configured === 1 ? 2 : 1;
-  return DATES.flatMap((date, index) => {
-    const measured = spec.faces
-      .map((face) => ({ face, value: face.series[index] ?? null }))
-      .filter(
-        (item): item is { face: Face; value: number } => item.value !== null,
+  const factor = factorOf(spec);
+  return DATES.flatMap((date, index) =>
+    OPERATIONAL_HOURS.flatMap((hour) => {
+      const measured = spec.faces
+        .map((face) => ({ face, value: face.series[index] ?? null }))
+        .filter(
+          (item): item is { face: Face; value: number } =>
+            item.value !== null &&
+            !(item.face.hourGaps?.[date] ?? []).includes(hour),
+        )
+        .map(({ face, value }) => ({ face, value: value / 12 }));
+      if (measured.length === 0) return [];
+      const ots = combine(
+        measured.map((item) => item.value),
+        zoneSplit,
       );
-    if (measured.length === 0) return [];
-    const ots = measured.reduce((total, item) => total + item.value, 0);
-    return [
-      {
-        date,
-        hour: 12,
-        storeNumber: spec.storeNumber,
-        storeName: spec.storeName,
-        support: spec.support ?? 'BANNER DIGITAL',
-        configuredCameras: configured,
-        measuredCameras: measured.length,
-        status:
-          measured.length === configured
-            ? ('complete' as const)
-            : ('partial' as const),
-        ots,
-        effectiveOts: ots / 2,
-        watchers: ots / 10,
-        publishedOts: ots * factor,
-        publishedEffectiveOts: (ots / 2) * factor,
-        publishedWatchers: (ots / 10) * factor,
-        attentionSeconds: 4,
-        dwellSeconds: 15,
-        ...(zoneSplit && configured >= 2
-          ? {
-              cameraReadings: measured.map(({ face, value }) => ({
-                locationId: face.locationId,
-                ots: value,
-                effectiveOts: value / 2,
-                watchers: value / 10,
-              })),
-            }
-          : {}),
-      },
-    ];
-  });
+      return [
+        {
+          date,
+          hour,
+          storeNumber: spec.storeNumber,
+          storeName: spec.storeName,
+          support: spec.support ?? 'BANNER DIGITAL',
+          configuredCameras: configured,
+          measuredCameras: measured.length,
+          status:
+            measured.length === configured
+              ? ('complete' as const)
+              : ('partial' as const),
+          zoneSplit,
+          publishedFactor: factor,
+          ots,
+          effectiveOts: ots / 2,
+          watchers: ots / 10,
+          publishedOts: ots * factor,
+          publishedEffectiveOts: (ots / 2) * factor,
+          publishedWatchers: (ots / 10) * factor,
+          attentionSeconds: 4,
+          dwellSeconds: 15,
+          ...(configured >= 2
+            ? {
+                cameraReadings: measured.map(({ face, value }) => ({
+                  locationId: face.locationId,
+                  ots: value,
+                  effectiveOts: value / 2,
+                  watchers: value / 10,
+                })),
+              }
+            : {}),
+        },
+      ];
+    }),
+  );
 }
 
 /** Filas diarias (día completo) consistentes con las horas. */
 function supportDays(spec: PairSpec): QuividiSupportDay[] {
   const zoneSplit = spec.zoneSplit ?? true;
   const configured = spec.faces.length;
-  const factor = configured === 1 ? 2 : 1;
+  const factor = factorOf(spec);
   return DATES.map((date, index) => {
     const values = spec.faces
       .map((face) => face.series[index] ?? null)
       .filter((value): value is number => value !== null);
-    const ots = values.reduce((total, value) => total + value, 0);
+    const ots = combine(values, zoneSplit);
     return {
       date,
       storeNumber: spec.storeNumber,
@@ -149,6 +187,7 @@ function supportDays(spec: PairSpec): QuividiSupportDay[] {
             ? ('complete' as const)
             : ('partial' as const),
       zoneSplit,
+      publishedFactor: factor,
       ots,
       effectiveOts: ots / 2,
       watchers: ots / 10,
@@ -168,7 +207,7 @@ function report(specs: PairSpec[]): QuividiCampaignReport {
     supports.set(support, (supports.get(support) ?? 0) + 1);
   }
   return {
-    schemaVersion: 9,
+    schemaVersion: 10,
     campaignId: 'c1',
     campaignName: 'MARCA JUGUETES',
     startDate: DATES[0]!,
@@ -335,7 +374,7 @@ describe('relleno con promedio propio · caso BANNER DIGITAL', () => {
       reason: 'missing-face',
       method: 'sister-face-copy',
       sourceLocationName: 'B-P1',
-      publishedOts: 5605,
+      publishedOts: expect.closeTo(5605, 6),
     });
     const storeC = fills.filter((fill) => fill.storeNumber === '4');
     expect(storeC).toMatchObject([
@@ -358,15 +397,19 @@ describe('relleno con promedio propio · caso BANNER DIGITAL', () => {
     };
     const { fills } = brandGapFill(brandOperationalReport(report([spec])));
     expect(fills).toMatchObject([
-      { date: '2026-10-04', method: 'weekend-average', publishedOts: 800 },
+      {
+        date: '2026-10-04',
+        method: 'weekend-average',
+        publishedOts: expect.closeTo(800, 6),
+      },
     ]);
   });
 
-  it('una cara sin cámara fuera de BANNER DIGITAL no se copia', () => {
+  it('Mupi de Insurgentes: un piso sin cámara copia el valor del otro', () => {
     const spec: PairSpec = {
       storeNumber: '10',
       storeName: 'INSURGENTES',
-      support: 'MUPI DIGITAL',
+      support: 'MEGA MUPI DIGITAL',
       faces: [
         {
           locationId: 10,
@@ -374,6 +417,27 @@ describe('relleno con promedio propio · caso BANNER DIGITAL', () => {
           series: [100, 100, 100, 100, 100, 100, 100],
         },
         { locationId: 11, name: 'F-2', series: Array(7).fill(null) },
+      ],
+    };
+    const { fills } = brandGapFill(brandOperationalReport(report([spec])));
+    expect(fills).toHaveLength(7);
+    expect(fills[0]).toMatchObject({
+      locationName: 'F-2',
+      reason: 'missing-face',
+      method: 'sister-face-copy',
+      publishedOts: expect.closeTo(100, 6),
+    });
+  });
+
+  it('una cámara caída fuera de zona partida no se copia de su hermana', () => {
+    const spec: PairSpec = {
+      storeNumber: '12',
+      storeName: 'COAPA',
+      support: 'MEGA MUPI DIGITAL',
+      zoneSplit: false,
+      faces: [
+        { locationId: 12, name: 'K-1', series: Array(7).fill(100) },
+        { locationId: 13, name: 'K-2', series: Array(7).fill(null) },
       ],
     };
     const { fills } = brandGapFill(brandOperationalReport(report([spec])));
@@ -515,5 +579,319 @@ describe('relleno con promedio propio · base del promedio del formato', () => {
     expect(
       brandDaily(view).reduce((total, point) => total + point.estimatedOts, 0),
     ).toBeCloseTo(summary.estimatedOts, 6);
+  });
+});
+
+describe('relleno hora a hora · Mupis igual que Banners', () => {
+  it('una cámara con horas sin dato completa cada hora con su promedio ÷ 12', () => {
+    // 1 cámara (× 2): lunes a jueves completos con 1,200; el viernes faltan
+    // 4 horas → 8 medidas (800) + 4 × 1,200/12 (400).
+    const spec: PairSpec = {
+      storeNumber: '20',
+      storeName: 'SATELITE',
+      support: 'MEGA MUPI DIGITAL',
+      zoneSplit: false,
+      faces: [
+        {
+          locationId: 20,
+          name: 'M',
+          series: [1200, 1200, 1200, 1200, 1200, 2400, 2400],
+          hourGaps: { '2026-10-02': [18, 19, 20, 21] },
+        },
+      ],
+    };
+    const { fills, report: view } = brandGapFill(
+      brandOperationalReport(report([spec])),
+    );
+    expect(fills).toHaveLength(1);
+    expect(fills[0]).toMatchObject({
+      date: '2026-10-02',
+      locationId: null,
+      reason: 'missing-hours',
+      method: 'weekday-average',
+      basisDays: 4,
+      basisKind: 'complete-days',
+      missingHours: 4,
+      ots: expect.closeTo(400, 6),
+      publishedOts: expect.closeTo(800, 6),
+    });
+    const friday = view.supportDays.find((row) => row.date === '2026-10-02');
+    expect(friday?.publishedOts).toBeCloseTo(2400, 6);
+    expect(friday?.gapFill).toMatchObject({ full: false });
+    expect(gapFillMethodLabel(fills[0]!)).toBe(
+      '4 de 12 h sin dato: cada hora vale 1/12 del promedio propio entre semana (4 días completos)',
+    );
+  });
+
+  it('el promedio sale sólo de días completos: un día parcial no lo deflacta', () => {
+    // Lunes parcial (6 de 12 h, 600 medidos) y martes sin dato: el martes
+    // toma el promedio de los días completos (1,200), no (600 + 1,200…) / n.
+    const spec: PairSpec = {
+      storeNumber: '21',
+      storeName: 'PERISUR',
+      support: 'MEGA MUPI DIGITAL',
+      faces: [
+        {
+          locationId: 21,
+          name: 'P',
+          series: [1200, null, 1200, 1200, 1200, 1200, 1200],
+          hourGaps: { '2026-09-28': [16, 17, 18, 19, 20, 21] },
+        },
+      ],
+    };
+    const { fills } = brandGapFill(brandOperationalReport(report([spec])));
+    const tuesday = fills.find((fill) => fill.date === '2026-09-29');
+    expect(tuesday).toMatchObject({
+      reason: 'missing-day',
+      missingHours: 12,
+      basisDays: 3,
+      ots: expect.closeTo(1200, 6),
+    });
+    const monday = fills.find((fill) => fill.date === '2026-09-28');
+    expect(monday).toMatchObject({
+      reason: 'missing-hours',
+      missingHours: 6,
+      ots: expect.closeTo(600, 6),
+    });
+  });
+
+  it('Mupi de 2 cámaras: rellena la caída con su promedio y toma la más alta × 2', () => {
+    // K-2 suele medir más (1,800) que K-1 (1,200). El miércoles K-2 cae:
+    // su promedio (1,800) supera lo medido por K-1 → 1,800 × 2.
+    const spec: PairSpec = {
+      storeNumber: '22',
+      storeName: 'COAPA',
+      support: 'MEGA MUPI DIGITAL',
+      zoneSplit: false,
+      faces: [
+        { locationId: 22, name: 'K-1', series: Array(7).fill(1200) },
+        {
+          locationId: 23,
+          name: 'K-2',
+          series: [1800, 1800, null, 1800, 1800, 1800, 1800],
+        },
+      ],
+    };
+    const { fills, report: view } = brandGapFill(
+      brandOperationalReport(report([spec])),
+    );
+    expect(fills).toHaveLength(1);
+    expect(fills[0]).toMatchObject({
+      date: '2026-09-30',
+      locationName: 'K-2',
+      reason: 'missing-day',
+      ots: expect.closeTo(600, 6),
+      publishedOts: expect.closeTo(1200, 6),
+    });
+    const wednesday = view.supportDays.find((row) => row.date === '2026-09-30');
+    expect(wednesday?.publishedOts).toBeCloseTo(3600, 6);
+  });
+
+  it('Mupi de 2 cámaras: si la caída mide menos que su hermana, no se estima nada', () => {
+    const spec: PairSpec = {
+      storeNumber: '23',
+      storeName: 'COAPA',
+      support: 'MEGA MUPI DIGITAL',
+      zoneSplit: false,
+      faces: [
+        { locationId: 24, name: 'K-1', series: Array(7).fill(1800) },
+        {
+          locationId: 25,
+          name: 'K-2',
+          series: [1200, 1200, null, 1200, 1200, 1200, 1200],
+        },
+      ],
+    };
+    const { fills } = brandGapFill(brandOperationalReport(report([spec])));
+    expect(fills).toEqual([]);
+  });
+
+  it('Mupi de Insurgentes: rellena cada piso por separado y los suma', () => {
+    const spec: PairSpec = {
+      storeNumber: '24',
+      storeName: 'INSURGENTES',
+      support: 'MEGA MUPI DIGITAL',
+      faces: [
+        { locationId: 26, name: 'PISO 1', series: Array(7).fill(1200) },
+        {
+          locationId: 27,
+          name: 'PISO 2',
+          series: [600, 600, 600, 600, 600, 600, 600],
+          hourGaps: { '2026-09-29': [10, 11, 12] },
+        },
+      ],
+    };
+    const { fills, report: view } = brandGapFill(
+      brandOperationalReport(report([spec])),
+    );
+    expect(fills).toHaveLength(1);
+    expect(fills[0]).toMatchObject({
+      locationName: 'PISO 2',
+      reason: 'missing-hours',
+      missingHours: 3,
+      publishedOts: expect.closeTo(150, 6),
+    });
+    const tuesday = view.supportDays.find((row) => row.date === '2026-09-29');
+    // Suma de pisos, sin duplicar: 1,200 + (450 medidos + 150 estimados).
+    expect(tuesday?.publishedOts).toBeCloseTo(1800, 6);
+  });
+
+  it('Mupi de Polanco: rellena con su promedio y publica sin duplicar', () => {
+    const spec: PairSpec = {
+      storeNumber: '25',
+      storeName: 'POLANCO',
+      support: 'MEGA MUPI DIGITAL',
+      zoneSplit: false,
+      singleScreen: true,
+      faces: [
+        {
+          locationId: 28,
+          name: 'POL',
+          series: [1000, 1000, 1000, null, 1000, 1000, 1000],
+        },
+      ],
+    };
+    const { fills } = brandGapFill(brandOperationalReport(report([spec])));
+    expect(fills).toMatchObject([
+      {
+        date: '2026-10-01',
+        ots: expect.closeTo(1000, 6),
+        publishedOts: expect.closeTo(1000, 6),
+      },
+    ]);
+  });
+});
+
+describe('todas las cifras del PDF cuadran con la portada', () => {
+  function circuitWithUniverse(): QuividiCampaignReport {
+    const specs: PairSpec[] = [
+      ...CIRCUIT,
+      {
+        storeNumber: '30',
+        storeName: 'TIENDA H',
+        support: 'BANNER DIGITAL',
+        faces: [
+          {
+            locationId: 30,
+            name: 'H-1',
+            series: [4000, 4000, 4000, 4000, 4000, 8000, 8000],
+            hourGaps: { '2026-10-01': [19, 20, 21] },
+          },
+          {
+            locationId: 31,
+            name: 'H-2',
+            series: [3000, 3000, 3000, 3000, 3000, 6000, 6000],
+          },
+        ],
+      },
+    ];
+    const base = report(specs);
+    // Demografía medida por día completo (00–24 h): el doble de los watchers
+    // de la franja, para comprobar que se escala a lo publicado.
+    const demographics = base.supportDays
+      .filter((row) => row.status !== 'missing')
+      .flatMap((row) => [
+        {
+          date: row.date,
+          storeNumber: row.storeNumber,
+          storeName: row.storeName,
+          support: row.support,
+          gender: 2,
+          age: 3,
+          watchers: row.watchers * 1.2,
+          publishedWatchers: row.publishedWatchers * 1.2,
+        },
+        {
+          date: row.date,
+          storeNumber: row.storeNumber,
+          storeName: row.storeName,
+          support: row.support,
+          gender: 1,
+          age: 3,
+          watchers: row.watchers * 0.8,
+          publishedWatchers: row.publishedWatchers * 0.8,
+        },
+      ]);
+    return {
+      ...base,
+      demographics,
+      coverage: {
+        ...base.coverage,
+        totalPairs: base.coverage.totalPairs + 1,
+        bySupport: [
+          {
+            support: 'BANNER DIGITAL',
+            totalPairs: 6,
+            mappedPairs: 5,
+            percent: 83,
+          },
+        ],
+        unmappedPairs: [
+          {
+            storeNumber: '40',
+            storeName: 'TIENDA SIN DATO',
+            support: 'BANNER DIGITAL',
+          },
+        ],
+      },
+      storeCoverage: { totalStores: 6, mappedStores: 5, percent: 83 },
+    };
+  }
+
+  it('portada = evolución = Tiendas TOP + demás universo', () => {
+    const view = pdfView(circuitWithUniverse());
+    const summary = brandCampaignSummary(view);
+    expect(summary.extrapolatedOts).toBeGreaterThan(0);
+    expect(
+      brandDaily(view).reduce((total, point) => total + point.estimatedOts, 0),
+    ).toBeCloseTo(summary.estimatedOts, 6);
+    const top = brandTopStores(view, 3);
+    expect(top.stores).toHaveLength(3);
+    expect(top.restStores).toBe(3);
+    expect(
+      top.stores.reduce((total, store) => total + store.adjustedOts, 0) +
+        top.restOts,
+    ).toBeCloseTo(summary.estimatedOts, 6);
+    expect(top.totalOts).toBeCloseTo(summary.estimatedOts, 6);
+  });
+
+  it('horarios: las horas rellenadas cuentan en su hora y el reparto cubre el total', () => {
+    // Cada cámara reparte su día parejo en las 12 horas: con las horas sin
+    // dato rellenadas y lo extrapolado repartido por el perfil del formato,
+    // el reparto vuelve a ser parejo.
+    const hourly = brandHourlyDistribution(pdfView(circuitWithUniverse()));
+    expect(hourly).toHaveLength(12);
+    for (const point of hourly) expect(point.share).toBeCloseTo(100 / 12, 6);
+  });
+
+  it('demografía: los watchers concilian con los publicados', () => {
+    const view = pdfView(circuitWithUniverse());
+    const rows = brandDemographics(view);
+    const measured = rows
+      .filter((row) => row.origin === 'measured')
+      .reduce((total, row) => total + row.watchers, 0);
+    const published = view.supportDays
+      .filter((row) => row.status !== 'missing')
+      .reduce(
+        (total, row) =>
+          total + row.publishedWatchers - (row.gapFill?.publishedWatchers ?? 0),
+        0,
+      );
+    expect(measured).toBeCloseTo(published, 6);
+    // El perfil medido (60 % mujeres) se conserva al escalar.
+    const female = brandGender(view).find((item) => item.label === 'Femenino');
+    expect(female?.share).toBeCloseTo(60, 6);
+  });
+
+  it('auditoría: lista por tienda lo calculado con el promedio del formato', () => {
+    const input = circuitWithUniverse();
+    const view = pdfView(input);
+    const assignments = brandFormatAverageAssignments(view, input);
+    expect(assignments.map((entry) => entry.storeName)).toContain(
+      'TIENDA SIN DATO',
+    );
+    expect(
+      assignments.reduce((total, entry) => total + entry.ots, 0),
+    ).toBeCloseTo(brandCampaignSummary(view).extrapolatedOts, 6);
   });
 });

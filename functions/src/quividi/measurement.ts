@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import {
   combineCameraValues,
   combineCameraAverageSeconds,
+  isSingleScreenPair,
   isZoneSplitPair,
-  publishedValue,
+  publishedFactor,
 } from './cameraCombination';
 import type {
   CampaignDoc,
@@ -30,6 +31,16 @@ export interface ReportCoverage {
     totalPairs: number;
     mappedPairs: number;
     percent: number;
+  }>;
+  /**
+   * Soportes del universo sin punto de medición asignado (v10): el informe
+   * comercial los completa con el promedio de su formato y la hoja
+   * «Auditoría de cifras» los lista por tienda.
+   */
+  unmappedPairs: Array<{
+    storeNumber: string;
+    storeName: string;
+    support: string;
   }>;
 }
 
@@ -103,13 +114,16 @@ export interface SupportDay {
   watchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
-  /** Zona partida (Insurgentes, BANNER DIGITAL): sus cámaras se suman. */
+  /** Zona partida (Mupi de Insurgentes, BANNER DIGITAL): sus cámaras se suman. */
   zoneSplit: boolean;
+  /** Factor aplicado a la cifra publicada (1 o 2, `publishedFactor`; v10). */
+  publishedFactor: number;
   /**
    * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
    * el circuito tenga 1 cámara configurada, o 2 sin ser de zona partida (sin
    * importar cuántas reportaron ese día), caso en el que se duplica
-   * (`duplicatesPublishedValue` en `cameraCombination.ts`).
+   * (`duplicatesPublishedValue` en `cameraCombination.ts`). El Mupi de
+   * Polanco (pantalla única) nunca se duplica.
    */
   publishedOts: number;
   publishedEffectiveOts: number;
@@ -160,7 +174,13 @@ export interface Incident {
 // cámaras, para que el informe comercial rellene la cara sin dato con su
 // propio promedio dentro de la franja operativa; cambia la forma, así que los
 // snapshots v8 deben regenerarse.
-export const SNAPSHOT_SCHEMA_VERSION = 9;
+// v10 (octubre 2026, Mupis igual que Banners): `coverage.unmappedPairs`
+// (soportes del universo sin punto de medición), `cameraReadings` en TODO par
+// de 2+ cámaras (no sólo zona partida), `zoneSplit` y `publishedFactor` en
+// `SupportHour`/`SupportDay`; zona partida sólo para el Mupi de Insurgentes
+// (y BANNER DIGITAL) y el Mupi de Polanco publica sin duplicar. Cambia forma
+// y cifras, así que los snapshots v9 deben regenerarse.
+export const SNAPSHOT_SCHEMA_VERSION = 10;
 
 export function parseCivilDate(value: string): string | null {
   const text = value.trim();
@@ -383,9 +403,16 @@ export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
     { totalPairs: number; mappedPairs: number }
   >();
   let mappedPairs = 0;
+  const unmappedPairs: ReportCoverage['unmappedPairs'] = [];
   for (const pair of pairs) {
     const mapped = pair.cameras.length > 0;
     if (mapped) mappedPairs += 1;
+    else
+      unmappedPairs.push({
+        storeNumber: pair.storeNumber,
+        storeName: pair.storeName,
+        support: pair.support,
+      });
     const current = supports.get(pair.support) ?? {
       totalPairs: 0,
       mappedPairs: 0,
@@ -403,6 +430,11 @@ export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
       ...value,
       percent: percentage(value.mappedPairs, value.totalPairs),
     })).sort((a, b) => a.support.localeCompare(b.support, 'es')),
+    unmappedPairs: unmappedPairs.sort(
+      (a, b) =>
+        a.support.localeCompare(b.support, 'es') ||
+        a.storeNumber.localeCompare(b.storeNumber, 'es', { numeric: true }),
+    ),
   };
 }
 
@@ -602,6 +634,11 @@ export function buildMeasurementRows(
   for (const pair of pairs) {
     if (pair.cameras.length === 0) continue;
     const zoneSplit = isZoneSplitPair(pair);
+    const factor = publishedFactor(
+      pair.cameras.length,
+      zoneSplit,
+      isSingleScreenPair(pair),
+    );
     for (const date of dates) {
       const all = pair.cameras
         .map((camera) => cameraDayIndex.get(`${camera.id}|${date}`))
@@ -638,20 +675,13 @@ export function buildMeasurementRows(
         measuredCameras: selected.length,
         status,
         zoneSplit,
+        publishedFactor: factor,
         ots: dayOts,
         effectiveOts: dayEffectiveOts,
         watchers: dayWatchers,
-        publishedOts: publishedValue(dayOts, pair.cameras.length, zoneSplit),
-        publishedEffectiveOts: publishedValue(
-          dayEffectiveOts,
-          pair.cameras.length,
-          zoneSplit,
-        ),
-        publishedWatchers: publishedValue(
-          dayWatchers,
-          pair.cameras.length,
-          zoneSplit,
-        ),
+        publishedOts: dayOts * factor,
+        publishedEffectiveOts: dayEffectiveOts * factor,
+        publishedWatchers: dayWatchers * factor,
         attentionSeconds: combineCameraAverageSeconds(
           selected.map((row) => ({
             watchers: row.watchers,
@@ -699,11 +729,7 @@ export function buildMeasurementRows(
           gender: Number(genderText),
           age: Number(ageText),
           watchers: combined,
-          publishedWatchers: publishedValue(
-            combined,
-            pair.cameras.length,
-            zoneSplit,
-          ),
+          publishedWatchers: combined * factor,
           cameraWatchers: selected.map((row) => ({
             locationId: row.locationId,
             watchers: countOf(row),

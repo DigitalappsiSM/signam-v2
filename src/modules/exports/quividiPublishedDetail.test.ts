@@ -252,6 +252,18 @@ describe('detalle Quividi → publicado', () => {
       'Zona partida: suma de ambas cámaras, sin duplicar',
     );
   });
+
+  it('el Mupi de Polanco (pantalla única) se publica tal cual', () => {
+    const row = supportDay({
+      date: DATES[0]!,
+      storeNumber: '9',
+      configuredCameras: 1,
+      publishedFactor: 1,
+    });
+    expect(cameraRuleRationale(row, [])).toBe(
+      '1 cámara, pantalla única: lectura tal cual, sin duplicar',
+    );
+  });
 });
 
 describe('demografía publicada', () => {

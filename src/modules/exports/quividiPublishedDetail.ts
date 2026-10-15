@@ -68,14 +68,28 @@ function isZoneSplit(row: QuividiSupportDay): boolean {
   );
 }
 
+/** Factor publicado/medido: viaja desde v10; antes se deduce de la fila. */
+function publishedFactorOf(row: QuividiSupportDay): number {
+  if (row.publishedFactor !== undefined) return row.publishedFactor;
+  if (row.ots > 0) return row.publishedOts / row.ots;
+  return 2;
+}
+
 /** Frase con la regla de cámaras aplicada a una fila medida. */
 export function cameraRuleRationale(
   row: QuividiSupportDay,
   cameras: readonly DetailCameraReading[],
 ): string {
-  if (row.configuredCameras <= 1) return '1 cámara: lectura × 2';
+  if (row.configuredCameras <= 1) {
+    return publishedFactorOf(row) === 1
+      ? '1 cámara, pantalla única: lectura tal cual, sin duplicar'
+      : '1 cámara: lectura × 2';
+  }
   if (isZoneSplit(row)) {
     return 'Zona partida: suma de ambas cámaras, sin duplicar';
+  }
+  if (publishedFactorOf(row) === 1 && row.configuredCameras === 2) {
+    return '2 cámaras, pantalla única: la más alta, sin duplicar';
   }
   if (row.configuredCameras >= 3) {
     return `${row.configuredCameras} cámaras: la más alta, sin duplicar`;
@@ -131,12 +145,10 @@ function gapFillRationale(
       ? gapFillMethodLabel(fill)
       : `${fill.locationName}: ${gapFillMethodLabel(fill)}`,
   );
-  if (row.gapFill?.full && fills.every((fill) => fill.locationId === null)) {
+  if (row.gapFill?.full) {
     return `Estimado, sin dato ese día · ${parts.join(' · ')}`;
   }
-  const rule = row.gapFill?.full
-    ? 'Zona partida: suma de ambas cámaras, sin duplicar'
-    : cameraRuleRationale(row, readings);
+  const rule = cameraRuleRationale(row, readings);
   return `${rule} · Estimado: ${parts.join(' · ')}`;
 }
 
