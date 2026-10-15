@@ -161,11 +161,15 @@ logic. The load-bearing ones:
   figure covers **only support formats that had measurement** during the flight; formats with no camera at all stay
   out of the OTS and are reported as additional reach. Within that measurable circuit it extrapolates **per format**,
   each with its own average OTS per measured pair-day — a single circuit-wide average would make a video wall inherit
-  a mupi's performance. **Before that**, a missing day of a screen that measured other days is filled with **that same
-  store + format + screen's own average** (`quividiGapFill.ts`): its measured weekdays (Mon–Fri) or weekend days
-  (Sat–Sun), falling back to all its measured days; zone-split pairs with 2+ cameras are filled **camera by camera**
-  (per-camera hourly `cameraReadings`, schema v9), and a `BANNER DIGITAL` face with no camera copies its sister face
-  day by day. The PDF shows filled values exactly like measured ones; only the Excel marks them (yellow + note in
+  a mupi's performance. **Before that**, whatever a camera that did measure failed to report is filled with **that same
+  store + format + camera's own average** (`quividiGapFill.ts`, same rule for Mupis and Banners), evaluated **hour by
+  hour** inside the 10:00–22:00 window: the average is the window total of its **complete** days (12/12 h) of the same
+  type — weekdays (Mon–Fri) or weekend (Sat–Sun) — falling back to all complete days, then to measured days; each
+  missing hour is worth that average **÷ 12** (flat split, explicit business decision — keep it simple); a day with no
+  hours gets the full average. Pairs with 2+ cameras are filled **camera by camera** (per-camera hourly
+  `cameraReadings` on every 2+ camera pair, schema v10) and **then** combined like the backend: zone split sums, the
+  rest takes the highest × `publishedFactor` (an estimate only counts where it beats the sister's measurement); a
+  zone-split face/floor with no camera (`BANNER DIGITAL`, Insurgentes Mupi) copies its sister day by day. The PDF shows filled values exactly like measured ones; only the Excel marks them (yellow + note in
   «Auditoría de cifras» section 11 and «Detalle Soportes»), splitting `measuredOts` + `filledOts` + `extrapolatedOts`. Averages divide by **measured** pair-days, never the full grid: missing days entering the
   numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. While the
   campaign is still running, that grid is capped at the last **complete** measured day (`effectiveEndDate`/
@@ -177,10 +181,12 @@ logic. The load-bearing ones:
   Snapshots are reused only while the cutoff is unchanged — at most 1 h with an incomplete day. The Excel's **«Auditoría de cifras»** sheet reconstructs that figure step by step from the *same pure
   functions*, so sheet and report cannot disagree. **Multi-camera pairs** are combined at the data source
   (`functions/src/quividi/cameraCombination.ts`, shared by the daily and hourly Cloud Functions so Excel and PDF
-  can't diverge): zone-split pairs (Insurgentes, any `BANNER DIGITAL` support) always sum; every other multi-camera pair takes
-  the **highest** reading (no averaging; the 1,000-OTS threshold only feeds the camera-gap alert). **Published
+  can't diverge): zone-split pairs (the **Insurgentes Mupi** only — two floors — and any `BANNER DIGITAL` support) always
+  sum; every other multi-camera pair takes the **highest** reading (no averaging; the 1,000-OTS threshold only feeds the camera-gap alert). **Published
   figures are duplicated** (`publishedValue`/`duplicatesPublishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR = 2`)
-  for 1-camera pairs and for 2-camera pairs outside zone-split (highest reading × 2, or the one that reported × 2):
+  for 1-camera pairs and for 2-camera pairs outside zone-split (highest reading × 2, or the one that reported × 2),
+  except the **Polanco Mupi** (`isSingleScreenPair`: a single screen, published as measured; the applied factor travels
+  as `publishedFactor`). Today only Mupis and Banners have cameras:
   most circuits are actually 2 screens at the same site, so OTS/effective OTS/watchers are doubled — dwell/
   attention time are not (they're per-person averages, not counts), though they weight double when averaged across
   stores. This is a business assumption applied to 100%-measured data, not gap-filling, so it's deliberately

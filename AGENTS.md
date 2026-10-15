@@ -544,42 +544,64 @@ tres de ellos describían mal el separador de artículos.
   real y **nunca** se trata como hueco.
 
   **Antes de la extrapolación por formato, relleno con promedio propio**
-  (decisión de negocio, octubre 2026, caso LEGO — `quividiGapFill.ts`): cada
-  tienda tiene su propio tráfico, así que un día sin dato de una pantalla que
-  **sí midió otros días** se completa con el promedio de **esa misma tienda +
-  formato + pantalla**, nunca con el del formato:
+  (decisión de negocio, octubre 2026, casos LEGO y «Mupis igual que Banners» —
+  `quividiGapFill.ts`): cada tienda tiene su propio tráfico y una falla de
+  hardware no debe penalizar la cifra, así que lo que una cámara que **sí
+  midió** no reportó se completa con el promedio de **esa misma tienda +
+  formato + cámara**, nunca con el del formato. Aplica igual a Mupis y Banners
+  (hoy son los únicos soportes con cámara) y se evalúa **hora a hora** dentro
+  de la franja 10:00–22:00 (`BRAND_OPERATIONAL_HOURS` = 12), a partir de
+  `supportHours`:
 
-  - promedio de sus días medidos del **mismo tipo** — entre semana (lunes a
-    viernes) o fin de semana (sábado y domingo); si no midió ningún día de ese
-    tipo, el promedio de todos sus días medidos;
-  - en **zona partida con 2+ cámaras** (Insurgentes, `BANNER DIGITAL`) la cifra
-    es la suma de caras distintas, así que el hueco se evalúa **cámara a
-    cámara**: si una cara no reportó y la otra sí, se completa sólo la cara
-    caída con su propio promedio. Para hacerlo dentro de la franja 10:00–22:00
-    del PDF, `supportHours[].cameraReadings` trae la lectura de cada cámara
-    en esos pares (schema v9) y `brandOperationalReport` reconstruye
-    `cameraDays` en la franja;
-  - una **cara sin cámara de `BANNER DIGITAL`** (cámara configurada que no
-    reportó en toda la vigencia) **copia día a día** el valor de su cara
-    hermana. Sólo en `BANNER DIGITAL`; en el resto la cara queda fuera;
-  - la duplicación de 1 cámara no cambia: el promedio se toma sobre la cifra ya
-    publicada (un par de 1 cámara rellena con su lectura × 2);
+  - **promedio propio** = total de la franja de sus días **completos** (las 12
+    horas medidas) del **mismo tipo** — entre semana (lunes a viernes) o fin de
+    semana (sábado y domingo); si no tiene ninguno de ese tipo, de todos sus
+    días completos; si no tiene ningún día completo, de sus días medidos
+    (`basisKind`). Un día con huecos nunca entra a la base mientras haya días
+    completos: deflactaría el promedio que luego rellena;
+  - **hora sin dato**: cada hora de la franja que la cámara no reportó vale
+    ese promedio **÷ 12** — reparto parejo, decisión explícita de negocio
+    («hagámoslo fácil»: a veces compensa y a veces penaliza; no usar el perfil
+    horario sin decisión documentada). Un día sin ninguna hora es el caso
+    extremo (12 × ÷ 12 = el promedio completo, `reason: 'missing-day'`); un día
+    con algunas horas lleva `reason: 'missing-hours'` y `missingHours`;
+  - **2+ cámaras**: se rellena **cada cámara** con su propio promedio y
+    **después** se combina como el backend — zona partida (Mupi de
+    Insurgentes, `BANNER DIGITAL`) suma; el resto toma la más alta y aplica
+    `publishedFactor` (× 2 con 2 cámaras). En la regla de la más alta, lo
+    estimado sólo entra por lo que **supera** a lo que midió su hermana esa
+    hora, y se atribuye a la cámara estimada que ganó. Para eso
+    `supportHours[].cameraReadings` trae la lectura de cada cámara en **todo**
+    par de 2+ cámaras, más `zoneSplit` y `publishedFactor` por hora (schema
+    v10; en v9 sólo zona partida);
+  - una **cara/piso sin cámara en zona partida** (cámara configurada que no
+    reportó en toda la vigencia) **copia día a día** el valor de su hermana —
+    `BANNER DIGITAL` y Mupi de Insurgentes—. Fuera de zona partida no se
+    copia: la cámara que sí reporta ya es la cifra (la más alta × 2);
+  - la duplicación no cambia: el promedio de un par de 1 cámara se toma sobre
+    la cifra ya publicada (× 2, o tal cual en el Mupi de Polanco); en 2+
+    cámaras se aplica `publishedFactor` al combinar;
+  - sin `supportHours` (reporte antiguo o export horario fallido) degrada al
+    relleno por **día completo** sobre `supportDays`/`cameraDays`;
+  - el relleno se calcula siempre en la franja (la misma cifra que suma el
+    PDF), también cuando el Excel lo aplica sobre el día completo de «Detalle
+    Soportes»;
   - una pantalla **sin ningún día medido** no tiene promedio propio y sigue con
     el promedio de su formato, igual que un soporte sin cámara; el día
     incompleto nunca se rellena. Ese promedio de formato (`brandFormatRate`)
     se calcula sólo sobre observación directa: excluye los par-día
     enteramente rellenados (si no, una tienda pesaría más cuantos más días le
-    faltaran) pero conserva la cara rellenada de un día medido en zona
-    partida (sin ella ese par-día real valdría la mitad y deflactaría el
-    promedio).
+    faltaran) pero conserva las horas/caras rellenadas de un día medido (sin
+    ellas ese par-día real valdría menos y deflactaría el promedio).
 
   Lo estimado se publica en el PDF **igual que lo medido** (portada, evolución,
   Tiendas TOP, demografía; todas las cifras concilian) y **nunca** se distingue
   ahí. Sólo se documenta en el Excel: «Auditoría de cifras» separa
   `measuredOts` (sólo medido) + `filledOts` (promedio propio) +
   `extrapolatedOts` (por formato) = `estimatedOts`, y su sección 11 lista cada
-  relleno por tienda · soporte · cámara · fecha, con la celda en **amarillo** y
-  una nota con el método; «Detalle Soportes» marca igual la cifra publicada de
+  relleno por tienda · soporte · cámara · fecha (con las horas estimadas y el
+  método: «Horas sin dato (n h)», «Día sin dato», «Cara sin cámara»), con la
+  celda en **amarillo** y una nota con el método; «Detalle Soportes» marca igual la cifra publicada de
   esas filas. La demografía estimada reparte los watchers rellenados con el
   perfil medido del propio soporte. Las filas tocadas llevan `gapFill` (nunca
   viene del backend); `brandCoverage`, `brandExtrapolationBasis`,
@@ -687,8 +709,10 @@ tres de ellos describían mal el separador de artículos.
   divergir en esto. El frontend (`quividiBrandReport.ts` → `brandSupportDays`)
   es un passthrough puro de `report.supportDays`; ya no corrige nada ahí.
   Tres casos, en este orden:
-  1. **Zona partida → suma siempre**, sin importar la brecha: Insurgentes
-     (dos cámaras en pisos distintos) y cualquier soporte `BANNER DIGITAL`
+  1. **Zona partida → suma siempre**, sin importar la brecha: el **Mupi de
+     Insurgentes** (dos cámaras en pisos distintos que miden demografías
+     distintas; octubre 2026: sólo el Mupi, no otros soportes de la tienda) y
+     cualquier soporte `BANNER DIGITAL`
      (Mitikah, Toreo, Satélite, Delta y cualquier otro: sus 2 caras dan a
      lados distintos del hueco central del centro comercial, así que la
      oportunidad de ver es genuinamente el doble, no una redundancia de la
@@ -729,7 +753,8 @@ tres de ellos describían mal el separador de artículos.
   «Detalle Soportes» y «Demografía» (`quividiPublishedDetail.ts`) ponen lado
   a lado la lectura tal cual de cada cámara (Cám. 1 / Cám. 2), la cifra que
   publica el informe y una frase con la regla aplicada (1 cámara × 2, la más
-  alta de 2 × 2, zona partida suma, sin dato o sin cámara = promedio del
+  alta de 2 × 2, pantalla única = tal cual, zona partida suma, sin dato o
+  sin cámara = promedio del
   formato, día incompleto = sólo lo medido, formato sin medición = fuera). Los
   soportes del universo sin cámara aparecen como filas «Sin cámara (n
   soportes)» por fecha y formato. Lo publicado de «Detalle Soportes» concilia
@@ -745,8 +770,14 @@ tres de ellos describían mal el separador de artículos.
   - **2 cámaras configuradas fuera de zona partida** (octubre 2026, caso
     Coapa): la lectura más alta × 2; si ese día/hora sólo reportó una, la que
     reportó × 2;
-  - **zona partida** (Insurgentes, `BANNER DIGITAL`) y **3+ cámaras**: no se
-    duplica (la zona partida ya suma sus 2 audiencias).
+  - **zona partida** (Mupi de Insurgentes, `BANNER DIGITAL`) y **3+
+    cámaras**: no se duplica (la zona partida ya suma sus 2 audiencias);
+  - **Mupi de Polanco** (octubre 2026, `isSingleScreenPair`): es una sola
+    pantalla, así que su lectura se publica **tal cual**, sin sumar ni
+    duplicar (con 2 cámaras tomaría la más alta, también sin duplicar).
+  El factor aplicado viaja en el reporte (`publishedFactor`, 1 o 2, en
+  `SupportDay`/`SupportHour` desde schema v10) para que el relleno del
+  informe comercial y el racional del Excel no reimplementen la regla.
   Se calcula en el mismo origen del dato que la regla de Multi-cámara
   (`cameraCombination.ts` → `publishedValue`, `SINGLE_CAMERA_DUPLICATION_FACTOR
   = 2`), aplicado **después** de `combineCameraValues`.
@@ -853,7 +884,10 @@ tres de ellos describían mal el separador de artículos.
   muestran a la marca en esta vista, no completa ni extrapola nada. A
   diferencia de `brandDaily`/`brandWeeklyEvolution`, tampoco **completa horas
   sin dato** dentro de esa franja: no hay manera de distinguir hoy una hora
-  sin medición de una hora en la que el soporte estaba apagado. El pie de la
+  sin medición de una hora en la que el soporte estaba apagado. (Los
+  **totales** sí completan las horas sin dato de una cámara que midió, con su
+  promedio propio ÷ 12 — ver «relleno con promedio propio» arriba —; el
+  reparto horario sigue describiendo sólo lo observado.) El pie de la
   gráfica lo declara («con medición directa») para no sugerir una precisión que
   el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
   en vez de dibujar ceros.
@@ -1025,11 +1059,12 @@ modifica el crudo ni los snapshots por campaña. Detalle completo en
   con **las mismas** `combineCameraValues` / `isZoneSplitPair` /
   `publishedValue` que ya usa Fase 1 (`measurement.ts`/`hourly.ts`), para que
   Inteligencia Comercial nunca pueda divergir de la cifra que ya ve la marca
-  en el reporte por campaña. Zona partida (Insurgentes, cualquier soporte
+  en el reporte por campaña. Zona partida (Mupi de Insurgentes, cualquier soporte
   `BANNER DIGITAL`) suma siempre sus puntos; cualquier otro caso toma el de
   mayor OTS. La cifra publicada (`publishedOts`/`publishedEffectiveOts`/
   `publishedWatchers`) duplica (×2) cuando el par tiene 1 punto configurado,
-  o 2 fuera de zona partida — nunca con 3+ puntos ni en zona partida.
+  o 2 fuera de zona partida — nunca con 3+ puntos, en zona partida ni en el
+  Mupi de Polanco (pantalla única, se publica tal cual).
   Attention/Dwell Time **nunca se duplican** (son promedios por watcher, no
   conteos). Vive únicamente en `quividiCommercialDaily`; **no** toca
   `quividiHistoryPartitions` ni `campaignAudienceSnapshots`. Si

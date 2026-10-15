@@ -237,17 +237,55 @@ describe('buildSupportHours · zona partida y brecha entre cámaras', () => {
     ]);
   });
 
-  it('fuera de zona partida no envía lecturas por cámara', () => {
+  it('fuera de zona partida con 2 cámaras también envía lecturas por cámara (v10)', () => {
     const rows = buildSupportHours(
       [pair({ support: 'MUPI DIGITAL' })],
-      [ots(1, HOUR), ots(2, HOUR)],
+      [ots(1, HOUR), ots(2, HOUR, { ots_count: 150 })],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({
+      zoneSplit: false,
+      publishedFactor: 2,
+      ots: 150,
+      publishedOts: 300,
+    });
+    expect(rows[0]?.cameraReadings?.map((item) => item.ots)).toEqual([
+      100, 150,
+    ]);
+  });
+
+  it('con 1 cámara no envía lecturas por cámara', () => {
+    const rows = buildSupportHours(
+      [pair({ support: 'MUPI DIGITAL', cameras: [{ id: 1 }] })],
+      [ots(1, HOUR)],
       [],
     );
 
     expect(rows[0]?.cameraReadings).toBeUndefined();
   });
 
-  it('Insurgentes siempre suma, aunque el soporte no sea Banner Digital', () => {
+  it('el Mupi de Polanco no se duplica', () => {
+    const rows = buildSupportHours(
+      [
+        pair({
+          storeName: 'LIVERPOOL POLANCO',
+          support: 'MEGA MUPI DIGITAL',
+          cameras: [{ id: 1 }],
+        }),
+      ],
+      [ots(1, HOUR)],
+      [],
+    );
+
+    expect(rows[0]).toMatchObject({
+      publishedFactor: 1,
+      ots: 100,
+      publishedOts: 100,
+    });
+  });
+
+  it('el Mupi de Insurgentes siempre suma sus 2 pisos', () => {
     const rows = buildSupportHours(
       [pair({ storeName: 'LIVERPOOL INSURGENTES', support: 'MUPI DIGITAL' })],
       [ots(1, HOUR), ots(2, HOUR, { ots_count: 150 })],

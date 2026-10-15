@@ -3,13 +3,15 @@ import {
   combineCameraAverageSeconds,
   combineCameraValues,
   detectCameraPairGaps,
+  isSingleScreenPair,
   isZoneSplitPair,
+  publishedFactor,
   publishedValue,
   type CameraPairGapInput,
 } from './cameraCombination';
 
 describe('isZoneSplitPair', () => {
-  it('reconoce Insurgentes sin importar prefijo, mayúsculas o acentos', () => {
+  it('reconoce el Mupi de Insurgentes sin importar prefijo, mayúsculas o acentos', () => {
     expect(
       isZoneSplitPair({
         storeName: 'LIVERPOOL INSURGENTES',
@@ -18,6 +20,27 @@ describe('isZoneSplitPair', () => {
     ).toBe(true);
     expect(
       isZoneSplitPair({ storeName: 'insurgentes', support: 'MUPI DIGITAL' }),
+    ).toBe(true);
+    expect(
+      isZoneSplitPair({
+        storeName: 'INSURGENTES',
+        support: 'MEGA MUPI DIGITAL',
+      }),
+    ).toBe(true);
+  });
+
+  it('en Insurgentes sólo el Mupi es zona partida (octubre 2026)', () => {
+    expect(
+      isZoneSplitPair({
+        storeName: 'LIVERPOOL INSURGENTES',
+        support: 'APARADOR INSURGENTES',
+      }),
+    ).toBe(false);
+    expect(
+      isZoneSplitPair({
+        storeName: 'LIVERPOOL INSURGENTES',
+        support: 'BANNER DIGITAL',
+      }),
     ).toBe(true);
   });
 
@@ -140,16 +163,18 @@ describe('detectCameraPairGaps', () => {
     expect(gaps).toEqual([]);
   });
 
-  it('ignora pares de zona partida (Insurgentes, Banner Digital): su brecha es esperada', () => {
+  it('ignora pares de zona partida (Mupi de Insurgentes, Banner Digital): su brecha es esperada', () => {
     const gaps = detectCameraPairGaps([
       camera({
         locationId: 1,
         storeName: 'LIVERPOOL INSURGENTES',
+        support: 'MEGA MUPI DIGITAL',
         ots: 1_000,
       }),
       camera({
         locationId: 2,
         storeName: 'LIVERPOOL INSURGENTES',
+        support: 'MEGA MUPI DIGITAL',
         ots: 50_000,
       }),
       camera({
@@ -210,5 +235,33 @@ describe('publishedValue', () => {
 
   it('no duplica un circuito de 3+ cámaras', () => {
     expect(publishedValue(1000, 3)).toBe(1000);
+  });
+});
+
+describe('Mupi de Polanco · pantalla única', () => {
+  it('reconoce sólo el Mupi de Polanco', () => {
+    expect(
+      isSingleScreenPair({
+        storeName: 'LIVERPOOL POLANCO',
+        support: 'MEGA MUPI DIGITAL',
+      }),
+    ).toBe(true);
+    expect(
+      isSingleScreenPair({
+        storeName: 'LIVERPOOL POLANCO',
+        support: 'BANNER DIGITAL',
+      }),
+    ).toBe(false);
+    expect(
+      isSingleScreenPair({ storeName: 'COAPA', support: 'MEGA MUPI DIGITAL' }),
+    ).toBe(false);
+  });
+
+  it('publica su lectura tal cual, sin duplicar, con 1 o 2 cámaras', () => {
+    expect(publishedValue(1000, 1, false, true)).toBe(1000);
+    expect(publishedValue(1000, 2, false, true)).toBe(1000);
+    expect(publishedFactor(1, false, true)).toBe(1);
+    expect(publishedFactor(1, false)).toBe(2);
+    expect(publishedFactor(2, true)).toBe(1);
   });
 });

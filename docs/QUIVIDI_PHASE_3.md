@@ -38,17 +38,18 @@ para prevenir.
 La regla real (documentada en detalle en `AGENTS.md`, sección «Multi-cámara»
 e «Duplicación de la cifra»):
 
-1. **Zona partida → suma siempre**: Insurgentes (dos cámaras en pisos
-   distintos) y cualquier soporte `BANNER DIGITAL` (dos caras a lados
+1. **Zona partida → suma siempre**: el Mupi de Insurgentes (dos cámaras en
+   pisos distintos; sólo el Mupi, octubre 2026) y cualquier soporte `BANNER DIGITAL` (dos caras a lados
    distintos del hueco central) — su oportunidad de ver es genuinamente el
    doble, no una redundancia de la misma pantalla.
 2. **Cualquier otro caso → la lectura más alta** entre los puntos medidos, para
    OTS, Effective OTS y Watchers (ya no promedio).
 3. **Cifra publicada (de cara a marca)**: duplica (×2) el valor combinado
    cuando el par tiene **1 punto configurado**, o **2 fuera de zona partida**
-   — nunca con 3+ puntos ni en zona partida (que ya suma sus 2 audiencias). Se
-   basa en cuántos puntos tiene **asignados** el catálogo, no en cuántos
-   reportaron ese día.
+   — nunca con 3+ puntos ni en zona partida (que ya suma sus 2 audiencias), ni
+   en el Mupi de Polanco (pantalla única, `isSingleScreenPair`: se publica tal
+   cual). Se basa en cuántos puntos tiene **asignados** el catálogo, no en
+   cuántos reportaron ese día.
 4. Attention Time y Dwell Time **nunca se duplican**: son promedios por
    watcher, no conteos. Salen de la misma cámara de referencia que watchers
    (la de **más watchers** fuera de zona partida; ponderado de todas en zona

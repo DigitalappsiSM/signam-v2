@@ -96,7 +96,7 @@ describe('buildCameraHealthOverview · cameraPairGaps', () => {
     expect(overview.cameraPairGaps).toEqual([]);
   });
 
-  it('ignora Insurgentes y Banner Digital: su brecha es esperada', async () => {
+  it('ignora el Mupi de Insurgentes y Banner Digital: su brecha es esperada', async () => {
     const overview = await buildCameraHealthOverview(
       fakeDb([
         stateDoc('1', {

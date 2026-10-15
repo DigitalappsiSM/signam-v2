@@ -1393,9 +1393,18 @@ export function brandOperationalSupportDays(
       ),
       measuredCameras: Math.max(...hours.map((hour) => hour.measuredCameras)),
       status,
-      // Sólo los pares de zona partida con 2+ cámaras traen lectura por
-      // cámara (v9); es lo que permite rellenar cara a cara.
-      ...(hours.some((hour) => hour.cameraReadings) ? { zoneSplit: true } : {}),
+      // v10 trae `zoneSplit` en cada hora; en v9 sólo la zona partida con
+      // 2+ cámaras traía lectura por cámara.
+      ...(hours.some((hour) =>
+        hour.zoneSplit !== undefined
+          ? hour.zoneSplit
+          : hour.cameraReadings !== undefined,
+      )
+        ? { zoneSplit: true }
+        : {}),
+      ...(first.publishedFactor !== undefined
+        ? { publishedFactor: first.publishedFactor }
+        : {}),
       ots: sum(measured.map((hour) => hour.ots)),
       effectiveOts: sum(measured.map((hour) => hour.effectiveOts)),
       watchers: watchersTotal,
@@ -1441,11 +1450,9 @@ export function brandOperationalReport(
 
 /**
  * `cameraDays` acotado a la franja operativa para los pares que traen lectura
- * por cámara en `supportHours` (v9: zona partida con 2+ cámaras). Es lo que
- * permite rellenar, dentro de 10:00–22:00, la cara que no reportó con su
- * propio promedio (`quividiGapFill.ts`). Una cámara sin ninguna hora en la
- * franja ese día queda «sin medición». El resto de pares conserva su fila
- * diaria tal cual: su relleno es por par, no por cámara.
+ * por cámara en `supportHours` (v10: todo par de 2+ cámaras; v9: sólo zona
+ * partida). Una cámara sin ninguna hora en la franja ese día queda «sin
+ * medición». Los pares de 1 cámara conservan su fila diaria tal cual.
  */
 export function brandOperationalCameraDays(
   report: QuividiCampaignReport,

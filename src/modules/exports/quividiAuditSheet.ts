@@ -119,8 +119,21 @@ function markEstimated(cell: Cell, note: string): void {
 
 const REASON_LABELS: Record<BrandGapFillEntry['reason'], string> = {
   'missing-day': 'Día sin dato',
+  'missing-hours': 'Horas sin dato',
   'missing-face': 'Cara sin cámara',
 };
+
+/** Motivo con las horas estimadas cuando el día sí midió algo. */
+function reasonLabel(entry: BrandGapFillEntry): string {
+  return entry.reason === 'missing-hours'
+    ? `${REASON_LABELS[entry.reason]} (${entry.missingHours} h)`
+    : REASON_LABELS[entry.reason];
+}
+
+function fillDateLabel(entry: BrandGapFillEntry): string {
+  const date = formatCivilDate(entry.date);
+  return entry.missingHours > 0 ? `${date} (${entry.missingHours} h)` : date;
+}
 
 function gapFillNote(entry: BrandGapFillEntry): string {
   const where = [
@@ -180,22 +193,22 @@ function addGapFillSection(
   let row = bandTitle(
     sheet,
     startRow,
-    '11 · DÍAS ESTIMADOS CON EL PROMEDIO PROPIO DE CADA PANTALLA',
+    '11 · HORAS Y DÍAS ESTIMADOS CON EL PROMEDIO PROPIO DE CADA CÁMARA',
   );
   sheet.mergeCells(row, 1, row, 7);
   const note = sheet.getCell(row, 1);
   note.value =
-    'Regla: un día sin dato se completa con el promedio de ESA misma tienda + soporte + pantalla — entre semana (lunes a viernes) o fin de semana (sábado y domingo); si no midió ningún día de ese tipo, con el promedio de todos sus días medidos. En BANNER DIGITAL cada cara se evalúa por separado: si una no reportó, se completa sólo esa cara; una cara sin cámara copia día a día el valor de su cara hermana. Lo estimado se publica en el PDF igual que lo medido; aquí va en amarillo. Cifras de la franja 10:00–22:00, las mismas que suma el PDF.';
+    'Regla (Mupis y Banners): lo que una cámara no midió dentro de la franja 10:00–22:00 se completa con el promedio de ESA misma tienda + soporte + cámara — total diario de sus días completos (12 h medidas) entre semana (lunes a viernes) o fin de semana (sábado y domingo); si no tiene ese tipo de día, de todos sus días completos, y si no tiene ninguno completo, de sus días medidos. Cada hora sin dato vale ese promedio ÷ 12; un día sin ninguna hora, el promedio completo. Con 2 cámaras se rellena cada una y luego se combina: zona partida (Mupi de Insurgentes, BANNER DIGITAL) suma; el resto toma la más alta × 2 (lo estimado sólo cuenta cuando supera a lo medido). En zona partida, una cara sin cámara copia día a día el valor de su cara hermana. Lo estimado se publica en el PDF igual que lo medido; aquí va en amarillo. Cifras de la franja 10:00–22:00, las mismas que suma el PDF.';
   note.font = { italic: true, color: { argb: COLORS.text }, size: 8.5 };
   note.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
-  sheet.getRow(row).height = 52;
+  sheet.getRow(row).height = 96;
   row += 1;
 
   if (fills.length === 0) {
     sheet.mergeCells(row, 1, row, 7);
     const cell = sheet.getCell(row, 1);
     cell.value =
-      'Ninguna pantalla con medición tuvo días sin dato: no se estimó nada con promedio propio.';
+      'Ninguna cámara con medición tuvo horas ni días sin dato: no se estimó nada con promedio propio.';
     cell.font = { color: { argb: COLORS.muted }, size: 9 };
     cell.alignment = { vertical: 'middle', indent: 1 };
     return row + 1;
@@ -205,8 +218,8 @@ function addGapFillSection(
   row = headerRow(sheet, row, [
     'Tienda · Soporte',
     'Cámara / cara',
-    'Días estimados',
-    'Fechas',
+    'Días con estimación',
+    'Fechas (horas estimadas)',
     'OTS estimados (PDF)',
     'Watchers estimados',
     'Cómo se estimó',
@@ -230,14 +243,17 @@ function addGapFillSection(
         `${first.storeNumber} · ${first.storeName} · ${first.support}`,
         first.locationName || 'Par completo',
         entries.length,
-        entries.map((entry) => formatCivilDate(entry.date)).join(', '),
+        entries.map(fillDateLabel).join(', '),
         entries.reduce((total, entry) => total + entry.publishedOts, 0),
         entries.reduce((total, entry) => total + entry.publishedWatchers, 0),
         methods.join(' · '),
       ],
       [4, 7],
     );
-    const explanation = `${REASON_LABELS[first.reason]}: ${methods.join(' · ')}.`;
+    const reasons = Array.from(
+      new Set(entries.map((entry) => REASON_LABELS[entry.reason])),
+    );
+    const explanation = `${reasons.join(' · ')}: ${methods.join(' · ')}.`;
     markEstimated(sheet.getCell(row, 5), explanation);
     markEstimated(sheet.getCell(row, 6), explanation);
     row += 1;
@@ -269,7 +285,7 @@ function addGapFillSection(
         `${entry.storeNumber} · ${entry.storeName} · ${entry.support}`,
         entry.locationName || 'Par completo',
         formatCivilDate(entry.date),
-        REASON_LABELS[entry.reason],
+        reasonLabel(entry),
         entry.publishedOts,
         entry.publishedWatchers,
         gapFillMethodLabel(entry),

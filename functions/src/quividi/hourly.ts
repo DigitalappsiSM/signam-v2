@@ -1,8 +1,9 @@
 import {
   combineCameraValues,
   combineCameraAverageSeconds,
+  isSingleScreenPair,
   isZoneSplitPair,
-  publishedValue,
+  publishedFactor,
 } from './cameraCombination';
 
 type MeasurementStatus = 'complete' | 'partial' | 'missing';
@@ -52,13 +53,18 @@ export interface SupportHour {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
+  /** Zona partida (Mupi de Insurgentes, BANNER DIGITAL): suma sus cámaras. */
+  zoneSplit: boolean;
+  /** Factor aplicado a la cifra publicada (1 o 2, `publishedFactor`; v10). */
+  publishedFactor: number;
   /**
-   * Lectura de cada cámara que reportó esa hora, sólo en pares de zona
-   * partida con 2+ cámaras (Insurgentes, BANNER DIGITAL), donde la cifra es
-   * la suma de caras distintas. El informe comercial la usa para rellenar el
-   * día sin dato de UNA cara con su propio promedio dentro de la franja
-   * operativa (v9); en el resto de pares la cifra no depende de qué cámara
-   * reportó y no se envía, para no inflar el snapshot.
+   * Lectura de cada cámara que reportó esa hora, en todo par con 2+ cámaras
+   * (v10; en v9 sólo zona partida). El informe comercial la usa para
+   * rellenar, cámara por cámara y hora por hora, la cámara que no reportó con
+   * su propio promedio dentro de la franja operativa: en zona partida se
+   * suman las caras; en el resto se toma la más alta y se aplica
+   * `publishedFactor`. En pares de 1 cámara no se envía (la fila es la
+   * cámara), para no inflar el snapshot.
    */
   cameraReadings?: CameraHourReading[];
 }
@@ -165,8 +171,8 @@ function pairPeriods(
  * La regla de múltiples cámaras replica la metodología diaria
  * (`combineCameraValues`, compartida con `measurement.ts`): por cada hora se
  * combinan únicamente las cámaras que realmente entregaron OTS — sumadas si
- * el par es de zona partida (Insurgentes, Banner Digital), la más alta si la
- * brecha entre cámaras supera el umbral, promediadas en cualquier otro caso.
+ * el par es de zona partida (Mupi de Insurgentes, Banner Digital), la más
+ * alta en cualquier otro caso.
  * Si sólo una de varias cámaras reporta, se conserva la medición y el estado
  * queda parcial.
  */
@@ -182,6 +188,11 @@ export function buildSupportHours(
   for (const pair of pairs) {
     if (pair.cameras.length === 0) continue;
     const zoneSplit = isZoneSplitPair(pair);
+    const factor = publishedFactor(
+      pair.cameras.length,
+      zoneSplit,
+      isSingleScreenPair(pair),
+    );
     for (const period of pairPeriods(pair, ots)) {
       const measured = pair.cameras
         .map((camera) => {
@@ -230,20 +241,14 @@ export function buildSupportHours(
         measuredCameras: measured.length,
         status:
           measured.length === pair.cameras.length ? 'complete' : 'partial',
+        zoneSplit,
+        publishedFactor: factor,
         ots: hourOts,
         effectiveOts: hourEffectiveOts,
         watchers: hourWatchers,
-        publishedOts: publishedValue(hourOts, pair.cameras.length, zoneSplit),
-        publishedEffectiveOts: publishedValue(
-          hourEffectiveOts,
-          pair.cameras.length,
-          zoneSplit,
-        ),
-        publishedWatchers: publishedValue(
-          hourWatchers,
-          pair.cameras.length,
-          zoneSplit,
-        ),
+        publishedOts: hourOts * factor,
+        publishedEffectiveOts: hourEffectiveOts * factor,
+        publishedWatchers: hourWatchers * factor,
         attentionSeconds: combineCameraAverageSeconds(
           measured.map((item) => ({
             watchers: item.viewers?.watchers ?? 0,
@@ -258,7 +263,7 @@ export function buildSupportHours(
           })),
           zoneSplit,
         ),
-        ...(zoneSplit && pair.cameras.length >= 2
+        ...(pair.cameras.length >= 2
           ? {
               cameraReadings: measured.map((item) => ({
                 locationId: item.locationId,

@@ -60,8 +60,9 @@ export interface QuividiSupportDay {
    * Cifra de cara a marca: igual a `ots`/`effectiveOts`/`watchers` salvo que
    * el circuito tenga 1 cámara configurada, o 2 fuera de zona partida (la
    * más alta), caso en el que se duplica — la mayoría de esos circuitos
-   * tienen 2 pantallas en el mismo sitio. Insurgentes y BANNER DIGITAL (zona
-   * partida) suman sus cámaras y no se duplican. Calculado en el backend
+   * tienen 2 pantallas en el mismo sitio. El Mupi de Insurgentes y BANNER
+   * DIGITAL (zona partida) suman sus cámaras y no se duplican; el Mupi de
+   * Polanco (pantalla única) se publica tal cual. Calculado en el backend
    * (`functions/src/quividi/cameraCombination.ts`); el informe comercial lo
    * usa, el Excel técnico sigue usando `ots`/`effectiveOts`/`watchers`
    * (lo medido, sin duplicar).
@@ -71,8 +72,10 @@ export interface QuividiSupportDay {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
-  /** Zona partida (Insurgentes, BANNER DIGITAL): suma sus cámaras (v7). */
+  /** Zona partida (Mupi de Insurgentes, BANNER DIGITAL): suma sus cámaras (v7). */
   zoneSplit?: boolean;
+  /** Factor de la cifra publicada sobre la medida: 1 o 2 (desde v10). */
+  publishedFactor?: number;
   /**
    * Parte **estimada** de la fila, ya incluida en `ots`/`published*`. Nunca
    * viene del backend: la añade el informe comercial al rellenar con el
@@ -93,7 +96,7 @@ export interface QuividiGapFillAmount {
   publishedWatchers: number;
 }
 
-/** Lectura de una cámara en una hora (v9, sólo zona partida con 2+ cámaras). */
+/** Lectura de una cámara en una hora (v9 zona partida; v10 todo par de 2+ cámaras). */
 export interface QuividiCameraHourReading {
   locationId: number;
   ots: number;
@@ -119,7 +122,14 @@ export interface QuividiSupportHour {
   publishedWatchers: number;
   attentionSeconds: number;
   dwellSeconds: number;
-  /** Lectura de cada cámara que reportó (v9, zona partida con 2+ cámaras). */
+  /** Zona partida: suma sus cámaras (desde v10). */
+  zoneSplit?: boolean;
+  /** Factor de la cifra publicada sobre la medida: 1 o 2 (desde v10). */
+  publishedFactor?: number;
+  /**
+   * Lectura de cada cámara que reportó: v9 sólo zona partida con 2+ cámaras;
+   * desde v10 todo par de 2+ cámaras (relleno cámara por cámara).
+   */
   cameraReadings?: QuividiCameraHourReading[];
 }
 
@@ -178,7 +188,10 @@ export interface QuividiCampaignReport {
   // `partialUntil`): el día en curso en horario operativo (día incompleto).
   // v7: 2 cámaras fuera de zona partida → lectura más alta × 2.
   // v9: `supportHours[].cameraReadings` en zona partida con 2+ cámaras.
-  schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  // v10: `cameraReadings` en todo par de 2+ cámaras, `zoneSplit` y
+  // `publishedFactor` por hora/día; zona partida sólo el Mupi de Insurgentes
+  // y BANNER DIGITAL; el Mupi de Polanco no se duplica.
+  schemaVersion: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   campaignId: string;
   campaignName: string;
   startDate: string;

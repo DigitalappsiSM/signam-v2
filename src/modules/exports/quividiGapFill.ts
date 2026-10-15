@@ -4,37 +4,53 @@ import type {
   QuividiDemographicRow,
   QuividiGapFillAmount,
   QuividiSupportDay,
+  QuividiSupportHour,
 } from '@/domain';
-import { brandGridDates } from './quividiBrandReport';
+import {
+  BRAND_OPERATIONAL_END_HOUR,
+  BRAND_OPERATIONAL_START_HOUR,
+  brandGridDates,
+} from './quividiBrandReport';
 
 /**
  * Relleno de huecos con el promedio **propio** de cada pantalla.
  *
- * Regla de negocio (octubre 2026, caso LEGO): cada tienda tiene su propio
- * tráfico, así que un día sin dato se completa con el promedio de ESA misma
- * tienda + formato + pantalla, nunca con el del formato en todo el circuito:
+ * Regla de negocio (octubre 2026, casos LEGO y Mupis igual que Banners): cada
+ * tienda tiene su propio tráfico, así que lo que una cámara no midió se
+ * completa con el promedio de ESA misma tienda + formato + cámara, nunca con
+ * el del formato en todo el circuito. Se evalúa **hora a hora** dentro de la
+ * franja operativa 10:00–22:00 (12 horas, la misma que suma el PDF):
  *
- * - **Día sin dato** de una pantalla que sí midió otros días: promedio de sus
- *   días medidos del mismo tipo — entre semana (lunes a viernes) o fin de
- *   semana (sábado y domingo). Si no midió ningún día de ese tipo, promedio de
- *   todos sus días medidos.
- * - **Zona partida con 2+ cámaras** (Insurgentes, BANNER DIGITAL): la cifra es
- *   la suma de caras distintas, así que el hueco se evalúa **cámara a
- *   cámara** — si una cara no reportó y la otra sí, se completa sólo la cara
- *   caída con su propio promedio.
- * - **Cara sin cámara** de BANNER DIGITAL (cámara configurada que no reportó
- *   en toda la vigencia): copia día a día el valor de su cara hermana. Sólo en
- *   BANNER DIGITAL; en el resto queda fuera.
+ * - **Promedio propio**: total diario de sus días **completos** (las 12 horas
+ *   medidas) del mismo tipo — entre semana (lunes a viernes) o fin de semana
+ *   (sábado y domingo); si no tiene ninguno de ese tipo, de todos sus días
+ *   completos. Si no tiene ningún día completo, de sus días medidos (un día
+ *   con huecos deflactaría el promedio, por eso sólo es el último recurso).
+ * - **Hora sin dato**: cada hora de la franja que la cámara no reportó vale
+ *   ese promedio ÷ 12 (reparto parejo, decisión de negocio: simple y
+ *   auditable). Un día sin ninguna hora es el caso extremo: 12 horas × ÷ 12 =
+ *   el promedio completo.
+ * - **2+ cámaras**: se rellena cada cámara con su propio promedio y después se
+ *   combina como el backend — zona partida (Mupi de Insurgentes, BANNER
+ *   DIGITAL) suma; el resto toma la más alta y aplica `publishedFactor` (× 2
+ *   con 2 cámaras). Lo estimado sólo cuenta cuando gana a lo medido.
+ * - **Cara sin cámara** en zona partida (cámara configurada que no reportó en
+ *   toda la vigencia): copia día a día el valor de su cara hermana.
  *
  * Lo estimado se publica igual que lo medido (el PDF no lo distingue); cada
  * relleno queda en `fills` para la hoja «Auditoría de cifras». Una pantalla
- * que no midió ningún día no tiene promedio propio y sigue en la extrapolación
- * por formato de `brandCampaignSummary`. El día incompleto nunca se rellena.
- * La duplicación de 1 cámara no cambia: el promedio se toma sobre la cifra ya
- * publicada del par.
+ * que no midió nada no tiene promedio propio y sigue en la extrapolación por
+ * formato de `brandCampaignSummary`. El día incompleto nunca se rellena.
+ * Sin `supportHours` (reporte antiguo o export horario fallido) degrada al
+ * relleno por día completo sobre `supportDays`/`cameraDays`.
  */
 
-export type BrandGapFillReason = 'missing-day' | 'missing-face';
+/** Horas de la franja operativa (10:00–22:00). */
+export const BRAND_OPERATIONAL_HOURS =
+  BRAND_OPERATIONAL_END_HOUR - BRAND_OPERATIONAL_START_HOUR;
+
+export type BrandGapFillReason =
+  'missing-day' | 'missing-hours' | 'missing-face';
 export type BrandGapFillMethod =
   | 'weekday-average'
   | 'weekend-average'
@@ -51,8 +67,12 @@ export interface BrandGapFillEntry {
   locationName: string;
   reason: BrandGapFillReason;
   method: BrandGapFillMethod;
-  /** Días medidos que promedió (0 en la copia de cara hermana). */
+  /** Días que promedió (0 en la copia de cara hermana). */
   basisDays: number;
+  /** Base del promedio: días completos (12 h) o, a falta de ellos, medidos. */
+  basisKind: 'complete-days' | 'measured-days';
+  /** Horas de la franja estimadas ese día (0 en el relleno por día completo). */
+  missingHours: number;
   /** Cara(s) de la que se copió el valor (sólo `sister-face-copy`). */
   sourceLocationName: string;
   ots: number;
@@ -105,7 +125,13 @@ function mean(values: readonly Metrics[]): Metrics {
   return result;
 }
 
-function rowMetrics(row: QuividiSupportDay): Metrics {
+function rowMetrics(
+  row: Pick<QuividiSupportDay, 'ots' | 'effectiveOts' | 'watchers'> &
+    Pick<
+      QuividiSupportDay,
+      'publishedOts' | 'publishedEffectiveOts' | 'publishedWatchers'
+    >,
+): Metrics {
   return {
     ots: numeric(row.ots),
     effectiveOts: numeric(row.effectiveOts),
@@ -117,7 +143,9 @@ function rowMetrics(row: QuividiSupportDay): Metrics {
 }
 
 /** En zona partida con 2+ cámaras la cifra publicada es la suma cruda. */
-function cameraMetrics(camera: QuividiCameraDay): Metrics {
+function cameraMetrics(
+  camera: Pick<QuividiCameraDay, 'ots' | 'effectiveOts' | 'watchers'>,
+): Metrics {
   const ots = numeric(camera.ots);
   const effectiveOts = numeric(camera.effectiveOts);
   const watchers = numeric(camera.watchers);
@@ -135,19 +163,6 @@ function cameraMetrics(camera: QuividiCameraDay): Metrics {
 export function isWeekendDate(date: string): boolean {
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();
   return day === 0 || day === 6;
-}
-
-function normalizedSupport(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-}
-
-export function isBannerDigital(support: string): boolean {
-  return normalizedSupport(support) === 'BANNER DIGITAL';
 }
 
 /** Promedio propio del mismo tipo de día; si no hay, de todos los medidos. */
@@ -277,6 +292,8 @@ function cameraLevelFills(
         reason: 'missing-day',
         method: average.method,
         basisDays: average.basisDays,
+        basisKind: 'measured-days',
+        missingHours: 0,
         sourceLocationName: '',
         ...average.value,
       });
@@ -284,7 +301,7 @@ function cameraLevelFills(
     finalValue.set(locationId, values);
   }
 
-  if (isBannerDigital(pair.support)) {
+  if (pair.zoneSplit) {
     const sisters = reporting.map(([id, camera]) => ({
       values: finalValue.get(id) ?? new Map<string, Metrics>(),
       name: camera.name,
@@ -305,6 +322,8 @@ function cameraLevelFills(
           reason: 'missing-face',
           method: 'sister-face-copy',
           basisDays: 0,
+          basisKind: 'measured-days',
+          missingHours: 0,
           sourceLocationName: sourceName,
           ...mean(values),
         });
@@ -337,6 +356,8 @@ function pairLevelFills(
       reason: 'missing-day',
       method: average.method,
       basisDays: average.basisDays,
+      basisKind: 'measured-days',
+      missingHours: 0,
       sourceLocationName: '',
       ...average.value,
     });
@@ -419,6 +440,364 @@ function estimatedDemographics(
   return result;
 }
 
+function scale(value: Metrics, factor: number): Metrics {
+  const result = { ...value };
+  for (const key of METRIC_KEYS) result[key] = value[key] * factor;
+  return result;
+}
+
+/** Lecturas por fecha → hora de una unidad (cámara, o el par de 1 cámara). */
+type HourValues = Map<string, Map<number, Metrics>>;
+
+interface UnitAverage {
+  basis: Map<string, Metrics>;
+  kind: BrandGapFillEntry['basisKind'];
+}
+
+/**
+ * Base del promedio propio: totales de la franja de sus días completos (12
+ * horas medidas); si no tiene ninguno, de sus días con alguna hora medida.
+ */
+function unitAverage(values: HourValues): UnitAverage | null {
+  const complete = new Map<string, Metrics>();
+  const measured = new Map<string, Metrics>();
+  for (const [date, hours] of values) {
+    if (hours.size === 0) continue;
+    const total = Array.from(hours.values()).reduce(add, ZERO);
+    measured.set(date, total);
+    if (hours.size >= BRAND_OPERATIONAL_HOURS) complete.set(date, total);
+  }
+  if (complete.size > 0) return { basis: complete, kind: 'complete-days' };
+  if (measured.size > 0) return { basis: measured, kind: 'measured-days' };
+  return null;
+}
+
+function operationalHours(): number[] {
+  return Array.from(
+    { length: BRAND_OPERATIONAL_HOURS },
+    (_, index) => BRAND_OPERATIONAL_START_HOUR + index,
+  );
+}
+
+function setHour(
+  values: HourValues,
+  date: string,
+  hour: number,
+  metrics: Metrics,
+): void {
+  const hours = values.get(date) ?? new Map<number, Metrics>();
+  hours.set(hour, metrics);
+  values.set(date, hours);
+}
+
+interface HourPair {
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  configuredCameras: number;
+  zoneSplit: boolean;
+  /** Factor publicado/medido (v10); en reportes previos se deduce. */
+  factor: number | null;
+  /** Trae lectura por cámara (2+ cámaras). */
+  multiCamera: boolean;
+  rows: QuividiSupportHour[];
+}
+
+function hourPairs(
+  report: QuividiCampaignReport,
+  dates: ReadonlySet<string>,
+): Map<string, HourPair> {
+  const pairs = new Map<string, HourPair>();
+  for (const row of report.supportHours) {
+    if (!dates.has(row.date)) continue;
+    if (
+      row.hour < BRAND_OPERATIONAL_START_HOUR ||
+      row.hour >= BRAND_OPERATIONAL_END_HOUR
+    ) {
+      continue;
+    }
+    const key = pairKey(row);
+    const pair = pairs.get(key) ?? {
+      storeNumber: row.storeNumber,
+      storeName: row.storeName,
+      support: row.support,
+      configuredCameras: 0,
+      zoneSplit: false,
+      factor: null,
+      multiCamera: false,
+      rows: [],
+    };
+    pair.configuredCameras = Math.max(
+      pair.configuredCameras,
+      row.configuredCameras,
+    );
+    // v9 sólo mandaba lectura por cámara en zona partida.
+    pair.zoneSplit =
+      pair.zoneSplit || (row.zoneSplit ?? row.cameraReadings !== undefined);
+    if (pair.factor === null) {
+      if (row.publishedFactor !== undefined) pair.factor = row.publishedFactor;
+      else if (numeric(row.ots) > 0)
+        pair.factor = numeric(row.publishedOts) / numeric(row.ots);
+    }
+    pair.multiCamera =
+      pair.multiCamera ||
+      (row.cameraReadings !== undefined && row.configuredCameras >= 2);
+    pair.rows.push(row);
+    pairs.set(key, pair);
+  }
+  return pairs;
+}
+
+function pairFactor(pair: HourPair): number {
+  if (pair.factor !== null) return pair.factor;
+  return pair.zoneSplit || pair.configuredCameras >= 3 ? 1 : 2;
+}
+
+/** Par de 1 cámara (o sin lectura por cámara): la fila horaria es la unidad. */
+function singleUnitHourFills(
+  pair: HourPair,
+  dates: readonly string[],
+): BrandGapFillEntry[] {
+  const values: HourValues = new Map();
+  for (const row of pair.rows) {
+    if (row.status === 'missing') continue;
+    setHour(values, row.date, row.hour, rowMetrics(row));
+  }
+  const average = unitAverage(values);
+  if (!average) return [];
+  const fills: BrandGapFillEntry[] = [];
+  for (const date of dates) {
+    const measuredHours = values.get(date)?.size ?? 0;
+    const missingHours = BRAND_OPERATIONAL_HOURS - measuredHours;
+    if (missingHours <= 0) continue;
+    const own = ownAverage(date, average.basis);
+    if (!own) continue;
+    fills.push({
+      date,
+      storeNumber: pair.storeNumber,
+      storeName: pair.storeName,
+      support: pair.support,
+      locationId: null,
+      locationName: '',
+      reason: measuredHours === 0 ? 'missing-day' : 'missing-hours',
+      method: own.method,
+      basisDays: own.basisDays,
+      basisKind: average.kind,
+      missingHours,
+      sourceLocationName: '',
+      ...scale(own.value, missingHours / BRAND_OPERATIONAL_HOURS),
+    });
+  }
+  return fills;
+}
+
+interface CameraUnit {
+  locationId: number;
+  name: string;
+  values: HourValues;
+  average: UnitAverage | null;
+}
+
+/**
+ * Par de 2+ cámaras: cada cámara se completa hora a hora con su propio
+ * promedio ÷ 12 y se combina como el backend (zona partida suma; el resto, la
+ * más alta × `publishedFactor`). En la regla de la más alta, lo estimado sólo
+ * entra por lo que supera a lo medido esa hora, y se atribuye a la cámara
+ * estimada que ganó.
+ */
+function multiCameraHourFills(
+  pair: HourPair,
+  cameraDays: readonly QuividiCameraDay[],
+  dates: readonly string[],
+): BrandGapFillEntry[] {
+  const names = new Map<number, string>();
+  for (const camera of cameraDays) {
+    if (!names.has(camera.locationId)) {
+      names.set(camera.locationId, camera.locationName);
+    }
+  }
+  const measuredAt = new Map<string, Map<number, Metrics>>();
+  const units = new Map<number, CameraUnit>();
+  const unitOf = (locationId: number): CameraUnit => {
+    const unit = units.get(locationId) ?? {
+      locationId,
+      name: names.get(locationId) ?? `Cámara ${locationId}`,
+      values: new Map(),
+      average: null,
+    };
+    units.set(locationId, unit);
+    return unit;
+  };
+  for (const locationId of names.keys()) unitOf(locationId);
+  for (const row of pair.rows) {
+    for (const reading of row.cameraReadings ?? []) {
+      const metrics = cameraMetrics(reading);
+      setHour(unitOf(reading.locationId).values, row.date, row.hour, metrics);
+      const slot = `${row.date}|${row.hour}`;
+      const list = measuredAt.get(slot) ?? new Map<number, Metrics>();
+      list.set(reading.locationId, metrics);
+      measuredAt.set(slot, list);
+    }
+  }
+  for (const unit of units.values()) unit.average = unitAverage(unit.values);
+
+  const factor = pairFactor(pair);
+  const rawKeys = ['ots', 'effectiveOts', 'watchers'] as const;
+  const base = {
+    storeNumber: pair.storeNumber,
+    storeName: pair.storeName,
+    support: pair.support,
+  };
+  const fills: BrandGapFillEntry[] = [];
+  // Total de la franja (medido + estimado) de cada cámara, por fecha: base de
+  // la copia a la cara sin cámara.
+  const finalTotals = new Map<number, Map<string, Metrics>>();
+
+  for (const date of dates) {
+    const hourly = new Map<number, Metrics>();
+    const missing = new Map<number, number>();
+    const perHour = new Map<number, Metrics>();
+    for (const unit of units.values()) {
+      const own = unit.average ? ownAverage(date, unit.average.basis) : null;
+      if (!own) continue;
+      perHour.set(
+        unit.locationId,
+        scale(own.value, 1 / BRAND_OPERATIONAL_HOURS),
+      );
+    }
+    for (const hour of operationalHours()) {
+      const measured =
+        measuredAt.get(`${date}|${hour}`) ?? new Map<number, Metrics>();
+      const estimated = new Map<number, Metrics>();
+      for (const [locationId, value] of perHour) {
+        if (measured.has(locationId)) continue;
+        estimated.set(locationId, value);
+        missing.set(locationId, (missing.get(locationId) ?? 0) + 1);
+      }
+      if (estimated.size === 0) continue;
+      if (pair.zoneSplit) {
+        for (const [locationId, value] of estimated) {
+          hourly.set(locationId, add(hourly.get(locationId) ?? ZERO, value));
+        }
+        continue;
+      }
+      for (const key of rawKeys) {
+        const measuredMax = Math.max(
+          0,
+          ...Array.from(measured.values(), (value) => value[key]),
+        );
+        let winner: number | null = null;
+        let best = measuredMax;
+        for (const [locationId, value] of estimated) {
+          if (value[key] > best) {
+            best = value[key];
+            winner = locationId;
+          }
+        }
+        if (winner === null) continue;
+        const current = { ...(hourly.get(winner) ?? ZERO) };
+        current[key] += best - measuredMax;
+        hourly.set(winner, current);
+      }
+    }
+
+    for (const unit of units.values()) {
+      const measuredTotal = Array.from(
+        unit.values.get(date)?.values() ?? [],
+      ).reduce(add, ZERO);
+      const added = hourly.get(unit.locationId);
+      if (unit.values.has(date) || added) {
+        const totals = finalTotals.get(unit.locationId) ?? new Map();
+        totals.set(date, add(measuredTotal, added ?? ZERO));
+        finalTotals.set(unit.locationId, totals);
+      }
+      if (!added || !unit.average) continue;
+      if (added.ots <= 0 && added.effectiveOts <= 0 && added.watchers <= 0)
+        continue;
+      const own = ownAverage(date, unit.average.basis)!;
+      const missingHours = missing.get(unit.locationId) ?? 0;
+      fills.push({
+        ...base,
+        date,
+        locationId: unit.locationId,
+        locationName: unit.name,
+        reason:
+          missingHours >= BRAND_OPERATIONAL_HOURS
+            ? 'missing-day'
+            : 'missing-hours',
+        method: own.method,
+        basisDays: own.basisDays,
+        basisKind: unit.average.kind,
+        missingHours,
+        sourceLocationName: '',
+        ...published(added, factor),
+      });
+    }
+  }
+
+  if (pair.zoneSplit) {
+    const sisters = Array.from(units.values()).filter(
+      (unit) => unit.average !== null,
+    );
+    const sourceName = sisters.map((unit) => unit.name).join(' + ');
+    for (const unit of units.values()) {
+      if (unit.average !== null || sisters.length === 0) continue;
+      for (const date of dates) {
+        const values = sisters
+          .map((sister) => finalTotals.get(sister.locationId)?.get(date))
+          .filter((value): value is Metrics => value !== undefined);
+        if (values.length === 0) continue;
+        fills.push({
+          ...base,
+          date,
+          locationId: unit.locationId,
+          locationName: unit.name,
+          reason: 'missing-face',
+          method: 'sister-face-copy',
+          basisDays: 0,
+          basisKind: 'measured-days',
+          missingHours: BRAND_OPERATIONAL_HOURS,
+          sourceLocationName: sourceName,
+          ...published(mean(values), factor),
+        });
+      }
+    }
+  }
+  return fills;
+}
+
+/** Aplica el factor publicado a las métricas crudas. */
+function published(value: Metrics, factor: number): Metrics {
+  return {
+    ots: value.ots,
+    effectiveOts: value.effectiveOts,
+    watchers: value.watchers,
+    publishedOts: value.ots * factor,
+    publishedEffectiveOts: value.effectiveOts * factor,
+    publishedWatchers: value.watchers * factor,
+  };
+}
+
+/** Rellenos hora a hora dentro de la franja, a partir de `supportHours`. */
+function hourLevelFills(
+  report: QuividiCampaignReport,
+  grid: readonly string[],
+  camerasByPair: ReadonlyMap<string, QuividiCameraDay[]>,
+): BrandGapFillEntry[] {
+  const partial = report.partialDate ?? null;
+  const dates = grid.filter((date) => date !== partial);
+  const pairs = hourPairs(report, new Set(dates));
+  const fills: BrandGapFillEntry[] = [];
+  for (const [key, pair] of pairs) {
+    fills.push(
+      ...(pair.multiCamera
+        ? multiCameraHourFills(pair, camerasByPair.get(key) ?? [], dates)
+        : singleUnitHourFills(pair, dates)),
+    );
+  }
+  return fills;
+}
+
 /**
  * Aplica el relleno con promedio propio. Devuelve el reporte con
  * `supportDays` y `demographics` completados (cada fila tocada lleva
@@ -461,12 +840,17 @@ export function brandGapFill(
   }
 
   const fills: BrandGapFillEntry[] = [];
-  for (const [key, pair] of pairs) {
-    const cameraLevel =
-      pair.zoneSplit && pair.configuredCameras >= 2
-        ? cameraLevelFills(pair, camerasByPair.get(key) ?? [], grid)
-        : null;
-    fills.push(...(cameraLevel ?? pairLevelFills(pair, grid)));
+  if (report.supportHours.length > 0) {
+    fills.push(...hourLevelFills(report, grid, camerasByPair));
+  } else {
+    // Sin detalle horario: relleno por día completo.
+    for (const [key, pair] of pairs) {
+      const cameraLevel =
+        pair.zoneSplit && pair.configuredCameras >= 2
+          ? cameraLevelFills(pair, camerasByPair.get(key) ?? [], grid)
+          : null;
+      fills.push(...(cameraLevel ?? pairLevelFills(pair, grid)));
+    }
   }
   if (fills.length === 0)
     return { report: { ...report, gapFilled: true }, fills };
@@ -562,16 +946,40 @@ export function brandGapFilledReport(
   return brandGapFill(report).report;
 }
 
-/** Texto corto del método, para la auditoría. */
-export function gapFillMethodLabel(entry: BrandGapFillEntry): string {
+function basisText(entry: BrandGapFillEntry): string {
+  const n = entry.basisDays;
+  const kind =
+    entry.basisKind === 'complete-days'
+      ? n === 1
+        ? 'día completo'
+        : 'días completos'
+      : n === 1
+        ? 'día medido'
+        : 'días medidos';
+  return `${n} ${kind}`;
+}
+
+function averageLabel(entry: BrandGapFillEntry): string {
+  const days =
+    entry.basisKind === 'complete-days' ? 'días completos' : 'días medidos';
   switch (entry.method) {
     case 'weekday-average':
-      return `Promedio propio entre semana (${entry.basisDays} ${entry.basisDays === 1 ? 'día medido' : 'días medidos'})`;
+      return `promedio propio entre semana (${basisText(entry)})`;
     case 'weekend-average':
-      return `Promedio propio de fin de semana (${entry.basisDays} ${entry.basisDays === 1 ? 'día medido' : 'días medidos'})`;
+      return `promedio propio de fin de semana (${basisText(entry)})`;
     case 'overall-average':
-      return `Promedio propio de todos sus días medidos (${entry.basisDays}); no midió ningún día de ese tipo`;
+      return `promedio propio de todos sus ${days} (${entry.basisDays}); no midió ningún día de ese tipo`;
     case 'sister-face-copy':
-      return `Cara sin cámara: copia del valor de ese día de ${entry.sourceLocationName}`;
+      return `copia del valor de ese día de ${entry.sourceLocationName}`;
   }
+}
+
+/** Texto corto del método, para la auditoría. */
+export function gapFillMethodLabel(entry: BrandGapFillEntry): string {
+  const label = averageLabel(entry);
+  if (entry.method === 'sister-face-copy') return `Cara sin cámara: ${label}`;
+  if (entry.reason === 'missing-hours') {
+    return `${entry.missingHours} de ${BRAND_OPERATIONAL_HOURS} h sin dato: cada hora vale 1/${BRAND_OPERATIONAL_HOURS} del ${label}`;
+  }
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }

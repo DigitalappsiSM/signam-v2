@@ -138,15 +138,18 @@ vigente deja registrada la distinción exacta para futuras consultas.
 Una sola cámara representa el soporte completo.
 
 Cuando un mismo Tienda + Soporte tiene varias cámaras que pueden observar el
-mismo tráfico, SIGNAM **no suma** sus audiencias (salvo la zona partida:
-Insurgentes y `BANNER DIGITAL`, cuyas cámaras miden zonas distintas y se
-suman). Cada día se toma la lectura más alta (octubre 2026):
+mismo tráfico, SIGNAM **no suma** sus audiencias (salvo la zona partida: el
+**Mupi de Insurgentes** —2 cámaras en pisos distintos, sólo el Mupi— y
+`BANNER DIGITAL`, cuyas cámaras miden zonas distintas y se suman). Cada día se
+toma la lectura más alta (octubre 2026):
 
 `resultado diario = cámara válida con la lectura más alta del día`
 
 De cara a marca (PDF), la cifra de un circuito de 1 cámara, o de 2 cámaras
 fuera de zona partida, se **duplica**: la mayoría de los circuitos tienen 2
-pantallas en el mismo sitio y la cámara mide una.
+pantallas en el mismo sitio y la cámara mide una. Excepción: el **Mupi de
+Polanco** es una sola pantalla y se publica **tal cual** (ni se suma ni se
+duplica; `isSingleScreenPair`). Hoy sólo Mupis y Banners tienen cámara.
 
 Si una cámara cae y otra conserva medición válida, se usa la disponible y el
 día queda marcado como medición parcial. Si ninguna cámara tiene medición, ese
@@ -256,20 +259,36 @@ y un atrio ven pasar a la misma gente. El código no asume dónde hay cámaras:
 detecta por campaña qué formatos tuvieron medición, de modo que un video wall
 instrumentado entra con su propio promedio.
 
-### Relleno con el promedio propio de cada pantalla
+### Relleno con el promedio propio de cada cámara (Mupis y Banners)
 
-Antes de extrapolar por formato, un día sin dato de una pantalla que **sí midió
-otros días** se completa con el promedio de **esa misma tienda + formato +
-pantalla** (octubre 2026, `quividiGapFill.ts`): cada tienda tiene su propio
-tráfico. El promedio es el de sus días medidos del mismo tipo —entre semana
-(lunes a viernes) o fin de semana (sábado y domingo)—; si no midió ningún día de
-ese tipo, el de todos sus días medidos. En zona partida con 2+ cámaras
-(Insurgentes, `BANNER DIGITAL`) se evalúa cara a cara: si una cara no reportó,
-se completa sólo esa cara (con lectura por cámara y hora, schema v9, para
-respetar la franja 10:00–22:00). Una cara de `BANNER DIGITAL` sin cámara copia
-día a día a su cara hermana. El PDF publica lo estimado igual que lo medido; el
-Excel lo marca en amarillo con nota en «Auditoría de cifras» (sección 11, por
-tienda · soporte · cámara · fecha) y en «Detalle Soportes».
+Antes de extrapolar por formato, lo que una cámara que **sí midió** no reportó
+se completa con el promedio de **esa misma tienda + formato + cámara**
+(octubre 2026, `quividiGapFill.ts`): cada tienda tiene su propio tráfico, y una
+falla de hardware no debe penalizar la cifra. Aplica igual a Mupis y Banners y
+se evalúa **hora a hora** dentro de la franja 10:00–22:00 (12 horas):
+
+- **Promedio propio**: total de la franja de sus días **completos** (12 horas
+  medidas) del mismo tipo —entre semana (lunes a viernes) o fin de semana
+  (sábado y domingo)—; si no tiene ninguno de ese tipo, de todos sus días
+  completos; si no tiene ningún día completo, de sus días medidos. Un día con
+  huecos no entra a la base: deflactaría el promedio que rellena.
+- **Horas sin dato**: cada hora de la franja que la cámara no reportó vale ese
+  promedio **÷ 12** (reparto parejo: simple y auditable; a veces compensa y a
+  veces penaliza). Un día sin ninguna hora recibe el promedio completo.
+- **2 cámaras**: se rellena cada cámara con su promedio y **después** se
+  combina como el backend: zona partida (Mupi de Insurgentes, `BANNER
+  DIGITAL`) suma los pisos/caras; el resto toma la más alta × 2 —lo estimado
+  sólo cuenta cuando supera lo que midió su hermana esa hora—. Para eso
+  `supportHours[].cameraReadings` trae la lectura de cada cámara en todo par
+  de 2+ cámaras (schema v10).
+- **Cara/piso sin cámara** en zona partida (no reportó en toda la vigencia):
+  copia día a día el valor de su hermana (Banner y Mupi de Insurgentes).
+
+El PDF publica lo estimado igual que lo medido; el Excel lo marca en amarillo
+con nota en «Auditoría de cifras» (sección 11, por tienda · soporte · cámara ·
+fecha, con las horas estimadas y el método) y en «Detalle Soportes». Una
+cámara sin nada medido no tiene promedio propio y sigue con la extrapolación
+por formato; el día incompleto nunca se rellena.
 
 ### Extrapolación formato a formato
 
