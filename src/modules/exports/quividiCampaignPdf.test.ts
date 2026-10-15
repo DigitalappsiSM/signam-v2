@@ -10,9 +10,11 @@ import {
   brandCoverage,
   brandGenderAge,
   brandOperationalReport,
+  brandTopStores,
   formatCount,
   formatPercent,
 } from './quividiBrandReport';
+import { brandGapFilledReport } from './quividiGapFill';
 
 function report(): QuividiCampaignReport {
   const dates = ['2026-08-11', '2026-08-12', '2026-08-15', '2026-08-16'];
@@ -149,8 +151,9 @@ describe('renderizado del informe', () => {
         });
       }
     }
+    // Día medido de la tienda 1 (el día 0 está caído).
     const supportHours = Array.from({ length: 24 }, (_, hour) => ({
-      date: dates[0] ?? '',
+      date: dates[4] ?? '',
       hour,
       storeNumber: '1',
       storeName: 'TIENDA 1',
@@ -167,7 +170,7 @@ describe('renderizado del informe', () => {
               ? 2_700
               : 60,
       effectiveOts: 0,
-      watchers: 0,
+      watchers: 200,
       publishedOts:
         hour >= 12 && hour < 18
           ? 4_500
@@ -177,7 +180,7 @@ describe('renderizado del informe', () => {
               ? 2_700
               : 60,
       publishedEffectiveOts: 0,
-      publishedWatchers: 0,
+      publishedWatchers: 200,
       attentionSeconds: 0,
       dwellSeconds: 0,
     }));
@@ -192,9 +195,11 @@ describe('renderizado del informe', () => {
       storeCoverage: { totalStores: 24, mappedStores: 22, percent: 91.7 },
       supportDays,
       supportHours,
+      // Día medido de la tienda 1 (el día 0 está caído): la demografía se
+      // concilia con los watchers publicados de ese par-día.
       demographics: [1, 2].flatMap((gender) =>
         [1, 2, 3, 4, 0].map((age) => ({
-          date: dates[0] ?? '',
+          date: dates[4] ?? '',
           storeNumber: '1',
           storeName: 'TIENDA 1',
           support: 'MUPI DIGITAL',
@@ -402,7 +407,10 @@ describe('renderizado del informe', () => {
   it('cruza género y edad en la pirámide de audiencia', async () => {
     serveRepoAssets();
     const input = longCampaign();
-    const rows = brandGenderAge(input);
+    // La misma vista que pinta el PDF: franja operativa + relleno propio.
+    const rows = brandGenderAge(
+      brandGapFilledReport(brandOperationalReport(input)),
+    );
     const raw = (
       await bytesOf(await buildQuividiCampaignPdfBlob(input))
     ).toString('latin1');
@@ -459,7 +467,7 @@ describe('renderizado del informe', () => {
     expect(raw).toContain('Ninguna tienda registró medición directa');
   });
 
-  it('distribuye «Tiendas TOP» como leaderboard en varias páginas si hace falta', async () => {
+  it('«Tiendas TOP» lista máximo 10 tiendas y cierra con el resto y el total', async () => {
     serveRepoAssets();
     const stores = Array.from({ length: 20 }, (_, index) => ({
       storeNumber: String(index + 1),
@@ -542,12 +550,17 @@ describe('renderizado del informe', () => {
     ).toString('latin1');
 
     expect(raw).not.toContain('NaN');
-    // 20 tiendas a 8 filas por página (formato leaderboard horizontal) exigen
-    // más de una página del listado, así que el informe crece más allá de
-    // las seis secciones base.
-    expect((raw.match(/\/Type \/Page[^s]/g) ?? []).length).toBeGreaterThan(6);
+    // 20 tiendas: sólo las 10 primeras, en una sola página; el resto va en
+    // un renglón y el total cuadra con la portada.
     expect(raw).toContain('TIENDAS TOP');
-    expect(raw).toContain('CONTINUACIÓN');
+    expect(raw).not.toContain('CONTINUACIÓN');
+    expect(raw).not.toContain('TIENDA 20');
+    const top = brandTopStores(many);
+    expect(top.stores).toHaveLength(10);
+    expect(top.restStores).toBe(10);
+    expect(raw).toContain('Dem');
+    expect(raw).toContain(`${formatCount(top.restOts)} OTS`);
+    expect(raw).toContain(`${formatCount(top.totalOts)} OTS`);
     // El detalle operativo de Insurgentes (multi-cámara) no se publica en el
     // PDF comercial: es ruido técnico que no aporta a la marca.
     expect(raw).not.toContain('Insurgentes tiene dos cámaras');
@@ -586,7 +599,9 @@ describe('renderizado del informe', () => {
     ).toString('latin1');
 
     expect(raw).not.toContain('NaN');
+    // 06h queda fuera de la franja operativa; las horas sin dato de la franja
+    // se completan con el promedio propio, así que sí puede haber franja,
+    // pero nunca una que arranque en una hora fuera de 10:00–22:00.
     expect(raw).not.toContain('La franja de 06:00 a 11:00');
-    expect(raw).not.toContain('La franja de');
   });
 });

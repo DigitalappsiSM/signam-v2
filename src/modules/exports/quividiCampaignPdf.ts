@@ -10,9 +10,9 @@ import {
   brandGenderByDay,
   brandHeader,
   brandHourlyDistribution,
+  brandTopStores,
   brandOperationalReport,
   brandPartialDay,
-  brandStoreAttribution,
   brandWeeklyEvolution,
   formatCivilDate,
   formatCount,
@@ -1120,7 +1120,7 @@ function horariosPage(
   if (window) {
     paragraph(
       doc,
-      `La franja de ${String(window.startHour).padStart(2, '0')}:00 a ${String(window.endHour).padStart(2, '0')}:00 h concentra ${formatPercent(window.percent, 0)} de los OTS con medición directa de la campaña.`,
+      `La franja de ${String(window.startHour).padStart(2, '0')}:00 a ${String(window.endHour).padStart(2, '0')}:00 h concentra ${formatPercent(window.percent, 0)} de los OTS de la campaña.`,
       M,
       158,
       680,
@@ -1148,15 +1148,13 @@ function horariosPage(
   );
 }
 
-const TOP_STORES_ROWS_PER_PAGE = 8;
-
 function topStoresPage(
   doc: jsPDF,
   report: QuividiCampaignReport,
   assets: PdfAssets,
 ): void {
-  const attribution = brandStoreAttribution(report);
-  const stores = attribution.stores.filter((store) => store.everMeasured);
+  const top = brandTopStores(report);
+  const stores = top.stores;
 
   if (stores.length === 0) {
     pageHeader(doc, assets, report);
@@ -1180,99 +1178,106 @@ function topStoresPage(
 
   const maxDwell = Math.max(...stores.map((store) => store.dwellSeconds), 1);
   const maxOts = stores[0]!.adjustedOts || 1;
-  const pageCount = Math.max(
-    1,
-    Math.ceil(stores.length / TOP_STORES_ROWS_PER_PAGE),
+
+  pageHeader(doc, assets, report);
+  eyebrow(doc, '04 · TIENDAS TOP', 88);
+  text(doc, 'Tiendas TOP', M, 130, { size: 30, bold: true, color: NAVY });
+  const partial = brandPartialDay(report);
+  text(
+    doc,
+    partial
+      ? `Las ${stores.length} tiendas con más OTS de la campaña. Incluye el ${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}.`
+      : `Las ${stores.length} tiendas con más OTS de la campaña.`,
+    M,
+    152,
+    { size: 11, color: MUTED },
   );
+  const bodyTop = 190;
+  text(doc, 'DWELL TIME', CANVAS_W - M, bodyTop - 14, {
+    size: 8,
+    bold: true,
+    color: MUTED,
+    align: 'right',
+    tracking: 0.8,
+  });
 
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    if (pageIndex > 0) doc.addPage();
-    pageHeader(doc, assets, report);
-    eyebrow(
-      doc,
-      pageIndex === 0 ? '04 · TIENDAS TOP' : '04 · TIENDAS TOP — CONTINUACIÓN',
-      88,
-    );
-    let bodyTop = 148;
-    if (pageIndex === 0) {
-      text(doc, 'Tiendas TOP', M, 130, { size: 30, bold: true, color: NAVY });
-      const partial = brandPartialDay(report);
-      text(
-        doc,
-        partial
-          ? `Tiendas con medición válida en algún momento de la campaña. Incluye el ${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}.`
-          : 'Tiendas con medición válida en algún momento de la campaña.',
-        M,
-        152,
-        { size: 11, color: MUTED },
-      );
-      bodyTop = 190;
-      text(doc, 'DWELL TIME', CANVAS_W - M, bodyTop - 14, {
-        size: 8,
-        bold: true,
-        color: MUTED,
-        align: 'right',
-        tracking: 0.8,
-      });
-    }
-
-    const slice = stores.slice(
-      pageIndex * TOP_STORES_ROWS_PER_PAGE,
-      (pageIndex + 1) * TOP_STORES_ROWS_PER_PAGE,
-    );
-    const rowH = 56;
-    const barAreaX = M + 236;
-    const barAreaW = CONTENT_W - 236 - 130;
-    slice.forEach((store, index) => {
-      const rank = pageIndex * TOP_STORES_ROWS_PER_PAGE + index + 1;
-      const rowY = bodyTop + index * rowH;
-      const accent = rank === 1 ? PINK : BLUE;
-      text(doc, String(rank).padStart(2, '0'), M, rowY + 20, {
-        size: 20,
-        bold: true,
-        color: rank === 1 ? PINK_PALE : HAIR,
-      });
-      text(doc, store.storeName, M + 46, rowY + 16, {
-        size: 13.5,
-        bold: true,
-        color: NAVY,
-      });
-      const barW = Math.max(4, (store.adjustedOts / maxOts) * barAreaW);
-      block(doc, barAreaX, rowY, barW, 22, accent);
-      text(
-        doc,
-        formatCount(store.adjustedOts),
-        barAreaX + barW + 10,
-        rowY + 16,
-        {
-          size: 13,
-          bold: true,
-          color: NAVY,
-        },
-      );
-
-      const dwellColX = CANVAS_W - M - 64;
-      text(doc, formatDwell(store.dwellSeconds), dwellColX + 64, rowY + 4, {
-        size: 11,
-        bold: true,
-        color: NAVY,
-        align: 'right',
-      });
-      const dwellBarW = Math.max(3, (store.dwellSeconds / maxDwell) * 64);
-      block(doc, dwellColX + 64 - 64, rowY + 12, 64, 4, HAIR);
-      block(doc, dwellColX + 64 - 64, rowY + 12, dwellBarW, 4, SKY);
-      block(doc, dwellColX + 64 - dwellBarW, rowY + 12, dwellBarW, 4, accent);
-      if (index < slice.length - 1) {
-        block(doc, M, rowY + rowH - 14, CONTENT_W, 1, HAIR);
-      }
+  // Hasta 10 renglones + el cierre caben en una página sin encimarse.
+  const rowH = 46;
+  const barAreaX = M + 236;
+  const barAreaW = CONTENT_W - 236 - 130;
+  stores.forEach((store, index) => {
+    const rank = index + 1;
+    const rowY = bodyTop + index * rowH;
+    const accent = rank === 1 ? PINK : BLUE;
+    text(doc, String(rank).padStart(2, '0'), M, rowY + 18, {
+      size: 18,
+      bold: true,
+      color: rank === 1 ? PINK_PALE : HAIR,
+    });
+    text(doc, store.storeName, M + 46, rowY + 15, {
+      size: 13,
+      bold: true,
+      color: NAVY,
+    });
+    const barW = Math.max(4, (store.adjustedOts / maxOts) * barAreaW);
+    block(doc, barAreaX, rowY, barW, 20, accent);
+    text(doc, formatCount(store.adjustedOts), barAreaX + barW + 10, rowY + 15, {
+      size: 12.5,
+      bold: true,
+      color: NAVY,
     });
 
-    pageFooter(
+    const dwellColX = CANVAS_W - M - 64;
+    text(doc, formatDwell(store.dwellSeconds), dwellColX + 64, rowY + 4, {
+      size: 11,
+      bold: true,
+      color: NAVY,
+      align: 'right',
+    });
+    const dwellBarW = Math.max(3, (store.dwellSeconds / maxDwell) * 64);
+    block(doc, dwellColX, rowY + 12, 64, 4, HAIR);
+    block(doc, dwellColX, rowY + 12, dwellBarW, 4, SKY);
+    block(doc, dwellColX + 64 - dwellBarW, rowY + 12, dwellBarW, 4, accent);
+    if (index < stores.length - 1) {
+      block(doc, M, rowY + rowH - 12, CONTENT_W, 1, HAIR);
+    }
+  });
+
+  // Cierre: el resto del universo y el total, que es la cifra de portada.
+  let closeY = bodyTop + stores.length * rowH + 6;
+  block(doc, M, closeY - 10, CONTENT_W, 1, NAVY);
+  if (top.restStores > 0 && top.restOts > 0) {
+    const label = top.restStores === 1 ? 'tienda' : 'tiendas';
+    text(
       doc,
-      doc.getNumberOfPages(),
-      'AUDIENCIAS REALES. OPORTUNIDADES REALES.',
+      `Demás universo de tiendas (${formatCount(top.restStores)} ${label})`,
+      M + 46,
+      closeY + 10,
+      { size: 12, color: NAVY },
     );
+    text(doc, `${formatCount(top.restOts)} OTS`, barAreaX, closeY + 10, {
+      size: 12,
+      bold: true,
+      color: NAVY,
+    });
+    closeY += 26;
   }
+  text(doc, 'Total de la campaña', M + 46, closeY + 10, {
+    size: 12.5,
+    bold: true,
+    color: PINK,
+  });
+  text(doc, `${formatCount(top.totalOts)} OTS`, barAreaX, closeY + 10, {
+    size: 12.5,
+    bold: true,
+    color: PINK,
+  });
+
+  pageFooter(
+    doc,
+    doc.getNumberOfPages(),
+    'AUDIENCIAS REALES. OPORTUNIDADES REALES.',
+  );
 }
 
 function closingPage(
@@ -1316,7 +1321,7 @@ function closingPage(
   if (peakHour !== null) {
     recommendations.push([
       'Aprovecha la franja de mayor tránsito',
-      `La hora ${String(peakHour).padStart(2, '0')}:00 concentra la mayor proporción de OTS con medición directa; es una referencia útil para calendarizar activaciones puntuales.`,
+      `La hora ${String(peakHour).padStart(2, '0')}:00 concentra la mayor proporción de OTS de la campaña; es una referencia útil para calendarizar activaciones puntuales.`,
     ]);
   }
   const topAge = pyramid[0]?.age;

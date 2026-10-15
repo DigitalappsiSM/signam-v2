@@ -9,8 +9,12 @@ import {
   brandCampaignSummary,
   brandDaily,
   brandDemographics,
+  brandFormatAverageAssignments,
+  brandGender,
+  brandHourlyDistribution,
   brandOperationalReport,
   brandStoreAttribution,
+  brandTopStores,
 } from './quividiBrandReport';
 import {
   brandGapFill,
@@ -755,5 +759,139 @@ describe('relleno hora a hora · Mupis igual que Banners', () => {
         publishedOts: expect.closeTo(1000, 6),
       },
     ]);
+  });
+});
+
+describe('todas las cifras del PDF cuadran con la portada', () => {
+  function circuitWithUniverse(): QuividiCampaignReport {
+    const specs: PairSpec[] = [
+      ...CIRCUIT,
+      {
+        storeNumber: '30',
+        storeName: 'TIENDA H',
+        support: 'BANNER DIGITAL',
+        faces: [
+          {
+            locationId: 30,
+            name: 'H-1',
+            series: [4000, 4000, 4000, 4000, 4000, 8000, 8000],
+            hourGaps: { '2026-10-01': [19, 20, 21] },
+          },
+          {
+            locationId: 31,
+            name: 'H-2',
+            series: [3000, 3000, 3000, 3000, 3000, 6000, 6000],
+          },
+        ],
+      },
+    ];
+    const base = report(specs);
+    // Demografía medida por día completo (00–24 h): el doble de los watchers
+    // de la franja, para comprobar que se escala a lo publicado.
+    const demographics = base.supportDays
+      .filter((row) => row.status !== 'missing')
+      .flatMap((row) => [
+        {
+          date: row.date,
+          storeNumber: row.storeNumber,
+          storeName: row.storeName,
+          support: row.support,
+          gender: 2,
+          age: 3,
+          watchers: row.watchers * 1.2,
+          publishedWatchers: row.publishedWatchers * 1.2,
+        },
+        {
+          date: row.date,
+          storeNumber: row.storeNumber,
+          storeName: row.storeName,
+          support: row.support,
+          gender: 1,
+          age: 3,
+          watchers: row.watchers * 0.8,
+          publishedWatchers: row.publishedWatchers * 0.8,
+        },
+      ]);
+    return {
+      ...base,
+      demographics,
+      coverage: {
+        ...base.coverage,
+        totalPairs: base.coverage.totalPairs + 1,
+        bySupport: [
+          {
+            support: 'BANNER DIGITAL',
+            totalPairs: 6,
+            mappedPairs: 5,
+            percent: 83,
+          },
+        ],
+        unmappedPairs: [
+          {
+            storeNumber: '40',
+            storeName: 'TIENDA SIN DATO',
+            support: 'BANNER DIGITAL',
+          },
+        ],
+      },
+      storeCoverage: { totalStores: 6, mappedStores: 5, percent: 83 },
+    };
+  }
+
+  it('portada = evolución = Tiendas TOP + demás universo', () => {
+    const view = pdfView(circuitWithUniverse());
+    const summary = brandCampaignSummary(view);
+    expect(summary.extrapolatedOts).toBeGreaterThan(0);
+    expect(
+      brandDaily(view).reduce((total, point) => total + point.estimatedOts, 0),
+    ).toBeCloseTo(summary.estimatedOts, 6);
+    const top = brandTopStores(view, 3);
+    expect(top.stores).toHaveLength(3);
+    expect(top.restStores).toBe(3);
+    expect(
+      top.stores.reduce((total, store) => total + store.adjustedOts, 0) +
+        top.restOts,
+    ).toBeCloseTo(summary.estimatedOts, 6);
+    expect(top.totalOts).toBeCloseTo(summary.estimatedOts, 6);
+  });
+
+  it('horarios: las horas rellenadas cuentan en su hora y el reparto cubre el total', () => {
+    // Cada cámara reparte su día parejo en las 12 horas: con las horas sin
+    // dato rellenadas y lo extrapolado repartido por el perfil del formato,
+    // el reparto vuelve a ser parejo.
+    const hourly = brandHourlyDistribution(pdfView(circuitWithUniverse()));
+    expect(hourly).toHaveLength(12);
+    for (const point of hourly) expect(point.share).toBeCloseTo(100 / 12, 6);
+  });
+
+  it('demografía: los watchers concilian con los publicados', () => {
+    const view = pdfView(circuitWithUniverse());
+    const rows = brandDemographics(view);
+    const measured = rows
+      .filter((row) => row.origin === 'measured')
+      .reduce((total, row) => total + row.watchers, 0);
+    const published = view.supportDays
+      .filter((row) => row.status !== 'missing')
+      .reduce(
+        (total, row) =>
+          total + row.publishedWatchers - (row.gapFill?.publishedWatchers ?? 0),
+        0,
+      );
+    expect(measured).toBeCloseTo(published, 6);
+    // El perfil medido (60 % mujeres) se conserva al escalar.
+    const female = brandGender(view).find((item) => item.label === 'Femenino');
+    expect(female?.share).toBeCloseTo(60, 6);
+  });
+
+  it('auditoría: lista por tienda lo calculado con el promedio del formato', () => {
+    const input = circuitWithUniverse();
+    const view = pdfView(input);
+    const assignments = brandFormatAverageAssignments(view, input);
+    expect(assignments.map((entry) => entry.storeName)).toContain(
+      'TIENDA SIN DATO',
+    );
+    expect(
+      assignments.reduce((total, entry) => total + entry.ots, 0),
+    ).toBeCloseTo(brandCampaignSummary(view).extrapolatedOts, 6);
   });
 });

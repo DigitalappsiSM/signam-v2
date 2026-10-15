@@ -970,6 +970,56 @@ export function brandUncoveredPairsByDate(
 }
 
 /**
+ * Factor que lleva la demografía medida de cada par-día a los watchers
+ * publicados de ese mismo par-día en `supportDays` (sin la parte rellenada,
+ * que trae su propia demografía estimada).
+ *
+ * Quividi no entrega la demografía por hora, así que llega sumada en el día
+ * completo (00:00–23:59), mientras el PDF acota los watchers a la franja
+ * 10:00–22:00. Escalarla conserva el perfil género × edad medido de ese
+ * par-día y hace que los conteos cuadren con la cifra publicada. Un par-día
+ * sin fila (sin hora en la franja) queda fuera; un par sin ninguna fila en el
+ * reporte se deja tal cual (no hay contra qué conciliar).
+ */
+function demographicScale(
+  report: QuividiCampaignReport,
+): (row: QuividiCampaignReport['demographics'][number]) => number {
+  const targets = new Map<string, number>();
+  const pairs = new Set<string>();
+  for (const row of report.supportDays) {
+    pairs.add(`${row.storeNumber}|${row.support}`);
+    if (row.status === 'missing') continue;
+    targets.set(
+      supportDayKey(row),
+      Math.max(
+        0,
+        numeric(row.publishedWatchers) -
+          numeric(row.gapFill?.publishedWatchers ?? 0),
+      ),
+    );
+  }
+  const observed = new Map<string, number>();
+  for (const row of report.demographics) {
+    if (row.estimated) continue;
+    const key = supportDayKey(row);
+    observed.set(
+      key,
+      (observed.get(key) ?? 0) + numeric(row.publishedWatchers ?? row.watchers),
+    );
+  }
+  return (row) => {
+    if (row.estimated) return 1;
+    const key = supportDayKey(row);
+    const target = targets.get(key);
+    if (target === undefined) {
+      return pairs.has(`${row.storeNumber}|${row.support}`) ? 0 : 1;
+    }
+    const seen = observed.get(key) ?? 0;
+    return seen > 0 ? target / seen : 0;
+  };
+}
+
+/**
  * Demografía de cara a marca, con la misma lógica que el OTS publicado:
  *
  * - lo medido usa los watchers publicados (misma cámara de referencia que el
@@ -981,7 +1031,9 @@ export function brandUncoveredPairsByDate(
  * - los formatos sin ninguna medición quedan fuera, igual que en el OTS.
  *
  * Los porcentajes del total casi no cambian (lo estimado usa el mismo perfil
- * del formato); los conteos sí, y cuadran con los watchers publicados.
+ * del formato); los conteos sí, y cuadran con los watchers publicados. Lo
+ * medido se escala par-día a par-día a los watchers publicados de la franja
+ * 10:00–22:00 (`demographicScale`): Quividi la entrega por día completo.
  */
 export function brandDemographics(
   report: QuividiCampaignReport,
@@ -995,9 +1047,11 @@ export function brandDemographics(
 
   const result: BrandDemographicRow[] = [];
   const profile = new Map<string, Map<string, number>>();
+  const scaleFor = demographicScale(report);
   for (const row of report.demographics) {
     if (excluded.has(row.support)) continue;
-    const watchers = published(row);
+    const watchers = published(row) * scaleFor(row);
+    if (watchers <= 0 && published(row) > 0) continue;
     const isPartial = row.date === partial;
     result.push({
       date: row.date,
@@ -1326,6 +1380,153 @@ export function brandStoreAttribution(
   };
 }
 
+/** Tienda + soporte calculado con el promedio de su formato. */
+export interface BrandFormatAverageAssignment {
+  storeNumber: string;
+  storeName: string;
+  support: string;
+  /** Días de la rejilla sin dato propio, completados con el promedio. */
+  days: number;
+  /** OTS publicados por soporte-día del formato (`brandFormatRate`). */
+  rate: number;
+  ots: number;
+}
+
+/**
+ * Detalle, por tienda y soporte, de lo que la cifra completa con el promedio
+ * de su formato (`extrapolatedOts`): los soportes del universo sin punto de
+ * medición (`coverage.unmappedPairs`, v10) y los días que una pantalla no
+ * tuvo ningún dato propio. Si el reporte no trae el detalle (v9 o anterior),
+ * lo que falta para cuadrar queda en un renglón «Otros soportes del
+ * formato». La suma es exactamente `brandCampaignSummary(report)
+ * .extrapolatedOts`. `report` es la vista ya acotada y rellenada del PDF;
+ * `source` aporta los pares con fila que esa vista pudo no conservar.
+ */
+export function brandFormatAverageAssignments(
+  report: QuividiCampaignReport,
+  source: QuividiCampaignReport = report,
+): BrandFormatAverageAssignment[] {
+  const scope = brandMeasurableScope(report);
+  const grid = brandGridDates(report);
+  const rows = brandSupportDays(report);
+  const ownData = new Set(
+    rows.filter((row) => row.status !== 'missing').map(supportDayKey),
+  );
+  const result: BrandFormatAverageAssignment[] = [];
+  for (const format of scope.measurable) {
+    const rate = brandFormatRate(format);
+    const target =
+      rate * Math.max(0, format.pairDays - format.measuredPairDays);
+    const formatRows: BrandFormatAverageAssignment[] = [];
+    const pairs = new Map<string, { storeNumber: string; storeName: string }>();
+    for (const row of [...source.supportDays, ...rows]) {
+      if (row.support !== format.support) continue;
+      pairs.set(row.storeNumber, {
+        storeNumber: row.storeNumber,
+        storeName: row.storeName,
+      });
+    }
+    for (const pair of pairs.values()) {
+      const days = grid.filter(
+        (date) =>
+          !ownData.has(
+            supportDayKey({
+              date,
+              storeNumber: pair.storeNumber,
+              support: format.support,
+            }),
+          ),
+      ).length;
+      if (days > 0) {
+        formatRows.push({
+          ...pair,
+          support: format.support,
+          days,
+          rate,
+          ots: days * rate,
+        });
+      }
+    }
+    for (const pair of report.coverage.unmappedPairs ?? []) {
+      if (pair.support !== format.support || pairs.has(pair.storeNumber))
+        continue;
+      formatRows.push({
+        storeNumber: pair.storeNumber,
+        storeName: pair.storeName,
+        support: format.support,
+        days: grid.length,
+        rate,
+        ots: grid.length * rate,
+      });
+    }
+    const assigned = sum(formatRows.map((row) => row.ots));
+    const rest = target - assigned;
+    if (rest > 0.5 && rate > 0) {
+      formatRows.push({
+        storeNumber: '',
+        storeName: 'Otros soportes del formato',
+        support: format.support,
+        days: Math.round(rest / rate),
+        rate,
+        ots: rest,
+      });
+    }
+    result.push(
+      ...formatRows.sort((a, b) =>
+        a.storeNumber === ''
+          ? 1
+          : b.storeNumber === ''
+            ? -1
+            : a.storeNumber.localeCompare(b.storeNumber, 'es', {
+                numeric: true,
+              }),
+      ),
+    );
+  }
+  return result;
+}
+
+/** Tiendas que lista «Tiendas TOP» en el PDF (presentación: una sola página). */
+export const BRAND_TOP_STORES_LIMIT = 10;
+
+export interface BrandTopStores {
+  /** Las de más OTS, como máximo `BRAND_TOP_STORES_LIMIT`. */
+  stores: BrandStoreAttribution[];
+  /** Resto del universo de tiendas de la campaña. */
+  restStores: number;
+  /** OTS del resto: total de portada menos las tiendas listadas. */
+  restOts: number;
+  /** Total de la campaña: exactamente la cifra de portada. */
+  totalOts: number;
+}
+
+/**
+ * «Tiendas TOP» del PDF: las 10 tiendas de más OTS y el resto del universo en
+ * un solo renglón, para que la página sume exactamente la portada. El resto
+ * agrupa las tiendas fuera del top y las calculadas con el promedio de su
+ * formato; de cara a marca nunca se distingue entre ambas.
+ */
+export function brandTopStores(
+  report: QuividiCampaignReport,
+  limit = BRAND_TOP_STORES_LIMIT,
+): BrandTopStores {
+  const attribution = brandStoreAttribution(report);
+  const ranked = attribution.stores.filter((store) => store.everMeasured);
+  const stores = ranked.slice(0, limit);
+  const totalOts = brandCampaignSummary(report).estimatedOts;
+  const listedOts = sum(stores.map((store) => store.adjustedOts));
+  const universe = Math.max(
+    brandCoverage(report).totalStores,
+    attribution.stores.length,
+  );
+  return {
+    stores,
+    restStores: Math.max(0, universe - stores.length),
+    restOts: Math.max(0, totalOts - listedOts),
+    totalOts,
+  };
+}
+
 /**
  * Franja horaria operativa de cara a la marca: 10:00–22:00 (hora 22 excluida).
  *
@@ -1501,35 +1702,69 @@ export function brandOperationalCameraDays(
 }
 
 /**
- * Distribución horaria de los OTS con medición directa, acotada a la franja
+ * Distribución horaria de los OTS **de la campaña**, acotada a la franja
  * operativa de cara a la marca (`BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR`).
  *
- * Se calcula sobre `supportHours`, que no todos los reportes traen: cuando
- * falta, devuelve una lista vacía y el informe omite el bloque en vez de
- * dibujar ceros. A diferencia de `brandDaily`/`brandWeeklyEvolution`, esta
- * distribución **no completa horas sin dato**: SIGNAM no tiene hoy una fuente
- * fiable del horario de operación esperado por soporte que permita distinguir
- * una hora sin medición de una hora en la que el soporte estaba apagado, así
- * que el reparto describe únicamente lo observado, no un total ajustado por
- * hora. Extrapolar hora a hora queda para cuando exista esa fuente.
+ * Los porcentajes se ajustan al total de portada (octubre 2026: todas las
+ * cifras del PDF deben cuadrar). Por formato:
+ *
+ * - lo medido va a su hora (`supportHours`);
+ * - lo rellenado con el promedio propio va a la hora exacta que se rellenó
+ *   (`report.estimatedHours`, que deja `quividiGapFill.ts`);
+ * - lo que resta para llegar al total del formato (extrapolación por formato
+ *   y cualquier relleno sin detalle horario) se reparte según el perfil
+ *   horario de ese mismo formato (medido + rellenado).
+ *
+ * Así el 100 % de la gráfica es exactamente `brandCampaignSummary`. Si el
+ * reporte no trae `supportHours`, devuelve una lista vacía y el informe omite
+ * el bloque en vez de dibujar ceros.
  */
 export function brandHourlyDistribution(
   report: QuividiCampaignReport,
 ): BrandHourlyPoint[] {
+  const inWindow = (hour: number) =>
+    hour >= BRAND_OPERATIONAL_START_HOUR && hour < BRAND_OPERATIONAL_END_HOUR;
+  const dates = new Set(brandGridDates(report));
+  if (report.partialDate) dates.add(report.partialDate);
   const measured = report.supportHours.filter(
     (row) =>
-      row.status !== 'missing' &&
-      row.hour >= BRAND_OPERATIONAL_START_HOUR &&
-      row.hour < BRAND_OPERATIONAL_END_HOUR,
+      row.status !== 'missing' && inWindow(row.hour) && dates.has(row.date),
   );
   if (measured.length === 0) return [];
 
+  const profiles = new Map<string, Map<number, number>>();
+  const addTo = (support: string, hour: number, ots: number) => {
+    const profile = profiles.get(support) ?? new Map<number, number>();
+    profile.set(hour, (profile.get(hour) ?? 0) + ots);
+    profiles.set(support, profile);
+  };
+  for (const row of measured)
+    addTo(row.support, row.hour, numeric(row.publishedOts));
+  for (const row of report.estimatedHours ?? []) {
+    if (!inWindow(row.hour) || !dates.has(row.date)) continue;
+    addTo(row.support, row.hour, numeric(row.publishedOts));
+  }
+
+  const scope = brandMeasurableScope(report);
+  const formatTotals = new Map(
+    scope.measurable.map((format) => [
+      format.support,
+      format.measuredOts +
+        brandFormatRate(format) *
+          Math.max(0, format.pairDays - format.measuredPairDays) +
+        format.partialOts,
+    ]),
+  );
+
   const totals = new Map<number, number>();
-  for (const row of measured) {
-    totals.set(
-      row.hour,
-      (totals.get(row.hour) ?? 0) + numeric(row.publishedOts),
-    );
+  for (const [support, profile] of profiles) {
+    const observed = sum(Array.from(profile.values()));
+    if (observed <= 0) continue;
+    const target = formatTotals.get(support) ?? observed;
+    const scaleBy = Math.max(target, observed) / observed;
+    for (const [hour, ots] of profile) {
+      totals.set(hour, (totals.get(hour) ?? 0) + ots * scaleBy);
+    }
   }
   const total = sum(Array.from(totals.values()));
   if (total <= 0) return [];

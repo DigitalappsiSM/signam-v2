@@ -73,6 +73,11 @@ export interface BrandGapFillEntry {
   basisKind: 'complete-days' | 'measured-days';
   /** Horas de la franja estimadas ese día (0 en el relleno por día completo). */
   missingHours: number;
+  /**
+   * OTS publicados estimados en cada hora de la franja (vacío en el relleno
+   * por día completo): la gráfica de horarios los suma a su hora exacta.
+   */
+  hourlyOts: Array<{ hour: number; publishedOts: number }>;
   /** Cara(s) de la que se copió el valor (sólo `sister-face-copy`). */
   sourceLocationName: string;
   ots: number;
@@ -294,6 +299,7 @@ function cameraLevelFills(
         basisDays: average.basisDays,
         basisKind: 'measured-days',
         missingHours: 0,
+        hourlyOts: [],
         sourceLocationName: '',
         ...average.value,
       });
@@ -324,6 +330,7 @@ function cameraLevelFills(
           basisDays: 0,
           basisKind: 'measured-days',
           missingHours: 0,
+          hourlyOts: [],
           sourceLocationName: sourceName,
           ...mean(values),
         });
@@ -358,6 +365,7 @@ function pairLevelFills(
       basisDays: average.basisDays,
       basisKind: 'measured-days',
       missingHours: 0,
+      hourlyOts: [],
       sourceLocationName: '',
       ...average.value,
     });
@@ -572,6 +580,8 @@ function singleUnitHourFills(
     if (missingHours <= 0) continue;
     const own = ownAverage(date, average.basis);
     if (!own) continue;
+    const measured = values.get(date);
+    const perHour = own.value.publishedOts / BRAND_OPERATIONAL_HOURS;
     fills.push({
       date,
       storeNumber: pair.storeNumber,
@@ -584,6 +594,9 @@ function singleUnitHourFills(
       basisDays: own.basisDays,
       basisKind: average.kind,
       missingHours,
+      hourlyOts: operationalHours()
+        .filter((hour) => !measured?.has(hour))
+        .map((hour) => ({ hour, publishedOts: perHour })),
       sourceLocationName: '',
       ...scale(own.value, missingHours / BRAND_OPERATIONAL_HOURS),
     });
@@ -652,9 +665,19 @@ function multiCameraHourFills(
   // Total de la franja (medido + estimado) de cada cámara, por fecha: base de
   // la copia a la cara sin cámara.
   const finalTotals = new Map<number, Map<string, Metrics>>();
+  // OTS crudos de cada hora de la cara hermana (medido o estimado), promedio
+  // de las caras con promedio propio: base horaria de la copia.
+  const sisterHourly = new Map<string, Map<number, number>>();
 
   for (const date of dates) {
     const hourly = new Map<number, Metrics>();
+    const hourlyOts = new Map<number, Map<number, number>>();
+    const addHourOts = (locationId: number, hour: number, ots: number) => {
+      const hours = hourlyOts.get(locationId) ?? new Map<number, number>();
+      hours.set(hour, (hours.get(hour) ?? 0) + ots);
+      hourlyOts.set(locationId, hours);
+    };
+    const sisterHours = new Map<number, number>();
     const missing = new Map<number, number>();
     const perHour = new Map<number, Metrics>();
     for (const unit of units.values()) {
@@ -674,10 +697,21 @@ function multiCameraHourFills(
         estimated.set(locationId, value);
         missing.set(locationId, (missing.get(locationId) ?? 0) + 1);
       }
+      if (pair.zoneSplit && perHour.size > 0) {
+        const sisters = Array.from(perHour.keys()).map(
+          (locationId) =>
+            measured.get(locationId)?.ots ?? perHour.get(locationId)!.ots,
+        );
+        sisterHours.set(
+          hour,
+          sisters.reduce((total, value) => total + value, 0) / sisters.length,
+        );
+      }
       if (estimated.size === 0) continue;
       if (pair.zoneSplit) {
         for (const [locationId, value] of estimated) {
           hourly.set(locationId, add(hourly.get(locationId) ?? ZERO, value));
+          addHourOts(locationId, hour, value.ots);
         }
         continue;
       }
@@ -698,8 +732,10 @@ function multiCameraHourFills(
         const current = { ...(hourly.get(winner) ?? ZERO) };
         current[key] += best - measuredMax;
         hourly.set(winner, current);
+        if (key === 'ots') addHourOts(winner, hour, best - measuredMax);
       }
     }
+    sisterHourly.set(date, sisterHours);
 
     for (const unit of units.values()) {
       const measuredTotal = Array.from(
@@ -729,6 +765,10 @@ function multiCameraHourFills(
         basisDays: own.basisDays,
         basisKind: unit.average.kind,
         missingHours,
+        hourlyOts: Array.from(
+          hourlyOts.get(unit.locationId) ?? new Map<number, number>(),
+          ([hour, ots]) => ({ hour, publishedOts: ots * factor }),
+        ).sort((a, b) => a.hour - b.hour),
         sourceLocationName: '',
         ...published(added, factor),
       });
@@ -757,6 +797,10 @@ function multiCameraHourFills(
           basisDays: 0,
           basisKind: 'measured-days',
           missingHours: BRAND_OPERATIONAL_HOURS,
+          hourlyOts: Array.from(
+            sisterHourly.get(date) ?? new Map<number, number>(),
+            ([hour, ots]) => ({ hour, publishedOts: ots * factor }),
+          ).sort((a, b) => a.hour - b.hour),
           sourceLocationName: sourceName,
           ...published(mean(values), factor),
         });
@@ -881,6 +925,15 @@ export function brandGapFill(
     report: {
       ...report,
       gapFilled: true,
+      estimatedHours: fills.flatMap((entry) =>
+        entry.hourlyOts.map((item) => ({
+          date: entry.date,
+          storeNumber: entry.storeNumber,
+          support: entry.support,
+          hour: item.hour,
+          publishedOts: item.publishedOts,
+        })),
+      ),
       supportDays,
       demographics: [
         ...report.demographics,

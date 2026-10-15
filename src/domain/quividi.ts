@@ -162,6 +162,12 @@ export interface QuividiCoverage {
   mappedPairs: number;
   percent: number;
   bySupport: QuividiCoverageBySupport[];
+  /** Soportes del universo sin punto de medición asignado (desde v10). */
+  unmappedPairs?: Array<{
+    storeNumber: string;
+    storeName: string;
+    support: string;
+  }>;
 }
 
 /** Cobertura comercial por tiendas únicas del universo de campaña. */
@@ -215,6 +221,17 @@ export interface QuividiCampaignReport {
   unmappedCameraNames: string[];
   /** Ya pasó por el relleno de huecos del informe comercial (sólo cliente). */
   gapFilled?: boolean;
+  /**
+   * OTS publicados estimados por el relleno, hora a hora (sólo cliente): la
+   * gráfica de horarios los suma a su hora exacta para cuadrar con portada.
+   */
+  estimatedHours?: Array<{
+    date: string;
+    storeNumber: string;
+    support: string;
+    hour: number;
+    publishedOts: number;
+  }>;
 }
 
 export const QUIVIDI_GENDER_LABELS: Record<number, string> = {

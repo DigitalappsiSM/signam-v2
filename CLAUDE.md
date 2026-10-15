@@ -169,7 +169,13 @@ logic. The load-bearing ones:
   hours gets the full average. Pairs with 2+ cameras are filled **camera by camera** (per-camera hourly
   `cameraReadings` on every 2+ camera pair, schema v10) and **then** combined like the backend: zone split sums, the
   rest takes the highest × `publishedFactor` (an estimate only counts where it beats the sister's measurement); a
-  zone-split face/floor with no camera (`BANNER DIGITAL`, Insurgentes Mupi) copies its sister day by day. The PDF shows filled values exactly like measured ones; only the Excel marks them (yellow + note in
+  zone-split face/floor with no camera (`BANNER DIGITAL`, Insurgentes Mupi) copies its sister day by day.
+  **Every PDF figure reconciles with the cover**: daily/weekly evolution sums it; «Tiendas TOP» lists at most **10** stores
+  then «Demás universo de tiendas (N tiendas)» + «Total de la campaña» (`brandTopStores`; the PDF never says a store has
+  no camera); the hourly chart's 100 % is the cover (measured and filled hours in their hour via `estimatedHours`,
+  extrapolation spread by the format's hourly profile); measured demographics are scaled per pair-day to the published
+  10–22 h watchers (`demographicScale`). The Excel audit sheet section 12 lists, per store, what was computed with the
+  format average (`brandFormatAverageAssignments`, server list `coverage.unmappedPairs`). The PDF shows filled values exactly like measured ones; only the Excel marks them (yellow + note in
   «Auditoría de cifras» section 11 and «Detalle Soportes»), splitting `measuredOts` + `filledOts` + `extrapolatedOts`. Averages divide by **measured** pair-days, never the full grid: missing days entering the
   numerator as zero deflate the average that then fills the rest, a bias that grows with flight length. While the
   campaign is still running, that grid is capped at the last **complete** measured day (`effectiveEndDate`/

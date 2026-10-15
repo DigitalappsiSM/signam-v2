@@ -411,6 +411,9 @@ describe('buildCoverage', () => {
         percent: 100,
       },
     ]);
+    expect(coverage.unmappedPairs).toEqual([
+      expect.objectContaining({ storeNumber: '78', support: 'BANNER DIGITAL' }),
+    ]);
   });
 
   it('no divide entre cero cuando no hay pares', () => {
@@ -419,6 +422,7 @@ describe('buildCoverage', () => {
       mappedPairs: 0,
       percent: 0,
       bySupport: [],
+      unmappedPairs: [],
     });
   });
 });

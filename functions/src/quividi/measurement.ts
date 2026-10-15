@@ -32,6 +32,16 @@ export interface ReportCoverage {
     mappedPairs: number;
     percent: number;
   }>;
+  /**
+   * Soportes del universo sin punto de medición asignado (v10): el informe
+   * comercial los completa con el promedio de su formato y la hoja
+   * «Auditoría de cifras» los lista por tienda.
+   */
+  unmappedPairs: Array<{
+    storeNumber: string;
+    storeName: string;
+    support: string;
+  }>;
 }
 
 export const ACTIVE_CACHE_MS = 24 * 60 * 60 * 1000;
@@ -164,7 +174,8 @@ export interface Incident {
 // cámaras, para que el informe comercial rellene la cara sin dato con su
 // propio promedio dentro de la franja operativa; cambia la forma, así que los
 // snapshots v8 deben regenerarse.
-// v10 (octubre 2026, Mupis igual que Banners): `cameraReadings` en TODO par
+// v10 (octubre 2026, Mupis igual que Banners): `coverage.unmappedPairs`
+// (soportes del universo sin punto de medición), `cameraReadings` en TODO par
 // de 2+ cámaras (no sólo zona partida), `zoneSplit` y `publishedFactor` en
 // `SupportHour`/`SupportDay`; zona partida sólo para el Mupi de Insurgentes
 // (y BANNER DIGITAL) y el Mupi de Polanco publica sin duplicar. Cambia forma
@@ -392,9 +403,16 @@ export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
     { totalPairs: number; mappedPairs: number }
   >();
   let mappedPairs = 0;
+  const unmappedPairs: ReportCoverage['unmappedPairs'] = [];
   for (const pair of pairs) {
     const mapped = pair.cameras.length > 0;
     if (mapped) mappedPairs += 1;
+    else
+      unmappedPairs.push({
+        storeNumber: pair.storeNumber,
+        storeName: pair.storeName,
+        support: pair.support,
+      });
     const current = supports.get(pair.support) ?? {
       totalPairs: 0,
       mappedPairs: 0,
@@ -412,6 +430,11 @@ export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
       ...value,
       percent: percentage(value.mappedPairs, value.totalPairs),
     })).sort((a, b) => a.support.localeCompare(b.support, 'es')),
+    unmappedPairs: unmappedPairs.sort(
+      (a, b) =>
+        a.support.localeCompare(b.support, 'es') ||
+        a.storeNumber.localeCompare(b.storeNumber, 'es', { numeric: true }),
+    ),
   };
 }
 

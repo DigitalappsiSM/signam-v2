@@ -3,6 +3,7 @@ import type { QuividiCampaignReport } from '@/domain';
 import {
   brandCampaignSummary,
   brandExtrapolationByReason,
+  brandFormatAverageAssignments,
   brandFormatRate,
   brandPartialDay,
   brandSingleCameraDuplication,
@@ -895,5 +896,79 @@ export function addQuividiAuditSheet(
   );
 
   row += 1;
-  addGapFillSection(sheet, row, input);
+  row = addGapFillSection(sheet, row, input);
+
+  row += 1;
+  addFormatAverageSection(sheet, row, input);
+}
+
+/**
+ * Sección 12: tiendas y soportes que la cifra completa con el promedio de su
+ * formato, uno por renglón. Mismo alcance que el PDF (franja 10:00–22:00 y
+ * relleno propio aplicado); el total es `extrapolatedOts` de esa vista.
+ */
+function addFormatAverageSection(
+  sheet: Worksheet,
+  startRow: number,
+  input: QuividiCampaignReport,
+): number {
+  const view = brandGapFill(brandOperationalReport(input)).report;
+  const assignments = brandFormatAverageAssignments(view, input);
+  let row = bandTitle(
+    sheet,
+    startRow,
+    '12 · TIENDAS CALCULADAS CON EL PROMEDIO DEL FORMATO',
+  );
+  sheet.mergeCells(row, 1, row, 7);
+  const note = sheet.getCell(row, 1);
+  note.value =
+    'Tiendas y soportes del universo contratado sin dato propio en la vigencia (o en parte de ella): cada día se completa con el promedio de OTS por soporte-día de su formato, calculado sólo con observación directa. Cifras de la franja 10:00–22:00, las mismas que suma el PDF; en el PDF forman parte de «Demás universo de tiendas».';
+  note.font = { italic: true, color: { argb: COLORS.text }, size: 8.5 };
+  note.alignment = { vertical: 'middle', wrapText: true, indent: 1 };
+  sheet.getRow(row).height = 40;
+  row += 1;
+
+  if (assignments.length === 0) {
+    sheet.mergeCells(row, 1, row, 7);
+    const cell = sheet.getCell(row, 1);
+    cell.value =
+      'Ninguna tienda se calculó con el promedio del formato: toda la cifra tiene dato propio.';
+    cell.font = { color: { argb: COLORS.muted }, size: 9 };
+    cell.alignment = { vertical: 'middle', indent: 1 };
+    return row + 1;
+  }
+
+  row += 1;
+  row = headerRow(sheet, row, [
+    'Tienda',
+    'Soporte',
+    'Días calculados',
+    'Promedio del formato (OTS por día)',
+    'OTS asignados (PDF)',
+  ]);
+  for (const entry of assignments) {
+    tableRow(
+      sheet,
+      row,
+      [
+        entry.storeNumber
+          ? `${entry.storeNumber} · ${entry.storeName}`
+          : entry.storeName,
+        entry.support,
+        entry.days,
+        entry.rate,
+        entry.ots,
+      ],
+      [1],
+    );
+    row += 1;
+  }
+  return factRow(
+    sheet,
+    row,
+    'OTS calculados con el promedio del formato (PDF)',
+    assignments.reduce((total, entry) => total + entry.ots, 0),
+    'Ya incluidos en la cifra del PDF.',
+    { strong: true },
+  );
 }

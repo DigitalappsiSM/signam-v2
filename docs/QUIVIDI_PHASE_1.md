@@ -307,7 +307,12 @@ soporte sin cámara o un día que la cámara instalada no reportó.
 
 Seis páginas fijas en formato **A4 horizontal**, con estilo de dashboard
 minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
-(«Tiendas TOP» añade páginas de más si el listado no cabe en una). Ver
+(«Tiendas TOP»: máximo 10 tiendas, más «Demás universo de tiendas» y «Total
+de la campaña», que suman exactamente la portada). **Todas las cifras del PDF
+cuadran con la portada**: la evolución suma el total; los horarios reparten
+el total (lo medido y lo rellenado a su hora, lo extrapolado según el perfil
+horario del formato); la demografía medida se escala a los watchers
+publicados de la franja 10:00–22:00. Ver
 `AGENTS.md` para el detalle regla por regla; resumen:
 
 - **Publica**: una sola cifra de OTS de campaña en portada (sin desglose
@@ -315,8 +320,9 @@ minimalista: Portada, Evolución, Audiencia, Horarios, Tiendas TOP y Cierre
   vigencia con una fila de conclusiones calculadas (promedio, día pico, delta
   fin de semana), el perfil de audiencia (género por día como dos líneas de
   tendencia con dominio compartido, cruce género × edad), la distribución
-  horaria de lo observado, las tiendas con medición y sus OTS ajustados
-  («Tiendas TOP», como leaderboard de una sola columna), y recomendaciones
+  horaria sobre el total de la campaña, las 10 tiendas con más OTS
+  («Tiendas TOP», como leaderboard de una sola columna) con el resto del
+  universo en un renglón, y recomendaciones
   comerciales calculadas de la propia campaña. Un único indicador de cobertura
   (% de tiendas con cámara vs. proyectadas, por conteo de tiendas) aparece solo
   en el pie de la página de Evolución. **Todo el PDF** (no sólo la

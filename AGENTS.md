@@ -595,7 +595,8 @@ tres de ellos describían mal el separador de artículos.
     ellas ese par-día real valdría menos y deflactaría el promedio).
 
   Lo estimado se publica en el PDF **igual que lo medido** (portada, evolución,
-  Tiendas TOP, demografía; todas las cifras concilian) y **nunca** se distingue
+  Tiendas TOP + «Demás universo de tiendas», horarios, demografía; todas las
+  cifras concilian con la portada) y **nunca** se distingue
   ahí. Sólo se documenta en el Excel: «Auditoría de cifras» separa
   `measuredOts` (sólo medido) + `filledOts` (promedio propio) +
   `extrapolatedOts` (por formato) = `estimatedOts`, y su sección 11 lista cada
@@ -747,8 +748,13 @@ tres de ellos describían mal el separador de artículos.
   y los soportes sin cámara de los formatos medibles se completan con el
   promedio de watchers por par-día medido del formato, repartido según su
   perfil de género × edad medido; el día incompleto suma sólo lo medido; los
-  formatos sin ninguna medición quedan fuera. Los porcentajes del total casi
-  no cambian; los conteos cuadran con los watchers publicados.
+  formatos sin ninguna medición quedan fuera. Como Quividi entrega la
+  demografía por **día completo** (sin hora) y el PDF acota los watchers a
+  10:00–22:00, lo medido se **escala par-día a par-día** a los watchers
+  publicados de ese par-día en la franja (`demographicScale`, octubre 2026):
+  conserva el perfil género × edad medido y hace que los conteos cuadren
+  exactamente con la cifra publicada. Un par-día sin fila en la franja queda
+  fuera; la parte rellenada trae su propia demografía estimada.
 - **Excel: «Quividi sin modificar» → «Publicado» → «Racional».** Las hojas
   «Detalle Soportes» y «Demografía» (`quividiPublishedDetail.ts`) ponen lado
   a lado la lectura tal cual de cada cámara (Cám. 1 / Cám. 2), la cifra que
@@ -841,25 +847,26 @@ tres de ellos describían mal el separador de artículos.
   `supportDays`/`supportHours`). Nunca asumas que un reporte cacheado tiene
   los campos de la versión actual del código; la versión es la única señal
   de invalidación.
-- **Tiendas TOP (`brandStoreAttribution`)**: página con título exacto «Tiendas
-  TOP», maquetada como **leaderboard de una sola columna** (no tabla de dos
-  columnas: rompería el orden visual del ranking) — rango, nombre de tienda,
-  barra horizontal proporcional al OTS ajustado y minibarra de dwell time a la
-  derecha; la fila #1 lleva acento rosa, el resto gris. Lista únicamente
-  tiendas con al menos una jornada de medición directa en algún momento de la
-  vigencia (`everMeasured`), con su OTS ajustado (dato propio más los huecos
-  de la tienda completados al promedio de su formato, **más lo medido del día
-  incompleto** sin extrapolar, `partialOts`) y su dwell time ponderado por
-  watchers. Con día incompleto, el subtítulo de la página lo dice: «Incluye
-  el dd/mm/aaaa · Día incompleto, medido hasta HH:MM» — así la suma de
-  Tiendas TOP concilia con la cifra de portada. Se pagina automáticamente cada **8** filas
-  (`TOP_STORES_ROWS_PER_PAGE`) si el listado no cabe en una página, con
-  eyebrow de continuación `«04 · TIENDAS TOP — CONTINUACIÓN»` (em-dash, nunca
-  paréntesis — ver la nota de escape de `tracking` más abajo). La página **no**
-  explica que la suma de la tabla difiere del total de portada ni detalla el
-  caso Insurgentes: es ruido metodológico que la marca no necesita: ambas notas
-  se retiraron a partir de la Fase 3 por pedido explícito («no generar ruido a
-  la marca»); la aclaración completa sigue disponible solo en el Excel técnico.
+- **Tiendas TOP (`brandTopStores` sobre `brandStoreAttribution`)**: página
+  con título exacto «Tiendas TOP», maquetada como **leaderboard de una sola
+  columna** — rango, nombre de tienda, barra horizontal proporcional al OTS
+  ajustado y minibarra de dwell time a la derecha; la fila #1 lleva acento
+  rosa. Lista **como máximo 10 tiendas** (`BRAND_TOP_STORES_LIMIT`, octubre
+  2026: por presentación, una sola página; nunca se pagina), las de más OTS
+  ajustado entre las que tuvieron medición directa en algún momento
+  (`everMeasured`): dato propio, huecos completados y lo medido del día
+  incompleto. Cierra con dos renglones que hacen que la página **sume
+  exactamente la portada**:
+  `«Demás universo de tiendas (N tiendas)» · X OTS` — el resto del universo
+  de tiendas de la campaña, con cámara o calculadas con el promedio de su
+  formato, sin distinguir entre ambas (enfoque 100 % comercial: **nunca** se
+  menciona en el PDF que una tienda no tiene cámara); X = portada − suma del
+  top — y `«Total de la campaña» · X OTS` (= portada). Con día incompleto el
+  subtítulo lo dice («Incluye el dd/mm/aaaa · Día incompleto…»). El detalle
+  por tienda de lo calculado con el promedio del formato vive sólo en el
+  Excel (sección 12 de «Auditoría de cifras», `brandFormatAverageAssignments`,
+  con motivo neutro «promedio del formato»; el servidor manda la lista en
+  `coverage.unmappedPairs`, v10).
 - **Pie de página relocalizado (Fase 3): un solo indicador, solo en
   Evolución.** El PDF ya no publica en portada ni en Tiendas TOP ninguna
   cifra de cobertura de medición. El único lugar donde aparece es el pie de la
@@ -870,27 +877,19 @@ tres de ellos describían mal el separador de artículos.
   no coincida con `scope.measuredPercent`/`brandExtrapolationBasis` del Excel
   (que clasifican **par-día**, no tiendas): son dos clasificaciones distintas
   y el PDF nunca las etiqueta como «real vs. extrapolado».
-- **Distribución horaria (`brandHourlyDistribution`) es descriptiva, no
-  extrapolada, y está acotada a la franja operativa de cara a la marca —
-  `BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR` (10:00–22:00,
-  hora 22 excluida).** Reparte en porcentaje los OTS **con medición directa**
-  dentro de esa franja, a partir de `supportHours`. Una franja fuera de ese
-  rango puede tener medición válida (tráfico de personal, limpieza, seguridad
-  — operativamente correcto), pero de cara a la marca es irrelevante y
-  sugeriría audiencia comercial fuera del horario de la tienda; por eso se
-  excluye del reparto y del total sobre el que se calculan los porcentajes,
-  no sólo de la etiqueta. Es una regla comercial simple, no el horario real
-  por soporte que bloquea la Fase 2 (ver abajo): sólo decide qué horas se le
-  muestran a la marca en esta vista, no completa ni extrapola nada. A
-  diferencia de `brandDaily`/`brandWeeklyEvolution`, tampoco **completa horas
-  sin dato** dentro de esa franja: no hay manera de distinguir hoy una hora
-  sin medición de una hora en la que el soporte estaba apagado. (Los
-  **totales** sí completan las horas sin dato de una cámara que midió, con su
-  promedio propio ÷ 12 — ver «relleno con promedio propio» arriba —; el
-  reparto horario sigue describiendo sólo lo observado.) El pie de la
-  gráfica lo declara («con medición directa») para no sugerir una precisión que
-  el dato no sostiene. Si el reporte no trae `supportHours`, el bloque se omite
-  en vez de dibujar ceros.
+- **Distribución horaria (`brandHourlyDistribution`): porcentajes sobre el
+  total de portada (octubre 2026), acotada a la franja operativa de cara a la
+  marca** — `BRAND_OPERATIONAL_START_HOUR`–`BRAND_OPERATIONAL_END_HOUR`
+  (10:00–22:00, hora 22 excluida; lo de fuera de la franja no se publica).
+  Por formato: lo medido va a su hora (`supportHours`); lo rellenado con el
+  promedio propio va a la **hora exacta** que se rellenó
+  (`report.estimatedHours`, que deja `quividiGapFill.ts` a partir de
+  `BrandGapFillEntry.hourlyOts`); lo que resta para llegar al total del
+  formato (extrapolación por formato) se reparte según el perfil horario de
+  ese mismo formato. El 100 % de la gráfica es exactamente
+  `brandCampaignSummary(report).estimatedOts` y los textos dicen «de los OTS
+  de la campaña». Si el reporte no trae `supportHours`, el bloque se omite en
+  vez de dibujar ceros.
 - **`brandOperationalReport` acota TODO el PDF comercial a la franja
   operativa — no sólo la distribución horaria.** `report.supportDays` (el
   export diario de Quividi, `time_resolution: '1d'` en
@@ -1016,9 +1015,8 @@ tres de ellos describían mal el separador de artículos.
   correspondiente se omite en lugar de dibujar ceros.
 - **El número de páginas del PDF se adapta al contenido, con un mínimo de
   seis secciones fijas** (`MIN_PAGE_COUNT = 6`): Portada, Evolución,
-  Audiencia, Horarios, Tiendas TOP, Cierre. «Tiendas TOP» añade páginas de más
-  si el listado de tiendas medidas no cabe en una sola (8 filas por página,
-  `TOP_STORES_ROWS_PER_PAGE`). El número de página de cada página interior se
+  Audiencia, Horarios, Tiendas TOP, Cierre. «Tiendas TOP» ya no se pagina
+  (máximo 10 tiendas en una página). El número de página de cada página interior se
   lee de `doc.getNumberOfPages()` en el momento de dibujarla, nunca de una
   constante — necesario porque la cantidad de páginas ya no es fija.
 - **El maquetado del PDF se expresa en píxeles de un lienzo A4 horizontal a
