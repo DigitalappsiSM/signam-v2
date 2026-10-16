@@ -115,7 +115,9 @@ export async function loadCampaignAvailability(
           context,
         );
         const mappedPairs = effective.pairs.filter(
-          (pair) => pair.cameraNames.length > 0,
+          (pair) =>
+            pair.cameraNames.length > 0 ||
+            (pair.cameraLocationIds?.length ?? 0) > 0,
         ).length;
         return {
           campaignId: snap.id,

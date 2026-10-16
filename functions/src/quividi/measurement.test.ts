@@ -8,6 +8,7 @@ import {
   measurementCutoff,
   parseCivilDate,
   resolvePairs,
+  unmappedCameraLabels,
   snapshotIsFresh,
   type OtsExportRow,
   type SupportPair,
@@ -375,6 +376,34 @@ describe('resolvePairs', () => {
     expect(result.pairs[0]?.cameras).toEqual([]);
     expect(result.unmappedCameraNames).toEqual([
       'CAM-7 (duplicada en Quividi)',
+    ]);
+  });
+
+  it('resuelve por Location ID aunque el alias esté duplicado en Quividi', () => {
+    const result = resolvePairs(
+      [{ ...base, cameraNames: [], cameraLocationIds: [3] }],
+      [location(1, 'CAM-7'), location(3, 'CAM-7')],
+    );
+
+    expect(result.pairs[0]?.cameras.map((camera) => camera.id)).toEqual([3]);
+    expect(result.unmappedCameraNames).toEqual([]);
+  });
+
+  it('etiqueta el Location ID del catálogo que Quividi ya no tiene', () => {
+    const pairs = [
+      {
+        ...base,
+        storeNumber: '3',
+        storeName: 'L POLANCO',
+        cameraNames: [],
+        cameraLocationIds: [9],
+      },
+    ];
+    const result = resolvePairs(pairs, [location(1, 'CAM-7')]);
+
+    expect(result.pairs[0]?.cameras).toEqual([]);
+    expect(unmappedCameraLabels(pairs, result)).toEqual([
+      'Location ID 9 · 3 L POLANCO · BANNER DIGITAL (no existe en Quividi)',
     ]);
   });
 
