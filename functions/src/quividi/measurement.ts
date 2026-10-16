@@ -397,6 +397,32 @@ export function resolvePairs(
   };
 }
 
+/**
+ * Diagnóstico legible de las cámaras que no se pudieron asociar: alias sin
+ * location (o duplicados) y Location ID del catálogo que Quividi ya no tiene.
+ * El reporte/Excel sólo expone nombres, así que el ID se etiqueta con su par
+ * para saber qué slot falló.
+ */
+export function unmappedCameraLabels(
+  pairs: readonly EffectiveSupportPair[],
+  resolved: { unmappedCameraNames: string[]; unmappedLocationIds: number[] },
+): string[] {
+  const missing = new Set(resolved.unmappedLocationIds);
+  const labels = new Set(resolved.unmappedCameraNames);
+  for (const pair of pairs) {
+    for (const id of pair.cameraLocationIds ?? []) {
+      if (!missing.has(id)) continue;
+      const store = [pair.storeNumber, pair.storeName]
+        .filter(Boolean)
+        .join(' ');
+      labels.add(
+        `Location ID ${id} · ${store} · ${pair.support} (no existe en Quividi)`,
+      );
+    }
+  }
+  return Array.from(labels).sort();
+}
+
 export function buildCoverage(pairs: SupportPair[]): ReportCoverage {
   const supports = new Map<
     string,
