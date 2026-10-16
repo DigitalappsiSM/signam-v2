@@ -421,6 +421,24 @@ describe('buildEffectiveSupportPairs · alias de soporte', () => {
     expect(result.pairs[0]?.support).toBe('MEGA MUPI DIGITAL');
     expect(result.pairs[0]?.cameraNames).toEqual(['CAM-MUPI']);
   });
+
+  it('usa el Location ID del catálogo y deja el alias sólo para slots sin ID', async () => {
+    const polanco = screen('3', 'MEGA MUPI DIGITAL', '3 - L POLANCO- DERECHO', {
+      quividiCameraName2: 'CAM-SIN-ID',
+    });
+    polanco.metadata = { ...polanco.metadata, quividiLocationId: 140001 };
+    const result = await buildEffectiveSupportPairs(
+      emptyDb(),
+      'camp-1',
+      campaign([
+        { support: "MUPPI'S", stores: [{ numero: '3' }], scope: 'selected' },
+      ]),
+      [polanco],
+    );
+
+    expect(result.pairs[0]?.cameraLocationIds).toEqual([140001]);
+    expect(result.pairs[0]?.cameraNames).toEqual(['CAM-SIN-ID']);
+  });
 });
 
 describe('buildEffectiveSupportPairs · fallback Ekon (cocomercialización)', () => {

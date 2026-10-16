@@ -378,6 +378,16 @@ describe('resolvePairs', () => {
     ]);
   });
 
+  it('resuelve por Location ID aunque el alias esté duplicado en Quividi', () => {
+    const result = resolvePairs(
+      [{ ...base, cameraNames: [], cameraLocationIds: [3] }],
+      [location(1, 'CAM-7'), location(3, 'CAM-7')],
+    );
+
+    expect(result.pairs[0]?.cameras.map((camera) => camera.id)).toEqual([3]);
+    expect(result.unmappedCameraNames).toEqual([]);
+  });
+
   it('usa label cuando la location no trae name', () => {
     const result = resolvePairs(
       [base],

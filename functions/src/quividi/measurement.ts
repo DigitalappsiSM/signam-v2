@@ -455,6 +455,9 @@ export function inputSignature(
         storeNumber: pair.storeNumber,
         support: pair.support,
         cameraNames: [...pair.cameraNames].sort(),
+        cameraLocationIds: [...(pair.cameraLocationIds ?? [])].sort(
+          (a, b) => a - b,
+        ),
         source: pair.source,
         ekonNumber: pair.ekonNumber,
       }))
