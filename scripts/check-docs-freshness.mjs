@@ -31,6 +31,12 @@ import { execFileSync } from 'node:child_process';
  */
 const RULES = [
   {
+    name: 'Ingestión y consumo de Quividi',
+    code: [/^functions\/src\/quividi\/(?:index|history.*|ingestionPlan|exportClient|liveHistory|measurement)\.ts$/],
+    docs: ['AGENTS.md', 'docs/QUIVIDI_INGESTION.md'],
+    why: 'Las ventanas, recuperación incremental y controles de API deben describir la ingesta vigente.',
+  },
+  {
     name: 'Análisis de incidencias Odoo',
     code: [
       /^functions\/src\/odoo\//,

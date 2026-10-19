@@ -360,7 +360,7 @@ tres de ellos describían mal el separador de artículos.
   `quividiCameraName` queda como referencia visual y fallback temporal para
   registros legacy. El job diario migra de forma conservadora los registros que
   solo tienen alias cuando ese alias coincide con una única location Quividi, y
-  sincroniza el alias canónico cuando ya existe Location ID. El proceso diario consulta una ventana móvil de 28 días para
+  sincroniza el alias canónico cuando ya existe Location ID. El proceso diario analiza una ventana móvil de 28 días desde el histórico persistido para
   conservar el baseline de duración de la medición existente y persiste el último
   día completo; si la colección está vacía, el primer ciclo carga los 28 días.
   Existe un backfill administrativo explícito de 1–90 días. Un nombre de cámara
@@ -451,13 +451,43 @@ tres de ellos describían mal el separador de artículos.
   periodo, sin ponderar ni extrapolar: las reglas multi-cámara pertenecen al
   reporte. El histórico no modifica Campañas ni la salud/alertas existentes.
   El backfill empieza el 2026-01-01 y es independiente de la ingesta normal:
-  el coordinador histórico solo encola rangos mensuales pendientes y, al agotar
+  el coordinador histórico solo encola rangos mensuales pendientes; el trabajador los divide en segmentos de hasta siete días y omite cada partición ya completa. Al agotar
   su plan, marca el control como `completed` para no volver a producir trabajo.
   La ingesta ordinaria corre una vez al día sobre **D-1 exclusivamente** y no
   reabre meses anteriores; una partición ya `complete` se omite antes de
   volver a consultar Quividi. Correcciones o huecos históricos se recuperan por
   backfill/reconciliación explícita, no mediante una ventana móvil automática.
-  Las Cloud Tasks siguen limitadas a dos exportaciones concurrentes. La API solo
+  Las 36 configuraciones se conservan. Las cinco series que alimentan reportes,
+  salud y rollup se encolan primero en `quividi-historyOperationalPartition`; el
+  archivo usa `quividi-historyPartition`. Ambos trabajadores y las consultas de
+  hoy comparten un máximo global de dos exports mediante leases transaccionales
+  en `quividiHistoryControl/liverpool/exportSlots`; uno queda reservado para
+  trabajo operativo. Leases por partición impiden duplicar fechas entre colas.
+  El estado `completed` del control histórico significa que terminó de encolar,
+  no que todos los datos hayan terminado de descargarse; la disponibilidad se
+  decide por las particiones fuente.
+  Reportes y salud leen exclusivamente particiones completas de días cerrados.
+  Si falta alguna, encolan solamente ubicación + fecha + serie faltantes y
+  devuelven un estado reintentable de información en preparación; no vuelven a
+  exportar toda la campaña ni la ventana de 28 días y no generan evaluaciones
+  de salud/tickets con una carga incompleta. Salud automática reintenta hasta
+  tres veces con espera de 5–15 minutos. El cierre diario de salud y rollup es
+  ayer en `America/Mexico_City`, también durante la tarde.
+  Hoy se consulta por separado, con las cuatro series de reporte y el inventario
+  autorizado de la network 3089. Los exports se comparten entre campañas durante
+  una hora bajo `liveExports`; su RAW provisional se guarda en Storage, separado
+  de las particiones completas. La hora mostrada y la edad del snapshot conservan
+  el instante más antiguo realmente consultado. La caché parcial no se reutiliza
+  al cierre operativo de las 22:00; al día siguiente se regenera desde D-1 antes
+  de considerar definitivo un informe final. Forzar un reporte recalcula el
+  snapshot, pero respeta la caché compartida de fuente.
+  `exportAudit` registra origen, rango, serie, ubicaciones/sitio, peticiones HTTP
+  de preparación y resultado de cada export real, sin credenciales. Una respuesta
+  HTTP 403 aplica una espera de seis horas por ubicación/sitio y serie antes de
+  probar disponibilidad de nuevo (`exportCapabilities`); no elimina familias ni
+  convierte un error en cero. Un export `failed` es reintentable, no evidencia de
+  familia sin licencia. Estas subcolecciones son backend-only bajo las reglas
+  cerradas existentes. La API solo
   expone los datos que efectivamente conserva y autoriza; errores de
   familia/licencia se registran como `unsupported`, no como cero medido.
   La fecha de inicio de medición de cada location es el primer día con filas

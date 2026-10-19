@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { gunzipSync } from 'node:zlib';
 import { getFunctions } from 'firebase-admin/functions';
 import { FieldPath, FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
@@ -8,18 +8,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { roleFromClaims } from './access';
+import { mappingStatus, recordFirstMeasuredDate, saveRaw, savePartition, saveRange } from './historyIngestion';
+import { isOperationalHistoryExport, type HistoryPartitionTask } from './ingestionPlan';
 import type { ScreenDoc } from './effectiveScope';
 import {
   CONSUMER_HISTORY_EXPORTS,
   HISTORY_EXPORTS,
   HISTORY_START_DATE,
   LIVERPOOL_NETWORK_ID,
-  exportDataClass,
   historyDateRange,
+  isMeasurementExport,
+  exportDataClass,
   historyDailyTaskAt,
   historyMonthRangeAt,
-  historyRowCivilDate,
-  quividiApiExportSpec,
   earliestMeasuredDate,
   historyPartitionId,
   inferredCatalogBinding,
@@ -27,8 +28,6 @@ import {
   historyCatalogStores,
   validHistoryCatalogSelection,
   replaceHistoricalBinding,
-  isMeasurementExport,
-  rawHistoryPath,
   resolveHistoricalBinding,
   rowsFingerprint,
   type StoreBinding,
@@ -53,13 +52,7 @@ interface Location {
   [key: string]: unknown;
 }
 
-interface PartitionTask {
-  date: string;
-  locationId: number;
-  type: string;
-  resolution: string;
-  siteId?: number;
-}
+type PartitionTask = HistoryPartitionTask;
 
 type RangeTask = import('./historyModel').HistoryRangeTask;
 
@@ -95,23 +88,6 @@ function todayMexico(): string {
 function dateAt(index: number): string {
   return new Date(Date.parse(HISTORY_START_DATE + 'T00:00:00Z') +
     index * 86_400_000).toISOString().slice(0, 10);
-}
-
-function mappingStatus(binding: StoreBinding | null): 'mapped' | 'inferred' | 'needs_review' {
-  if (!binding) return 'needs_review';
-  return binding.source === 'catalog_inferred' ? 'inferred' : 'mapped';
-}
-
-/** A late or out-of-order export can move the start earlier, never later. */
-async function recordFirstMeasuredDate(locationId: number, date: string): Promise<void> {
-  const db = getFirestore();
-  const ref = db.collection(INVENTORY).doc(String(locationId));
-  await db.runTransaction(async (transaction) => {
-    const inventory = await transaction.get(ref);
-    if (!inventory.exists) return;
-    const current = inventory.get('firstMeasuredDate') as string | undefined;
-    if (!current || date < current) transaction.update(ref, { firstMeasuredDate: date });
-  });
 }
 
 /** Bring partitions saved before this rule into the measurement index gradually. */
@@ -208,75 +184,6 @@ function taskAt(index: number, locationIds: readonly number[], plan: readonly Ex
   };
 }
 
-async function fetchExport(task: RangeTask): Promise<{
-  state: string;
-  data?: Record<string, unknown>[];
-  [key: string]: unknown;
-}> {
-  const apiSpec = quividiApiExportSpec(task.type);
-  const params = new URLSearchParams({
-    [task.siteId ? 'sites' : 'locations']: String(task.siteId ?? task.locationId),
-    start: `${task.startDate}T00:00:00`,
-    end: `${task.endDate}T23:59:59`,
-    data_type: apiSpec.dataType,
-    time_resolution: task.resolution,
-  });
-  if (apiSpec.groupByDemographics) params.set('group_by_demographics', '1');
-  if (task.type.startsWith('extrapolated_')) {
-    // Empty amount requests Quividi's sample average; it remains labelled derived.
-    params.set('extrapolation_amount', '');
-  }
-  // Quividi caches exports; the same request is polled until finished.
-  const path = '/data/?' + params.toString();
-  for (let attempt = 0; attempt < 35; attempt++) {
-    const response = await fetch(BASE + path, {
-      headers: { Authorization: auth(), Accept: 'application/json' },
-    });
-    if (response.status === 429) {
-      await new Promise((resolve) => setTimeout(resolve, 4_000 + attempt * 300));
-      continue;
-    }
-    if (response.status === 400 || response.status === 403 || response.status === 404) {
-      return { state: 'unsupported', httpStatus: response.status };
-    }
-    if (!response.ok) throw new Error(`Quividi export HTTP ${response.status}.`);
-    const payload = await response.json() as {
-      state: string;
-      data?: Record<string, unknown>[];
-      fail_reason?: string;
-    };
-    if (payload.state === 'finished') {
-      if (!Array.isArray(payload.data)) throw new Error('Export terminado sin arreglo data.');
-      return payload;
-    }
-    if (payload.state === 'failed') {
-      return { state: 'unsupported', failReason: payload.fail_reason ?? 'failed' };
-    }
-    if (payload.state !== 'started' && payload.state !== 'in_progress') {
-      throw new Error(`Estado Quividi inesperado: ${payload.state}.`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 3_000 + attempt * 300));
-  }
-  throw new Error('Export Quividi aún no finaliza; Cloud Tasks reintentará.');
-}
-
-async function saveRaw(path: string, payload: unknown): Promise<void> {
-  const file = getStorage().bucket().file(path);
-  try {
-    await file.save(gzipSync(Buffer.from(JSON.stringify(payload))), {
-      contentType: 'application/json',
-      gzip: false,
-      resumable: false,
-      preconditionOpts: { ifGenerationMatch: 0 },
-      metadata: { contentEncoding: 'gzip' },
-    });
-  } catch (error) {
-    // A retry can race with a prior successful upload of identical bytes.
-    const code = (error as { code?: number }).code;
-    if (code !== 412) throw error;
-  }
-}
-
 async function archiveNetworkTopology(
   date: string,
   locations: Location[],
@@ -313,135 +220,6 @@ async function archiveNetworkTopology(
     } catch (error) {
       console.warn(`No se pudo archivar ${kind} para la network Liverpool.`, error);
     }
-  }
-}
-
-async function resolveExportScope(task: RangeTask): Promise<RangeTask | null> {
-  const db = getFirestore();
-  const inventory = await db.collection(INVENTORY).doc(String(task.locationId)).get();
-  if (!inventory.exists || inventory.get('networkId') !== LIVERPOOL_NETWORK_ID) {
-    throw new Error('Location no pertenece al inventario Liverpool 3089.');
-  }
-  if (exportDataClass(task.type) !== 'site_aggregate') return task;
-  const siteId = (inventory.get('location') as Location).site_id;
-  if (!siteId) throw new Error('Export de sitio sin Site ID en topología.');
-  const sites = await db.collection(INVENTORY).get();
-  const firstLocation = Math.min(...sites.docs
-    .filter((doc) => (doc.get('location') as Location).site_id === siteId)
-    .map((doc) => Number(doc.id)));
-  if (task.locationId !== firstLocation) return null;
-  return { ...task, siteId };
-}
-
-async function persistPartition(
-  task: PartitionTask,
-  payload: { state: string; data?: Record<string, unknown>[]; [key: string]: unknown },
-): Promise<void> {
-  const db = getFirestore();
-  const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-  const ref = db.collection(PARTITIONS).doc(id);
-  if (payload.state === 'unsupported') {
-    const existing = await ref.get();
-    if (existing.get('status') === 'complete') {
-      await ref.update({ lastAvailabilityError: payload.failReason ??
-        `HTTP ${payload.httpStatus}`, checkedAt: Date.now() });
-      return;
-    }
-    await ref.set({ ...task, networkId: LIVERPOOL_NETWORK_ID,
-      status: 'unsupported', reason: payload.failReason ?? `HTTP ${payload.httpStatus}`,
-      checkedAt: Date.now() }, { merge: true });
-    return;
-  }
-
-  const rows = payload.data ?? [];
-  const hash = rowsFingerprint(rows);
-  const previous = await ref.get();
-  if (previous.get('currentHash') === hash) {
-    if (rows.length && isMeasurementExport(task.type)) {
-      await recordFirstMeasuredDate(task.locationId, task.date);
-    }
-    return;
-  }
-
-  const path = rawHistoryPath(id, hash);
-  await saveRaw(path, { ...payload, data: rows });
-  const bindingsSnap = await db.collection(BINDINGS).where('locationId', '==', task.locationId).get();
-  const bindings = bindingsSnap.docs.map((doc) => doc.data() as StoreBinding);
-  const dataClass = exportDataClass(task.type);
-  const binding = dataClass === 'site_aggregate' ? null :
-    resolveHistoricalBinding(bindings, task.locationId, task.date);
-  const bytes = Buffer.byteLength(JSON.stringify(rows));
-  await ref.set({
-    ...task,
-    networkId: LIVERPOOL_NETWORK_ID,
-    storeId: rows.length ? (binding?.storeId ?? null) : null,
-    support: rows.length ? (binding?.support ?? null) : null,
-    pointId: rows.length ? (binding?.pointId ?? null) : null,
-    mappingStatus: dataClass === 'site_aggregate' || !rows.length ? 'not_applicable' :
-      mappingStatus(binding),
-    mappingSource: rows.length ? (binding?.source ?? null) : null,
-    status: 'complete',
-    dataClass,
-    currentHash: hash,
-    rawPath: path,
-    rowCount: rows.length,
-    rows: task.resolution !== 'finest' && bytes < 700_000
-      ? rows : FieldValue.delete(),
-    updatedAt: Date.now(),
-  }, { merge: true });
-  await ref.collection('revisions').doc(hash).set({
-    hash, rawPath: path, rowCount: rows.length, capturedAt: Date.now(),
-    sourceCreationDate: payload.creation_date ?? null,
-  });
-  if (rows.length && isMeasurementExport(task.type)) {
-    await recordFirstMeasuredDate(task.locationId, task.date);
-  }
-}
-
-async function savePartition(task: PartitionTask): Promise<void> {
-  const scoped = await resolveExportScope({
-    startDate: task.date,
-    endDate: task.date,
-    locationId: task.locationId,
-    type: task.type,
-    resolution: task.resolution,
-    siteId: task.siteId,
-  });
-  if (!scoped) return;
-  const payload = await fetchExport(scoped);
-  await persistPartition({ ...task, siteId: scoped.siteId }, payload);
-}
-
-async function saveRange(task: RangeTask): Promise<void> {
-  const scoped = await resolveExportScope(task);
-  if (!scoped) return;
-  const payload = await fetchExport(scoped);
-  const days = historyDateRange(scoped.startDate, scoped.endDate);
-
-  if (payload.state === 'unsupported') {
-    for (const date of days) {
-      await persistPartition({
-        date, locationId: scoped.locationId, type: scoped.type,
-        resolution: scoped.resolution, siteId: scoped.siteId,
-      }, payload);
-    }
-    return;
-  }
-
-  const byDate = new Map<string, Record<string, unknown>[]>(days.map((date) => [date, []]));
-  for (const row of payload.data ?? []) {
-    const date = historyRowCivilDate(row);
-    if (!date || !byDate.has(date)) {
-      throw new Error(`Fila Quividi sin fecha reconocible dentro del rango ${scoped.startDate}..${scoped.endDate}.`);
-    }
-    byDate.get(date)!.push(row);
-  }
-
-  for (const date of days) {
-    await persistPartition({
-      date, locationId: scoped.locationId, type: scoped.type,
-      resolution: scoped.resolution, siteId: scoped.siteId,
-    }, { ...payload, data: byDate.get(date)! });
   }
 }
 
@@ -853,13 +631,8 @@ async function historyTaskAlreadyComplete(task: ExportTask): Promise<boolean> {
   return snapshot.get('status') === 'complete';
 }
 
-/** Tasks retry transient failures without advancing or multiplying rows. */
-export const historyPartition = onTaskDispatched<ExportTask>({
-  secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '1GiB',
-  rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 1 },
-  retryConfig: { maxAttempts: 8, minBackoffSeconds: 60 },
-}, async (request) => {
-  const task = request.data;
+/** Both queues use the same idempotent source writer and global export slots. */
+async function processHistoryPartition(task: ExportTask): Promise<void> {
   const allowedExports = [...HISTORY_EXPORTS, ...CONSUMER_HISTORY_EXPORTS];
   if (!allowedExports.some((item) => item.type === task.type &&
       item.resolution === task.resolution)) throw new Error('Export no permitido.');
@@ -876,11 +649,17 @@ export const historyPartition = onTaskDispatched<ExportTask>({
     else await savePartition(task);
   } catch (error) {
     if (!isRange) {
-      await getFirestore().collection(PARTITIONS)
-        .doc(historyPartitionId(task.locationId, task.date, task.type, task.resolution))
-        .set({ ...task, networkId: LIVERPOOL_NETWORK_ID, status: 'retrying',
-          lastError: error instanceof Error ? error.message : String(error),
+      const db = getFirestore();
+      const ref = db.collection(PARTITIONS)
+        .doc(historyPartitionId(task.locationId, task.date, task.type, task.resolution));
+      await db.runTransaction(async (transaction) => {
+        const saved = await transaction.get(ref);
+        // Another worker may have completed this day while this task waited for its lease.
+        if (saved.get('status') === 'complete') return;
+        transaction.set(ref, { ...task, networkId: LIVERPOOL_NETWORK_ID, status: 'retrying',
+          lastError: error instanceof Error ? error.message : 'Error de ingestión Quividi.',
           lastAttemptAt: Date.now() }, { merge: true });
+      });
     } else {
       console.error('Falló export Quividi por rango.', {
         locationId: task.locationId, startDate: task.startDate, endDate: task.endDate,
@@ -890,6 +669,22 @@ export const historyPartition = onTaskDispatched<ExportTask>({
     }
     throw error;
   }
+}
+
+export const historyPartition = onTaskDispatched<ExportTask>({
+  secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '1GiB',
+  rateLimits: { maxConcurrentDispatches: 1, maxDispatchesPerSecond: 1 },
+  retryConfig: { maxAttempts: 8, minBackoffSeconds: 60 },
+}, async (request) => processHistoryPartition(request.data));
+
+/** Dedicated queue: historical archive tasks cannot sit ahead of operational repairs. */
+export const historyOperationalPartition = onTaskDispatched<PartitionTask>({
+  secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '1GiB',
+  rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 1 },
+  retryConfig: { maxAttempts: 12, minBackoffSeconds: 30 },
+}, async (request) => {
+  if (!isOperationalHistoryExport(request.data)) throw new Error('Serie operativa no permitida.');
+  await processHistoryPartition(request.data);
 });
 
 /** Daily D-1 ingestion is independent from the historical backfill. */
@@ -919,10 +714,13 @@ export const historyDaily = onSchedule({
       locationId: task.locationId,
       type: task.type,
       resolution: task.resolution,
+      source: 'daily',
     });
   }
 
-  const queue = getFunctions().taskQueue('quividi-historyPartition');
+  const archiveQueue = getFunctions().taskQueue('quividi-historyPartition');
+  const operationalQueue = getFunctions().taskQueue('quividi-historyOperationalPartition');
+  tasks.sort((a, b) => Number(isOperationalHistoryExport(b)) - Number(isOperationalHistoryExport(a)));
   for (let offset = 0; offset < tasks.length; offset += DAILY_ENQUEUE_CHUNK) {
     const chunk = tasks.slice(offset, offset + DAILY_ENQUEUE_CHUNK);
     const refs = chunk.map((task) =>
@@ -935,6 +733,7 @@ export const historyDaily = onSchedule({
       if (existing[index]?.get('status') === 'complete') return;
       const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
       try {
+        const queue = isOperationalHistoryExport(task) ? operationalQueue : archiveQueue;
         await queue.enqueue(task, {
           id: rowsFingerprint([{ id, targetDate }]),
           dispatchDeadlineSeconds: 540,
@@ -1029,7 +828,10 @@ export const historyCoordinator = onSchedule({
         break;
       }
       const rangeId = [
-        LIVERPOOL_NETWORK_ID, task.locationId, task.startDate, task.endDate,
+        LIVERPOOL_NETWORK_ID,
+  historyDateRange,
+  isMeasurementExport,
+  exportDataClass, task.locationId, task.startDate, task.endDate,
         task.type, task.resolution,
       ].join('__');
       try {

@@ -259,6 +259,11 @@ function previousDate(date: string): string {
   return value.toISOString().slice(0, 10);
 }
 
+/** Last closed civil day shared by ingestion, health and commercial rollups. */
+export function lastCompleteMexicoDate(now: number): string {
+  return previousDate(mexicoClock(now).date);
+}
+
 /**
  * Corte de medición del informe de campaña, en hora de la Ciudad de México
  * (el día de la operación es el de las tiendas, no el UTC):
@@ -485,7 +490,11 @@ export function snapshotIsFresh(
   now: number,
 ): boolean {
   const saved = measurementCutoff(startDate, endDate, generatedAt);
-  if (saved.measuredEndDate === endDate && saved.partialDate === null) {
+  const savedLiveDay = saved.measuredEndDate !== null &&
+    saved.measuredEndDate > lastCompleteMexicoDate(generatedAt);
+  // The 22:00 operational cutoff is still provisional source data until D-1 is ingested.
+  if (savedLiveDay && saved.measuredEndDate! <= lastCompleteMexicoDate(now)) return false;
+  if (saved.measuredEndDate === endDate && saved.partialDate === null && !savedLiveDay) {
     return true;
   }
   const current = measurementCutoff(startDate, endDate, now);

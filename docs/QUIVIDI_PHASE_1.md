@@ -12,9 +12,11 @@ La Fase 1 integra Quividi en la vista **Campañas** de SIGNAM. No crea un
 módulo nuevo: cada campaña muestra un icono de métricas cuando al menos una
 combinación **Tienda + Soporte** tiene una cámara Quividi relacionada.
 
-Al pulsar el icono, SIGNAM consulta VidiCenter desde Cloud Functions, normaliza
-la medición, guarda un snapshot cuando cabe de forma segura en Firestore y
-genera un Excel de audiencia.
+Al pulsar el icono, SIGNAM lee los días cerrados del histórico fuente. Si falta
+una partición, solicita su recuperación y avisa que la información está en
+preparación. Hoy se consulta por separado con caché compartida de una hora entre
+campañas. Guarda un snapshot cuando cabe de forma segura en Firestore y genera
+el informe. Ver [`QUIVIDI_INGESTION.md`](./QUIVIDI_INGESTION.md).
 
 ## Fuente de verdad de inventario
 
@@ -425,9 +427,11 @@ incompleto** (medido hasta la hora de la consulta); desde las 22:00 hoy cuenta
 como completo. El snapshot se reutiliza sólo mientras ese corte no cambie, como
 máximo 1 hora con día incompleto y 24 horas sin él. Para una campaña
 finalizada, un snapshot cuyo corte ya cubrió completo el fin de vigencia se
-considera final mientras no cambie la configuración de campaña/mapeos. `admin`
+considera final mientras no cambie la configuración de campaña/mapeos, una vez
+regenerado con el último día cerrado de D-1. Un snapshot generado después de las
+22:00 del propio día final se vuelve a generar al día siguiente con fuente definitiva. `admin`
 y `operator` pueden forzar la consulta con «Actualizar datos de Quividi» en
-Campañas.
+Campañas; esta acción respeta la caché compartida de fuente.
 
 El día incompleto suma al PDF sólo lo medido (sin extrapolar ni entrar al
 promedio) y se marca «Día incompleto, medido hasta HH:MM» únicamente donde

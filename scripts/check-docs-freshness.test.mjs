@@ -86,3 +86,12 @@ describe('guardia de deriva entre código y documentación', () => {
     expect(result.failures).toHaveLength(0);
   });
 });
+
+it('protege recuperación y ventanas de ingesta Quividi', () => {
+  for (const file of ['history.ts', 'historyReadiness.ts', 'historyIngestion.ts', 'exportClient.ts', 'liveHistory.ts', 'measurement.ts']) {
+    const path = `functions/src/quividi/${file}`;
+    expect(evaluate([path]).failures.map((failure) => failure.rule.name))
+      .toContain('Ingestión y consumo de Quividi');
+    expect(evaluate([path, 'docs/QUIVIDI_INGESTION.md']).failures).toHaveLength(0);
+  }
+});

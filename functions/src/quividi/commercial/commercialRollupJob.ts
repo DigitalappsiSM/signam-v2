@@ -7,7 +7,7 @@ import { canRebuildCommercialRollup, roleFromClaims } from '../access';
 import { historyPartitionId, type StoreBinding } from '../historyModel';
 import {
   dayList,
-  lastCompleteUtcDate,
+  lastCompleteMexicoDate,
   type OtsExportRow,
   type ViewerExportRow,
 } from '../measurement';
@@ -242,7 +242,7 @@ export const commercialRollupDaily = onSchedule(
     memory: '512MiB',
   },
   async () => {
-    const date = lastCompleteUtcDate(Date.now());
+    const date = lastCompleteMexicoDate(Date.now());
     await buildCommercialRollupForDate(date);
   },
 );

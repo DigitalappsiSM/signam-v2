@@ -24,7 +24,7 @@ export async function getQuividiCampaignReport(
   const callable = httpsCallable<
     { campaignId: string; forceRefresh: boolean },
     CampaignReportResponse
-  >(functions(), 'quividi-campaignReport');
+  >(functions(), 'quividi-campaignReport', { timeout: 540_000 });
   const result = await callable({ campaignId, forceRefresh });
   return result.data;
 }

@@ -167,6 +167,7 @@ Documentación:
 
 - [Fase 1 — reporte por campaña](./docs/QUIVIDI_PHASE_1.md)
 - [Fase 2 — salud operativa](./docs/QUIVIDI_PHASE_2.md)
+- [Ingesta incremental y control de exportaciones](./docs/QUIVIDI_INGESTION.md)
 - [Auditoría histórica de Fase 1](./docs/QUIVIDI_AUDITORIA.md)
 
 La integración con Odoo para crear/actualizar tickets con clasificación
