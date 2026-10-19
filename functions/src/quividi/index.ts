@@ -64,6 +64,7 @@ import {
 import {
   persistedHistoryRows,
   type PersistedHistorySpec,
+  lateDataSince,
 } from './historyReader';
 import {
   buildCameraHealthOverview,
@@ -1319,7 +1320,8 @@ export const campaignReport = onCall(
         saved?.schemaVersion === SNAPSHOT_SCHEMA_VERSION &&
         saved?.inputSignature === signature &&
         typeof saved?.generatedAt === 'number' &&
-        snapshotIsFresh(saved.generatedAt, startDate, endDate, now)
+        snapshotIsFresh(saved.generatedAt, startDate, endDate, now) &&
+        !(await lateDataSince(startDate, endDate, saved.generatedAt))
       ) {
         const report = decodeSnapshot(saved?.compressedReport);
         if (report) return { report, cached: true };

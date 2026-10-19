@@ -112,3 +112,17 @@ export function persistedHistoryRows(
 ): Record<string, unknown>[] {
   return load.rowsBySpec.get(`${type}__${resolution}`) ?? [];
 }
+
+/** Late camera uploads changed a day this snapshot already used: it must be rebuilt. */
+export async function lateDataSince(
+  startDate: string,
+  endDate: string,
+  since: number,
+): Promise<boolean> {
+  const snapshot = await getFirestore()
+    .collection('quividiHistoryLateData')
+    .where('date', '>=', startDate)
+    .where('date', '<=', endDate)
+    .get();
+  return snapshot.docs.some((doc) => Number(doc.get('updatedAt') ?? 0) > since);
+}

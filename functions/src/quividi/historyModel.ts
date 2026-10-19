@@ -6,42 +6,23 @@ import { buildBackendMeasurementPointId, normalizedStoreCode } from './measureme
 export const LIVERPOOL_NETWORK_ID = 3089;
 export const HISTORY_START_DATE = '2026-01-01';
 
-/** One export at its finest useful resolution, not every redundant roll-up. */
+/**
+ * Series de archivo vigentes (decisión de negocio 19/10/2026, a pedido de Quividi):
+ * solo lo que se usa o se quiere conservar. Lo ya guardado de las series retiradas
+ * no se borra; simplemente deja de pedirse.
+ */
 export const HISTORY_EXPORTS = [
-  { type: 'viewers', resolution: 'finest' },
   { type: 'viewers', resolution: '1h' },
-  { type: 'ots', resolution: '5m' },
   { type: 'ots', resolution: '1h' },
   { type: 'viewers_apc', resolution: 'finest' },
-  { type: 'content_plays', resolution: '1h' },
-  { type: 'content_plays', resolution: '5m' },
   { type: 'compass', resolution: '1h' },
   { type: 'extrapolated_ots', resolution: '1h' },
   { type: 'extrapolated_watchers', resolution: '1h' },
   { type: 'footfall', resolution: '1h' },
   { type: 'footfall', resolution: 'finest' },
-  { type: 'gate', resolution: '1h' },
-  { type: 'gate', resolution: '5m' },
-  { type: 'im', resolution: '1h' },
-  { type: 'im_nobackup', resolution: '1h' },
-  { type: 'im_ots', resolution: '1h' },
-  { type: 'im_ots_nobackup', resolution: '1h' },
-  { type: 'targeted_im', resolution: '1h' },
-  { type: 'pmp_sales_by_demographics', resolution: '1h' },
-  { type: 'pmp_sales_funnel', resolution: '1h' },
-  { type: 'proof_of_play_by_location_footfall_faces', resolution: '1h' },
-  { type: 'proof_of_play_by_location', resolution: '1h' },
-  { type: 'proof_of_play_by_site_footfall_faces', resolution: '1h' },
-  { type: 'proof_of_play_by_site', resolution: '1h' },
-  { type: 'proof_of_play_vehicle_person_by_location', resolution: '1h' },
-  { type: 'proof_of_play_vehicle_person_by_site', resolution: '1h' },
-  { type: 'vehicles_footfall', resolution: '1h' },
-  { type: 'vehicles', resolution: '1h' },
-  { type: 'vehicles', resolution: 'finest' },
   { type: 'retail_analytics_footfall', resolution: '1h' },
   { type: 'retail_analytics_footfall', resolution: 'finest' },
   { type: 'retail_analytics_footfall_aggregated', resolution: '1h' },
-
 ] as const;
 
 export const CONSUMER_HISTORY_EXPORTS = [
@@ -49,6 +30,13 @@ export const CONSUMER_HISTORY_EXPORTS = [
   { type: 'viewers', resolution: '1d' },
   { type: 'viewers_demographics', resolution: '1d' },
 ] as const;
+
+/** Series vigentes; una tarea encolada antes del recorte para otra serie se descarta. */
+export function isActiveHistoryExport(spec: { type: string; resolution: string }): boolean {
+  return [...HISTORY_EXPORTS, ...CONSUMER_HISTORY_EXPORTS].some(
+    (item) => item.type === spec.type && item.resolution === spec.resolution,
+  );
+}
 
 export function quividiApiExportSpec(type: string): {
   dataType: string;

@@ -53,8 +53,9 @@ describe('consumer source readiness', () => {
     );
     expect(mocks.enqueue).toHaveBeenCalledTimes(1);
     expect(mocks.enqueue.mock.calls[0]![0]).toEqual({
-      date: '2026-10-17',
-      locationId: 22,
+      locationIds: [22],
+      startDate: '2026-10-17',
+      endDate: '2026-10-17',
       type: 'ots',
       resolution: '1h',
       source: 'recovery',

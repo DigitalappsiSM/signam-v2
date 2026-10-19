@@ -8,8 +8,15 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { roleFromClaims } from './access';
-import { mappingStatus, recordFirstMeasuredDate, saveRaw, savePartition, saveRange } from './historyIngestion';
-import { isOperationalHistoryExport, type HistoryPartitionTask } from './ingestionPlan';
+import { mappingStatus, recordFirstMeasuredDate, saveBatch, saveRaw } from './historyIngestion';
+import {
+  isOperationalHistoryExport,
+  planLateDataRechecks,
+  toBatchTask,
+  type HistoryBatchTask,
+  type HistoryPartitionTask,
+  type ProvisionalPartition,
+} from './ingestionPlan';
 import type { ScreenDoc } from './effectiveScope';
 import {
   CONSUMER_HISTORY_EXPORTS,
@@ -19,10 +26,9 @@ import {
   historyDateRange,
   isMeasurementExport,
   exportDataClass,
-  historyDailyTaskAt,
   historyMonthRangeAt,
   earliestMeasuredDate,
-  historyPartitionId,
+  isActiveHistoryExport,
   inferredCatalogBinding,
   inventoryBindings,
   historyCatalogStores,
@@ -41,7 +47,6 @@ const PARTITIONS = 'quividiHistoryPartitions';
 const BINDINGS = 'quividiHistoryBindings';
 const INVENTORY = 'quividiHistoryInventory';
 const EXPORTS_PER_TICK = 150;
-const DAILY_ENQUEUE_CHUNK = 50;
 
 interface Location {
   id: number;
@@ -621,52 +626,44 @@ export const historyInventoryDaily = onSchedule({
   if (conflicts.length) console.warn('Conflictos de tienda/punto en catálogo Quividi.', conflicts);
 });
 
-type ExportTask = PartitionTask | RangeTask;
+type ExportTask = PartitionTask | RangeTask | HistoryBatchTask;
 
-async function historyTaskAlreadyComplete(task: ExportTask): Promise<boolean> {
-  if ('startDate' in task) return false;
-  const snapshot = await getFirestore().collection(PARTITIONS).doc(
-    historyPartitionId(task.locationId, task.date, task.type, task.resolution),
-  ).get();
-  return snapshot.get('status') === 'complete';
+/** Operational series of daily/recovery/late work use the priority queue; the rest, the archive. */
+async function enqueueHistoryTask(task: HistoryBatchTask, id?: string): Promise<void> {
+  const operational = isOperationalHistoryExport(task) && (task.source ?? 'backfill') !== 'backfill';
+  const queue = getFunctions().taskQueue(
+    operational ? 'quividi-historyOperationalPartition' : 'quividi-historyPartition',
+  );
+  try {
+    await queue.enqueue(task, {
+      id: id ?? rowsFingerprint([{ task, bucket: Math.floor(Date.now() / 600_000) }]),
+      dispatchDeadlineSeconds: 540,
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
+  }
 }
 
 /** Both queues use the same idempotent source writer and global export slots. */
-async function processHistoryPartition(task: ExportTask): Promise<void> {
-  const allowedExports = [...HISTORY_EXPORTS, ...CONSUMER_HISTORY_EXPORTS];
-  if (!allowedExports.some((item) => item.type === task.type &&
-      item.resolution === task.resolution)) throw new Error('Export no permitido.');
-  const isRange = 'startDate' in task && 'endDate' in task;
-  const startDate = isRange ? task.startDate : task.date;
-  const endDate = isRange ? task.endDate : task.date;
-  if (startDate < HISTORY_START_DATE || endDate > yesterdayMexico() || startDate > endDate) {
+async function processHistoryPartition(raw: ExportTask): Promise<void> {
+  const task = toBatchTask(raw);
+  // Series retiradas (19/10/2026): una tarea encolada antes del recorte termina sin exportar.
+  if (!isActiveHistoryExport(task)) return;
+  if (task.startDate < HISTORY_START_DATE || task.endDate > yesterdayMexico() ||
+      task.startDate > task.endDate) {
     throw new Error('Fecha fuera de la ventana histórica.');
   }
-  if (!isRange) historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-  if (await historyTaskAlreadyComplete(task)) return;
+  if (!task.locationIds.length || task.locationIds.some((id) => !Number.isInteger(id) || id < 1)) {
+    throw new Error('Ubicaciones inválidas.');
+  }
   try {
-    if (isRange) await saveRange(task);
-    else await savePartition(task);
+    await saveBatch(task, (chunk) => enqueueHistoryTask(chunk));
   } catch (error) {
-    if (!isRange) {
-      const db = getFirestore();
-      const ref = db.collection(PARTITIONS)
-        .doc(historyPartitionId(task.locationId, task.date, task.type, task.resolution));
-      await db.runTransaction(async (transaction) => {
-        const saved = await transaction.get(ref);
-        // Another worker may have completed this day while this task waited for its lease.
-        if (saved.get('status') === 'complete') return;
-        transaction.set(ref, { ...task, networkId: LIVERPOOL_NETWORK_ID, status: 'retrying',
-          lastError: error instanceof Error ? error.message : 'Error de ingestión Quividi.',
-          lastAttemptAt: Date.now() }, { merge: true });
-      });
-    } else {
-      console.error('Falló export Quividi por rango.', {
-        locationId: task.locationId, startDate: task.startDate, endDate: task.endDate,
-        type: task.type, resolution: task.resolution,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    console.error('Falló export Quividi.', {
+      locations: task.locationIds.length, startDate: task.startDate, endDate: task.endDate,
+      type: task.type, resolution: task.resolution,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -678,7 +675,7 @@ export const historyPartition = onTaskDispatched<ExportTask>({
 }, async (request) => processHistoryPartition(request.data));
 
 /** Dedicated queue: historical archive tasks cannot sit ahead of operational repairs. */
-export const historyOperationalPartition = onTaskDispatched<PartitionTask>({
+export const historyOperationalPartition = onTaskDispatched<ExportTask>({
   secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '1GiB',
   rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 1 },
   retryConfig: { maxAttempts: 12, minBackoffSeconds: 30 },
@@ -687,7 +684,14 @@ export const historyOperationalPartition = onTaskDispatched<PartitionTask>({
   await processHistoryPartition(request.data);
 });
 
-/** Daily D-1 ingestion is independent from the historical backfill. */
+/** Días de respaldo que la carga diaria revisa: solo exporta lo que siga sin dato completo. */
+const DAILY_SELF_HEAL_DAYS = 7;
+
+/**
+ * Daily D-1 ingestion: one task per series for the whole network. The worker turns it into
+ * one export per series (or a few for heavy series) and also picks up any of the previous
+ * days that failed, without downloading again what is already complete.
+ */
 export const historyDaily = onSchedule({
   schedule: '0 6 * * *', timeZone: 'America/Mexico_City',
   timeoutSeconds: 540, memory: '256MiB',
@@ -699,49 +703,20 @@ export const historyDaily = onSchedule({
     .sort((a, b) => a - b);
   if (!locationIds.length) return;
 
-  const plan = [
-    ...HISTORY_EXPORTS.map((item) => ({ ...item })),
-    ...CONSUMER_HISTORY_EXPORTS.map((item) => ({ ...item })),
-  ];
   const targetDate = yesterdayMexico();
-  const tasks: PartitionTask[] = [];
-  const total = locationIds.length * plan.length;
-  for (let index = 0; index < total; index++) {
-    const task = historyDailyTaskAt(index, targetDate, locationIds, plan);
-    if (!task) continue;
-    tasks.push({
-      date: targetDate,
-      locationId: task.locationId,
-      type: task.type,
-      resolution: task.resolution,
-      source: 'daily',
-    });
-  }
-
-  const archiveQueue = getFunctions().taskQueue('quividi-historyPartition');
-  const operationalQueue = getFunctions().taskQueue('quividi-historyOperationalPartition');
+  const start = new Date(Date.parse(`${targetDate}T00:00:00Z`) -
+    (DAILY_SELF_HEAL_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
+  const startDate = start < HISTORY_START_DATE ? HISTORY_START_DATE : start;
+  const plan = [...HISTORY_EXPORTS, ...CONSUMER_HISTORY_EXPORTS];
+  const tasks: HistoryBatchTask[] = plan.map((spec) => ({
+    locationIds, startDate, endDate: targetDate,
+    type: spec.type, resolution: spec.resolution, source: 'daily',
+  }));
   tasks.sort((a, b) => Number(isOperationalHistoryExport(b)) - Number(isOperationalHistoryExport(a)));
-  for (let offset = 0; offset < tasks.length; offset += DAILY_ENQUEUE_CHUNK) {
-    const chunk = tasks.slice(offset, offset + DAILY_ENQUEUE_CHUNK);
-    const refs = chunk.map((task) =>
-      db.collection(PARTITIONS).doc(
-        historyPartitionId(task.locationId, task.date, task.type, task.resolution),
-      ),
-    );
-    const existing = refs.length ? await db.getAll(...refs) : [];
-    await Promise.all(chunk.map(async (task, index) => {
-      if (existing[index]?.get('status') === 'complete') return;
-      const id = historyPartitionId(task.locationId, task.date, task.type, task.resolution);
-      try {
-        const queue = isOperationalHistoryExport(task) ? operationalQueue : archiveQueue;
-        await queue.enqueue(task, {
-          id: rowsFingerprint([{ id, targetDate }]),
-          dispatchDeadlineSeconds: 540,
-        });
-      } catch (error) {
-        if ((error as { code?: string }).code !== 'functions/task-already-exists') throw error;
-      }
-    }));
+  for (const task of tasks) {
+    await enqueueHistoryTask(task, rowsFingerprint([{
+      daily: targetDate, type: task.type, resolution: task.resolution,
+    }]));
   }
 });
 
@@ -827,11 +802,13 @@ export const historyCoordinator = onSchedule({
         exhausted = true;
         break;
       }
+      // The stored plan keeps its order so the cursor stays valid; retired series are skipped.
+      if (!isActiveHistoryExport(task)) {
+        nextIndex++;
+        continue;
+      }
       const rangeId = [
-        LIVERPOOL_NETWORK_ID,
-  historyDateRange,
-  isMeasurementExport,
-  exportDataClass, task.locationId, task.startDate, task.endDate,
+        LIVERPOOL_NETWORK_ID, task.locationId, task.startDate, task.endDate,
         task.type, task.resolution,
       ].join('__');
       try {
@@ -861,4 +838,49 @@ export const historyCoordinator = onSchedule({
       });
     }
   }
+});
+
+/**
+ * Datos atrasados: una cámara que estuvo sin internet sube después lo que midió. Los días
+ * guardados mientras no reportaba quedan provisionales y se vuelven a pedir solo cuando su
+ * `last_seen` avanza (volvió). Una tienda que sigue sin señal no genera exports.
+ */
+export const historyLateDataRecheck = onSchedule({
+  schedule: '50 7,14 * * *', timeZone: 'America/Mexico_City',
+  secrets: [USERNAME, TOKEN], timeoutSeconds: 540, memory: '512MiB',
+}, async () => {
+  const db = getFirestore();
+  const locations = await api(`/network/${LIVERPOOL_NETWORK_ID}/locations/`) as Location[];
+  if (!Array.isArray(locations)) throw new Error('Inventario Liverpool inválido.');
+  const lastSeen = new Map(locations.map((location) =>
+    [location.id, typeof location.last_seen === 'string' ? location.last_seen : null]));
+  const snapshot = await db.collection(PARTITIONS)
+    .where('provisional', '==', true).limit(10_000).get();
+  const partitions: ProvisionalPartition[] = snapshot.docs
+    .filter((doc) => isActiveHistoryExport({
+      type: doc.get('type') as string, resolution: doc.get('resolution') as string,
+    }))
+    .map((doc) => ({
+      id: doc.id,
+      locationId: doc.get('locationId') as number,
+      date: doc.get('date') as string,
+      type: doc.get('type') as string,
+      resolution: doc.get('resolution') as string,
+      provisionalLastSeen: (doc.get('provisionalLastSeen') as string | null) ?? null,
+      provisionalCheckedAt: doc.get('provisionalCheckedAt') as number | undefined,
+    }));
+  const { tasks, expiredIds } = planLateDataRechecks(partitions, lastSeen, Date.now());
+  for (let offset = 0; offset < expiredIds.length; offset += 400) {
+    const batch = db.batch();
+    for (const id of expiredIds.slice(offset, offset + 400)) {
+      batch.update(db.collection(PARTITIONS).doc(id), {
+        provisional: false, provisionalExpiredAt: Date.now(),
+      });
+    }
+    await batch.commit();
+  }
+  for (const task of tasks) await enqueueHistoryTask(task);
+  console.info('Relectura de datos atrasados Quividi.', {
+    provisional: partitions.length, tasks: tasks.length, expired: expiredIds.length,
+  });
 });
