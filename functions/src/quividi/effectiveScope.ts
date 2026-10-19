@@ -325,21 +325,34 @@ function pairFromStore(
     matching
       .map((screen) => screen.original?.['Nombre de tienda']?.trim() ?? '')
       .find(Boolean) ?? selectedName.trim();
-  const cameraNames = Array.from(
-    new Set(
-      matching
-        .flatMap((screen) => [
-          screen.metadata?.quividiCameraName?.trim() ?? '',
-          screen.metadata?.quividiCameraName2?.trim() ?? '',
-        ])
-        .filter(Boolean),
-    ),
-  );
+  // Igual que la salud de cámaras (`cameraHealth.ts`): el Location ID estable
+  // manda y el alias sólo se usa en el slot que no lo tiene. Resolver por alias
+  // un slot con ID descartaba la cámara cuando Quividi tenía dos locations con
+  // el mismo nombre (p. ej. «3 - L POLANCO- DERECHO»).
+  const cameraLocationIds = new Set<number>();
+  const cameraNames = new Set<string>();
+  for (const screen of matching) {
+    for (const [rawId, rawName] of [
+      [screen.metadata?.quividiLocationId, screen.metadata?.quividiCameraName],
+      [
+        screen.metadata?.quividiLocationId2,
+        screen.metadata?.quividiCameraName2,
+      ],
+    ] as const) {
+      if (typeof rawId === 'number' && Number.isInteger(rawId) && rawId > 0) {
+        cameraLocationIds.add(rawId);
+        continue;
+      }
+      const name = rawName?.trim() ?? '';
+      if (name) cameraNames.add(name);
+    }
+  }
   return {
     storeNumber,
     storeName,
     support,
-    cameraNames,
+    cameraNames: Array.from(cameraNames),
+    cameraLocationIds: Array.from(cameraLocationIds),
     source,
     ekonNumber,
   };

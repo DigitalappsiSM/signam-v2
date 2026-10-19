@@ -94,6 +94,7 @@ import {
   measurementCutoff,
   parseCivilDate,
   resolvePairs,
+  unmappedCameraLabels,
   SNAPSHOT_SCHEMA_VERSION,
   snapshotIsFresh,
   type CameraDay,
@@ -276,7 +277,10 @@ async function generateReport(
     storeCoverage: buildStoreCoverage(resolved.pairs),
     ...measurement,
     supportHours,
-    unmappedCameraNames: resolved.unmappedCameraNames,
+    unmappedCameraNames: unmappedCameraLabels(
+      pairsWithoutLocations,
+      resolved,
+    ),
   };
 }
 
