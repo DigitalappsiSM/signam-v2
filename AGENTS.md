@@ -453,11 +453,35 @@ tres de ellos describían mal el separador de artículos.
   El backfill empieza el 2026-01-01 y es independiente de la ingesta normal:
   el coordinador histórico solo encola rangos mensuales pendientes; el trabajador los divide en segmentos de hasta siete días y omite cada partición ya completa. Al agotar
   su plan, marca el control como `completed` para no volver a producir trabajo.
-  La ingesta ordinaria corre una vez al día sobre **D-1 exclusivamente** y no
-  reabre meses anteriores; una partición ya `complete` se omite antes de
-  volver a consultar Quividi. Correcciones o huecos históricos se recuperan por
-  backfill/reconciliación explícita, no mediante una ventana móvil automática.
-  Las 36 configuraciones se conservan. Las cinco series que alimentan reportes,
+  La ingesta ordinaria corre una vez al día sobre **D-1** y no reabre meses
+  anteriores: encola **una tarea por serie para toda la network**, y el
+  trabajador la convierte en **un export con todas las ubicaciones**
+  (`locations=a,b,c`; las series `finest` van en grupos de 20 ubicaciones y un
+  día). Cada fila se guarda en la partición de su `location_id`. Ubicaciones con
+  los mismos días pendientes van juntas y un día ya `complete` nunca se vuelve a
+  descargar para otra ubicación (`planBatchExports`). La misma tarea revisa los
+  siete días anteriores y solo exporta lo que siga sin dato completo (un día que
+  falló). Una tarea que necesita más de un export se divide en tareas `chunk`
+  de un solo export. Si una serie no trae `location_id` por fila, o una ubicación
+  sin licencia rechaza el lote, se aísla por ubicación sin perder las demás.
+  **Series vigentes** (decisión de negocio del 19/10/2026, a pedido de Quividi):
+  las cinco operativas más `viewers_apc` finest, `compass` 1h,
+  `extrapolated_ots`/`extrapolated_watchers` 1h, `footfall` 1h/finest y
+  `retail_analytics_footfall` 1h/finest/`_aggregated` 1h: 14 en total. Las
+  demás dejaron de pedirse; lo ya guardado se conserva y una tarea encolada
+  antes del recorte termina sin exportar.
+  **Datos atrasados.** Una cámara sin internet no envía nada y Quividi devuelve
+  vacío. Al guardar, si su `last_seen` no pasó del final del día, ese día queda
+  `provisional` (sigue `complete`, con lo que haya). `last_seen` no declara zona
+  horaria, por eso se compara contra la ubicación más reciente de la network
+  (`lastSeenCoversDay`); sin topología o con toda la network sin señal, todo
+  queda provisional. `historyLateDataRecheck` (07:50 y 14:50 México) relee los
+  días provisionales **solo cuando el `last_seen` de esa cámara avanzó**; tras
+  volver se confirma dos veces (puede tardar en subir lo atrasado), con un
+  máximo de cinco relecturas y 60 días hacia atrás. Si un día ya usado cambia,
+  `quividiHistoryLateData/{fecha}` invalida los snapshots de campaña de esa
+  fecha. Una tienda que sigue sin señal no genera exports.
+  Las cinco series que alimentan reportes,
   salud y rollup se encolan primero en `quividi-historyOperationalPartition`; el
   archivo usa `quividi-historyPartition`. Ambos trabajadores y las consultas de
   hoy comparten un máximo global de dos exports mediante leases transaccionales
@@ -467,7 +491,8 @@ tres de ellos describían mal el separador de artículos.
   no que todos los datos hayan terminado de descargarse; la disponibilidad se
   decide por las particiones fuente.
   Reportes y salud leen exclusivamente particiones completas de días cerrados.
-  Si falta alguna, encolan solamente ubicación + fecha + serie faltantes y
+  Si falta alguna, encolan solamente las ubicaciones + fechas faltantes, una
+  tarea por serie que se exporta en lote, y
   devuelven un estado reintentable de información en preparación; no vuelven a
   exportar toda la campaña ni la ventana de 28 días y no generan evaluaciones
   de salud/tickets con una carga incompleta. Salud automática reintenta hasta
@@ -483,8 +508,9 @@ tres de ellos describían mal el separador de artículos.
   snapshot, pero respeta la caché compartida de fuente.
   `exportAudit` registra origen, rango, serie, ubicaciones/sitio, peticiones HTTP
   de preparación y resultado de cada export real, sin credenciales. Una respuesta
-  HTTP 403 aplica una espera de seis horas por ubicación/sitio y serie antes de
-  probar disponibilidad de nuevo (`exportCapabilities`); no elimina familias ni
+  HTTP 403 aplica una espera por ubicación y serie antes de probar
+  disponibilidad de nuevo (`exportCapabilities`): seis horas en las series
+  operativas, siete días en las de archivo; no elimina familias ni
   convierte un error en cero. Un export `failed` es reintentable, no evidencia de
   familia sin licencia. Estas subcolecciones son backend-only bajo las reglas
   cerradas existentes. La API solo

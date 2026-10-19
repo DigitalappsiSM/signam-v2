@@ -28,6 +28,8 @@ describe('global Quividi export control', () => {
     expect(exportSlotOrder('backfill')).toEqual([1]);
     expect(exportSlotOrder('archive_daily')).toEqual([1]);
     expect(exportSlotOrder('daily')).toEqual([0, 1]);
+    expect(exportSlotOrder('late_data', false)).toEqual([1]);
+    expect(exportSlotOrder('late_data')).toEqual([0, 1]);
   });
   it('audits actual exports and releases every lock on success', async () => {
     vi.mocked(fetch).mockResolvedValue(

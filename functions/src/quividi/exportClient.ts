@@ -9,7 +9,7 @@ const TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const BASE = 'https://vidicenter.quividi.com/api/v1';
 export const EXPORT_LEASE_MS = 10 * 60 * 1000;
 export type ExportSource =
-  'daily' | 'archive_daily' | 'backfill' | 'recovery' | 'live';
+  'daily' | 'archive_daily' | 'backfill' | 'recovery' | 'late_data' | 'live';
 export interface QuividiExportPayload {
   state: string;
   data?: Record<string, unknown>[];
@@ -18,8 +18,38 @@ export interface QuividiExportPayload {
 }
 
 /** Slot zero is reserved for operational work; archive work can only claim slot one. */
-export function exportSlotOrder(source: ExportSource): number[] {
-  return source === 'backfill' || source === 'archive_daily' ? [1] : [0, 1];
+export function exportSlotOrder(
+  source: ExportSource,
+  operational = true,
+): number[] {
+  return source === 'backfill' || source === 'archive_daily' || !operational
+    ? [1]
+    : [0, 1];
+}
+
+export interface QuividiLocation {
+  id: number;
+  last_seen?: string | null;
+}
+
+/** Metadatos de la network (no es un export de audiencia): trae `last_seen` por ubicación. */
+export async function fetchQuividiLocations(): Promise<QuividiLocation[]> {
+  const response = await fetch(`${BASE}/network/3089/locations/`, {
+    headers: {
+      Authorization:
+        'Basic ' +
+        Buffer.from(`${USERNAME.value()}:${TOKEN.value()}`).toString('base64'),
+      Accept: 'application/json',
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok)
+    throw new Error(`Quividi HTTP ${response.status} (locations).`);
+  const payload = (await response.json()) as unknown;
+  if (!Array.isArray(payload)) throw new Error('Inventario Quividi inválido.');
+  return payload.filter((item): item is QuividiLocation =>
+    Number.isInteger((item as QuividiLocation).id),
+  );
 }
 
 /** Shared across task queues AND interactive calls, not merely per function instance. */
@@ -28,6 +58,7 @@ export async function fetchQuividiExport(
   source: ExportSource,
   readCached?: () => Promise<QuividiExportPayload | null>,
   persist?: (payload: QuividiExportPayload) => Promise<void>,
+  operational = true,
 ): Promise<QuividiExportPayload> {
   const db = getFirestore();
   const root = db.collection('quividiHistoryControl').doc('liverpool');
@@ -36,7 +67,7 @@ export async function fetchQuividiExport(
     Object.fromEntries(Object.entries(params).sort()),
   ]);
   const queryLock = root.collection('exportLocks').doc(queryId);
-  const slots = exportSlotOrder(source).map((slot) =>
+  const slots = exportSlotOrder(source, operational).map((slot) =>
     root.collection('exportSlots').doc(String(slot)),
   );
   const slot = await db.runTransaction(async (transaction) => {

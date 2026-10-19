@@ -2,18 +2,80 @@
 
 ## Comportamiento
 
-La network autorizada sigue siendo 3089. Se mantienen las 33 configuraciones del
-archivo y las tres series diarias nativas: 36 configuraciones en total. No se
-eliminan ubicaciones inactivas del archivo ni se alteran mediciones, ponderaciones,
+La network autorizada sigue siendo 3089. No se alteran mediciones, ponderaciones,
 extrapolación, campañas, Ekon o CSV de Admira.
 
-- A las 06:00 de México se encola exclusivamente D-1. Las cinco series operativas
-  (`ots/1d`, `viewers/1d`, `viewers_demographics/1d`, `ots/1h`, `viewers/1h`) se
-  despachan primero en `quividi-historyOperationalPartition`. Las otras 31 siguen
-  en `quividi-historyPartition`.
+### Series vigentes (decisión del 19/10/2026)
+
+Quividi pidió reducir la frecuencia de exports (unos 12,000 por semana). Se
+conservan 14 series: las cinco operativas (`ots`/`viewers` 1d y 1h,
+`viewers_demographics` 1d) más `viewers_apc` finest, `compass` 1h,
+`extrapolated_ots` y `extrapolated_watchers` 1h, `footfall` 1h y finest,
+`retail_analytics_footfall` 1h y finest y `retail_analytics_footfall_aggregated`
+1h. Dejaron de pedirse `viewers` finest, `ots` 5m, `content_plays`, `gate`,
+`im*`, `targeted_im`, `pmp_*`, `proof_of_play*` y `vehicles*` (no se usan o no
+hay cámaras de vehículos). Lo ya guardado no se borra. Una tarea encolada antes
+del recorte termina sin exportar, y el coordinador del backfill las salta sin
+mover su cursor.
+
+### Carga diaria en lote
+
+- A las 06:00 de México se encola **una tarea por serie para toda la network**,
+  con D-1 y los seis días anteriores. El trabajador solo exporta pares
+  ubicación × día que no estén `complete`. En un día normal eso es D-1 y queda
+  en **un solo export** con `locations=a,b,c`, unas 14–18 al día en total.
+  Las series `finest` van en grupos de 20 ubicaciones y un día.
+- `planBatchExports` agrupa las ubicaciones que tienen exactamente los mismos
+  días pendientes y corta esos días en tramos contiguos de hasta siete, con un
+  máximo de 400 particiones por export. Un día ya guardado nunca se descarga de
+  nuevo para otra ubicación del lote.
+- Si la tarea necesita más de un export, se divide en tareas `chunk` de un solo
+  export, para no superar el tiempo de la función.
+- Cada fila se asigna a la partición de su `location_id`. Si una serie no lo
+  trae, se marca `perLocation` en `exportCapabilities` y se pide por ubicación.
+  Si el lote completo devuelve 400/403/404, se repite por ubicación para aislar
+  la que no tiene licencia; las demás se guardan.
+- Las cinco series operativas (`ots/1d`, `viewers/1d`, `viewers_demographics/1d`,
+  `ots/1h`, `viewers/1h`) se despachan primero en
+  `quividi-historyOperationalPartition`. Las demás van en `quividi-historyPartition`.
+
+### Datos atrasados (cámara sin internet)
+
+Una tienda sin internet no envía nada; Quividi devuelve el día vacío o cortado.
+Al guardar cada partición se consulta la topología (`/network/3089/locations/`,
+que es metadato y no un export) y se compara el `last_seen` de la cámara con el
+final del día:
+
+- Si la cámara no había reportado después de terminar el día, la partición queda
+  `complete` (los reportes la usan como hoy) pero `provisional: true`. Se guardan
+  `provisionalLastSeen`, `provisionalChecks`, `provisionalRechecks` y
+  `provisionalCheckedAt`.
+- `last_seen` no trae zona horaria: se compara contra la ubicación más reciente
+  de la network, así el desfase se cancela. Sin topología, o con toda la network
+  sin señal, todo queda provisional. Ante la duda se elige provisional: cuesta
+  una relectura, nunca un dato.
+- `historyLateDataRecheck` (07:50 y 14:50 México) relee los días provisionales
+  **solo de las cámaras cuyo `last_seen` avanzó** desde la última lectura, con
+  al menos 12 horas entre relecturas y agrupados por serie (`source: late_data`).
+  Una tienda que sigue sin señal no genera exports.
+- Tras volver la cámara se confirma dos veces, porque puede tardar en subir lo
+  atrasado. Hay un máximo de cinco relecturas; pasados 60 días, el día queda
+  definitivo.
+- Si un día ya guardado cambia en una serie operativa,
+  `quividiHistoryLateData/{fecha}` registra el cambio y los snapshots de campaña
+  que incluyen esa fecha se regeneran desde Firestore, sin nuevos exports. El
+  PDF pasa entonces del relleno por promedio a la medición real.
+- Ejemplo: Perisur 15 días sin internet. Sus 15 días quedan provisionales. Al
+  volver, cada serie se relee en tramos de siete días (3 exports por serie), dos
+  veces, y luego queda definitiva.
+- Límite conocido: el panel de salud y el rollup comercial ya calculados de esos
+  días no se recalculan solos.
+
+### Lectura de consumidores
+
 - Reportes y salud leen el histórico fuente completo para su rango de días
   cerrados. Cuando falta información, `historyReadiness.ts` encola solamente sus
-  particiones faltantes. El usuario recibe un error reintentable de información
+  particiones faltantes, agrupadas en una tarea por serie que se exporta en lote. El usuario recibe un error reintentable de información
   en preparación. No se devuelve un total calculado con una ingesta incompleta.
 - La cola operativa persiste el JSON fuente y manifiesto con la misma identidad
   existente. El siguiente intento reutiliza esos datos; no vuelve a pedir todo
@@ -59,15 +121,16 @@ Cada export real crea un registro en:
 
 `quividiHistoryControl/liverpool/exportAudit/{executionId}`
 
-Campos: origen (`daily`, `archive_daily`, `backfill`, `recovery`, `live`), rango,
+Campos: origen (`daily`, `archive_daily`, `backfill`, `recovery`, `late_data`, `live`), rango,
 serie/resolución, agrupación demográfica, ubicaciones/sitio, inicio/fin, resultado
 y número de peticiones HTTP de preparación (`polls`). Un export puede requerir
 varios polls; no deben contarse como varios exports únicos. Las consultas de
 metadatos y las lecturas de caché no se cuentan como exports de audiencia.
 No se registran credenciales ni cuerpos de error del proveedor.
 
-`exportCapabilities` reduce los sondeos de una misma ubicación/sitio y serie
-que devuelva HTTP 403: espera seis horas antes de volver a probar. El estado
+`exportCapabilities` reduce los sondeos de una misma ubicación y serie que
+devuelva HTTP 403: espera seis horas en las series operativas y siete días en
+las de archivo antes de volver a probar. El estado
 por fecha sigue siendo `unsupported`, nunca un cero medido. HTTP 400/404 se
 registran por partición sin inferir una restricción global de licencia. Un
 export cuyo estado sea `failed` se reintenta, porque puede ser un timeout.
@@ -87,11 +150,16 @@ revisarse antes de fusionar: `main` despliega automáticamente a producción.
 
 En el despliegue verificar que se creó `quividi-historyOperationalPartition`
 y que la identidad de Functions puede encolarle tareas, como a las colas ya
-existentes. No hace falta reiniciar controles, borrar históricos o volver a
+existentes. Verificar también que se creó el programador de
+`historyLateDataRecheck`. Las tareas por ubicación que ya estaban en cola siguen
+siendo válidas (`toBatchTask`). No hace falta reiniciar controles, borrar históricos o volver a
 iniciar el backfill. Las tareas anteriores usan el mismo escritor idempotente.
 
 Tras desplegar, observar la primera ingesta D-1 y el proceso de salud. Comparar
 la auditoría por origen y serie con el rango exacto y definición de «export» del
 proveedor. Revisar particiones incompletas/unsupported antes de atribuir un
-ahorro; no usar 76 × 22 como medición de consumo. Los primeros exports reales y
+ahorro; no usar 76 × 22 como medición de consumo. Tras el cambio a lotes, el
+`exportAudit` de `daily`/`archive_daily` debería mostrar unas 14–18 entradas al día
+con `locations` de varias ubicaciones; `late_data` solo aparece cuando una cámara
+vuelve tras estar sin señal. Los primeros exports reales y
 la reducción de tráfico solo se pueden verificar contra producción.

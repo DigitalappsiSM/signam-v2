@@ -155,17 +155,26 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
-- **Quividi ingestion**: preserve all 36 configurations. Daily ingestion reads D-1
-  in Mexico City; five operational series have their own priority task queue.
-  Reports and health read closed-day source partitions only. Missing partitions
-  are queued individually and the caller gets a retryable preparation message;
-  never fall back to re-exporting an entire flight or 28-day window. Today's four
+- **Quividi ingestion**: 14 series (the five operational + `viewers_apc` finest, `compass`,
+  `extrapolated_ots`/`_watchers`, `footfall` 1h/finest, `retail_analytics_footfall` 1h/finest/`_aggregated`;
+  business decision 2026-10-19 after Quividi asked to cut exports — the rest are no longer requested, stored
+  data is kept). Daily ingestion reads D-1 in Mexico City as **one export per series for the whole network**
+  (`locations=a,b,c`; `finest` in groups of 20, one day), split into per-location partitions by `location_id`
+  (`planBatchExports`); it also retries any not-complete day of the previous seven, never re-downloading a
+  complete day. Five operational series have their own priority task queue. Reports and health read
+  closed-day source partitions only. Missing partitions are queued grouped per series and the caller gets a
+  retryable preparation message; never fall back to re-exporting an entire flight or 28-day window. A day
+  saved while its camera had not reported past its end (`last_seen`, compared against the freshest location
+  because it carries no timezone) stays `provisional`; `historyLateDataRecheck` re-reads it only after that
+  camera's `last_seen` advances (confirmed twice, max five re-reads, 60 days), and a changed day invalidates
+  campaign snapshots via `quividiHistoryLateData`. Today's four
   exports have a shared one-hour network cache, separate from finalized history;
   retain the actual capture time and refresh final snapshots after D-1 closes.
   All queues and live calls share two transactional export slots, one reserved
   for operational work, with per-partition leases against overlapping work.
   Archive ranges skip completed days and split missing segments to at most seven
-  days. HTTP 403 has a six-hour capability cooldown; transient failed exports
+  days. HTTP 403 has a per-location capability cooldown (six hours operational, seven days archive); a batch
+  rejected by one location is split per location; transient failed exports
   stay retryable. Backend-only audit records source/range/series/polls/outcome.
   Health and commercial rollups use yesterday in Mexico, never UTC. See
   `AGENTS.md` and `docs/QUIVIDI_INGESTION.md` for operation and rollout checks.
