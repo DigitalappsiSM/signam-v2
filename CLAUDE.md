@@ -155,6 +155,20 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
+- **Quividi ingestion**: preserve all 36 configurations. Daily ingestion reads D-1
+  in Mexico City; five operational series have their own priority task queue.
+  Reports and health read closed-day source partitions only. Missing partitions
+  are queued individually and the caller gets a retryable preparation message;
+  never fall back to re-exporting an entire flight or 28-day window. Today's four
+  exports have a shared one-hour network cache, separate from finalized history;
+  retain the actual capture time and refresh final snapshots after D-1 closes.
+  All queues and live calls share two transactional export slots, one reserved
+  for operational work, with per-partition leases against overlapping work.
+  Archive ranges skip completed days and split missing segments to at most seven
+  days. HTTP 403 has a six-hour capability cooldown; transient failed exports
+  stay retryable. Backend-only audit records source/range/series/polls/outcome.
+  Health and commercial rollups use yesterday in Mexico, never UTC. See
+  `AGENTS.md` and `docs/QUIVIDI_INGESTION.md` for operation and rollout checks.
 - **Quividi has two separate layers.** The **technical Excel** keeps measurement as it was recorded (per camera, in
   the «Quividi · sin modificar» block of «Detalle Soportes»/«Demografía», `quividiPublishedDetail.ts`) and shows the
   published figure beside it with a one-line rationale; it never presents an estimate as measured. The **commercial PDF** (`quividiBrandReport.ts` → `quividiCampaignPdf.ts`) does estimate, and its

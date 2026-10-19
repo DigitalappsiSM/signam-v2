@@ -11,7 +11,9 @@ por fecha, location y familia de datos; `quividi-historyPartition` obtiene el
 export asíncrono y guarda el JSON original comprimido en Storage. La cola limita
 las exportaciones simultáneas a dos y reintenta fallos transitorios. La revisión
 diaria de inventario incorpora nuevas locations con su propio backfill. El
-coordinador reconsulta los siete últimos días por datos tardíos.
+coordinador no reabre una ventana móvil: la carga diaria consulta solamente D-1.
+El flujo vigente de recuperación puntual, prioridades y auditoría se describe en
+[`QUIVIDI_INGESTION.md`](./QUIVIDI_INGESTION.md).
 
 `quividiHistoryPartitions/{3089__locationId__fecha__tipo__resolución}` guarda
 hash, ruta RAW, número de filas, estado y, cuando cabe, las filas horarias
@@ -259,7 +261,10 @@ motor de salud vigente
 estado + incidencias
 ```
 
-La ventana móvil normal es de 28 días. Si la colección diaria está vacía, el
+La ventana de análisis normal es de 28 días y se lee del histórico fuente. Si
+faltan particiones, se encolan únicamente esas fechas/cámaras/series y no se
+evalúan alertas hasta completar la información. El corte de día cerrado usa
+`America/Mexico_City`, incluso en actualizaciones manuales por la tarde. Si la colección diaria está vacía, el
 primer ciclo persiste el backfill inicial. Después se persiste el último día
 completo.
 

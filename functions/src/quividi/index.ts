@@ -1,8 +1,10 @@
 import { loadCampaignAvailability, type CampaignAvailabilityItem } from './campaignAvailability';
 import { Buffer } from 'node:buffer';
-export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';
+export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyOperationalPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';
 export { commercialRollupBuild, commercialRollupDaily } from './commercial/commercialRollupJob';
 export { commercialAudit } from './commercial/commercialAudit';
+import { requirePersistedHistory } from './historyReadiness';
+import { loadLiveHistory } from './liveHistory';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
   getFirestore,
@@ -60,7 +62,6 @@ import {
   topologyLocationName,
 } from './catalog';
 import {
-  loadPersistedHistory,
   persistedHistoryRows,
   type PersistedHistorySpec,
 } from './historyReader';
@@ -89,7 +90,7 @@ import {
   buildMeasurementRows,
   dayList,
   inputSignature,
-  lastCompleteUtcDate,
+  lastCompleteMexicoDate,
   measurementCutoff,
   parseCivilDate,
   resolvePairs,
@@ -159,12 +160,6 @@ function authHeader(): string {
   return `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`;
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 async function quividiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${QUIVIDI_BASE_URL}${path}`, {
     headers: {
@@ -179,54 +174,6 @@ async function quividiGet<T>(path: string): Promise<T> {
     );
   }
   return (await response.json()) as T;
-}
-
-async function exportData(
-  params: Record<string, string>,
-): Promise<Record<string, unknown>[]> {
-  const query = new URLSearchParams(params);
-  const path = `/data/?${query.toString()}`;
-  for (let attempt = 0; attempt < 24; attempt += 1) {
-    const response = await fetch(`${QUIVIDI_BASE_URL}${path}`, {
-      headers: {
-        Authorization: authHeader(),
-        Accept: 'application/json',
-      },
-    });
-    if (response.status === 429) {
-      await sleep(Math.min(10_000, 2_000 + attempt * 500));
-      continue;
-    }
-    if (!response.ok) {
-      throw new HttpsError(
-        'unavailable',
-        `No se pudo obtener el export Quividi (HTTP ${response.status}).`,
-      );
-    }
-    const payload = (await response.json()) as {
-      state?: string;
-      data?: Record<string, unknown>[];
-      message?: string;
-    };
-    if (payload.state === 'finished') return payload.data ?? [];
-    if (payload.state === 'failed') {
-      throw new HttpsError(
-        'unavailable',
-        payload.message ?? 'Quividi no pudo generar el export.',
-      );
-    }
-    if (payload.state !== 'started' && payload.state !== 'in_progress') {
-      throw new HttpsError(
-        'data-loss',
-        'Quividi devolvió un estado de export desconocido.',
-      );
-    }
-    await sleep(Math.min(8_000, 1_000 + attempt * 750));
-  }
-  throw new HttpsError(
-    'deadline-exceeded',
-    'El export Quividi tardó demasiado en completarse.',
-  );
 }
 
 function decodeSnapshot(value: unknown): CampaignReport | null {
@@ -280,83 +227,24 @@ async function generateReport(
   const measuredEndDate = cutoff.measuredEndDate;
   const dates = measuredEndDate ? dayList(startDate, measuredEndDate) : [];
 
+  let dataAsOf = now;
   let otsRows: OtsExportRow[] = [];
   let viewerRows: ViewerExportRow[] = [];
   let hourlyOtsRows: OtsExportRow[] = [];
   let hourlyViewerRows: ViewerExportRow[] = [];
   if (mappedLocations.length > 0 && measuredEndDate) {
-    const persisted = await loadPersistedHistory(
-      mappedLocations,
-      dates,
-      CAMPAIGN_REPORT_HISTORY_SPECS,
-    );
-
-    if (persisted.complete && cutoff.partialDate === null) {
-      otsRows = persistedHistoryRows(
-        persisted,
-        'ots',
-        '1d',
-      ) as OtsExportRow[];
-      viewerRows = persistedHistoryRows(
-        persisted,
-        'viewers_demographics',
-        '1d',
-      ) as ViewerExportRow[];
-      hourlyOtsRows = persistedHistoryRows(
-        persisted,
-        'ots',
-        '1h',
-      ) as OtsExportRow[];
-      hourlyViewerRows = persistedHistoryRows(
-        persisted,
-        'viewers',
-        '1h',
-      ) as ViewerExportRow[];
-      console.info('Reporte Quividi generado desde histórico SIGNAM.', {
-        campaignId,
-        startDate,
-        measuredEndDate,
-        locations: mappedLocations.length,
-      });
-    } else {
-      console.warn(
-        'Histórico insuficiente o día parcial; reporte usa fallback VidiCenter.',
-        {
-          campaignId,
-          startDate,
-          measuredEndDate,
-          partialDate: cutoff.partialDate,
-          missingPartitions: persisted.missingPartitionIds.length,
-          sample: persisted.missingPartitionIds.slice(0, 10),
-        },
-      );
-      const base = {
-        locations: mappedLocations.join(','),
-        start: `${startDate}T00:00:00`,
-        end: `${measuredEndDate}T23:59:59`,
-      };
-      otsRows = (await exportData({
-        ...base,
-        time_resolution: '1d',
-        data_type: 'ots',
-      })) as OtsExportRow[];
-      viewerRows = (await exportData({
-        ...base,
-        time_resolution: '1d',
-        data_type: 'viewers',
-        group_by_demographics: '1',
-      })) as ViewerExportRow[];
-      hourlyOtsRows = (await exportData({
-        ...base,
-        time_resolution: '1h',
-        data_type: 'ots',
-      })) as OtsExportRow[];
-      hourlyViewerRows = (await exportData({
-        ...base,
-        time_resolution: '1h',
-        data_type: 'viewers',
-      })) as ViewerExportRow[];
+    const lastClosedDate = lastCompleteMexicoDate(now);
+    const closedDates = dates.filter((date) => date <= lastClosedDate);
+    const persisted = await requirePersistedHistory(mappedLocations, closedDates, CAMPAIGN_REPORT_HISTORY_SPECS);
+    if (measuredEndDate > lastClosedDate) {
+      const live = await loadLiveHistory(mappedLocations, measuredEndDate, CAMPAIGN_REPORT_HISTORY_SPECS, now);
+      dataAsOf = live.asOf;
+      for (const [key, rows] of live.rowsBySpec) persisted.rowsBySpec.get(key)!.push(...rows);
     }
+    otsRows = persistedHistoryRows(persisted, 'ots', '1d') as OtsExportRow[];
+    viewerRows = persistedHistoryRows(persisted, 'viewers_demographics', '1d') as ViewerExportRow[];
+    hourlyOtsRows = persistedHistoryRows(persisted, 'ots', '1h') as OtsExportRow[];
+    hourlyViewerRows = persistedHistoryRows(persisted, 'viewers', '1h') as ViewerExportRow[];
   }
 
   const measurement = buildMeasurementRows(
@@ -379,10 +267,10 @@ async function generateReport(
     // El mismo instante con el que se calculó el corte de la consulta: si los
     // exports terminan después de medianoche, `Date.now()` daría un corte
     // distinto en el PDF y en la caché que el que realmente se pidió.
-    generatedAt: now,
+    generatedAt: dataAsOf,
     measuredEndDate: cutoff.measuredEndDate,
     partialDate: cutoff.partialDate,
-    partialUntil: cutoff.partialUntil,
+    partialUntil: cutoff.partialDate ? measurementCutoff(startDate, endDate, dataAsOf).partialUntil : null,
     scopeOrigins,
     coverage: buildCoverage(resolved.pairs),
     storeCoverage: buildStoreCoverage(resolved.pairs),
@@ -421,7 +309,7 @@ async function computeCameraHealth(
   const catalogSync = await syncCatalogLocationBindings(db, screens, topology);
   const scope = prepareCameraHealthScope(catalogSync.screens, topology);
   await onStage?.('analyzing');
-  const endDate = lastCompleteUtcDate(now);
+  const endDate = lastCompleteMexicoDate(now);
   const startDate = lookbackStartDate(endDate, days);
   const dates = dayList(startDate, endDate);
 
@@ -429,64 +317,10 @@ async function computeCameraHealth(
   let viewerRows: ViewerExportRow[] = [];
   let hourlyOtsRows: OtsExportRow[] = [];
   if (scope.mappedLocationIds.length > 0) {
-    const persisted = await loadPersistedHistory(
-      scope.mappedLocationIds,
-      dates,
-      CAMERA_HEALTH_HISTORY_SPECS,
-    );
-
-    if (persisted.complete) {
-      otsRows = persistedHistoryRows(
-        persisted,
-        'ots',
-        '1d',
-      ) as OtsExportRow[];
-      viewerRows = persistedHistoryRows(
-        persisted,
-        'viewers',
-        '1d',
-      ) as ViewerExportRow[];
-      hourlyOtsRows = persistedHistoryRows(
-        persisted,
-        'ots',
-        '1h',
-      ) as OtsExportRow[];
-      console.info('Salud Quividi calculada desde histórico SIGNAM.', {
-        startDate,
-        endDate,
-        locations: scope.mappedLocationIds.length,
-      });
-    } else {
-      console.warn(
-        'Histórico Quividi incompleto para salud; usando fallback VidiCenter.',
-        {
-          startDate,
-          endDate,
-          missingPartitions: persisted.missingPartitionIds.length,
-          sample: persisted.missingPartitionIds.slice(0, 10),
-        },
-      );
-      const base = {
-        locations: scope.mappedLocationIds.join(','),
-        start: `${startDate}T00:00:00`,
-        end: `${endDate}T23:59:59`,
-      };
-      otsRows = (await exportData({
-        ...base,
-        time_resolution: '1d',
-        data_type: 'ots',
-      })) as OtsExportRow[];
-      viewerRows = (await exportData({
-        ...base,
-        time_resolution: '1d',
-        data_type: 'viewers',
-      })) as ViewerExportRow[];
-      hourlyOtsRows = (await exportData({
-        ...base,
-        time_resolution: '1h',
-        data_type: 'ots',
-      })) as OtsExportRow[];
-    }
+    const persisted = await requirePersistedHistory(scope.mappedLocationIds, dates, CAMERA_HEALTH_HISTORY_SPECS);
+    otsRows = persistedHistoryRows(persisted, 'ots', '1d') as OtsExportRow[];
+    viewerRows = persistedHistoryRows(persisted, 'viewers', '1d') as ViewerExportRow[];
+    hourlyOtsRows = persistedHistoryRows(persisted, 'ots', '1h') as OtsExportRow[];
   }
 
   return {
@@ -1621,6 +1455,9 @@ export const cameraHealthDaily = onSchedule(
   {
     schedule: '15 8 * * *',
     timeZone: 'America/Mexico_City',
+    retryCount: 3,
+    minBackoffSeconds: 300,
+    maxBackoffSeconds: 900,
     secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN, ODOO_API_KEY],
     timeoutSeconds: 540,
     memory: '512MiB',

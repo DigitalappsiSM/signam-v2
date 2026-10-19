@@ -271,7 +271,7 @@ describe('snapshotIsFresh', () => {
     ).toBe(false);
   });
 
-  it('da por definitivo el snapshot que ya cubrió el fin de vigencia completo', () => {
+  it('confirma el snapshot final solo después de ingerir el último día cerrado', () => {
     expect(
       snapshotIsFresh(
         cdmx('2026-10-31', '22:30'),
@@ -279,7 +279,9 @@ describe('snapshotIsFresh', () => {
         end,
         cdmx('2026-11-05', '12:00'),
       ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(snapshotIsFresh(cdmx('2026-11-01', '08:00'), start, end,
+      cdmx('2026-11-05', '12:00'))).toBe(true);
     // 31/10 a las 18:00: el último día aún era incompleto.
     expect(
       snapshotIsFresh(
@@ -836,5 +838,16 @@ describe('buildMeasurementRows · demografía e incidencias', () => {
     );
 
     expect(rows.incidents).toEqual([]);
+  });
+});
+
+
+describe('Mexico closed-day cutoff', () => {
+  it('keeps health and ingestion on yesterday after UTC midnight', async () => {
+    const { lastCompleteMexicoDate } = await import('./measurement');
+    for (const clock of ['08:15', '18:00', '19:00', '23:59']) {
+      expect(lastCompleteMexicoDate(Date.parse(`2026-10-19T${clock}:00-06:00`))).toBe('2026-10-18');
+    }
+    expect(lastCompleteMexicoDate(Date.parse('2026-10-20T00:00:00-06:00'))).toBe('2026-10-19');
   });
 });
