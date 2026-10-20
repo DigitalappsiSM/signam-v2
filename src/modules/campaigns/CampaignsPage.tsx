@@ -441,6 +441,10 @@ export function CampaignsPage() {
   const canCorrectCampaign = can(user?.role ?? 'viewer', 'campaign.correct');
   const canReportQuividi = can(user?.role ?? 'viewer', 'quividi.report');
   const canRefreshQuividi = can(user?.role ?? 'viewer', 'quividi.refresh');
+  const canReportQuividiExcel = can(
+    user?.role ?? 'viewer',
+    'quividi.reportExcel',
+  );
   const canDownloadOperational = can(
     user?.role ?? 'viewer',
     'campaign.downloadOperational',
@@ -877,6 +881,7 @@ export function CampaignsPage() {
     format: QuividiReportFormat,
   ) {
     if (quividiBusyId) return;
+    if (format === 'excel' && !canReportQuividiExcel) return;
     setQuividiError(null);
     setQuividiNotice(null);
     setQuividiMenuId(null);
@@ -1401,6 +1406,7 @@ export function CampaignsPage() {
                           onOpenChange={(o) =>
                             setQuividiMenuId(o ? c.id : null)
                           }
+                          excelAllowed={canReportQuividiExcel}
                           onPick={(format) =>
                             void downloadQuividiReport(c, format)
                           }
@@ -2279,6 +2285,10 @@ function EkonEditor({
 /** Formatos del informe de audiencia de una campaña. */
 export type QuividiReportFormat = 'pdf' | 'excel';
 
+/** Aviso para los roles sin `quividi.reportExcel` (Viewer y Comercial). */
+const QUIVIDI_EXCEL_RESTRICTED =
+  'Disponible solo para administradores y operadores.';
+
 /**
  * Menú del informe de audiencia: el PDF es el documento que se comparte con la
  * marca y el Excel, el detalle de operación. Cuelga del mismo icono de la fila
@@ -2290,6 +2300,7 @@ function QuividiReportMenu({
   busy,
   disabled,
   open,
+  excelAllowed,
   onOpenChange,
   onPick,
   onRefresh,
@@ -2299,6 +2310,8 @@ function QuividiReportMenu({
   busy: boolean;
   disabled: boolean;
   open: boolean;
+  /** `quividi.reportExcel`: sin él, la opción se ve deshabilitada con aviso. */
+  excelAllowed: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (format: QuividiReportFormat) => void;
   /** Solo para roles con `quividi.refresh`. */
@@ -2360,12 +2373,18 @@ function QuividiReportMenu({
               type="button"
               role="menuitem"
               className="csv-menu__item report-menu__item"
+              disabled={!excelAllowed}
+              title={excelAllowed ? undefined : QUIVIDI_EXCEL_RESTRICTED}
               onClick={() => onPick('excel')}
             >
               <DocFormatIcon kind="excel" />
               <span>
                 Datos completos (Excel)
-                <small>Detalle por pantalla, día y hora.</small>
+                <small>
+                  {excelAllowed
+                    ? 'Detalle por pantalla, día y hora.'
+                    : QUIVIDI_EXCEL_RESTRICTED}
+                </small>
               </span>
             </button>
             {onRefresh && (

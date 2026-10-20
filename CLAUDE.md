@@ -107,7 +107,10 @@ diffed against stored state, the user confirms, then only accepted changes are w
 **Access control has two layers:** `src/app/permissions.ts` is a UI-only matrix (show/hide). The
 **source of truth is `firestore.rules` / `storage.rules`**, keyed off custom-claim roles
 (`request.auth.token.role`: `admin`, `operator`, `viewer`). If you change client permissions, update the
-rules files too — hiding buttons is not access control. Note the app is pre-launch: rules currently permit
+rules files too — hiding buttons is not access control. Exception, UI-only by decision: the Quividi
+technical Excel («Datos completos», `quividi.reportExcel`) is admin/operator only; viewer and
+commercial see it disabled with a notice and keep the PDF (both are built client-side from the
+same server report, so there is no server mirror). Note the app is pre-launch: rules currently permit
 any authenticated user to write to most collections; role enforcement will be tightened before release.
 
 ## Domain invariants — do not change without a documented decision

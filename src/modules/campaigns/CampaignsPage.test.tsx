@@ -906,6 +906,29 @@ describe('CampaignsPage — métricas Quividi', () => {
     expect(buildQuividiCampaignPdfBlob).not.toHaveBeenCalled();
   });
 
+  it.each<UserRole>(['viewer', 'commercial'])(
+    '%s ve el Excel de datos deshabilitado con aviso y conserva el PDF',
+    async (role) => {
+      authState.role = role;
+      const menu = await openQuividiMenu();
+      const excel = within(menu).getByRole('menuitem', {
+        name: /Datos completos \(Excel\)/i,
+      });
+      expect(excel).toBeDisabled();
+      expect(excel).toHaveTextContent(
+        'Disponible solo para administradores y operadores.',
+      );
+      expect(
+        within(menu).getByRole('menuitem', {
+          name: /Informe ejecutivo \(PDF\)/i,
+        }),
+      ).toBeEnabled();
+
+      await userEvent.click(excel);
+      expect(buildQuividiCampaignBlob).not.toHaveBeenCalled();
+    },
+  );
+
   async function openQuividiMenu() {
     vi.mocked(listCampaigns).mockResolvedValue([QUIVIDI_CAMPAIGN]);
     vi.mocked(listScreens).mockResolvedValue([quividiScreen()]);
