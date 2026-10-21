@@ -597,7 +597,8 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 | ----------------------------------- | :---: | :------: | :----: | :--------: |
 | Ver Panel, Campañas y Seguimiento   |   ✓   |    ✓     |   ✓    |     ✓      |
 | Editar seguimiento                  |   ✓   |    ✓     |        |            |
-| Descargar informes Quividi PDF/XLSX |   ✓   |    ✓     |   ✓    |     ✓      |
+| Descargar informe Quividi PDF       |   ✓   |    ✓     |   ✓    |     ✓      |
+| Descargar datos Quividi (Excel)     |   ✓   |    ✓     |        |            |
 | Descargar operación de Campañas     |   ✓   |    ✓     |   ✓    |            |
 | Editar vínculo Ekon de campaña      |   ✓   |    ✓     |   ✓    |            |
 | Leer catálogo                       |   ✓   |    ✓     |   ✓    |            |
@@ -612,7 +613,9 @@ permisos del cliente (`src/app/permissions.ts`) es solo para la UI; las
 
 `commercial` usa una lista cerrada de rutas: `/`, `/campanas` y
 `/seguimiento`. Puede consultar todas las campañas, sus detalles y la bitácora
-operativa. Quividi es su única descarga permitida; no puede abrir el contenido,
+operativa. El PDF ejecutivo de Quividi es su única descarga permitida (el Excel
+de datos completos aparece deshabilitado con un aviso, igual que para
+`viewer`); no puede abrir el contenido,
 generar exportaciones operativas ni modificar datos. Las rutas restantes se
 ocultan y también se bloquean cuando se escriben directamente.
 

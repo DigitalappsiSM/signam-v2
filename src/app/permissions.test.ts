@@ -52,6 +52,13 @@ describe('permisos por rol', () => {
     expect(can('commercial', 'quividi.report')).toBe(true);
   });
 
+  it('el Excel de datos completos de Quividi queda en admin y operator', () => {
+    expect(can('admin', 'quividi.reportExcel')).toBe(true);
+    expect(can('operator', 'quividi.reportExcel')).toBe(true);
+    expect(can('viewer', 'quividi.reportExcel')).toBe(false);
+    expect(can('commercial', 'quividi.reportExcel')).toBe(false);
+  });
+
   it('actualizar datos de Quividi queda en admin y operator', () => {
     expect(can('admin', 'quividi.refresh')).toBe(true);
     expect(can('operator', 'quividi.refresh')).toBe(true);

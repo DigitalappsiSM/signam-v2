@@ -79,6 +79,15 @@
   width: 100%;
 }
 
+/* Opción no disponible para el rol (p. ej. Excel para Viewer/Comercial). */
+.report-menu__item:disabled {
+  cursor: not-allowed;
+}
+
+.report-menu__item:disabled:hover {
+  background: none;
+}
+
 .report-menu__item small {
   display: block;
   color: var(--color-text-muted);

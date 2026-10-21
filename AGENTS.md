@@ -1130,7 +1130,12 @@ modifica el crudo ni los snapshots por campaña. Detalle completo en
   rotula por Tienda+Soporte, nunca por Location ID
   (`quividi-commercialAudit`).
 - **Permisos**: `quividi.commercial` (ver) lo tienen los cuatro roles, igual
-  que `quividi.report`. `quividi.commercial.generate` (confirmar/generar una
+  que `quividi.report`. El Excel técnico del informe («Datos completos
+  (Excel)», permiso `quividi.reportExcel`) es solo `admin`/`operator`; `viewer`
+  y `commercial` ven la opción deshabilitada con el aviso «Disponible solo para
+  administradores y operadores.» y conservan el PDF. Es una restricción de UI:
+  ambos formatos se arman en el cliente desde el mismo informe del servidor, así
+  que el backend no la replica. `quividi.commercial.generate` (confirmar/generar una
   propuesta final) excluye a `viewer` — mismo criterio que
   `QUIVIDI_HEALTH_REFRESH_ROLES`. `quividi.commercial.rebuild` (reconstruir
   `quividiCommercialDaily` desde el histórico, `quividi-commercialRollupBuild`)
