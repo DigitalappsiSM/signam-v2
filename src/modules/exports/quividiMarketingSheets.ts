@@ -1,16 +1,14 @@
 import type { Cell, Row, Workbook, Worksheet } from 'exceljs';
 import type { QuividiCampaignReport } from '@/domain';
+import { hourRange } from './quividiMarketingAnalytics';
+import { partialDayLabel, partialDayNote } from './quividiBrandReport';
 import {
-  dailySummaries,
-  heatmapCells,
-  hourRange,
-  hourSummaries,
-  storeSummaries,
-  timeBandSummaries,
-  weekdaySummaries,
-} from './quividiMarketingAnalytics';
-import { partialDayNote } from './quividiBrandReport';
-import { executiveDashboard } from './quividiExecutiveDashboard';
+  commercialDaily,
+  commercialHeatmap,
+  commercialHourlyDetail,
+  commercialStores,
+  executiveDashboard,
+} from './quividiExecutiveDashboard';
 
 const COLORS = {
   navy: 'FF092A4A',
@@ -292,7 +290,10 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     if (store) {
       sheet.mergeCells(row, 7, row, 8);
       sheet.getCell(row, 7).value =
-        store.storeNumber + ' · ' + (store.storeName || 'Tienda');
+        store.storeNumber +
+        ' · ' +
+        (store.storeName || 'Tienda') +
+        (store.estimated ? ' *' : '');
       sheet.getCell(row, 7).font = { bold: true, color: { argb: COLORS.text } };
       sheet.getCell(row, 9).value = store.ots;
       sheet.getCell(row, 9).numFmt = '#,##0';
@@ -302,6 +303,14 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
       sheet.getCell(row, 11).value = barText(store.ots, maxStore, 12);
       sheet.getCell(row, 11).font = { color: { argb: COLORS.cyan } };
     }
+  }
+
+  if (stores.some((store) => store.estimated)) {
+    sheet.mergeCells(17, 7, 17, 12);
+    const mark = sheet.getCell(17, 7);
+    mark.value =
+      '* Incluye OTS estimados (relleno de huecos o promedio del formato); desglose en «Tiendas».';
+    mark.font = { italic: true, size: 8, color: { argb: COLORS.muted } };
   }
 
   const base = 18;
@@ -429,10 +438,13 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   thinBorder(note);
 }
 
+const PUBLISHED_NOTE =
+  'Cifra publicada, la misma del informe PDF: franja 10:00–22:00, duplicación por cámara, huecos rellenados con el promedio propio de cada pantalla y extrapolación por formato. OTS son contactos, no reach único. El dato medido de día completo está en las hojas técnicas.';
+
 function addStores(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Tiendas');
   baseSheet(sheet, 4);
-  setColumns(sheet, [10, 26, 28, 15, 15, 14, 14, 16, 14, 16, 13, 24]);
+  setColumns(sheet, [10, 26, 28, 15, 15, 15, 13, 13, 12, 16, 13, 24]);
   sheet.properties.tabColor = { argb: COLORS.blue };
   sheet.mergeCells('A1:L2');
   sheet.getCell('A1').value = 'RESUMEN POR TIENDA';
@@ -444,16 +456,19 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
   fill(sheet.getCell('A1'), COLORS.navy);
   sheet.mergeCells('A3:L3');
   sheet.getCell('A3').value =
-    'Ranking descriptivo por OTS medidos. Si una tienda contiene varios soportes, los contactos se suman como oportunidades/detecciones, no como reach único.';
+    PUBLISHED_NOTE +
+    ' «OTS estimados» separa lo que no midió la cámara (filas en amarillo).';
   sheet.getCell('A3').font = { italic: true, color: { argb: COLORS.muted } };
+  sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = 42;
   sheet.addRow([
     'Tienda',
     'Nombre',
     'Soportes',
     'OTS',
-    'Watchers',
-    'Tasa atención',
-    'Attention Time',
+    'OTS medidos',
+    'OTS estimados',
+    '% estimado',
     'Dwell Time',
     'Mejor día',
     'Mejor franja',
@@ -461,17 +476,17 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
     'Peso visual',
   ]);
   styleHeader(sheet.getRow(4));
-  const stores = storeSummaries(report);
-  const max = Math.max(0, ...stores.map((item) => item.ots));
-  stores.forEach((item) => {
+  const stores = commercialStores(report);
+  const max = Math.max(0, ...stores.rows.map((item) => item.ots));
+  stores.rows.forEach((item) => {
     const row = sheet.addRow([
       item.storeNumber,
       item.storeName,
       item.supports.join(', '),
       item.ots,
-      item.watchers,
-      item.attentionRate / 100,
-      item.attentionSeconds,
+      item.measuredOts,
+      item.estimatedOts,
+      item.ots > 0 ? item.estimatedOts / item.ots : 0,
       item.dwellSeconds,
       item.bestWeekday,
       hourRange(item.bestHour),
@@ -480,30 +495,46 @@ function addStores(wb: Workbook, report: QuividiCampaignReport): void {
     ]);
     row.getCell(4).numFmt = '#,##0';
     row.getCell(5).numFmt = '#,##0';
-    row.getCell(6).numFmt = '0.0%';
-    row.getCell(7).numFmt = '0.0 "s"';
+    row.getCell(6).numFmt = '#,##0';
+    row.getCell(7).numFmt = '0.0%';
     row.getCell(8).numFmt = '0.0 "s"';
     row.getCell(11).numFmt = '0.0%';
     row.getCell(12).font = { color: { argb: COLORS.blue } };
+    if (item.estimatedOts > 0) {
+      for (const column of [1, 2, 6, 7]) {
+        fill(row.getCell(column), COLORS.orangePale);
+      }
+    }
   });
+  if (stores.restOts > 0) {
+    const rest = sheet.addRow([
+      '',
+      'Soportes sin cámara (promedio del formato)',
+      '',
+      stores.restOts,
+      0,
+      stores.restOts,
+      1,
+    ]);
+    rest.getCell(4).numFmt = '#,##0';
+    rest.getCell(5).numFmt = '#,##0';
+    rest.getCell(6).numFmt = '#,##0';
+    rest.getCell(7).numFmt = '0.0%';
+    rest.font = { italic: true, color: { argb: COLORS.muted } };
+  }
+  const total = sheet.addRow(['', 'Total de la campaña', '', stores.totalOts]);
+  total.getCell(4).numFmt = '#,##0';
+  total.font = { bold: true, color: { argb: COLORS.navy } };
 }
 
 function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Días y Horarios');
   baseSheet(sheet, 4);
   sheet.properties.tabColor = { argb: COLORS.cyan };
-  const hourly = hourSummaries(report);
-  const activeHours = hourly
-    .filter((item) => item.ots > 0)
-    .map((item) => item.hour);
-  const minHour = activeHours.length > 0 ? Math.min(...activeHours) : 6;
-  const maxHour = activeHours.length > 0 ? Math.max(...activeHours) : 23;
-  const hours = Array.from(
-    { length: Math.max(1, maxHour - minHour + 1) },
-    (_, index) => minHour + index,
-  );
-  setColumns(sheet, [13, ...hours.map(() => 12), 16, 16, 16]);
-  const lastColumn = hours.length + 4;
+  const heatmap = commercialHeatmap(report);
+  const hours = heatmap.hours;
+  setColumns(sheet, [13, ...hours.map(() => 12), 16, 14]);
+  const lastColumn = hours.length + 3;
   sheet.mergeCells(1, 1, 2, lastColumn);
   const title = sheet.getCell(1, 1);
   title.value = 'AUDIENCIA POR DÍA Y HORA';
@@ -511,21 +542,21 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
   fill(title, COLORS.navy);
   sheet.mergeCells(3, 1, 3, lastColumn);
   sheet.getCell(3, 1).value =
-    'Mapa de calor por OTS. Las horas corresponden al periodo reportado por VidiCenter para cada ubicación.';
+    PUBLISHED_NOTE +
+    ' Cada día se reparte por su propio perfil horario; la suma del mapa es el total de la campaña.';
   sheet.getCell(3, 1).font = { italic: true, color: { argb: COLORS.muted } };
-  const heat = heatmapCells(report).filter(
-    (item) => item.hour >= minHour && item.hour <= maxHour,
-  );
-  const heatMax = Math.max(0, ...heat.map((item) => item.ots));
+  sheet.getCell(3, 1).alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = 42;
+  const heatMax = Math.max(0, ...heatmap.cells.map((item) => item.ots));
+  const totalOts = heatmap.weekdays.reduce((sum, day) => sum + day.ots, 0);
   sheet.getCell(4, 1).value = 'Día';
   hours.forEach((hour, index) => {
     sheet.getCell(4, index + 2).value = String(hour).padStart(2, '0') + ':00';
   });
   sheet.getCell(4, hours.length + 2).value = 'OTS día';
-  sheet.getCell(4, hours.length + 3).value = 'Watchers';
-  sheet.getCell(4, hours.length + 4).value = 'Tasa atención';
+  sheet.getCell(4, hours.length + 3).value = '% del total';
   styleHeader(sheet.getRow(4));
-  weekdaySummaries(report).forEach((day, rowIndex) => {
+  heatmap.weekdays.forEach((day, rowIndex) => {
     const rowNumber = 5 + rowIndex;
     sheet.getCell(rowNumber, 1).value = day.label;
     sheet.getCell(rowNumber, 1).font = {
@@ -533,43 +564,42 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
       color: { argb: COLORS.navy },
     };
     hours.forEach((hour, hourIndex) => {
-      const data = heat.find(
-        (item) => item.weekday === day.weekday && item.hour === hour,
-      );
+      const value =
+        heatmap.cells.find(
+          (item) => item.weekday === day.weekday && item.hour === hour,
+        )?.ots ?? 0;
       const cell = sheet.getCell(rowNumber, hourIndex + 2);
-      cell.value = data?.ots ?? 0;
+      cell.value = value;
       cell.numFmt = '#,##0';
-      fill(cell, heatColor(data?.ots ?? 0, heatMax));
+      fill(cell, heatColor(value, heatMax));
       cell.font = {
         color: {
-          argb: (data?.ots ?? 0) > heatMax * 0.55 ? COLORS.white : COLORS.text,
+          argb: value > heatMax * 0.55 ? COLORS.white : COLORS.text,
         },
       };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
     sheet.getCell(rowNumber, hours.length + 2).value = day.ots;
     sheet.getCell(rowNumber, hours.length + 2).numFmt = '#,##0';
-    sheet.getCell(rowNumber, hours.length + 3).value = day.watchers;
-    sheet.getCell(rowNumber, hours.length + 3).numFmt = '#,##0';
-    sheet.getCell(rowNumber, hours.length + 4).value = day.attentionRate / 100;
-    sheet.getCell(rowNumber, hours.length + 4).numFmt = '0.0%';
+    sheet.getCell(rowNumber, hours.length + 3).value =
+      totalOts > 0 ? day.ots / totalOts : 0;
+    sheet.getCell(rowNumber, hours.length + 3).numFmt = '0.0%';
   });
   let row = 14;
   sectionTitle(sheet, row, 1, Math.min(6, lastColumn), 'FRANJAS HORARIAS');
   row += 1;
-  const bands = timeBandSummaries(report);
+  const bands = heatmap.timeBands;
   const maxBand = Math.max(0, ...bands.map((item) => item.ots));
   bands.forEach((band) => {
     sheet.getCell(row, 1).value = band.label;
     sheet.getCell(row, 2).value = band.range;
     sheet.getCell(row, 3).value = band.ots;
     sheet.getCell(row, 3).numFmt = '#,##0';
-    sheet.getCell(row, 4).value = band.watchers;
-    sheet.getCell(row, 4).numFmt = '#,##0';
-    sheet.getCell(row, 5).value = band.share / 100;
-    sheet.getCell(row, 5).numFmt = '0.0%';
-    sheet.getCell(row, 6).value = barText(band.ots, maxBand, 16);
-    sheet.getCell(row, 6).font = { color: { argb: COLORS.blue } };
+    sheet.getCell(row, 4).value = band.share / 100;
+    sheet.getCell(row, 4).numFmt = '0.0%';
+    sheet.mergeCells(row, 5, row, 6);
+    sheet.getCell(row, 5).value = barText(band.ots, maxBand, 16);
+    sheet.getCell(row, 5).font = { color: { argb: COLORS.blue } };
     row += 1;
   });
 }
@@ -577,9 +607,9 @@ function addDaysHours(wb: Workbook, report: QuividiCampaignReport): void {
 function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Evolución Diaria');
   baseSheet(sheet, 4);
-  setColumns(sheet, [14, 16, 16, 16, 36, 34]);
+  setColumns(sheet, [14, 16, 16, 16, 13, 34, 30]);
   sheet.properties.tabColor = { argb: COLORS.blue };
-  sheet.mergeCells('A1:E2');
+  sheet.mergeCells('A1:G2');
   sheet.getCell('A1').value = 'EVOLUCIÓN DIARIA DE AUDIENCIA';
   sheet.getCell('A1').font = {
     bold: true,
@@ -587,41 +617,53 @@ function addDaily(wb: Workbook, report: QuividiCampaignReport): void {
     color: { argb: COLORS.white },
   };
   fill(sheet.getCell('A1'), COLORS.navy);
-  sheet.mergeCells('A3:E3');
-  sheet.getCell('A3').value =
-    'OTS y Watchers son contactos/detecciones medidos; no representan personas únicas.';
+  sheet.mergeCells('A3:G3');
+  sheet.getCell('A3').value = PUBLISHED_NOTE;
   sheet.getCell('A3').font = { italic: true, color: { argb: COLORS.muted } };
+  sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = 42;
   sheet.addRow([
     'Fecha',
     'OTS',
-    'Watchers',
-    'Tasa atención',
+    'OTS medidos',
+    'OTS estimados',
+    '% estimado',
     'Intensidad OTS',
     'Observación',
   ]);
   styleHeader(sheet.getRow(4));
-  const daily = dailySummaries(report);
+  const daily = commercialDaily(report);
   const max = Math.max(0, ...daily.map((item) => item.ots));
   daily.forEach((item) => {
     const row = sheet.addRow([
       item.date,
       item.ots,
-      item.watchers,
-      item.attentionRate / 100,
+      item.measuredOts,
+      item.estimatedOts,
+      item.ots > 0 ? item.estimatedOts / item.ots : 0,
       barText(item.ots, max, 24),
-      partialDayNote(report, item.date),
+      item.partialUntil ? partialDayLabel(item.partialUntil) : '',
     ]);
     row.getCell(2).numFmt = '#,##0';
     row.getCell(3).numFmt = '#,##0';
-    row.getCell(4).numFmt = '0.0%';
-    row.getCell(5).font = { color: { argb: COLORS.blue } };
+    row.getCell(4).numFmt = '#,##0';
+    row.getCell(5).numFmt = '0.0%';
+    row.getCell(6).font = { color: { argb: COLORS.blue } };
   });
+  const total = sheet.addRow([
+    'Total',
+    daily.reduce((sum, item) => sum + item.ots, 0),
+    daily.reduce((sum, item) => sum + item.measuredOts, 0),
+    daily.reduce((sum, item) => sum + item.estimatedOts, 0),
+  ]);
+  for (const column of [2, 3, 4]) total.getCell(column).numFmt = '#,##0';
+  total.font = { bold: true, color: { argb: COLORS.navy } };
 }
 
 function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
   const sheet = wb.addWorksheet('Detalle Horario');
   baseSheet(sheet, 1);
-  setColumns(sheet, [13, 9, 10, 25, 26, 15, 15, 15, 15, 16, 16, 16, 34]);
+  setColumns(sheet, [13, 9, 10, 25, 26, 15, 15, 16, 15, 16, 34]);
   sheet.addRow([
     'Fecha',
     'Hora',
@@ -630,15 +672,13 @@ function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
     'Soporte',
     'Cámaras config.',
     'Cámaras usadas',
-    'Estado',
-    'OTS',
-    'Effective OTS',
-    'Watchers',
-    'Tasa atención',
+    'Origen',
+    'OTS medido',
+    'OTS publicado',
     'Observación',
   ]);
   styleHeader(sheet.getRow(1));
-  report.supportHours.forEach((item) => {
+  commercialHourlyDetail(report).forEach((item) => {
     const row = sheet.addRow([
       item.date,
       String(item.hour).padStart(2, '0') + ':00',
@@ -647,18 +687,30 @@ function addHourlyDetail(wb: Workbook, report: QuividiCampaignReport): void {
       item.support,
       item.configuredCameras,
       item.measuredCameras,
-      item.status === 'complete' ? 'Completa' : 'Parcial',
-      item.ots,
-      item.effectiveOts,
-      item.watchers,
-      item.ots > 0 ? item.watchers / item.ots : 0,
+      item.origin,
+      item.rawOts,
+      item.publishedOts,
       partialDayNote(report, item.date),
     ]);
     row.getCell(9).numFmt = '#,##0';
     row.getCell(10).numFmt = '#,##0';
-    row.getCell(11).numFmt = '#,##0';
-    row.getCell(12).numFmt = '0.0%';
+    if (item.origin === 'Relleno') {
+      for (const column of [8, 10]) {
+        fill(row.getCell(column), COLORS.orangePale);
+      }
+    }
   });
+  const note = sheet.addRow([
+    'Franja 10:00–22:00. «OTS publicado» va duplicado donde aplica; las filas «Relleno» son horas sin dato completadas con el promedio propio de la pantalla. La extrapolación por formato (soportes sin cámara) no tiene hora ni tienda: el total de la campaña está en «Dashboard Ejecutivo» y «Tiendas».',
+  ]);
+  sheet.mergeCells(note.number, 1, note.number, 11);
+  note.getCell(1).font = {
+    italic: true,
+    size: 9,
+    color: { argb: COLORS.muted },
+  };
+  note.getCell(1).alignment = { wrapText: true };
+  note.height = 32;
 }
 
 export function addQuividiMarketingSheets(

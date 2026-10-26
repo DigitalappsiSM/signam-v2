@@ -202,19 +202,25 @@ de la sección *Informe comercial de audiencia*.
 El archivo abre primero con una capa comercial para marcas y marketing y deja
 el detalle técnico al final:
 
+Las cinco hojas comerciales publican **la misma cifra que el PDF** (franja
+10:00–22:00, relleno de huecos, duplicación y extrapolación por formato) con
+las mismas funciones (`quividiExecutiveDashboard.ts`); a diferencia del PDF,
+marcan lo estimado. El resto de hojas conserva lo medido.
+
 - **Dashboard Ejecutivo**: OTS, promedio diario, dwell time, vigencia,
-  cobertura y tiendas; audiencia por soporte, Top 5 tiendas, días de semana,
-  horas de mayor audiencia, franjas, demografía, calidad y origen del alcance.
-  Publica **la misma cifra que el PDF** (franja 10:00–22:00, relleno de
-  huecos, duplicación y extrapolación por formato) con las mismas funciones
-  (`quividiExecutiveDashboard.ts`), así que su Top 5 y su OTS coinciden con
-  «Tiendas TOP» y la portada. El resto de hojas conserva lo medido.
-- **Tiendas**: OTS, Watchers, tasa de atención, Attention/Dwell Time, mejor día,
-  mejor franja y cobertura de medición por tienda.
-- **Días y Horarios**: mapa de calor de OTS por día de semana y hora.
-- **Evolución Diaria**: tendencia diaria de OTS, Watchers y tasa de atención.
-- **Detalle Horario**: agregado de una hora por Tienda + Soporte para
-  trazabilidad.
+  cobertura y tiendas; audiencia por soporte, Top 5 tiendas (con «*» si
+  incluyen estimado), días de semana, horas de mayor audiencia, franjas,
+  demografía, calidad y origen del alcance. Su Top 5 y su OTS coinciden con
+  «Tiendas TOP» y la portada.
+- **Tiendas**: OTS publicados, medidos y estimados (amarillo), dwell time,
+  mejor día, mejor franja y cobertura por tienda; cierra con los soportes sin
+  cámara y el total de la campaña.
+- **Días y Horarios**: mapa de calor día de semana × hora (10:00–22:00); cada
+  día se reparte por su propio perfil horario y el mapa suma la portada.
+- **Evolución Diaria**: la serie diaria del PDF, con medido y estimado.
+- **Detalle Horario**: cada hora de la franja por Tienda + Soporte, con OTS
+  medido, OTS publicado y origen (medido / relleno). No incluye la
+  extrapolación por formato, que no tiene hora ni tienda.
 - **Resumen Técnico**: resumen operativo que conserva la estructura previa.
 - **Alcance**: fuente usada por soporte y número Ekon cuando aplica.
 - **Detalle Soportes**: resultado diario ponderado por Tienda + Soporte.
@@ -367,7 +373,7 @@ publicados de la franja 10:00–22:00. Ver
   llamada nueva a Quividi), y `brandOperationalReport` sustituye
   `supportDays` por esa reconstrucción para las seis páginas del PDF. El
   Excel técnico (`quividiCampaignExcel.ts`, `quividiAuditSheet.ts`) — salvo
-  la hoja «Dashboard Ejecutivo», que replica el PDF — sigue leyendo `report.supportDays` sin recortar — conserva el dato tal cual lo
+  las hojas comerciales, que replican el PDF — sigue leyendo `report.supportDays` sin recortar — conserva el dato tal cual lo
   mide Quividi, como declara — así que cuando hay medición fuera de
   10:00–22:00 el total del Excel es mayor que el de portada **a propósito**;
   la hoja «Auditoría de cifras» lo advierte en una nota bajo el título. No es

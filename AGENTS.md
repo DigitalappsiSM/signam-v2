@@ -869,16 +869,23 @@ tres de ellos describían mal el separador de artículos.
   negocio). **El Excel técnico (`quividiCampaignExcel.ts`,
   `quividiMarketingSheets.ts`) sigue leyendo los campos crudos** (lo medido
   sin duplicar: la cámara, o la más alta de 2; la hoja «Cámaras» conserva
-  cada cámara por separado). **Excepción: la hoja «Dashboard Ejecutivo»**
-  (`quividiExecutiveDashboard.ts`) es la cara comercial del Excel y publica
-  la misma cifra que el PDF — franja 10:00–22:00, relleno de huecos,
-  duplicación y extrapolación por formato —, calculada con las mismas
-  funciones (`brandCampaignSummary`, `brandTopStores`, `brandDaily`,
-  `brandHourlyDistribution`, `brandGender`/`brandAge`), así que su OTS y su
-  «Top 5» concilian con la portada y «Tiendas TOP» (decisión octubre 2026:
-  el Top medido de día completo ordenaba distinto que el PDF). Las demás
-  hojas comerciales («Tiendas», «Días y Horarios», «Evolución Diaria»,
-  «Detalle Horario») siguen con lo medido de día completo.
+  cada cámara por separado). **Excepción: las hojas comerciales**
+  («Dashboard Ejecutivo», «Tiendas», «Días y Horarios», «Evolución Diaria»,
+  «Detalle Horario»; `quividiExecutiveDashboard.ts`) publican la misma cifra
+  que el PDF — franja 10:00–22:00, relleno de huecos, duplicación y
+  extrapolación por formato —, calculada con las mismas funciones
+  (`brandCampaignSummary`, `brandTopStores`/`brandStoreAttribution`,
+  `brandDaily`, `brandHourlyDistribution`, `brandGender`/`brandAge`), así que
+  concilian con la portada y «Tiendas TOP» (decisión octubre 2026: el Top
+  medido de día completo ordenaba distinto que el PDF). A diferencia del PDF,
+  marcan lo estimado: «*» en el Top 5 del dashboard; columnas «OTS medidos» /
+  «OTS estimados» en «Tiendas» y «Evolución Diaria» (amarillo); filas
+  «Relleno» en «Detalle Horario». «Tiendas» cierra con los soportes sin
+  cámara y el total de campaña; el mapa de «Días y Horarios» reparte cada día
+  por su propio perfil horario y suma la portada; «Detalle Horario» no lleva
+  la extrapolación por formato (no tiene hora ni tienda). Sólo las hojas
+  técnicas («Detalle Soportes», «Cámaras», «Auditoría de cifras», …) siguen
+  con lo medido de día completo.
 
   La única excepción es `brandStoreAudit` (hoja de auditoría, sección
   «Qué se midió realmente»): su `measuredOts` por tienda se queda crudo a

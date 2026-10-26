@@ -10,7 +10,12 @@ import {
   brandTopStores,
 } from './quividiBrandReport';
 import { brandGapFilledReport } from './quividiGapFill';
+import { buildQuividiCampaignWorkbook } from './quividiCampaignExcel';
 import {
+  commercialDaily,
+  commercialHeatmap,
+  commercialHourlyDetail,
+  commercialStores,
   executiveDashboard,
   operationalTimeBands,
 } from './quividiExecutiveDashboard';
@@ -132,6 +137,7 @@ describe('Dashboard Ejecutivo del Excel', () => {
         storeName: store.storeName,
         ots: store.adjustedOts,
         share: (store.adjustedOts / dashboard.ots) * 100,
+        estimated: false,
       })),
     );
   });
@@ -165,5 +171,81 @@ describe('Dashboard Ejecutivo del Excel', () => {
       '16:00–20:00',
       '20:00–22:00',
     ]);
+  });
+
+  it('marca la tienda con OTS estimados y los separa en «Tiendas»', () => {
+    const source = report();
+    // Lindavista deja de reportar 14:00–21:00 el segundo día.
+    const lost = (row: QuividiSupportHour) =>
+      row.storeNumber === LINDAVISTA.storeNumber &&
+      row.date === DATES[1] &&
+      row.hour >= 14;
+    source.supportHours = source.supportHours.filter((row) => !lost(row));
+    source.supportDays = source.supportDays.map((row) =>
+      row.storeNumber === LINDAVISTA.storeNumber && row.date === DATES[1]
+        ? { ...row, status: 'partial', ots: 80, publishedOts: 160 }
+        : row,
+    );
+
+    const dashboard = executiveDashboard(source);
+    const lindavista = dashboard.topStores.find(
+      (store) => store.storeNumber === LINDAVISTA.storeNumber,
+    );
+    const coapa = dashboard.topStores.find(
+      (store) => store.storeNumber === COAPA.storeNumber,
+    );
+    expect(lindavista?.estimated).toBe(true);
+    expect(coapa?.estimated).toBe(false);
+
+    const stores = commercialStores(source);
+    const row = stores.rows.find(
+      (item) => item.storeNumber === LINDAVISTA.storeNumber,
+    );
+    expect(row?.estimatedOts).toBeGreaterThan(0);
+    expect((row?.measuredOts ?? 0) + (row?.estimatedOts ?? 0)).toBeCloseTo(
+      row?.ots ?? 0,
+    );
+    expect(
+      commercialHourlyDetail(source).some((item) => item.origin === 'Relleno'),
+    ).toBe(true);
+  });
+
+  it('las hojas «Tiendas», «Evolución Diaria» y «Días y Horarios» suman la portada', () => {
+    const source = report();
+    const ots = executiveDashboard(source).ots;
+    const total = (values: number[]) => values.reduce((a, b) => a + b, 0);
+
+    const stores = commercialStores(source);
+    expect(stores.totalOts).toBe(ots);
+    expect(
+      total(stores.rows.map((row) => row.ots)) + stores.restOts,
+    ).toBeCloseTo(ots);
+    expect(stores.rows[0]?.storeName).toBe('L LINDAVISTA');
+    expect(stores.rows[0]?.bestHour).toBeGreaterThanOrEqual(10);
+
+    const daily = commercialDaily(source);
+    expect(total(daily.map((row) => row.ots))).toBeCloseTo(ots);
+    expect(total(daily.map((row) => row.estimatedOts))).toBe(0);
+
+    const heatmap = commercialHeatmap(source);
+    expect(heatmap.hours[0]).toBe(10);
+    expect(heatmap.hours[heatmap.hours.length - 1]).toBe(21);
+    expect(total(heatmap.cells.map((cell) => cell.ots))).toBeCloseTo(ots);
+    expect(total(heatmap.timeBands.map((band) => band.ots))).toBeCloseTo(ots);
+  });
+
+  it('«Detalle Horario» sólo lista la franja con la cifra publicada', () => {
+    const rows = commercialHourlyDetail(report());
+    expect(rows.every((row) => row.hour >= 10 && row.hour < 22)).toBe(true);
+    expect(rows[0]?.publishedOts).toBe((rows[0]?.rawOts ?? 0) * 2);
+  });
+
+  it('el Excel escribe el Top 5 del dashboard en el orden del PDF', async () => {
+    const wb = await buildQuividiCampaignWorkbook(report());
+    const sheet = wb.getWorksheet('Dashboard Ejecutivo');
+    expect(sheet?.getCell(12, 7).value).toBe('83 · L LINDAVISTA');
+    expect(sheet?.getCell(12, 9).value).toBe(960);
+    const stores = wb.getWorksheet('Tiendas');
+    expect(stores?.getCell(5, 2).value).toBe('L LINDAVISTA');
   });
 });
