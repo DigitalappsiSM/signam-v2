@@ -1,24 +1,16 @@
 import type { Cell, Row, Workbook, Worksheet } from 'exceljs';
+import type { QuividiCampaignReport } from '@/domain';
 import {
-  QUIVIDI_AGE_LABELS,
-  QUIVIDI_GENDER_LABELS,
-  type QuividiCampaignReport,
-} from '@/domain';
-import {
-  ageSummaries,
   dailySummaries,
-  genderSummaries,
   heatmapCells,
   hourRange,
   hourSummaries,
-  overallSummary,
-  peakMoments,
-  qualitySummary,
   storeSummaries,
   timeBandSummaries,
   weekdaySummaries,
 } from './quividiMarketingAnalytics';
 import { partialDayNote } from './quividiBrandReport';
+import { executiveDashboard } from './quividiExecutiveDashboard';
 
 const COLORS = {
   navy: 'FF092A4A',
@@ -220,71 +212,66 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   source.value =
     'Liverpool · ' +
     reportScopeLabel(report) +
-    ' · Horarios: periodos reportados por VidiCenter según configuración de cada ubicación';
+    ' · Cifra publicada, la misma del informe PDF: franja 10:00–22:00, con duplicación por cámara, huecos rellenados y extrapolación por formato';
   source.font = { italic: true, size: 9, color: { argb: COLORS.muted } };
   source.alignment = { wrapText: true };
 
-  const overall = overallSummary(report);
+  // Cara comercial del Excel: misma cifra que el PDF (ver
+  // `quividiExecutiveDashboard.ts`). Las demás hojas conservan lo medido.
+  const dashboard = executiveDashboard(report);
   addKpiCard(
     sheet,
     1,
     'OTS',
-    overall.ots,
+    dashboard.ots,
     '#,##0',
-    'Oportunidades de exposición',
+    'Oportunidades de ver · 10:00–22:00',
   );
   addKpiCard(
     sheet,
     3,
-    'Watchers',
-    overall.watchers,
+    'OTS promedio diario',
+    dashboard.dailyAverage,
     '#,##0',
-    'Detecciones con mirada a pantalla',
+    'Promedio por día de vigencia',
   );
   addKpiCard(
     sheet,
     5,
-    'Tasa de atención',
-    overall.attentionRate / 100,
-    '0.0%',
-    'Watchers / OTS',
+    'Dwell Time',
+    dashboard.dwellSeconds,
+    '0 "s"',
+    'Promedio ponderado por Watchers',
   );
   addKpiCard(
     sheet,
     7,
-    'Attention Time',
-    overall.attentionSeconds,
-    '0.0 "s"',
-    'Promedio ponderado por Watchers',
+    'Vigencia',
+    dashboard.days,
+    '0 "días"',
+    'Días de la campaña',
   );
   addKpiCard(
     sheet,
     9,
     'Cobertura medición',
-    overall.measurementPercent / 100,
+    dashboard.measuredPercent / 100,
     '0.0%',
-    'Pares soporte-día con datos',
+    'Circuito medible con dato directo',
   );
   addKpiCard(
     sheet,
     11,
-    'Tiendas medidas',
-    overall.storeCount,
+    'Tiendas',
+    dashboard.totalStores,
     '0',
-    'Con al menos una medición',
+    'Circuito de la campaña',
   );
 
-  const stores = storeSummaries(report);
-  const bySupport = new Map<string, number>();
-  for (const row of report.supportDays) {
-    bySupport.set(row.support, (bySupport.get(row.support) ?? 0) + row.ots);
-  }
-  const supports = Array.from(bySupport, ([support, ots]) => ({
-    support,
-    ots,
-  })).sort((a, b) => b.ots - a.ots);
+  const supports = dashboard.supports;
+  const stores = dashboard.topStores;
   const maxSupport = Math.max(0, ...supports.map((item) => item.ots));
-  const maxStore = Math.max(0, ...stores.slice(0, 5).map((item) => item.ots));
+  const maxStore = Math.max(0, ...stores.map((item) => item.ots));
 
   sectionTitle(sheet, 11, 1, 6, 'AUDIENCIA POR SOPORTE');
   sectionTitle(sheet, 11, 7, 12, 'DISTRIBUCIÓN POR TIENDA · TOP 5');
@@ -309,8 +296,7 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
       sheet.getCell(row, 7).font = { bold: true, color: { argb: COLORS.text } };
       sheet.getCell(row, 9).value = store.ots;
       sheet.getCell(row, 9).numFmt = '#,##0';
-      sheet.getCell(row, 10).value =
-        overall.ots > 0 ? store.ots / overall.ots : 0;
+      sheet.getCell(row, 10).value = store.share / 100;
       sheet.getCell(row, 10).numFmt = '0.0%';
       sheet.mergeCells(row, 11, row, 12);
       sheet.getCell(row, 11).value = barText(store.ots, maxStore, 12);
@@ -320,26 +306,25 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
 
   const base = 18;
   sectionTitle(sheet, base, 1, 6, 'AUDIENCIA POR DÍA DE LA SEMANA');
-  sectionTitle(sheet, base, 7, 9, 'MOMENTOS DE MAYOR OPORTUNIDAD');
+  sectionTitle(sheet, base, 7, 9, 'HORAS DE MAYOR AUDIENCIA');
   sectionTitle(sheet, base, 10, 12, 'DISTRIBUCIÓN POR FRANJA');
-  const weekdays = weekdaySummaries(report);
-  const maxWeekday = Math.max(0, ...weekdays.map((item) => item.ots));
-  weekdays.forEach((item, index) => {
+  const maxWeekday = Math.max(0, ...dashboard.weekdays.map((item) => item.ots));
+  dashboard.weekdays.forEach((item, index) => {
     const row = base + 1 + index;
     sheet.getCell(row, 1).value = item.label;
     sheet.getCell(row, 1).font = { bold: true, color: { argb: COLORS.text } };
     sheet.getCell(row, 2).value = item.ots;
     sheet.getCell(row, 2).numFmt = '#,##0';
-    sheet.getCell(row, 3).value = item.watchers;
-    sheet.getCell(row, 3).numFmt = '#,##0';
-    sheet.getCell(row, 4).value = item.attentionRate / 100;
-    sheet.getCell(row, 4).numFmt = '0.0%';
+    sheet.getCell(row, 3).value = item.share / 100;
+    sheet.getCell(row, 3).numFmt = '0.0%';
+    sheet.getCell(row, 4).value = item.days;
+    sheet.getCell(row, 4).numFmt = '0 "días"';
     sheet.mergeCells(row, 5, row, 6);
     sheet.getCell(row, 5).value = barText(item.ots, maxWeekday, 14);
     sheet.getCell(row, 5).font = { color: { argb: COLORS.blue } };
   });
 
-  peakMoments(report, 3).forEach((item, index) => {
+  dashboard.peakHours.forEach((item, index) => {
     const row = base + 1 + index * 2;
     sheet.getCell(row, 7).value = index + 1;
     sheet.getCell(row, 7).font = {
@@ -350,36 +335,29 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     sheet.getCell(row, 7).alignment = { horizontal: 'center' };
     fill(sheet.getCell(row, 7), COLORS.blue);
     sheet.mergeCells(row, 8, row, 9);
-    const note = partialDayNote(report, item.date);
-    sheet.getCell(row, 8).value =
-      item.weekday +
-      ' ' +
-      item.date +
-      ' · ' +
-      hourRange(item.hour) +
-      (note ? ` · ${note}` : '');
+    sheet.getCell(row, 8).value = hourRange(item.hour);
     sheet.getCell(row, 8).font = { bold: true, color: { argb: COLORS.text } };
     sheet.mergeCells(row + 1, 8, row + 1, 9);
     sheet.getCell(row + 1, 8).value =
       Math.round(item.ots).toLocaleString('es-MX') +
       ' OTS · ' +
-      (item.attentionRate / 100).toLocaleString('es-MX', {
+      (item.share / 100).toLocaleString('es-MX', {
         style: 'percent',
         minimumFractionDigits: 1,
       }) +
-      ' atención';
+      ' del total';
     sheet.getCell(row + 1, 8).font = { color: { argb: COLORS.muted } };
   });
 
-  const bands = timeBandSummaries(report).slice(-4);
-  const maxBand = Math.max(0, ...bands.map((item) => item.ots));
+  const bands = dashboard.timeBands;
+  const maxBand = Math.max(0, ...bands.map((item) => item.share));
   bands.forEach((item, index) => {
     const row = base + 1 + index;
-    sheet.getCell(row, 10).value = item.label;
+    sheet.getCell(row, 10).value = item.label + ' · ' + item.range;
     sheet.getCell(row, 10).font = { bold: true, color: { argb: COLORS.text } };
     sheet.getCell(row, 11).value = item.share / 100;
     sheet.getCell(row, 11).numFmt = '0.0%';
-    sheet.getCell(row, 12).value = barText(item.ots, maxBand, 10);
+    sheet.getCell(row, 12).value = barText(item.share, maxBand, 10);
     sheet.getCell(row, 12).font = { color: { argb: COLORS.cyan } };
   });
 
@@ -387,10 +365,9 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   sectionTitle(sheet, lower, 1, 6, 'DEMOGRAFÍA · AUDIENCIA ATENTA');
   sectionTitle(sheet, lower, 7, 9, 'CALIDAD DE MEDICIÓN');
   sectionTitle(sheet, lower, 10, 12, 'ORIGEN DEL ALCANCE');
-  const gender = genderSummaries(report, QUIVIDI_GENDER_LABELS);
-  const age = ageSummaries(report, QUIVIDI_AGE_LABELS);
-  const demos = [...gender.slice(0, 3), ...age.slice(0, 4)];
-  const maxDemo = Math.max(0, ...demos.map((item) => item.watchers));
+  const gender = dashboard.gender.slice(0, 3);
+  const demos = [...gender, ...dashboard.age.slice(0, 4)];
+  const maxDemo = Math.max(0, ...demos.map((item) => item.share));
   demos.forEach((item, index) => {
     const row = lower + 1 + index;
     sheet.mergeCells(row, 1, row, 2);
@@ -399,15 +376,15 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
     sheet.getCell(row, 3).value = item.share / 100;
     sheet.getCell(row, 3).numFmt = '0.0%';
     sheet.mergeCells(row, 4, row, 6);
-    sheet.getCell(row, 4).value = barText(item.watchers, maxDemo, 18);
+    sheet.getCell(row, 4).value = barText(item.share, maxDemo, 18);
     sheet.getCell(row, 4).font = {
       color: {
-        argb: index < gender.slice(0, 3).length ? COLORS.pink : COLORS.purple,
+        argb: index < gender.length ? COLORS.pink : COLORS.purple,
       },
     };
   });
 
-  const quality = qualitySummary(report);
+  const quality = dashboard.quality;
   const qualityRows = [
     ['Completa', quality.complete, COLORS.green, COLORS.greenPale],
     ['Parcial', quality.partial, COLORS.orange, COLORS.orangePale],
@@ -445,7 +422,7 @@ function addDashboard(wb: Workbook, report: QuividiCampaignReport): void {
   sheet.mergeCells(noteRow, 1, noteRow + 2, 12);
   const note = sheet.getCell(noteRow, 1);
   note.value =
-    'Lectura comercial: OTS y Watchers representan contactos/detecciones medidos, no reach único de personas. Los soportes se mantienen separados en el detalle para evitar interpretar duplicidades como audiencia única. La demografía es una estimación algorítmica.';
+    'Lectura comercial: esta hoja publica la misma cifra que el informe PDF (franja 10:00–22:00, duplicación por cámara, huecos rellenados con el promedio propio de cada pantalla y extrapolación por formato). OTS son contactos, no reach único de personas. El dato medido de día completo, sin ajustes, está en las hojas técnicas y en «Auditoría de cifras». La demografía es una estimación algorítmica.';
   note.alignment = { wrapText: true, vertical: 'middle' };
   note.font = { italic: true, size: 9, color: { argb: COLORS.muted } };
   fill(note, COLORS.pale);

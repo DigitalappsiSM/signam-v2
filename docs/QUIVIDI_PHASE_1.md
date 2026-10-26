@@ -202,9 +202,13 @@ de la sección *Informe comercial de audiencia*.
 El archivo abre primero con una capa comercial para marcas y marketing y deja
 el detalle técnico al final:
 
-- **Dashboard Ejecutivo**: KPIs, audiencia por soporte, Top tiendas, días de
-  semana, momentos de mayor oportunidad, franjas horarias, demografía, calidad
-  y origen del alcance.
+- **Dashboard Ejecutivo**: OTS, promedio diario, dwell time, vigencia,
+  cobertura y tiendas; audiencia por soporte, Top 5 tiendas, días de semana,
+  horas de mayor audiencia, franjas, demografía, calidad y origen del alcance.
+  Publica **la misma cifra que el PDF** (franja 10:00–22:00, relleno de
+  huecos, duplicación y extrapolación por formato) con las mismas funciones
+  (`quividiExecutiveDashboard.ts`), así que su Top 5 y su OTS coinciden con
+  «Tiendas TOP» y la portada. El resto de hojas conserva lo medido.
 - **Tiendas**: OTS, Watchers, tasa de atención, Attention/Dwell Time, mejor día,
   mejor franja y cobertura de medición por tienda.
 - **Días y Horarios**: mapa de calor de OTS por día de semana y hora.
@@ -362,8 +366,8 @@ publicados de la franja 10:00–22:00. Ver
   se pide con `time_resolution: '1h'` para la distribución horaria, sin
   llamada nueva a Quividi), y `brandOperationalReport` sustituye
   `supportDays` por esa reconstrucción para las seis páginas del PDF. El
-  Excel técnico (`quividiCampaignExcel.ts`, `quividiAuditSheet.ts`) sigue
-  leyendo `report.supportDays` sin recortar — conserva el dato tal cual lo
+  Excel técnico (`quividiCampaignExcel.ts`, `quividiAuditSheet.ts`) — salvo
+  la hoja «Dashboard Ejecutivo», que replica el PDF — sigue leyendo `report.supportDays` sin recortar — conserva el dato tal cual lo
   mide Quividi, como declara — así que cuando hay medición fuera de
   10:00–22:00 el total del Excel es mayor que el de portada **a propósito**;
   la hoja «Auditoría de cifras» lo advierte en una nota bajo el título. No es

@@ -227,7 +227,11 @@ logic. The load-bearing ones:
   extrapolated like OTS (`brandDemographics`: format average watchers × measured profile for missing days and
   camera-less supports). The commercial PDF (`quividiBrandReport.ts`) reads `published*` everywhere it feeds the
   published figure, while the technical Excel (`quividiCampaignExcel.ts`) keeps reading the raw fields — its
-  definition of "measured as recorded" doesn't change. The audit sheet's per-store table and its dedicated
+  definition of "measured as recorded" doesn't change. Exception: the Excel's
+  «Dashboard Ejecutivo» sheet (`quividiExecutiveDashboard.ts`) is its commercial
+  face and shows the **same figure as the PDF** (10–22 h, gap fill, duplication,
+  per-format extrapolation) from the same pure functions, so its Top 5 and OTS
+  match «Tiendas TOP» and the cover. The audit sheet's per-store table and its dedicated
   «Duplicación de la cifra (1 y 2 cámaras)» section (`brandSingleCameraDuplication`) make the raw-vs-published gap explicit.
   See `AGENTS.md` and `docs/QUIVIDI_PHASE_1.md` before touching any of it.
 - **Calendar ↔ Ekon support confirmation** (`campaigns/supportOverride.ts`, `campaignSupportOverrides/{campaignId}`):

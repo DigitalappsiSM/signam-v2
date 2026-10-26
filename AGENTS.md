@@ -869,7 +869,16 @@ tres de ellos describían mal el separador de artículos.
   negocio). **El Excel técnico (`quividiCampaignExcel.ts`,
   `quividiMarketingSheets.ts`) sigue leyendo los campos crudos** (lo medido
   sin duplicar: la cámara, o la más alta de 2; la hoja «Cámaras» conserva
-  cada cámara por separado).
+  cada cámara por separado). **Excepción: la hoja «Dashboard Ejecutivo»**
+  (`quividiExecutiveDashboard.ts`) es la cara comercial del Excel y publica
+  la misma cifra que el PDF — franja 10:00–22:00, relleno de huecos,
+  duplicación y extrapolación por formato —, calculada con las mismas
+  funciones (`brandCampaignSummary`, `brandTopStores`, `brandDaily`,
+  `brandHourlyDistribution`, `brandGender`/`brandAge`), así que su OTS y su
+  «Top 5» concilian con la portada y «Tiendas TOP» (decisión octubre 2026:
+  el Top medido de día completo ordenaba distinto que el PDF). Las demás
+  hojas comerciales («Tiendas», «Días y Horarios», «Evolución Diaria»,
+  «Detalle Horario») siguen con lo medido de día completo.
 
   La única excepción es `brandStoreAudit` (hoja de auditoría, sección
   «Qué se midió realmente»): su `measuredOts` por tienda se queda crudo a
