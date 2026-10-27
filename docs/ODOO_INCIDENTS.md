@@ -19,7 +19,13 @@ no una visita efectivamente realizada. No se publican datos personales aquí.
 ## Pantalla
 
 Filtros combinables: mes de creación, retailer/equipo, tienda, categoría,
-atención, solicitante, responsable y resultado SLA. Indicadores: total,
+atención, solicitante, responsable y resultado SLA. El retailer se elige con
+tarjetas de marca (`RetailerSelector.tsx`, grupo de radios accesible) cuyo color
+tiñe el acento de la página; solo Liverpool tiene logotipo autorizado en el
+repositorio, los demás muestran monograma hasta recibir su logo oficial. Los
+filtros van en una barra compacta: solicitante y responsable quedan en «Más
+filtros» y los filtros activos se muestran como chips removibles. Las
+animaciones respetan `prefers-reduced-motion`. Indicadores: total,
 abiertos/resueltos, cumplimiento con denominador explícito, promedio de primera
 respuesta y resolución con cantidad de observaciones. Distribución por categoría,
 ranking de incidencias técnicas y detalle paginado con etiquetas y políticas SLA.

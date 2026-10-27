@@ -1,6 +1,8 @@
 import { OdooAnalyticsPanels } from './OdooAnalyticsPanels';
 import { downloadOdooWorkbook } from './odooIncidentExport';
-import { useEffect, useMemo, useState } from 'react';
+import { RetailerSelector } from './RetailerSelector';
+import { retailerColor } from './retailerBrands';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Icon } from '@/components/Icon';
 import {
   incidentSla,
@@ -19,7 +21,6 @@ const CATEGORIES = [
   'Sin clasificar',
 ];
 const MODALITIES = ['Remoto', 'In situ', 'Mixta', 'Sin dato'];
-const RETAILERS = ['Liverpool', 'Chedraui', 'La Comer', 'Farmacias San Pablo'];
 const localDate = (value: string) =>
   new Date(value.replace(' ', 'T') + 'Z').toLocaleString('es-MX', {
     timeZone: 'America/Mexico_City',
@@ -67,6 +68,7 @@ export function OdooIncidentsPage() {
   const [assignee, setAssignee] = useState('');
   const [sla, setSla] = useState('');
   const [slaKind, setSlaKind] = useState('Resolución');
+  const [moreFilters, setMoreFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState<'overview' | 'performance' | 'tickets'>(
     'overview',
@@ -149,8 +151,24 @@ export function OdooIncidentsPage() {
     ].sort();
   const pages = Math.max(1, Math.ceil(visible.length / 25));
   const current = Math.min(page, pages);
+  const peopleFilters = [requester, assignee].filter(Boolean).length;
+  const activeFilters = (
+    [
+      ['Tienda', store, () => setStore('')],
+      ['Categoría', category, () => setCategory('')],
+      ['Atención', modality, () => setModality('')],
+      ['Solicitante', requester, () => setRequester('')],
+      ['Responsable', assignee, () => setAssignee('')],
+      [`SLA ${slaKind.toLowerCase()}`, sla, () => setSla('')],
+    ] as const
+  ).filter(([, value]) => value);
+  // La vista re-anima sus indicadores al cambiar de retailer o de vista.
+  const motionKey = `${retailer}|${tab}`;
   return (
-    <div className="odoo-analysis">
+    <div
+      className="odoo-analysis"
+      style={{ '--odoo-accent': retailerColor(retailer) } as CSSProperties}
+    >
       <header className="odoo-hero">
         <div>
           <span className="odoo-eyebrow">OPERACIÓN / DIGITAL SIGNAGE</span>
@@ -217,34 +235,22 @@ export function OdooIncidentsPage() {
           </button>
         </div>
       </header>
+      <RetailerSelector
+        value={retailer}
+        onChange={(value) => {
+          setRetailer(value);
+          setStore('');
+          setRequester('');
+          setAssignee('');
+        }}
+      />
       <section
         className="odoo-filter-panel"
         aria-label="Filtros de incidencias"
       >
-        <div className="odoo-section-heading">
-          <div>
-            <Icon name="filter" />
-            <h2>Explora tu operación</h2>
-          </div>
-          <button
-            className="odoo-reset"
-            onClick={() => {
-              setRetailer('');
-              setStore('');
-              setCategory('');
-              setModality('');
-              setRequester('');
-              setAssignee('');
-              setSla('');
-              setSlaKind('Resolución');
-            }}
-          >
-            Limpiar filtros
-          </button>
-        </div>
         <div className="odoo-filters">
           <label>
-            Mes de creación
+            Mes
             <input
               aria-label="Mes de creación"
               type="month"
@@ -259,17 +265,6 @@ export function OdooIncidentsPage() {
               }}
             />
           </label>
-          <Filter
-            label="Retailer"
-            value={retailer}
-            options={RETAILERS}
-            onChange={(value) => {
-              setRetailer(value);
-              setStore('');
-              setRequester('');
-              setAssignee('');
-            }}
-          />
           <Filter
             label="Tienda"
             value={store}
@@ -287,18 +282,6 @@ export function OdooIncidentsPage() {
             value={modality}
             options={MODALITIES}
             onChange={setModality}
-          />
-          <Filter
-            label="Solicitante"
-            value={requester}
-            options={options('requester')}
-            onChange={setRequester}
-          />
-          <Filter
-            label="Responsable"
-            value={assignee}
-            options={options('assignee')}
-            onChange={setAssignee}
           />
           <Filter
             includeAll={false}
@@ -319,7 +302,67 @@ export function OdooIncidentsPage() {
             ]}
             onChange={setSla}
           />
+          <div className="odoo-filter-actions">
+            <button
+              type="button"
+              className={`odoo-more${moreFilters ? ' is-open' : ''}`}
+              aria-expanded={moreFilters}
+              onClick={() => setMoreFilters((open) => !open)}
+            >
+              <Icon name="filter" />
+              Más filtros
+              {peopleFilters > 0 && <span>{peopleFilters}</span>}
+            </button>
+            <button
+              type="button"
+              className="odoo-reset"
+              disabled={!activeFilters.length && slaKind === 'Resolución'}
+              onClick={() => {
+                setStore('');
+                setCategory('');
+                setModality('');
+                setRequester('');
+                setAssignee('');
+                setSla('');
+                setSlaKind('Resolución');
+              }}
+            >
+              Limpiar
+            </button>
+          </div>
         </div>
+        {moreFilters && (
+          <div className="odoo-filters odoo-filters-more">
+            <Filter
+              label="Solicitante"
+              value={requester}
+              options={options('requester')}
+              onChange={setRequester}
+            />
+            <Filter
+              label="Responsable"
+              value={assignee}
+              options={options('assignee')}
+              onChange={setAssignee}
+            />
+          </div>
+        )}
+        {activeFilters.length > 0 && (
+          <ul className="odoo-chips" aria-label="Filtros activos">
+            {activeFilters.map(([label, value, clear]) => (
+              <li key={label}>
+                <span>{label}:</span> {value}
+                <button
+                  type="button"
+                  aria-label={`Quitar filtro ${label}`}
+                  onClick={clear}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       {loading && (
         <div className="odoo-state odoo-loading" role="status">
@@ -401,7 +444,8 @@ export function OdooIncidentsPage() {
             </p>
           )}
           <section
-            className="odoo-kpis odoo-sla-kpis"
+            key={retailer}
+            className="odoo-kpis odoo-sla-kpis odoo-motion"
             aria-label="Indicadores de incidencias"
           >
             {[
@@ -439,9 +483,10 @@ export function OdooIncidentsPage() {
                 hours(summary.resolution.value),
                 `${summary.resolution.count} resueltos con dato`,
               ],
-            ].map(([label, value, detail]) => (
+            ].map(([label, value, detail], index) => (
               <article
                 key={label}
+                style={{ '--i': index } as CSSProperties}
                 className={
                   label === 'SLA de resolución' ? 'odoo-primary-sla' : undefined
                 }
@@ -494,195 +539,199 @@ export function OdooIncidentsPage() {
               </button>
             ))}
           </nav>
-          {tab !== 'tickets' && (
-            <>
-              <OdooAnalyticsPanels
-                tickets={visible}
-                month={month}
-                reference={data.fetchedAt}
-                view={tab}
-              />
-              {tab === 'overview' && (
-                <section className="odoo-split">
-                  <article className="odoo-panel">
-                    <h2>Tickets por categoría</h2>
-                    {CATEGORIES.map((value) => {
-                      const group = visible.filter(
-                        (ticket) => ticket.category === value,
-                      );
-                      const stats = summarizeIncidents(group);
-                      return (
-                        <div className="odoo-breakdown" key={value}>
-                          <span>{value}</span>
-                          <strong>{group.length}</strong>
-                          <span>{stats.failed} SLA global incumplidos</span>
-                        </div>
-                      );
-                    })}
-                  </article>
-                  <article className="odoo-panel">
-                    <h2>Tiendas con más incidencias técnicas</h2>
-                    <p className="text-muted">
-                      Soporte y cámaras con tienda identificada. General y
-                      contenido quedan fuera del ranking de fallas.
-                    </p>
-                    {summary.stores.length ? (
-                      summary.stores.slice(0, 10).map((value) => (
-                        <div
-                          className="odoo-breakdown"
-                          key={`${value.retailer}:${value.store}`}
-                        >
-                          <span>
-                            {value.retailer} · {value.store}
-                          </span>
-                          <strong>{value.tickets}</strong>
-                          <span>{value.failed} SLA global incumplidos</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p>
-                        No hay incidencias técnicas con tienda identificada para
-                        estos filtros.
+          <div key={motionKey} className="odoo-view">
+            {tab !== 'tickets' && (
+              <>
+                <OdooAnalyticsPanels
+                  tickets={visible}
+                  month={month}
+                  reference={data.fetchedAt}
+                  view={tab}
+                />
+                {tab === 'overview' && (
+                  <section className="odoo-split">
+                    <article className="odoo-panel">
+                      <h2>Tickets por categoría</h2>
+                      {CATEGORIES.map((value) => {
+                        const group = visible.filter(
+                          (ticket) => ticket.category === value,
+                        );
+                        const stats = summarizeIncidents(group);
+                        return (
+                          <div className="odoo-breakdown" key={value}>
+                            <span>{value}</span>
+                            <strong>{group.length}</strong>
+                            <span>{stats.failed} SLA global incumplidos</span>
+                          </div>
+                        );
+                      })}
+                    </article>
+                    <article className="odoo-panel">
+                      <h2>Tiendas con más incidencias técnicas</h2>
+                      <p className="text-muted">
+                        Soporte y cámaras con tienda identificada. General y
+                        contenido quedan fuera del ranking de fallas.
                       </p>
-                    )}
-                  </article>
-                </section>
-              )}
-            </>
-          )}
-          {tab === 'tickets' && (
-            <section className="odoo-panel">
-              <h2>Detalle de tickets</h2>
-              <p>
-                {visible.length} tickets · Página {current} de {pages}
-              </p>
-              <div className="odoo-table">
-                <table>
-                  <thead>
-                    <tr>
-                      {[
-                        'Ticket',
-                        'Retailer / tienda',
-                        'Categoría / atención',
-                        'Solicitante / responsable',
-                        'Estado',
-                        'SLA de resolución',
-                        'SLA de primera respuesta',
-                        'SLA global',
-                        'Respuesta',
-                        'Resolución',
-                      ].map((label) => (
-                        <th key={label} scope="col">
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible
-                      .slice((current - 1) * 25, current * 25)
-                      .map((ticket) => (
-                        <tr key={ticket.id}>
-                          <td>
-                            <a
-                              href={ticket.url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              #{ticket.id} · {ticket.title}
-                            </a>
-                            {ticket.createdAt && (
-                              <small>
-                                Creado: {localDate(ticket.createdAt)}
-                              </small>
-                            )}
-                          </td>
-                          <td>
-                            {ticket.retailer}
-                            <small>
-                              {ticket.store ?? 'Sin tienda identificada'}
-                            </small>
-                          </td>
-                          <td>
-                            {ticket.category}
-                            <small>{ticket.modality}</small>
-                            <details>
-                              <summary>Etiquetas</summary>
-                              {ticket.tags.join(' · ') || 'Sin etiquetas'}
-                            </details>
-                          </td>
-                          <td>
-                            {ticket.requester}
-                            <small>{ticket.assignee}</small>
-                          </td>
-                          <td>{ticket.stage}</td>
-                          {(['resolution', 'response'] as const).map((kind) => {
-                            const state = incidentSla(ticket, kind);
-                            return (
-                              <td key={kind}>
-                                <span
-                                  className={`odoo-sla-badge ${state === 'Incumplido' ? 'is-failed' : state === 'Cumplido' ? 'is-passed' : ''}`}
-                                >
-                                  {state}
-                                </span>
-                              </td>
-                            );
-                          })}
-                          <td>
-                            <span
-                              className={`odoo-sla-badge ${ticket.sla === 'Incumplido' ? 'is-failed' : ticket.sla === 'Cumplido' ? 'is-passed' : ''}`}
-                            >
-                              {ticket.sla}
+                      {summary.stores.length ? (
+                        summary.stores.slice(0, 10).map((value) => (
+                          <div
+                            className="odoo-breakdown"
+                            key={`${value.retailer}:${value.store}`}
+                          >
+                            <span>
+                              {value.retailer} · {value.store}
                             </span>
-                            <details>
-                              <summary>Políticas</summary>
-                              {ticket.policies.length
-                                ? ticket.policies.map((policy, index) => (
-                                    <p key={index}>
-                                      {policy.name || 'Política SLA'}:{' '}
-                                      {policy.status === 'failed'
-                                        ? 'Incumplido'
-                                        : policy.status === 'reached'
-                                          ? 'Cumplido'
-                                          : policy.status === 'ongoing'
-                                            ? 'En curso'
-                                            : 'Sin dato'}
-                                      {policy.deadline && (
-                                        <small>
-                                          Límite: {localDate(policy.deadline)}
-                                        </small>
-                                      )}
-                                    </p>
-                                  ))
-                                : 'Sin políticas disponibles'}
-                            </details>
-                          </td>
-                          <td>{hours(ticket.firstResponseHours)}</td>
-                          <td>{hours(ticket.resolutionHours)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              {!visible.length && <p>No hay tickets para estos filtros.</p>}
-              <div className="odoo-pagination">
-                <button
-                  className="btn"
-                  disabled={current <= 1}
-                  onClick={() => setPage(current - 1)}
-                >
-                  Anterior
-                </button>
-                <button
-                  className="btn"
-                  disabled={current >= pages}
-                  onClick={() => setPage(current + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </section>
-          )}
+                            <strong>{value.tickets}</strong>
+                            <span>{value.failed} SLA global incumplidos</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p>
+                          No hay incidencias técnicas con tienda identificada
+                          para estos filtros.
+                        </p>
+                      )}
+                    </article>
+                  </section>
+                )}
+              </>
+            )}
+            {tab === 'tickets' && (
+              <section className="odoo-panel">
+                <h2>Detalle de tickets</h2>
+                <p>
+                  {visible.length} tickets · Página {current} de {pages}
+                </p>
+                <div className="odoo-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        {[
+                          'Ticket',
+                          'Retailer / tienda',
+                          'Categoría / atención',
+                          'Solicitante / responsable',
+                          'Estado',
+                          'SLA de resolución',
+                          'SLA de primera respuesta',
+                          'SLA global',
+                          'Respuesta',
+                          'Resolución',
+                        ].map((label) => (
+                          <th key={label} scope="col">
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible
+                        .slice((current - 1) * 25, current * 25)
+                        .map((ticket) => (
+                          <tr key={ticket.id}>
+                            <td>
+                              <a
+                                href={ticket.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                #{ticket.id} · {ticket.title}
+                              </a>
+                              {ticket.createdAt && (
+                                <small>
+                                  Creado: {localDate(ticket.createdAt)}
+                                </small>
+                              )}
+                            </td>
+                            <td>
+                              {ticket.retailer}
+                              <small>
+                                {ticket.store ?? 'Sin tienda identificada'}
+                              </small>
+                            </td>
+                            <td>
+                              {ticket.category}
+                              <small>{ticket.modality}</small>
+                              <details>
+                                <summary>Etiquetas</summary>
+                                {ticket.tags.join(' · ') || 'Sin etiquetas'}
+                              </details>
+                            </td>
+                            <td>
+                              {ticket.requester}
+                              <small>{ticket.assignee}</small>
+                            </td>
+                            <td>{ticket.stage}</td>
+                            {(['resolution', 'response'] as const).map(
+                              (kind) => {
+                                const state = incidentSla(ticket, kind);
+                                return (
+                                  <td key={kind}>
+                                    <span
+                                      className={`odoo-sla-badge ${state === 'Incumplido' ? 'is-failed' : state === 'Cumplido' ? 'is-passed' : ''}`}
+                                    >
+                                      {state}
+                                    </span>
+                                  </td>
+                                );
+                              },
+                            )}
+                            <td>
+                              <span
+                                className={`odoo-sla-badge ${ticket.sla === 'Incumplido' ? 'is-failed' : ticket.sla === 'Cumplido' ? 'is-passed' : ''}`}
+                              >
+                                {ticket.sla}
+                              </span>
+                              <details>
+                                <summary>Políticas</summary>
+                                {ticket.policies.length
+                                  ? ticket.policies.map((policy, index) => (
+                                      <p key={index}>
+                                        {policy.name || 'Política SLA'}:{' '}
+                                        {policy.status === 'failed'
+                                          ? 'Incumplido'
+                                          : policy.status === 'reached'
+                                            ? 'Cumplido'
+                                            : policy.status === 'ongoing'
+                                              ? 'En curso'
+                                              : 'Sin dato'}
+                                        {policy.deadline && (
+                                          <small>
+                                            Límite: {localDate(policy.deadline)}
+                                          </small>
+                                        )}
+                                      </p>
+                                    ))
+                                  : 'Sin políticas disponibles'}
+                              </details>
+                            </td>
+                            <td>{hours(ticket.firstResponseHours)}</td>
+                            <td>{hours(ticket.resolutionHours)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!visible.length && <p>No hay tickets para estos filtros.</p>}
+                <div className="odoo-pagination">
+                  <button
+                    className="btn"
+                    disabled={current <= 1}
+                    onClick={() => setPage(current - 1)}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    className="btn"
+                    disabled={current >= pages}
+                    onClick={() => setPage(current + 1)}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
         </>
       )}
     </div>
