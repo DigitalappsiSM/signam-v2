@@ -68,14 +68,28 @@ describe('dashboard incidencias', () => {
       await screen.findByRole('button', { name: /Detalle de tickets/ }),
     );
     expect(await screen.findByText('#1 · Incidencia A')).toBeInTheDocument();
-    await userEvent.selectOptions(
-      screen.getByLabelText('Retailer'),
-      'Chedraui',
-    );
+    const chedraui = screen.getByRole('radio', { name: 'Chedraui' });
+    await userEvent.click(chedraui);
+    expect(chedraui).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByText('#1 · Incidencia A')).not.toBeInTheDocument();
     expect(screen.getByText('#2 · Incidencia B')).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText('Atención'), 'Remoto');
     expect(screen.queryByText('#2 · Incidencia B')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: 'Filtros activos' }),
+    ).toHaveTextContent('Atención: Remoto');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Quitar filtro Atención' }),
+    );
+    expect(screen.getByText('#2 · Incidencia B')).toBeInTheDocument();
+  });
+  it('mantiene solicitante y responsable dentro de «Más filtros»', async () => {
+    render(<OdooIncidentsPage />);
+    await screen.findByRole('region', { name: 'Indicadores de incidencias' });
+    expect(screen.queryByLabelText('Solicitante')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }));
+    expect(screen.getByLabelText('Solicitante')).toBeInTheDocument();
+    expect(screen.getByLabelText('Responsable')).toBeInTheDocument();
   });
   it('explica el fallo, mantiene indicadores sin inventar ceros y permite reintentar', async () => {
     vi.mocked(getOdooOverview).mockRejectedValueOnce({

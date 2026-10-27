@@ -249,60 +249,41 @@
   min-height: 42px;
 }
 .odoo-filter-panel {
-  padding: 1.4rem 1.6rem 1.6rem;
+  padding: 0.85rem 1rem;
   margin-bottom: 1.25rem;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--color-surface);
 }
-.odoo-section-heading,
-.odoo-section-heading > div {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-.odoo-section-heading {
-  justify-content: space-between;
-  margin-bottom: 1.2rem;
-}
-.odoo-section-heading svg {
-  color: var(--color-primary);
-}
-.odoo-section-heading h2 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-.odoo-reset {
-  border: 0;
-  background: transparent;
-  color: var(--color-primary);
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  padding: 0.45rem;
-}
 .odoo-filters {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem 1.25rem;
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr))
+    auto;
+  align-items: end;
+  gap: 0.6rem 0.75rem;
   margin: 0;
 }
 .odoo-filters label {
   color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-  gap: 0.5rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  gap: 0.3rem;
 }
 .odoo-filters select,
 .odoo-filters input {
-  min-height: 44px;
-  padding: 0.7rem 0.85rem;
+  min-height: 36px;
+  padding: 0.4rem 0.65rem;
   border: 1px solid var(--color-border-strong);
-  border-radius: 10px;
+  border-radius: 9px;
   background-color: var(--color-surface-2);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
   color-scheme: inherit;
   transition:
     border-color 0.15s,
@@ -312,16 +293,114 @@
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2364758b' stroke-width='1.6' d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-size: 16px;
-  background-position: right 0.75rem center;
-  padding-right: 2rem;
+  background-size: 14px;
+  background-position: right 0.55rem center;
+  padding-right: 1.7rem;
   cursor: pointer;
 }
 .odoo-filters :is(select, input):focus {
   outline: 0;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-color: var(--odoo-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--odoo-accent) 16%, transparent);
+}
+.odoo-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.odoo-more,
+.odoo-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+.odoo-more svg {
+  width: 15px;
+  height: 15px;
+}
+.odoo-more:hover,
+.odoo-more.is-open {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.odoo-more > span {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--odoo-accent);
+  color: white;
+  font-size: 0.68rem;
+}
+.odoo-reset {
+  color: var(--odoo-accent-ink);
+}
+.odoo-reset:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.odoo-filters-more {
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--color-border);
+  animation: odoo-drop 0.25s ease-out both;
+}
+.odoo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+.odoo-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.25rem 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--odoo-accent) 10%, transparent);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  animation: odoo-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.odoo-chips li > span {
+  color: var(--color-text-muted);
+}
+.odoo-chips button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.odoo-chips button:hover {
+  background: color-mix(in srgb, var(--odoo-accent) 18%, transparent);
+  color: var(--color-text);
 }
 .odoo-state {
   display: flex;
@@ -619,5 +698,300 @@
 @media (max-width: 600px) {
   .odoo-sla-kpis {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Acento por retailer: el color se registra para poder animarlo. */
+@property --odoo-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1d4ed8;
+}
+.odoo-analysis {
+  transition: --odoo-accent 0.6s ease;
+}
+.odoo-hero::before {
+  background: var(--odoo-accent);
+}
+.odoo-hero::after {
+  content: '';
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--odoo-accent) 14%, transparent),
+    transparent 65%
+  );
+  pointer-events: none;
+}
+.odoo-hero > * {
+  position: relative;
+  z-index: 1;
+}
+.odoo-analysis {
+  /* Variante legible del acento para texto (verde/naranja sobre blanco). */
+  --odoo-accent-ink: color-mix(
+    in srgb,
+    var(--odoo-accent) 72%,
+    var(--color-text)
+  );
+}
+.odoo-hero .odoo-eyebrow,
+.odoo-hero h1 span,
+.odoo-connection.is-connected,
+.odoo-tabs button[aria-current='page'],
+.odoo-kpi-icon {
+  color: var(--odoo-accent-ink);
+}
+.odoo-kpis .odoo-primary-sla {
+  border-color: color-mix(in srgb, var(--odoo-accent) 55%, transparent);
+  border-top-color: var(--odoo-accent);
+}
+.odoo-kpi-icon {
+  background: color-mix(in srgb, var(--odoo-accent) 10%, transparent);
+}
+@media (max-width: 1100px) {
+  .odoo-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .odoo-filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+/* Selector de retailer: tarjetas de marca con marco deslizante. */
+.odoo-retailers {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  padding: 4px;
+  scrollbar-width: none;
+}
+.odoo-retailer-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 16px;
+  border: 2px solid var(--odoo-accent);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--odoo-accent) 14%, transparent),
+    0 14px 30px -12px color-mix(in srgb, var(--odoo-accent) 55%, transparent);
+  pointer-events: none;
+  transition:
+    transform 0.5s cubic-bezier(0.34, 1.3, 0.64, 1),
+    width 0.5s cubic-bezier(0.34, 1.3, 0.64, 1),
+    opacity 0.3s;
+  z-index: 2;
+}
+.odoo-retailer {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s,
+    color 0.3s;
+}
+.odoo-retailer:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px -14px rgb(12 35 77 / 45%);
+}
+.odoo-retailer:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.odoo-retailer-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 70px;
+  padding: 0.45rem 0.6rem;
+  border-radius: 11px;
+  overflow: hidden;
+  /* Placa blanca en ambos temas: los logotipos se muestran en su color. */
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgb(12 35 77 / 8%);
+  filter: grayscale(1);
+  opacity: 0.45;
+  transition:
+    filter 0.45s,
+    opacity 0.45s,
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Brillo que cruza la tarjeta al seleccionarla. */
+.odoo-retailer-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgb(255 255 255 / 45%) 50%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+}
+.odoo-retailer:hover .odoo-retailer-tile {
+  filter: grayscale(0.3);
+  opacity: 0.8;
+}
+.odoo-retailer.is-active .odoo-retailer-tile {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.03);
+}
+.odoo-retailer.is-active .odoo-retailer-tile::after {
+  animation: odoo-shine 0.9s 0.1s ease-out;
+}
+.odoo-retailer-logo {
+  display: block;
+  width: 92px;
+  height: 26px;
+  background: var(--brand);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+.odoo-retailer-tile [role='img'] {
+  max-width: 100%;
+}
+.odoo-retailer-instore {
+  display: flex;
+  max-width: 100%;
+  color: #1d4ed8;
+}
+.odoo-retailer-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+/* Barra de marca bajo el logo de la tarjeta activa. */
+.odoo-retailer-tile::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.odoo-retailer.is-active .odoo-retailer-tile::before {
+  transform: scaleX(1);
+}
+.odoo-retailer-name {
+  padding: 0 0.2rem 0.1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.odoo-retailer.is-active .odoo-retailer-name {
+  color: var(--color-text);
+}
+
+/* Movimiento: indicadores escalonados y vistas que entran suavemente. */
+.odoo-motion article {
+  animation: odoo-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+.odoo-view > * {
+  animation: odoo-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.odoo-view > :nth-child(2) {
+  animation-delay: 80ms;
+}
+.odoo-view > :nth-child(n + 3) {
+  animation-delay: 160ms;
+}
+.odoo-kpis article {
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+}
+.odoo-kpis article:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px -16px rgb(12 35 77 / 40%);
+}
+@keyframes odoo-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes odoo-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes odoo-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+@keyframes odoo-shine {
+  to {
+    transform: translateX(120%);
+  }
+}
+/* Indicadores compactos: icono y etiqueta en la misma línea. */
+.odoo-kpis article {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.65rem;
+  padding: 1.1rem 1.25rem;
+}
+.odoo-kpis article > :is(strong, small) {
+  grid-column: 1 / -1;
+}
+.odoo-kpis-pending article {
+  grid-template-columns: minmax(0, 1fr);
+}
+.odoo-kpi-icon {
+  margin-bottom: 0;
+}
+@media (max-width: 700px) {
+  .odoo-retailers {
+    grid-template-columns: repeat(5, minmax(128px, 1fr));
+  }
+  .odoo-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .odoo-analysis,
+  .odoo-retailer,
+  .odoo-retailer-tile,
+  .odoo-retailer-frame,
+  .odoo-kpis article {
+    transition: none;
+  }
+  .odoo-motion article,
+  .odoo-view > *,
+  .odoo-filters-more,
+  .odoo-chips li,
+  .odoo-retailer.is-active .odoo-retailer-tile::after {
+    animation: none;
   }
 }
