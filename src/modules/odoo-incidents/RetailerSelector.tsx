@@ -1,13 +1,22 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import liverpoolLogo from '@/assets/ppt/liverpool.png';
+import chedrauiLogo from '@/assets/retailers/chedraui.png';
+import sanPabloLogo from '@/assets/retailers/farmacias-san-pablo.png';
+import laComerLogo from '@/assets/retailers/la-comer.png';
 import { BrandLogo } from '@/components/BrandLogo';
 import { RETAILER_BRANDS, type RetailerBrand } from './retailerBrands';
+
+const LOGOS: Record<string, string> = {
+  Chedraui: chedrauiLogo,
+  'La Comer': laComerLogo,
+  'Farmacias San Pablo': sanPabloLogo,
+};
 
 function RetailerMark({ brand }: { brand: RetailerBrand }) {
   if (brand.value === '')
     return (
-      <span aria-hidden="true">
-        <BrandLogo height={22} />
+      <span aria-hidden="true" className="odoo-retailer-instore">
+        <BrandLogo variant="current" height={22} />
       </span>
     );
   if (brand.value === 'Liverpool')
@@ -22,9 +31,12 @@ function RetailerMark({ brand }: { brand: RetailerBrand }) {
       />
     );
   return (
-    <span aria-hidden="true" className="odoo-retailer-monogram">
-      {brand.monogram}
-    </span>
+    <img
+      className="odoo-retailer-img"
+      src={LOGOS[brand.value]}
+      alt=""
+      draggable={false}
+    />
   );
 }
 

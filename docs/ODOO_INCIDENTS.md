@@ -21,8 +21,9 @@ no una visita efectivamente realizada. No se publican datos personales aquí.
 Filtros combinables: mes de creación, retailer/equipo, tienda, categoría,
 atención, solicitante, responsable y resultado SLA. El retailer se elige con
 tarjetas de marca (`RetailerSelector.tsx`, grupo de radios accesible) cuyo color
-tiñe el acento de la página; solo Liverpool tiene logotipo autorizado en el
-repositorio, los demás muestran monograma hasta recibir su logo oficial. Los
+tiñe el acento de la página; los logotipos de Chedraui, La Comer y Farmacias
+San Pablo viven en `src/assets/retailers/` y se muestran a color sobre placa
+blanca. Los
 filtros van en una barra compacta: solicitante y responsable quedan en «Más
 filtros» y los filtros activos se muestran como chips removibles. Las
 animaciones respetan `prefers-reduced-motion`. Indicadores: total,
