@@ -1,0 +1,21 @@
+SIGNAM V2 — Handoff para Claude Code
+
+Contenido
+1. SIGNAM_KPI_PROMPT.md: prompt completo y reglas de implementación.
+2. REFERENCIA_VISUAL_SIGNAM.html: diseño aprobado con gráficos, animaciones y datos ficticios.
+
+Uso
+1. Descomprime estos dos archivos en la raíz de tu checkout de DigitalappsiSM/signam-v2.
+2. Puedes abrir REFERENCIA_VISUAL_SIGNAM.html en tu navegador para ver la referencia. Algunas fuentes e iconos requieren Internet.
+3. Abre Claude Code trabajando en ese repositorio.
+4. Pega el contenido de SIGNAM_KPI_PROMPT.md. Para copiarlo desde PowerShell:
+
+Get-Content -Raw -Encoding UTF8 .\SIGNAM_KPI_PROMPT.md | Set-Clipboard
+
+Alternativa: pega directamente esta instrucción breve en Claude Code:
+
+Lee SIGNAM_KPI_PROMPT.md e implementa completamente ese alcance en este repositorio. Usa REFERENCIA_VISUAL_SIGNAM.html como referencia de diseño. Respeta AGENTS.md y CLAUDE.md. Mantén la captura actual del equipo, implementa los nueve KPI con datos reales, corrige la conservación de fechas sin nuevas colecciones de eventos y completa las pruebas, documentación y PR indicadas. No hagas merge ni despliegue.
+
+La referencia visual contiene cifras de ejemplo. El prompt exige reemplazarlas por cálculos reales, conservar los flujos y exportadores actuales y no pedir nuevos datos al equipo.
+
+Estos archivos son material de encargo; no sustituyen la implementación React/TypeScript de SIGNAM ni autorizan cambios de producción.
