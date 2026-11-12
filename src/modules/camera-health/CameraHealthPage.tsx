@@ -637,6 +637,19 @@ export function CameraHealthPage() {
                     <strong className="camera-health__recovered">
                       Recuperada {formatHealthDate(recovery.recoveredDate)}
                     </strong>
+                    {(() => {
+                      const url = odooCameraTicketUrl(recovery.ticketId);
+                      return url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Abrir ticket en Odoo"
+                        >
+                          Ticket #{recovery.ticketId}
+                        </a>
+                      ) : null;
+                    })()}
                   </article>
                 ))}
               </div>

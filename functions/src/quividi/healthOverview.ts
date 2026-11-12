@@ -95,6 +95,7 @@ export interface CameraHealthOverviewResponse {
     startedDate: string;
     lastAnomalousDate: string;
     recoveredDate: string;
+    ticketId: number | null;
   }>;
 }
 
@@ -247,6 +248,7 @@ export async function buildCameraHealthOverview(
             : '',
         recoveredDate:
           typeof data.recoveredDate === 'string' ? data.recoveredDate : '',
+        ticketId: null as number | null,
       };
     })
     .filter((row) => row.recoveredDate)

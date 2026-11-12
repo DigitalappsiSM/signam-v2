@@ -68,6 +68,8 @@ export interface QuividiCameraRecovery {
   startedDate: string;
   lastAnomalousDate: string;
   recoveredDate: string;
+  /** Ticket Odoo de esta incidencia; ausente en respuestas anteriores. */
+  ticketId?: number | null;
 }
 
 export type QuividiCameraHealthRefreshStage =
