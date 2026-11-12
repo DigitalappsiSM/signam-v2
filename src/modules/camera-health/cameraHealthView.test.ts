@@ -4,6 +4,7 @@ import {
   cameraHealthStatusLabel,
   filterCameraHealthRows,
   formatHealthDate,
+  odooCameraTicketUrl,
 } from './cameraHealthView';
 
 function camera(
@@ -79,5 +80,20 @@ describe('camera health view', () => {
   it('formatea fechas civiles sin aplicar zona horaria', () => {
     expect(formatHealthDate('2026-09-20')).toBe('20/09/2026');
     expect(formatHealthDate(null)).toBe('—');
+  });
+});
+
+describe('odooCameraTicketUrl', () => {
+  it('liga al ticket del equipo de Helpdesk de cámaras', () => {
+    expect(odooCameraTicketUrl(18501)).toBe(
+      'https://in-storemedia.odoo.com/odoo/helpdesk/6/tickets/18501',
+    );
+  });
+
+  it('no genera liga sin un id válido', () => {
+    expect(odooCameraTicketUrl(null)).toBeNull();
+    expect(odooCameraTicketUrl(undefined)).toBeNull();
+    expect(odooCameraTicketUrl(0)).toBeNull();
+    expect(odooCameraTicketUrl(1.5)).toBeNull();
   });
 });
