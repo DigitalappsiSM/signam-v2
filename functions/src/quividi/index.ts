@@ -84,6 +84,7 @@ import {
   buildCameraPointBindings,
   createManualCameraTicket,
   reconcileAutomaticCameraTickets,
+  recoveryTicketId,
   type CameraTicketStateDoc,
 } from './odooTickets';
 import {
@@ -1043,6 +1044,15 @@ export const cameraHealthOverview = onCall(
         camera.ticketStatus = 'pending_decision';
         camera.canCreateTicket = canCreateTickets;
       }
+    }
+    for (const recovery of overview.recentRecoveries) {
+      const binding = bindings.get(recovery.locationId);
+      recovery.ticketId = binding
+        ? recoveryTicketId(
+            tickets.get(binding.measurementPointId),
+            recovery.startedDate,
+          )
+        : null;
     }
     const now = Date.now();
     const refreshExpired =

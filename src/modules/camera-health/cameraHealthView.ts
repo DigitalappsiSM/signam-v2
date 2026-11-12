@@ -9,6 +9,24 @@ export type CameraHealthFilter =
   | 'no_ots'
   | 'out_of_scope';
 
+/**
+ * Los tickets de cámaras se crean siempre en el equipo de Helpdesk 6
+ * (`HELPDESK_TEAM_ID` en `functions/src/quividi/odooTickets.ts`).
+ */
+const ODOO_CAMERA_TICKETS_BASE =
+  'https://in-storemedia.odoo.com/odoo/helpdesk/6/tickets/';
+
+/** Liga directa al ticket en Odoo; `null` si no hay un id válido. */
+export function odooCameraTicketUrl(
+  ticketId: number | null | undefined,
+): string | null {
+  return typeof ticketId === 'number' &&
+    Number.isInteger(ticketId) &&
+    ticketId > 0
+    ? ODOO_CAMERA_TICKETS_BASE + ticketId
+    : null;
+}
+
 export function cameraHealthStatusKey(
   camera: QuividiCameraHealthRow,
 ): Exclude<CameraHealthFilter, 'all' | 'alerts'> {

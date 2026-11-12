@@ -549,6 +549,11 @@ tres de ellos describían mal el separador de artículos.
   cooldown de 5 minutos y expone etapas reales de progreso sin porcentajes
   simulados. Viewer puede observar el estado/progreso, pero no disparar la
   consulta. Se auditan última ejecución automática y manual (usuario).
+  El número de ticket (tabla y tarjetas de «Recuperaciones») liga a
+  `https://in-storemedia.odoo.com/odoo/helpdesk/6/tickets/<id>` en pestaña
+  nueva (equipo Helpdesk 6, el mismo con que se crean). Una recuperación solo
+  muestra ticket si `incidentStartedDate` del estado coincide con su
+  `startedDate`, porque el estado guarda únicamente el ticket más reciente.
   `Catálogo Admira` permite capturar y validar `quividiLocationId`; al
   validarlo contra Quividi se guarda también el alias canónico.
 - **Reporte comercial de audiencia (PDF)**: la descarga para marcas es una vista

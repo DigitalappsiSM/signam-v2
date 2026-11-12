@@ -56,6 +56,29 @@ const HELPDESK_TEAM_ID = 6;
 const HELPDESK_USER_ID = 8;
 const CAMERA_TAG_NAME = '[camaras]';
 
+/**
+ * Ticket Odoo de una incidencia ya recuperada. El estado guarda un solo ticket
+ * por punto de medición (el de la incidencia más reciente), así que solo se
+ * devuelve cuando el inicio de la incidencia coincide: nunca se liga una
+ * recuperación al ticket de otra incidencia.
+ */
+export function recoveryTicketId(
+  ticket: Partial<CameraTicketStateDoc> | undefined,
+  recoveryStartedDate: string,
+): number | null {
+  if (
+    !ticket ||
+    !recoveryStartedDate ||
+    ticket.incidentStartedDate !== recoveryStartedDate ||
+    (ticket.ticketStatus !== 'created' &&
+      ticket.ticketStatus !== 'recovery_notified')
+  ) {
+    return null;
+  }
+  const id = ticket.ticketId;
+  return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : null;
+}
+
 function validLocationId(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
     ? value
