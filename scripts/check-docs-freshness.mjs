@@ -86,6 +86,12 @@ const RULES = [
     why: 'La operación Digital no debe tocar el flujo Liverpool↔Admira; su alcance está documentado.',
   },
   {
+    name: 'Catálogo Grassfish',
+    code: [/^src\/modules\/grassfish-catalog\//, /^src\/services\/grassfishCatalog\.ts$/],
+    docs: ['AGENTS.md'],
+    why: 'El catálogo y la política de audiencia por cámara deben conservar su alcance documentado.',
+  },
+  {
     name: 'Directorio de tiendas',
     code: [/^src\/domain\/stores\//],
     docs: ['AGENTS.md', 'CLAUDE.md'],

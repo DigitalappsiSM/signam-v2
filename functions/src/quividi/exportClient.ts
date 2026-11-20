@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { rowsFingerprint } from './historyModel';
+import { LIVERPOOL_NETWORK_ID, rowsFingerprint } from './historyModel';
 
 const USERNAME = defineSecret('QUIVIDI_API_USERNAME');
 const TOKEN = defineSecret('QUIVIDI_API_TOKEN');
 const BASE = 'https://vidicenter.quividi.com/api/v1';
+export const CHEDRAUI_NETWORK_ID = 3365;
 export const EXPORT_LEASE_MS = 10 * 60 * 1000;
 export type ExportSource =
   'daily' | 'archive_daily' | 'backfill' | 'recovery' | 'late_data' | 'live';
@@ -33,8 +34,10 @@ export interface QuividiLocation {
 }
 
 /** Metadatos de la network (no es un export de audiencia): trae `last_seen` por ubicación. */
-export async function fetchQuividiLocations(): Promise<QuividiLocation[]> {
-  const response = await fetch(`${BASE}/network/3089/locations/`, {
+export async function fetchQuividiLocations(
+  networkId: typeof LIVERPOOL_NETWORK_ID | typeof CHEDRAUI_NETWORK_ID = LIVERPOOL_NETWORK_ID,
+): Promise<QuividiLocation[]> {
+  const response = await fetch(`${BASE}/network/${networkId}/locations/`, {
     headers: {
       Authorization:
         'Basic ' +

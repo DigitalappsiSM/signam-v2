@@ -124,6 +124,32 @@ service cloud.firestore {
       allow create, update, delete: if canWriteWorkspace();
     }
 
+    function validGrassfishCamera(camera) {
+      return camera is map && camera.keys().hasOnly(['locationId'])
+        && camera.locationId is int && camera.locationId > 0;
+    }
+    function validGrassfishPlayer(data, boxId) {
+      return data.keys().hasOnly([
+          'boxId', 'name', 'storeKey', 'displayCount', 'camera1', 'camera2', 'audienceMode'
+        ])
+        && data.boxId == boxId && boxId.matches('^[A-Z0-9_-]{1,40}$')
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && (data.storeKey == null
+            || (data.storeKey is string && data.storeKey.matches('^[A-Za-z0-9_-]{1,80}$')))
+        && data.displayCount == 2
+        && (data.camera1 == null || validGrassfishCamera(data.camera1))
+        && (data.camera2 == null
+            || (data.camera1 != null && validGrassfishCamera(data.camera2)
+                && data.camera1.locationId != data.camera2.locationId))
+        && (data.audienceMode == 'primary'
+            || (data.audienceMode == 'both' && data.camera2 != null));
+    }
+    match /grassfishPlayers/{boxId} {
+      allow read: if canReadBackoffice();
+      allow create, update: if isAdmin() && validGrassfishPlayer(request.resource.data, boxId);
+      allow delete: if false;
+    }
+
     // Directorio de tiendas (ubicación: dirección, CP, estado, zona, GPS). Una
     // ficha por número de tienda; el catálogo y el panel la leen. No se borra:
     // una tienda cerrada se marca `status = 'inactive'`.

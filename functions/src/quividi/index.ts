@@ -4,6 +4,7 @@ export { historyStart, historyOverview, historyExplore, historyAssignBinding, hi
 export { commercialRollupBuild, commercialRollupDaily } from './commercial/commercialRollupJob';
 export { commercialAudit } from './commercial/commercialAudit';
 import { requirePersistedHistory } from './historyReadiness';
+import { CHEDRAUI_NETWORK_ID, fetchQuividiLocations } from './exportClient';
 import { loadLiveHistory } from './liveHistory';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
@@ -986,6 +987,52 @@ export const locationLookup = onCall(
         lastSeen:
           typeof location.last_seen === 'string' ? location.last_seen : null,
       },
+    };
+  },
+);
+
+export const validateChedrauiLocations = onCall(
+  {
+    secrets: [QUIVIDI_API_USERNAME, QUIVIDI_API_TOKEN],
+    timeoutSeconds: 45,
+    memory: '256MiB',
+  },
+  async (request): Promise<{ missingLocationIds: number[] }> => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    if (roleFromClaims(request.auth.token) !== 'admin') {
+      throw new HttpsError(
+        'permission-denied',
+        'Solo admin puede validar el inventario.',
+      );
+    }
+    const ids: unknown = request.data?.locationIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > 800 ||
+      ids.some((id) => !Number.isSafeInteger(id) || id <= 0)
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Envía de 1 a 800 Location ID válidos.',
+      );
+    }
+
+    let available: Set<number>;
+    try {
+      available = new Set(
+        (await fetchQuividiLocations(CHEDRAUI_NETWORK_ID)).map(({ id }) => id),
+      );
+    } catch {
+      throw new HttpsError(
+        'unavailable',
+        'No se pudo leer la red 3365 de Chedraui en Quividi. Verifica el acceso de la cuenta de integración.',
+      );
+    }
+    return {
+      missingLocationIds: [...new Set<number>(ids)].filter((id) => !available.has(id)),
     };
   },
 );
