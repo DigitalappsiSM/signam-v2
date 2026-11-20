@@ -196,7 +196,8 @@ logic. The load-bearing ones:
   `cameraReadings` on every 2+ camera pair, schema v10) and **then** combined like the backend: zone split sums, the
   rest takes the highest × `publishedFactor` (an estimate only counts where it beats the sister's measurement); a
   zone-split face/floor with no camera (`BANNER DIGITAL`, Insurgentes Mupi) copies its sister day by day.
-  **Every PDF figure reconciles with the cover**: daily/weekly evolution sums it; «Tiendas TOP» lists at most **10** stores
+  The PDF shows **no dwell time** and never prints the acronym «OTS»: it labels the same figure **«impactos»** (label
+  only; the Excel keeps OTS and dwell time). **Every PDF figure reconciles with the cover**: daily/weekly evolution sums it; «Tiendas TOP» lists at most **10** stores
   then «Demás universo de tiendas (N tiendas)» + «Total de la campaña» (`brandTopStores`; the PDF never says a store has
   no camera); the hourly chart's 100 % is the cover (measured and filled hours in their hour via `estimatedHours`,
   extrapolation spread by the format's hourly profile); measured demographics are scaled per pair-day to the published

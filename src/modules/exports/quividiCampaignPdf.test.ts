@@ -292,8 +292,11 @@ describe('renderizado del informe', () => {
     ).toString('latin1');
 
     expect(raw).toContain(formatCount(summary.estimatedOts));
-    expect(raw).toContain('OPORTUNIDADES');
-    expect(raw).toContain('DWELL TIME PROMEDIO');
+    expect(raw).toContain('IMPACTOS DE CAMPA');
+    expect(raw).toContain('IMPACTOS PROMEDIO DIARIOS');
+    // La marca no ve dwell time ni la sigla OTS en el PDF comercial.
+    expect(raw).not.toContain('DWELL');
+    expect(raw).not.toMatch(/\bOTS\b/);
     // Ya no hay campo Retailer ni cifras separadas de medido/extrapolado.
     expect(raw).not.toContain('RETAILER');
     expect(raw).not.toContain('OTS MEDIDOS');
@@ -559,8 +562,8 @@ describe('renderizado del informe', () => {
     expect(top.stores).toHaveLength(10);
     expect(top.restStores).toBe(10);
     expect(raw).toContain('Dem');
-    expect(raw).toContain(`${formatCount(top.restOts)} OTS`);
-    expect(raw).toContain(`${formatCount(top.totalOts)} OTS`);
+    expect(raw).toContain(`${formatCount(top.restOts)} impactos`);
+    expect(raw).toContain(`${formatCount(top.totalOts)} impactos`);
     // El detalle operativo de Insurgentes (multi-cámara) no se publica en el
     // PDF comercial: es ruido técnico que no aporta a la marca.
     expect(raw).not.toContain('Insurgentes tiene dos cámaras');

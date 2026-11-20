@@ -4,7 +4,6 @@ import {
   brandCampaignSummary,
   brandCoverage,
   brandDaily,
-  brandDwellTime,
   brandGender,
   brandGenderAge,
   brandGenderByDay,
@@ -161,15 +160,6 @@ const WEEKDAY_FULL = [
   'Sábado',
 ] as const;
 
-/** `35.4` → `35 s`; `95` → `1 min 35 s`. Nunca más precisión de la que el dato sostiene. */
-function formatDwell(seconds: number): string {
-  const rounded = Math.round(seconds);
-  if (rounded < 60) return `${rounded} s`;
-  const minutes = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return `${minutes} min ${String(rest).padStart(2, '0')} s`;
-}
-
 function logo(
   doc: jsPDF,
   assets: PdfAssets,
@@ -298,7 +288,6 @@ function coverPage(
 ): void {
   const summary = brandCampaignSummary(report);
   const header = brandHeader(report);
-  const dwellSeconds = brandDwellTime(report);
   const daily = brandDaily(report);
 
   logo(doc, assets, M, 24, 28);
@@ -422,7 +411,7 @@ function coverPage(
     );
   }
   block(doc, M, 306, 20, 3, PINK);
-  text(doc, 'OPORTUNIDADES DE VER · OTS', M + 30, 314, {
+  text(doc, 'IMPACTOS DE CAMPAÑA', M + 30, 314, {
     size: 10.5,
     bold: true,
     color: NAVY,
@@ -431,18 +420,17 @@ function coverPage(
 
   const statsY = 366;
   const stats: Array<[IconFn, string, string]> = [
-    [eyeIcon, formatCount(summary.dailyAverage), 'OTS PROMEDIO DIARIOS'],
-    [clockIcon, formatDwell(dwellSeconds), 'DWELL TIME PROMEDIO'],
+    [eyeIcon, formatCount(summary.dailyAverage), 'IMPACTOS PROMEDIO DIARIOS'],
     [
       calendarIcon,
       `${formatCivilDate(report.startDate)} — ${formatCivilDate(report.endDate)}`,
       `VIGENCIA · ${header.days} DÍAS`,
     ],
   ];
-  const statColW = (LEFT_W - M - 40) / 3;
+  const statColW = (LEFT_W - M - 40) / stats.length;
   stats.forEach(([icon, value, label], index) => {
     const x = M + index * statColW;
-    const accent = index === 1 ? PINK : BLUE;
+    const accent = BLUE;
     if (index > 0) block(doc, x - 14, statsY - 4, 1, 62, HAIR);
     icon(doc, x, statsY, 16, accent);
     let valueSize = 22;
@@ -661,7 +649,9 @@ function evolutionPage(
 
   sectionLabel(
     doc,
-    useWeekly ? 'OTS POR SEMANA DE CAMPAÑA' : 'OTS POR DÍA DE CAMPAÑA',
+    useWeekly
+      ? 'IMPACTOS POR SEMANA DE CAMPAÑA'
+      : 'IMPACTOS POR DÍA DE CAMPAÑA',
     M,
     166,
   );
@@ -688,8 +678,8 @@ function evolutionPage(
 
   // Conclusiones, no metodología: lo que la marca necesita saber.
   const conclusions: Array<[string, string]> = [
-    [formatCount(summary.dailyAverage), 'OTS PROMEDIO / DÍA'],
-    [formatCount(summary.dailyPerStore), 'OTS PROMEDIO / DÍA / TIENDA'],
+    [formatCount(summary.dailyAverage), 'IMPACTOS PROMEDIO / DÍA'],
+    [formatCount(summary.dailyPerStore), 'IMPACTOS PROMEDIO / DÍA / TIENDA'],
   ];
   const peak = peakDay(daily);
   if (peak) {
@@ -697,7 +687,7 @@ function evolutionPage(
       weekdayShort(peak.date)
         ? `${WEEKDAY_FULL[new Date(`${peak.date}T12:00:00Z`).getUTCDay()]}`
         : peak.date,
-      `DÍA PICO · ${compact(peak.ots)} OTS`,
+      `DÍA PICO · ${compact(peak.ots)} IMPACTOS`,
     ]);
   }
   const delta = weekendDelta(daily);
@@ -1120,7 +1110,7 @@ function horariosPage(
   if (window) {
     paragraph(
       doc,
-      `La franja de ${String(window.startHour).padStart(2, '0')}:00 a ${String(window.endHour).padStart(2, '0')}:00 h concentra ${formatPercent(window.percent, 0)} de los OTS de la campaña.`,
+      `La franja de ${String(window.startHour).padStart(2, '0')}:00 a ${String(window.endHour).padStart(2, '0')}:00 h concentra ${formatPercent(window.percent, 0)} de los impactos de la campaña.`,
       M,
       158,
       680,
@@ -1176,7 +1166,6 @@ function topStoresPage(
     return;
   }
 
-  const maxDwell = Math.max(...stores.map((store) => store.dwellSeconds), 1);
   const maxOts = stores[0]!.adjustedOts || 1;
 
   pageHeader(doc, assets, report);
@@ -1186,25 +1175,18 @@ function topStoresPage(
   text(
     doc,
     partial
-      ? `Las ${stores.length} tiendas con más OTS de la campaña. Incluye el ${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}.`
-      : `Las ${stores.length} tiendas con más OTS de la campaña.`,
+      ? `Las ${stores.length} tiendas con más impactos de la campaña. Incluye el ${formatCivilDate(partial.date)} · ${partialDayLabel(partial.until)}.`
+      : `Las ${stores.length} tiendas con más impactos de la campaña.`,
     M,
     152,
     { size: 11, color: MUTED },
   );
   const bodyTop = 190;
-  text(doc, 'DWELL TIME', CANVAS_W - M, bodyTop - 14, {
-    size: 8,
-    bold: true,
-    color: MUTED,
-    align: 'right',
-    tracking: 0.8,
-  });
-
   // Hasta 10 renglones + el cierre caben en una página sin encimarse.
   const rowH = 46;
   const barAreaX = M + 236;
-  const barAreaW = CONTENT_W - 236 - 130;
+  // Sin columna de dwell time: la barra sólo reserva espacio para su cifra.
+  const barAreaW = CONTENT_W - 236 - 90;
   stores.forEach((store, index) => {
     const rank = index + 1;
     const rowY = bodyTop + index * rowH;
@@ -1227,17 +1209,6 @@ function topStoresPage(
       color: NAVY,
     });
 
-    const dwellColX = CANVAS_W - M - 64;
-    text(doc, formatDwell(store.dwellSeconds), dwellColX + 64, rowY + 4, {
-      size: 11,
-      bold: true,
-      color: NAVY,
-      align: 'right',
-    });
-    const dwellBarW = Math.max(3, (store.dwellSeconds / maxDwell) * 64);
-    block(doc, dwellColX, rowY + 12, 64, 4, HAIR);
-    block(doc, dwellColX, rowY + 12, dwellBarW, 4, SKY);
-    block(doc, dwellColX + 64 - dwellBarW, rowY + 12, dwellBarW, 4, accent);
     if (index < stores.length - 1) {
       block(doc, M, rowY + rowH - 12, CONTENT_W, 1, HAIR);
     }
@@ -1255,7 +1226,7 @@ function topStoresPage(
       closeY + 10,
       { size: 12, color: NAVY },
     );
-    text(doc, `${formatCount(top.restOts)} OTS`, barAreaX, closeY + 10, {
+    text(doc, `${formatCount(top.restOts)} impactos`, barAreaX, closeY + 10, {
       size: 12,
       bold: true,
       color: NAVY,
@@ -1267,7 +1238,7 @@ function topStoresPage(
     bold: true,
     color: PINK,
   });
-  text(doc, `${formatCount(top.totalOts)} OTS`, barAreaX, closeY + 10, {
+  text(doc, `${formatCount(top.totalOts)} impactos`, barAreaX, closeY + 10, {
     size: 12.5,
     bold: true,
     color: PINK,
@@ -1314,14 +1285,14 @@ function closingPage(
     const plural = singular.endsWith('s') ? singular : `${singular}s`;
     recommendations.push([
       'Refuerza el día de mayor audiencia',
-      `Los ${plural} concentran la mayor proporción de OTS de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
+      `Los ${plural} concentran la mayor proporción de impactos de la campaña. Si el calendario lo permite, prioriza ahí el material con la oferta principal.`,
     ]);
   }
   const peakHour = topHourLabel(hourly);
   if (peakHour !== null) {
     recommendations.push([
       'Aprovecha la franja de mayor tránsito',
-      `La hora ${String(peakHour).padStart(2, '0')}:00 concentra la mayor proporción de OTS de la campaña; es una referencia útil para calendarizar activaciones puntuales.`,
+      `La hora ${String(peakHour).padStart(2, '0')}:00 concentra la mayor proporción de impactos de la campaña; es una referencia útil para calendarizar activaciones puntuales.`,
     ]);
   }
   const topAge = pyramid[0]?.age;
@@ -1435,7 +1406,7 @@ export async function buildQuividiCampaignPdfBlob(
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape' });
   doc.setLineWidth(u(0.75));
 
-  // El PDF comercial acota OTS/dwell time a la franja operativa de cara a la
+  // El PDF comercial acota OTS a la franja operativa de cara a la
   // marca (10:00–22:00): brandOperationalReport reconstruye supportDays desde
   // supportHours dentro de esa franja. supportHours y demographics (sin hora)
   // pasan igual; el Excel técnico sigue usando `report` sin acotar. Después
