@@ -25,6 +25,7 @@ import {
   type CameraHealthFilter,
   odooCameraTicketUrl,
 } from './cameraHealthView';
+import { ChedrauiCameraHealth } from './ChedrauiCameraHealth';
 import './CameraHealthPage.css';
 
 function formatNumber(value: number): string {
@@ -98,6 +99,25 @@ function refreshStepState(
 }
 
 export function CameraHealthPage() {
+  const [network, setNetwork] = useState('3089');
+  return (
+    <>
+      <FilterBar label="Red Quividi" sticky={false}>
+        <FilterSelect label="Red Quividi" value={network} onChange={setNetwork}>
+          <option value="3089">Liverpool</option>
+          <option value="3365">Chedraui OUT</option>
+        </FilterSelect>
+      </FilterBar>
+      {network === '3365' ? (
+        <ChedrauiCameraHealth />
+      ) : (
+        <LiverpoolCameraHealth />
+      )}
+    </>
+  );
+}
+
+function LiverpoolCameraHealth() {
   const [overview, setOverview] = useState<QuividiCameraHealthOverview | null>(
     null,
   );

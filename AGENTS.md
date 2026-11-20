@@ -1289,6 +1289,20 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   disponible. Salud y audiencia de OUT requieren una ingesta por network +
   Location ID, separada del histórico Liverpool (3089).
 
+## Salud de cámaras · Chedraui OUT
+
+- El selector de red en **Salud de cámaras** abre Chedraui OUT (3365).
+  Consulta los Location ID vinculados en `grassfishPlayers` y registra la
+  última comunicación que Quividi devuelve para cada cámara, incluyendo
+  cámaras sin señal y Location ID fuera de la red.
+- Guarda una lectura por día civil de Ciudad de México en
+  `quividiChedrauiHealthSnapshots` y muestra las últimas 30 lecturas. La
+  lectura automática corre a las 08:15. Admin y operator pueden actualizar
+  desde Quividi. Viewer puede consultar el historial guardado.
+- El historial empieza con la primera lectura. En Chedraui la vista muestra
+  comunicación de cámaras. La medición de audiencia y los tickets Odoo se
+  gestionan por separado.
+
 ## Directorio de tiendas
 
 - `storeDirectory/{storeNumber}` es la **fuente única de ubicación** de cada
