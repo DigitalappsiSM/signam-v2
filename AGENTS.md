@@ -1291,6 +1291,31 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   disponible. Salud y audiencia de OUT requieren una ingesta por network +
   Location ID, separada del histórico Liverpool (3089).
 
+## Salud de cámaras · Chedraui OUT
+
+- El selector de red en **Salud de cámaras** abre Chedraui OUT (3365).
+  Consulta los Location ID vinculados en `grassfishPlayers` y registra la
+  última comunicación que Quividi devuelve para cada cámara, incluyendo
+  cámaras sin señal y Location ID fuera de la red.
+- Guarda una lectura por día civil de Ciudad de México en
+  `quividiChedrauiHealthSnapshots` y muestra las últimas 30 lecturas. La
+  lectura automática corre a las 08:15. Admin y operator pueden actualizar
+  desde Quividi. Viewer puede consultar el historial guardado.
+- El historial empieza con la primera lectura. En Chedraui la vista muestra
+  comunicación de cámaras. La medición de audiencia se gestiona por separado.
+- Cada 15 minutos, SIGNAM verifica si transcurrieron cuatro horas desde la
+  última comunicación de cada cámara vinculada en 3365. Usa el instante
+  plausible más reciente cuando Quividi omite la zona horaria y también
+  admite cuatro horas de observaciones sin un cambio en la última señal. Una fecha
+  ausente o inválida, un Location ID duplicado y un punto ausente en la red
+  quedan fuera de la automatización.
+- Odoo recibe el ticket en el equipo exacto **Chedraui**, con asunto
+  `[Camaras] Soporte: Mupi Digital`. La referencia de la incidencia se
+  conserva en la descripción y el estado se guarda por Location ID en
+  `quividiChedrauiCameraTicketState`. Una lectura con menos de cuatro horas
+  de antigüedad permite detectar una incidencia posterior. El equipo de
+  Odoo conserva el control del cierre.
+
 ## Directorio de tiendas
 
 - `storeDirectory/{storeNumber}` es la **fuente única de ubicación** de cada

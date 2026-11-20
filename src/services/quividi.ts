@@ -346,3 +346,26 @@ export async function rebuildQuividiCommercialRollup(
   const result = await callable(request);
   return result.data;
 }
+
+export interface ChedrauiCameraObservation {
+  boxId: string;
+  player: string;
+  camera: number;
+  locationId: number;
+  inNetwork: boolean;
+  lastSeen: string | null;
+}
+
+export interface ChedrauiHealthSnapshot {
+  date: string;
+  observedAt: number;
+  cameras: ChedrauiCameraObservation[];
+}
+
+export async function getChedrauiCameraHealth(refresh = false) {
+  const callable = httpsCallable<
+    { refresh: boolean },
+    { canRefresh: boolean; history: ChedrauiHealthSnapshot[] }
+  >(functions(), 'quividi-chedrauiCameraHealthOverview');
+  return (await callable({ refresh })).data;
+}
