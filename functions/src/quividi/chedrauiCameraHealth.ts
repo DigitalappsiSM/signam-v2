@@ -2,6 +2,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { reconcileChedrauiCameraTickets } from './chedrauiCameraTickets';
 import {
   canRefreshQuividiHealth,
   canUseQuividiOperations,
@@ -17,6 +18,7 @@ const secrets = [
   defineSecret('QUIVIDI_API_USERNAME'),
   defineSecret('QUIVIDI_API_TOKEN'),
 ];
+const odooApiKey = defineSecret('ODOO_API_KEY');
 const collectionName = 'quividiChedrauiHealthSnapshots';
 const timeZone = 'America/Mexico_City';
 const civilDate = new Intl.DateTimeFormat('sv-SE', {
@@ -66,8 +68,7 @@ interface Snapshot {
   cameras: ReturnType<typeof linkChedrauiCameraObservations>;
 }
 
-async function captureChedrauiHealth() {
-  const db = getFirestore();
+async function readChedrauiCameras(db: ReturnType<typeof getFirestore>) {
   const players = (await db.collection('grassfishPlayers').get()).docs.map(
     (doc) => doc.data() as CatalogPlayer,
   );
@@ -75,11 +76,20 @@ async function captureChedrauiHealth() {
   const locations = players.some(({ camera1, camera2 }) => camera1 || camera2)
     ? await fetchQuividiLocations(CHEDRAUI_NETWORK_ID)
     : [];
+  return {
+    observedAt,
+    cameras: linkChedrauiCameraObservations(players, locations),
+  };
+}
+
+async function captureChedrauiHealth() {
+  const db = getFirestore();
+  const { observedAt, cameras } = await readChedrauiCameras(db);
   const date = civilDate.format(observedAt);
   const snapshot: Snapshot = {
     observedAt,
     date,
-    cameras: linkChedrauiCameraObservations(players, locations),
+    cameras,
   };
   const ref = db.collection(collectionName).doc(date);
   await db.runTransaction(async (transaction) => {
@@ -144,4 +154,23 @@ export const chedrauiCameraHealthDaily = onSchedule(
     minBackoffSeconds: 300,
   },
   async () => captureChedrauiHealth(),
+);
+
+export const chedrauiCameraTickets = onSchedule(
+  {
+    schedule: '*/15 * * * *',
+    timeZone,
+    secrets: [...secrets, odooApiKey],
+    timeoutSeconds: 540,
+  },
+  async () => {
+    const db = getFirestore();
+    const { observedAt, cameras } = await readChedrauiCameras(db);
+    await reconcileChedrauiCameraTickets(
+      db,
+      odooApiKey.value(),
+      cameras,
+      observedAt,
+    );
+  },
 );
