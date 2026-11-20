@@ -5,7 +5,12 @@ vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mocks.db }));
 vi.mock('firebase-functions/params', () => ({
   defineSecret: () => ({ value: () => 'synthetic' }),
 }));
-import { exportSlotOrder, fetchQuividiExport } from './exportClient';
+import {
+  CHEDRAUI_NETWORK_ID,
+  exportSlotOrder,
+  fetchQuividiExport,
+  fetchQuividiLocations,
+} from './exportClient';
 let db: ReturnType<typeof fakeFirestore>;
 const params = {
   locations: '11,22',
@@ -98,4 +103,25 @@ describe('global Quividi export control', () => {
       ).toBe(true);
     });
   });
+});
+
+it('consulta el inventario de Chedraui por separado y conserva Liverpool por defecto', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json([{ id: 101 }]));
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json([{ id: 202 }]));
+
+  await expect(fetchQuividiLocations(CHEDRAUI_NETWORK_ID)).resolves.toEqual([
+    { id: 101 },
+  ]);
+  await expect(fetchQuividiLocations()).resolves.toEqual([{ id: 202 }]);
+
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    expect.stringContaining('/network/3365/locations/'),
+    expect.anything(),
+  );
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('/network/3089/locations/'),
+    expect.anything(),
+  );
 });

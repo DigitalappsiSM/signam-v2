@@ -1266,6 +1266,29 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   preferida** (conserva historial); no se deben eliminar pantallas ya
   referenciadas por exportaciones. Antes de liberar se restringirá a admin.
 
+## Catálogo Grassfish · Chedraui OUT
+
+- **Datos → Catálogo Grassfish** (`/catalogo-grassfish`) consulta
+  `grassfishPlayers/{boxId}` con `catalog.read`. Solo admin puede guardar
+  mediante `catalog.write` y las reglas de Firestore.
+- La carga inicial importa un CSV por Box-ID de Grassfish. Cada fila reemplaza
+  la ficha de ese player, incluidos campos vacíos. Los Box-ID ausentes permanecen
+  en el catálogo. El archivo se valida completo y se guarda en un lote atómico.
+  Los datos operativos se cargan en el entorno autorizado y no se versionan.
+- Cada player representa dos mupis. `storeKey` recibe la clave maestra de
+  Chedraui que comparte IN y OUT cuando existe, o queda pendiente. Una cámara
+  se identifica por su Location ID de Quividi. Se admiten cero, una o dos
+  cámaras por player y se muestran por separado.
+- `primary` configura el primer slot como cámara designada para el total de
+  tienda. `both` solo se configura cuando Operaciones confirma que las cámaras
+  cubren zonas distintas. En esta etapa se guarda la configuración del total.
+  La sincronización de altas y telemetría Grassfish depende de la API. La
+  validación opcional del CSV usa la network Quividi Chedraui **3365** y
+  consulta el inventario de esa red con la cuenta de integración. Solo admin
+  puede solicitarla. La carga manual puede continuar si la validación no está
+  disponible. Salud y audiencia de OUT requieren una ingesta por network +
+  Location ID, separada del histórico Liverpool (3089).
+
 ## Directorio de tiendas
 
 - `storeDirectory/{storeNumber}` es la **fuente única de ubicación** de cada

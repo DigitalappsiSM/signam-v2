@@ -8,6 +8,7 @@ import { LoginPage } from '@/modules/auth/LoginPage';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { ImportPage } from '@/modules/liverpool-import/ImportPage';
 import { CatalogPage } from '@/modules/admira-catalog/CatalogPage';
+import { GrassfishCatalogPage } from '@/modules/grassfish-catalog/GrassfishCatalogPage';
 import { StoreDirectoryPage } from '@/modules/store-directory/StoreDirectoryPage';
 import { EkonImportPage } from '@/modules/ekon-import/EkonImportPage';
 import { CampaignsPage } from '@/modules/campaigns/CampaignsPage';
@@ -99,6 +100,14 @@ export function App() {
           element={
             <RouteAccess path="/catalogo">
               <CatalogPage />
+            </RouteAccess>
+          }
+        />
+        <Route
+          path="/catalogo-grassfish"
+          element={
+            <RouteAccess path="/catalogo-grassfish">
+              <GrassfishCatalogPage />
             </RouteAccess>
           }
         />

@@ -103,6 +103,14 @@ export const NAV_ROUTES: RouteMeta[] = [
     group: 'Datos',
   },
   {
+    path: '/catalogo-grassfish',
+    label: 'Catálogo Grassfish',
+    icon: 'monitor',
+    description: 'Inventario de players, mupis y cámaras de Chedraui OUT.',
+    group: 'Datos',
+    permission: 'catalog.read',
+  },
+  {
     path: '/tiendas',
     label: 'Directorio de tiendas',
     icon: 'map-pin',
