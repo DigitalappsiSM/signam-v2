@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { can } from '@/app/permissions';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { PageHeader } from '@/components/PageHeader';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import {
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  compactChips,
+  formatFilterSearch,
+} from '@/components/filters';
 import {
   parseGrassfishCatalog,
   type GrassfishCamera,
@@ -14,8 +22,14 @@ import {
 } from '@/services/grassfishCatalog';
 import '@/modules/admira-catalog/CatalogPage.css';
 
-function cameraLabel(camera: GrassfishCamera | null) {
-  return camera ? `Loc ${camera.locationId}` : '—';
+function CameraLocation({ camera }: { camera: GrassfishCamera | null }) {
+  return camera ? (
+    <div className="catalog__quividi">
+      <strong>ID {camera.locationId}</strong>
+    </div>
+  ) : (
+    <span className="text-muted">—</span>
+  );
 }
 
 export function GrassfishCatalogPage() {
@@ -28,6 +42,8 @@ export function GrassfishCatalogPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
+  const [cameraFilter, setCameraFilter] = useState('all');
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -109,93 +125,161 @@ export function GrassfishCatalogPage() {
   }
 
   const query = search.trim().toLocaleLowerCase('es');
-  const visible = players.filter((player) =>
-    [player.name, player.boxId, player.storeKey].some((value) =>
-      value?.toLocaleLowerCase('es').includes(query),
-    ),
-  );
+  const visible = players.filter((player) => {
+    const hasCamera = player.camera1 !== null || player.camera2 !== null;
+    const matchesCameras =
+      cameraFilter === 'all' || hasCamera === (cameraFilter === 'linked');
+    return (
+      matchesCameras &&
+      [
+        player.name,
+        player.boxId,
+        player.storeKey,
+        player.camera1?.locationId,
+        player.camera2?.locationId,
+      ].some((value) =>
+        String(value ?? '')
+          .toLocaleLowerCase('es')
+          .includes(query),
+      )
+    );
+  });
+  const filterChips = compactChips([
+    query !== '' && {
+      key: 'search',
+      label: 'Búsqueda',
+      value: formatFilterSearch(search),
+      onRemove: () => setSearch(''),
+    },
+    cameraFilter !== 'all' && {
+      key: 'cameras',
+      label: 'Quividi',
+      value: cameraFilter === 'linked' ? 'Con cámara' : 'Sin cámara',
+      onRemove: () => setCameraFilter('all'),
+    },
+  ]);
 
   return (
     <>
       <PageHeader
         title="Catálogo Grassfish"
-        description="Chedraui OUT · Inventario manual. El estado en línea estará disponible cuando se conecte la API de Grassfish."
+        description="Consulta y administra los players, mupis y cámaras Quividi de Chedraui OUT."
+        actions={
+          canImport && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy || loading}
+                onClick={() => fileInput.current?.click()}
+              >
+                Importar catálogo
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                hidden
+                accept=".csv,text/csv"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) void prepare(file);
+                }}
+              />
+            </>
+          )
+        }
       />
       {error && (
-        <p className="catalog__error" role="alert">
+        <div className="catalog__error" role="alert">
           {error}
-        </p>
+        </div>
       )}
       {notice && (
-        <p className="catalog__notice" role="status">
+        <div className="catalog__notice" role="status">
           {notice}
-        </p>
+        </div>
       )}
-      {canImport && (
-        <div className="catalog__notice">
-          <label>
-            Seleccionar CSV de inventario{' '}
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              disabled={busy || loading}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (file) void prepare(file);
-              }}
-            />
-          </label>
-          {pending.length > 0 && (
-            <p>
-              El archivo contiene {pending.length} players. Coincidencias por
-              Box-ID se actualizarán.{' '}
-              {pendingLocationIds.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => void validateLocations()}
-                  >
-                    Validar cámaras en Quividi
-                  </button>{' '}
-                </>
-              )}
+      {pending.length > 0 && (
+        <section className="card" aria-label="Importar catálogo">
+          <p>
+            El archivo contiene {pending.length} players. Las coincidencias por
+            Box-ID se actualizarán.
+          </p>
+          <div className="catalog__actions">
+            {pendingLocationIds.length > 0 && (
               <button
                 type="button"
-                className="btn btn--primary"
+                className="btn btn-secondary"
                 disabled={busy}
-                onClick={() => void importPlayers()}
+                onClick={() => void validateLocations()}
               >
-                Confirmar carga
-              </button>{' '}
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => setPending([])}
-              >
-                Cancelar
+                Validar cámaras en Quividi
               </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void importPlayers()}
+            >
+              Confirmar carga
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => setPending([])}
+            >
+              Cancelar
+            </button>
+          </div>
+        </section>
+      )}
+      <FilterBar
+        label="Filtros del catálogo"
+        chips={filterChips}
+        onClear={() => {
+          setSearch('');
+          setCameraFilter('all');
+        }}
+      >
+        <FilterSearch
+          label="Buscar"
+          placeholder="Buscar por player, Box-ID, tienda o Location ID…"
+          value={search}
+          onChange={setSearch}
+        />
+        <FilterSelect
+          label="Quividi"
+          value={cameraFilter}
+          active={cameraFilter !== 'all'}
+          onChange={setCameraFilter}
+        >
+          <option value="all">Todos los players</option>
+          <option value="linked">Con cámara</option>
+          <option value="unlinked">Sin cámara</option>
+        </FilterSelect>
+      </FilterBar>
+      {loading ? (
+        <LoadingOverlay
+          variant="process"
+          title="Cargando players…"
+          description="Sincronizando el catálogo Grassfish."
+        />
+      ) : visible.length === 0 ? (
+        <div className="card">
+          {!error && (
+            <p className="text-muted" style={{ margin: 0 }}>
+              {players.length === 0
+                ? 'El catálogo aún no tiene players.'
+                : 'Ningún player coincide con los filtros.'}
             </p>
           )}
         </div>
-      )}
-      {loading && <p role="status">Cargando catálogo…</p>}
-      {!loading && !players.length && !error && (
-        <p>El catálogo aún no tiene players.</p>
-      )}
-      {players.length > 0 && (
+      ) : (
         <>
-          <label>
-            Buscar por player, Box-ID o tienda{' '}
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.currentTarget.value)}
-            />
-          </label>
-          <p>
+          <p className="text-muted">
             {visible.length} de {players.length} players
           </p>
           <div className="catalog__table-wrap">
@@ -216,10 +300,18 @@ export function GrassfishCatalogPage() {
                   <tr key={player.boxId}>
                     <td>{player.name}</td>
                     <td>{player.boxId}</td>
-                    <td>{player.storeKey ?? 'Pendiente'}</td>
+                    <td>
+                      {player.storeKey ?? (
+                        <span className="badge badge-muted">Pendiente</span>
+                      )}
+                    </td>
                     <td>{player.displayCount}</td>
-                    <td>{cameraLabel(player.camera1)}</td>
-                    <td>{cameraLabel(player.camera2)}</td>
+                    <td>
+                      <CameraLocation camera={player.camera1} />
+                    </td>
+                    <td>
+                      <CameraLocation camera={player.camera2} />
+                    </td>
                     <td>
                       {player.camera1
                         ? player.audienceMode === 'both'
