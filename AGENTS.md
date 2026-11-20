@@ -1270,7 +1270,9 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
 
 - **Datos → Catálogo Grassfish** (`/catalogo-grassfish`) consulta
   `grassfishPlayers/{boxId}` con `catalog.read`. Solo admin puede guardar
-  mediante `catalog.write` y las reglas de Firestore.
+  mediante `catalog.write` y las reglas de Firestore. Usa los mismos
+  componentes de encabezado, filtros y tabla que Admira. El filtro Quividi
+  distingue players con cámaras vinculadas y sin cámaras vinculadas.
 - La carga inicial importa un CSV por Box-ID de Grassfish. Cada fila reemplaza
   la ficha de ese player, incluidos campos vacíos. Los Box-ID ausentes permanecen
   en el catálogo. El archivo se valida completo y se guarda en un lote atómico.
