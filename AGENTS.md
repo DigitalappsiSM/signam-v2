@@ -578,7 +578,12 @@ tres de ellos describían mal el separador de artículos.
   de tocar el motor horario.
 - **KPIs del PDF comercial**: una sola cifra de OTS de campaña en portada (sin
   desglosar medido/extrapolado como cifras protagonistas separadas), OTS
-  promedio diario, dwell time promedio ponderado por watchers, y vigencia. La
+  promedio diario y vigencia. **Sin dwell time** (decisión de negocio
+  2026-11-20: ni en portada ni en Tiendas TOP; el Excel lo conserva). **Léxico
+  de marca**: el PDF nunca muestra la sigla «OTS»; la rotula como
+  **«impactos»** («IMPACTOS DE CAMPAÑA», «IMPACTOS PROMEDIO DIARIOS», etc.).
+  Es sólo el rótulo: la cifra es la misma OTS publicada (oportunidades de ver,
+  no personas únicas) y el Excel sigue diciendo OTS. La
   portada **no** lleva ningún pie con reparto de OTS entre tiendas con/sin
   medición — desde la Fase 3 ese indicador se movió al pie de la página de
   Evolución (ver el punto «Pie de página relocalizado» más abajo) y se
@@ -927,7 +932,7 @@ tres de ellos describían mal el separador de artículos.
 - **Tiendas TOP (`brandTopStores` sobre `brandStoreAttribution`)**: página
   con título exacto «Tiendas TOP», maquetada como **leaderboard de una sola
   columna** — rango, nombre de tienda, barra horizontal proporcional al OTS
-  ajustado y minibarra de dwell time a la derecha; la fila #1 lleva acento
+  ajustado con su cifra (sin columna de dwell time); la fila #1 lleva acento
   rosa. Lista **como máximo 10 tiendas** (`BRAND_TOP_STORES_LIMIT`, octubre
   2026: por presentación, una sola página; nunca se pagina), las de más OTS
   ajustado entre las que tuvieron medición directa en algún momento
