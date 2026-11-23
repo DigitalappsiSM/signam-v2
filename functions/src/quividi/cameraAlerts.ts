@@ -109,7 +109,7 @@ function severityFor(status: CameraOperationalHealth): CameraHealthSeverity {
  * tiendas encienden sus cámaras hasta las 11:00 por operación local.
  */
 export function classifyCameraHealth(
-  record: CameraHealthRecord,
+  record: Pick<CameraHealthRecord, 'expectedCoreHours' | 'coreMeasuredHours' | 'coreOts'>,
 ): CameraOperationalHealth {
   const expected = Math.max(1, record.expectedCoreHours);
   const minimumMeasuredHours = Math.ceil(

@@ -350,22 +350,62 @@ export async function rebuildQuividiCommercialRollup(
 export interface ChedrauiCameraObservation {
   boxId: string;
   player: string;
+  storeKey?: string | null;
+  locationName?: string | null;
   camera: number;
   locationId: number;
   inNetwork: boolean;
   lastSeen: string | null;
 }
 
+export interface ChedrauiCameraMeasurement {
+  expectedCoreHours: number;
+  coreMeasuredHours: number;
+  coreOtsHours: number;
+  coreOts: number;
+  status: 'normal' | 'no_measurement' | 'partial_measurement' | 'no_ots';
+}
+
 export interface ChedrauiHealthSnapshot {
   date: string;
   observedAt: number;
   cameras: ChedrauiCameraObservation[];
+  measurementDate?: string;
+  measurement?: Record<number, ChedrauiCameraMeasurement>;
+}
+
+export interface ChedrauiHealthOverview {
+  canRefresh: boolean;
+  canCreateTicket: boolean;
+  currentMeasurementDate: string;
+  measurementWarning: string | null;
+  history: ChedrauiHealthSnapshot[];
+  tickets: Record<
+    number,
+    {
+      ticketId: number | null;
+      recoveredTicketId: number | null;
+      teamId: number | null;
+      creating: boolean;
+      lastSeen: string | null;
+      observedAt: number;
+    }
+  >;
 }
 
 export async function getChedrauiCameraHealth(refresh = false) {
-  const callable = httpsCallable<
-    { refresh: boolean },
-    { canRefresh: boolean; history: ChedrauiHealthSnapshot[] }
-  >(functions(), 'quividi-chedrauiCameraHealthOverview');
+  const callable = httpsCallable<{ refresh: boolean }, ChedrauiHealthOverview>(
+    functions(),
+    'quividi-chedrauiCameraHealthOverview',
+    { timeout: 540_000 },
+  );
   return (await callable({ refresh })).data;
+}
+
+export async function createChedrauiCameraHealthTicket(locationId: number) {
+  const callable = httpsCallable<{ locationId: number }, { ticketId: number }>(
+    functions(),
+    'quividi-chedrauiCameraHealthCreateTicket',
+  );
+  return (await callable({ locationId })).data;
 }

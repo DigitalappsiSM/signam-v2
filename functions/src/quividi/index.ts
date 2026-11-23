@@ -1,4 +1,4 @@
-export { chedrauiCameraHealthDaily, chedrauiCameraHealthOverview, chedrauiCameraTickets } from './chedrauiCameraHealth';
+export { chedrauiCameraHealthCreateTicket, chedrauiCameraHealthDaily, chedrauiCameraHealthOverview, chedrauiCameraTickets } from './chedrauiCameraHealth';
 import { loadCampaignAvailability, type CampaignAvailabilityItem } from './campaignAvailability';
 import { Buffer } from 'node:buffer';
 export { historyStart, historyOverview, historyExplore, historyAssignBinding, historyReconcile, historyPartition, historyOperationalPartition, historyCoordinator, historyInventoryDaily, historyDaily } from './history';

@@ -1301,8 +1301,12 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   `quividiChedrauiHealthSnapshots` y muestra las últimas 30 lecturas. La
   lectura automática corre a las 08:15. Admin y operator pueden actualizar
   desde Quividi. Viewer puede consultar el historial guardado.
-- El historial empieza con la primera lectura. En Chedraui la vista muestra
-  comunicación de cámaras. La medición de audiencia se gestiona por separado.
+- La misma tabla que Liverpool muestra tienda, soporte, cámara, estado,
+  inicio de la incidencia, cobertura de 11:00 a 22:00, OTS, último día y
+  ticket Odoo. La cobertura y el estado usan la exportación horaria de OTS
+  del último día civil completo por Location ID de Chedraui. La vista conserva
+  la última comunicación. Las lecturas antiguas y las exportaciones fallidas
+  sin datos horarios muestran medición no disponible.
 - Cada 15 minutos, SIGNAM verifica si transcurrieron cuatro horas desde la
   última comunicación de cada cámara vinculada en 3365. Usa el instante
   plausible más reciente cuando Quividi omite la zona horaria y también
@@ -1313,8 +1317,12 @@ Determinante + Artículo` (`identity.ts`). Perfilado sobre el archivo real
   `[Camaras] Soporte: Mupi Digital`. La referencia de la incidencia se
   conserva en la descripción y el estado se guarda por Location ID en
   `quividiChedrauiCameraTicketState`. Una lectura con menos de cuatro horas
-  de antigüedad permite detectar una incidencia posterior. El equipo de
-  Odoo conserva el control del cierre.
+  de antigüedad permite detectar una incidencia posterior. La vista muestra el
+  enlace al ticket activo o al último recuperado. Admin y operator pueden pulsar
+  Crear ticket si existe una incidencia de medición en el último día completo.
+  La acción manual y la automática comparten la misma reserva por Location ID.
+  Los reportes manuales se recuperan tras un día posterior normal y comunicación
+  reciente. El equipo de Odoo conserva el control del cierre.
 
 ## Directorio de tiendas
 

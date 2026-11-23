@@ -34,7 +34,7 @@ export function cameraHealthStatusKey(
 }
 
 export function cameraHealthStatusLabel(
-  camera: QuividiCameraHealthRow,
+  camera: Pick<QuividiCameraHealthRow, 'monitored' | 'currentStatus'>,
 ): string {
   if (!camera.monitored) return 'Fuera de alcance';
   switch (camera.currentStatus) {
@@ -50,7 +50,7 @@ export function cameraHealthStatusLabel(
 }
 
 export function cameraHealthStatusTone(
-  camera: QuividiCameraHealthRow,
+  camera: Pick<QuividiCameraHealthRow, 'monitored' | 'currentStatus'>,
 ): 'success' | 'danger' | 'warning' | 'muted' {
   if (!camera.monitored) return 'muted';
   if (camera.currentStatus === 'no_measurement') return 'danger';
@@ -63,7 +63,7 @@ export function cameraHealthStatusTone(
   return 'success';
 }
 
-function normalize(value: string): string {
+export function normalizeCameraHealthSearch(value: string): string {
   return value
     .trim()
     .toLocaleLowerCase('es-MX')
@@ -76,7 +76,7 @@ export function filterCameraHealthRows(
   search: string,
   filter: CameraHealthFilter,
 ): QuividiCameraHealthRow[] {
-  const query = normalize(search);
+  const query = normalizeCameraHealthSearch(search);
   return cameras.filter((camera) => {
     const status = cameraHealthStatusKey(camera);
     if (filter === 'alerts') {
@@ -86,7 +86,7 @@ export function filterCameraHealthRows(
     }
 
     if (!query) return true;
-    const haystack = normalize(
+    const haystack = normalizeCameraHealthSearch(
       [
         camera.storeNumber,
         camera.storeName,

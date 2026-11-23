@@ -4,24 +4,29 @@ import { odooCall } from './odooTickets';
 export const CHEDRAUI_CAMERA_TICKET_SUBJECT = '[Camaras] Soporte: Mupi Digital';
 const OUTAGE_MS = 4 * 60 * 60 * 1000;
 const CLAIM_MS = 10 * 60 * 1000;
-const STATE_COLLECTION = 'quividiChedrauiCameraTicketState';
+export const CHEDRAUI_CAMERA_TICKET_STATE = 'quividiChedrauiCameraTicketState';
 
-interface Observation {
+export interface ChedrauiCameraObservation {
   boxId: string;
   player: string;
+  storeKey?: string | null;
   camera: number;
   locationId: number;
   inNetwork: boolean;
   lastSeen: string | null;
 }
 
-interface TicketState {
+export interface ChedrauiCameraTicketState {
   observedAt: number;
   lastSeen: number;
   signalObservedAt: number;
   incidentLastSeen: number | null;
   claimUntil: number;
   ticketId: number | null;
+  recoveredTicketId?: number | null;
+  manualDate?: string | null;
+  lastSeenRaw?: string | null;
+  teamId?: number;
 }
 
 export function chedrauiLastSeenMs(
@@ -67,8 +72,9 @@ function isPositiveId(value: unknown): value is number {
 export async function findOrCreateChedrauiCameraTicket(
   key: string,
   teamId: number,
-  camera: Observation,
+  camera: ChedrauiCameraObservation,
   incidentLastSeen: number,
+  manualDate?: string,
 ): Promise<number> {
   const marker = `SIGNAM-CHOUT-3365-${camera.locationId}-${incidentLastSeen}`;
   const existing = await odooCall<Array<{ id: number }>>(
@@ -94,13 +100,16 @@ export async function findOrCreateChedrauiCameraTicket(
   }
 
   const description = [
-    'Incidencia automática de SIGNAM · Chedraui OUT',
+    'Incidencia de SIGNAM · Chedraui OUT',
     `Tienda: ${camera.player}`,
+    ...(camera.storeKey ? [`Clave tienda: ${camera.storeKey}`] : []),
     `Box-ID Grassfish: ${camera.boxId}`,
     `Cámara: ${camera.camera}`,
     `Quividi: red 3365 · Location ID ${camera.locationId}`,
     `Última comunicación reportada: ${camera.lastSeen}`,
-    'Motivo: cuatro horas o más sin comunicación con Quividi.',
+    manualDate
+      ? `Motivo: incidencia de medición Quividi del ${manualDate}, reportada desde Salud de cámaras.`
+      : 'Motivo: cuatro horas o más sin comunicación con Quividi.',
     `Referencia de incidencia: ${marker}`,
   ]
     .join('\n')
@@ -127,86 +136,160 @@ export async function findOrCreateChedrauiCameraTicket(
   return created[0];
 }
 
+/** Manual and scheduled requests share the same claim and Odoo reference. */
+export async function syncChedrauiCameraTicket(
+  db: Firestore,
+  key: string,
+  camera: ChedrauiCameraObservation,
+  observedAt: number,
+  getTeam: () => Promise<number>,
+  manualDate?: string,
+): Promise<number | null> {
+  const parsedSeen = chedrauiLastSeenMs(camera.lastSeen, observedAt);
+  if (!camera.inNetwork || (parsedSeen === null && !manualDate)) return null;
+
+  const ref = db
+    .collection(CHEDRAUI_CAMERA_TICKET_STATE)
+    .doc(String(camera.locationId));
+  const claimUntil = observedAt + CLAIM_MS;
+  const result = await db.runTransaction(async (transaction) => {
+    const state = (await transaction.get(ref)).data() as
+      ChedrauiCameraTicketState | undefined;
+    const seen = parsedSeen ?? state?.lastSeen ?? 0;
+    if (
+      state &&
+      (state.observedAt >= observedAt || state.lastSeen > seen) &&
+      !manualDate
+    )
+      return null;
+
+    const signalObservedAt =
+      state?.lastSeen === seen ? state.signalObservedAt : observedAt;
+    const signal = {
+      observedAt,
+      lastSeen: seen,
+      signalObservedAt,
+      lastSeenRaw: camera.lastSeen,
+    };
+    const overdue =
+      parsedSeen !== null &&
+      observedAt - Math.min(seen, signalObservedAt) >= OUTAGE_MS;
+
+    if (state?.ticketId && (manualDate || state.manualDate || overdue)) {
+      if (!manualDate) transaction.update(ref, signal);
+      return { ticketId: state.ticketId };
+    }
+    if ((state?.claimUntil ?? 0) > observedAt) return null;
+
+    if (!overdue && !manualDate && !state?.manualDate) {
+      transaction.set(ref, {
+        ...signal,
+        incidentLastSeen: null,
+        claimUntil: 0,
+        ticketId: null,
+        recoveredTicketId: state?.ticketId ?? state?.recoveredTicketId ?? null,
+        manualDate: null,
+        ...(state?.teamId ? { teamId: state.teamId } : {}),
+      } satisfies ChedrauiCameraTicketState);
+      return null;
+    }
+
+    const incident = state?.incidentLastSeen ?? (overdue ? seen : observedAt);
+    const requestedDate = state?.manualDate ?? manualDate;
+    transaction.set(ref, {
+      ...signal,
+      observedAt: Math.max(state?.observedAt ?? 0, observedAt),
+      lastSeen: Math.max(state?.lastSeen ?? 0, seen),
+      incidentLastSeen: incident,
+      claimUntil,
+      ticketId: null,
+      recoveredTicketId: state?.recoveredTicketId ?? null,
+      manualDate: requestedDate ?? null,
+      ...(state?.teamId ? { teamId: state.teamId } : {}),
+    } satisfies ChedrauiCameraTicketState);
+    return { incident, requestedDate };
+  });
+
+  if (!result) return null;
+  if ('ticketId' in result) return result.ticketId ?? null;
+  // Keep the claim for retries after an ambiguous Odoo response.
+  const teamId = await getTeam();
+  const ticketId = await findOrCreateChedrauiCameraTicket(
+    key,
+    teamId,
+    camera,
+    result.incident,
+    result.requestedDate,
+  );
+  await db.runTransaction(async (transaction) => {
+    const state = (await transaction.get(ref)).data() as
+      ChedrauiCameraTicketState | undefined;
+    if (
+      state?.incidentLastSeen === result.incident &&
+      state?.claimUntil === claimUntil
+    ) {
+      transaction.update(ref, { ticketId, teamId, claimUntil: 0 });
+    }
+  });
+  return ticketId;
+}
+
+/** A manual measurement incident recovers on a later normal day with recent communication. */
+export async function recoverChedrauiMeasurementTickets(
+  db: Firestore,
+  normalLocationIds: number[],
+  measurementDate: string,
+  observedAt: number,
+) {
+  await Promise.all(
+    normalLocationIds.map(async (id) => {
+      const ref = db.collection(CHEDRAUI_CAMERA_TICKET_STATE).doc(String(id));
+      await db.runTransaction(async (transaction) => {
+        const state = (await transaction.get(ref)).data() as
+          ChedrauiCameraTicketState | undefined;
+        if (
+          state?.manualDate &&
+          state.manualDate < measurementDate &&
+          state.signalObservedAt > 0 &&
+          state.lastSeen > 0 &&
+          observedAt - Math.min(state.lastSeen, state.signalObservedAt) <
+            OUTAGE_MS &&
+          state.ticketId
+        ) {
+          transaction.update(ref, {
+            recoveredTicketId: state.ticketId,
+            ticketId: null,
+            incidentLastSeen: null,
+            manualDate: null,
+          });
+        }
+      });
+    }),
+  );
+}
+
 export async function reconcileChedrauiCameraTickets(
   db: Firestore,
   key: string,
-  observations: readonly Observation[],
+  observations: readonly ChedrauiCameraObservation[],
   observedAt: number,
 ): Promise<void> {
-  const unique = new Map<number, Observation>();
+  const unique = new Map<number, ChedrauiCameraObservation>();
   const duplicates = new Set<number>();
   for (const camera of observations) {
     if (unique.has(camera.locationId)) duplicates.add(camera.locationId);
     unique.set(camera.locationId, camera);
   }
-  const work = [...unique.values()].flatMap((camera) => {
-    const seen = chedrauiLastSeenMs(camera.lastSeen, observedAt);
-    return camera.inNetwork &&
-      !duplicates.has(camera.locationId) &&
-      seen !== null
-      ? [{ camera, seen }]
-      : [];
-  });
-
   let teamId: number | undefined;
   const errors: number[] = [];
-  for (const { camera, seen } of work) {
-    const ref = db.collection(STATE_COLLECTION).doc(String(camera.locationId));
-    const claimUntil = observedAt + CLAIM_MS;
-    const incidentLastSeen = await db.runTransaction(async (transaction) => {
-      const state = (await transaction.get(ref)).data() as
-        TicketState | undefined;
-      if (state && (state.observedAt >= observedAt || state.lastSeen > seen))
-        return null;
-      const signalObservedAt =
-        state?.lastSeen === seen ? state.signalObservedAt : observedAt;
-      const signal = { observedAt, lastSeen: seen, signalObservedAt };
-      const overdue =
-        observedAt - Math.min(seen, signalObservedAt) >= OUTAGE_MS;
-      if (!overdue) {
-        transaction.set(ref, {
-          ...signal,
-          incidentLastSeen: null,
-          claimUntil: 0,
-          ticketId: null,
-        } satisfies TicketState);
-        return null;
-      }
-      if (state?.ticketId || (state?.claimUntil ?? 0) > observedAt) {
-        transaction.update(ref, signal);
-        return null;
-      }
-      const incident = state?.incidentLastSeen ?? seen;
-      transaction.set(ref, {
-        ...signal,
-        incidentLastSeen: incident,
-        claimUntil,
-        ticketId: null,
-      } satisfies TicketState);
-      return incident;
-    });
-    if (incidentLastSeen === null) continue;
+  for (const camera of unique.values()) {
+    if (duplicates.has(camera.locationId)) continue;
     try {
-      teamId ??= await resolveChedrauiTeam(key);
-      const ticketId = await findOrCreateChedrauiCameraTicket(
-        key,
-        teamId,
-        camera,
-        incidentLastSeen,
-      );
-      await db.runTransaction(async (transaction) => {
-        const state = (await transaction.get(ref)).data() as
-          TicketState | undefined;
-        if (
-          state?.incidentLastSeen === incidentLastSeen &&
-          state.claimUntil === claimUntil
-        ) {
-          transaction.update(ref, { ticketId, claimUntil: 0 });
-        }
+      await syncChedrauiCameraTicket(db, key, camera, observedAt, async () => {
+        teamId ??= await resolveChedrauiTeam(key);
+        return teamId;
       });
     } catch (error) {
-      // Keep the claim for retries after an ambiguous response, then look for
-      // the same reference in Odoo before trying to create another ticket.
       console.error('Error al sincronizar ticket de cámara Chedraui', {
         locationId: camera.locationId,
         error,
@@ -214,8 +297,9 @@ export async function reconcileChedrauiCameraTickets(
       errors.push(camera.locationId);
     }
   }
-  if (errors.length)
+  if (errors.length) {
     throw new Error(
       'Falló la sincronización Odoo para Location ID: ' + errors.join(', '),
     );
+  }
 }

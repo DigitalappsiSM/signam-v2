@@ -30,6 +30,8 @@ export function exportSlotOrder(
 
 export interface QuividiLocation {
   id: number;
+  name?: string;
+  label?: string;
   last_seen?: string | null;
 }
 
@@ -62,12 +64,14 @@ export async function fetchQuividiExport(
   readCached?: () => Promise<QuividiExportPayload | null>,
   persist?: (payload: QuividiExportPayload) => Promise<void>,
   operational = true,
+  networkId: typeof LIVERPOOL_NETWORK_ID | typeof CHEDRAUI_NETWORK_ID = LIVERPOOL_NETWORK_ID,
 ): Promise<QuividiExportPayload> {
   const db = getFirestore();
   const root = db.collection('quividiHistoryControl').doc('liverpool');
   const owner = randomUUID();
   const queryId = rowsFingerprint([
     Object.fromEntries(Object.entries(params).sort()),
+    ...(networkId === LIVERPOOL_NETWORK_ID ? [] : [{ networkId }]),
   ]);
   const queryLock = root.collection('exportLocks').doc(queryId);
   const slots = exportSlotOrder(source, operational).map((slot) =>
@@ -107,6 +111,7 @@ export async function fetchQuividiExport(
     if (cached) return cached;
     await audit.set({
       source,
+      networkId,
       queryId,
       start: params.start,
       end: params.end,
