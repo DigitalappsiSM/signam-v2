@@ -331,7 +331,7 @@ function hourlyKey(row: OtsExportRow): {
   return { key: `${locationId}|${match[1]}`, hour };
 }
 
-function buildHourlyOperationalIndex(
+export function buildHourlyOperationalIndex(
   rows: readonly OtsExportRow[],
 ): Map<string, HourlyOperationalAggregate> {
   const index = new Map<string, HourlyOperationalAggregate>();

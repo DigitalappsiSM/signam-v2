@@ -25,6 +25,7 @@ import {
   type CameraHealthFilter,
   odooCameraTicketUrl,
 } from './cameraHealthView';
+import { CameraHealthTableHead } from './CameraHealthTable';
 import { ChedrauiCameraHealth } from './ChedrauiCameraHealth';
 import './CameraHealthPage.css';
 
@@ -509,19 +510,7 @@ function LiverpoolCameraHealth() {
 
           <div className="camera-health__table-wrap">
             <table className="camera-health__table">
-              <thead>
-                <tr>
-                  <th>Tienda</th>
-                  <th>Soporte</th>
-                  <th>Cámara</th>
-                  <th>Estado</th>
-                  <th>Desde</th>
-                  <th>Cobertura 11–22</th>
-                  <th>OTS</th>
-                  <th>Último día</th>
-                  <th>Ticket Odoo</th>
-                </tr>
-              </thead>
+              <CameraHealthTableHead />
               <tbody>
                 {rows.map((camera) => {
                   const tone = cameraHealthStatusTone(camera);

@@ -158,6 +158,12 @@ logic. The load-bearing ones:
   CSV exports or Liverpool tracking. Reconciliation only **compares**, never corrects; a Digital import never
   touches the Liverpool↔Admira flow. See `AGENTS.md` (**Integración Ekon**, **Operación Digital
   multirretailer**) before changing either.
+- **Chedraui OUT camera health** shares the Liverpool table and hourly OTS
+  criteria for 11:00–22:00 using the linked locations in network 3365. Odoo
+  tickets go to Chedraui. Admin/operator can report a latest closed-day
+  measurement incident from the table. The scheduled job opens an incident
+  after four hours without communication, and both paths share the same
+  ticket state. See AGENTS.md for the complete rules.
 - **Quividi ingestion**: 14 series (the five operational + `viewers_apc` finest, `compass`,
   `extrapolated_ots`/`_watchers`, `footfall` 1h/finest, `retail_analytics_footfall` 1h/finest/`_aggregated`;
   business decision 2026-10-19 after Quividi asked to cut exports — the rest are no longer requested, stored

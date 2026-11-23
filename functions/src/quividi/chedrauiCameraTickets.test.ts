@@ -4,6 +4,9 @@ import { fakeFirestore } from '../../tests/firestore';
 import {
   chedrauiLastSeenMs,
   reconcileChedrauiCameraTickets,
+  recoverChedrauiMeasurementTickets,
+  resolveChedrauiTeam,
+  syncChedrauiCameraTicket,
 } from './chedrauiCameraTickets';
 
 const hour = 3_600_000;
@@ -80,6 +83,66 @@ describe('tickets Chedraui OUT', () => {
       start + 10 * hour,
     );
     expect(created).toHaveLength(2);
+  });
+
+  it('reutiliza el folio manual en la apertura automática y muestra el último recuperado', async () => {
+    const db = fakeFirestore() as unknown as Firestore;
+    const created: Record<string, unknown>[] = [];
+    vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
+      if (url.includes('/helpdesk.team/'))
+        return Response.json([{ id: 27, name: 'Chedraui' }]);
+      if (url.endsWith('/search_read')) return Response.json([]);
+      created.push(JSON.parse(String(options.body)).vals_list[0]);
+      return Response.json([created.length]);
+    });
+    const first = await syncChedrauiCameraTicket(
+      db,
+      'synthetic',
+      camera,
+      start + hour,
+      () => resolveChedrauiTeam('synthetic'),
+      '2026-11-19',
+    );
+    await reconcileChedrauiCameraTickets(
+      db,
+      'synthetic',
+      [camera],
+      start + 4 * hour,
+    );
+    expect(created).toHaveLength(1);
+    expect(first).toBe(1);
+    expect(created[0]).toMatchObject({
+      team_id: 27,
+      name: '[Camaras] Soporte: Mupi Digital',
+    });
+    expect(created[0]?.description).toContain(
+      'medición Quividi del 2026-11-19',
+    );
+    const resumed = {
+      ...camera,
+      lastSeen: new Date(start + 5 * hour).toISOString(),
+    };
+    await reconcileChedrauiCameraTickets(
+      db,
+      'synthetic',
+      [resumed],
+      start + 5 * hour,
+    );
+    await recoverChedrauiMeasurementTickets(
+      db,
+      [42],
+      '2026-11-20',
+      start + 5 * hour,
+    );
+    expect(
+      (
+        await db.collection('quividiChedrauiCameraTicketState').doc('42').get()
+      ).data(),
+    ).toMatchObject({
+      ticketId: null,
+      recoveredTicketId: 1,
+      teamId: 27,
+    });
   });
 
   it('da margen a ambas zonas horarias si Quividi omite el desfase', () => {
